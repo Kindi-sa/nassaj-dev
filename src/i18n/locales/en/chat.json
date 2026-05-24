@@ -18,7 +18,12 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "antigravity": "Antigravity"
+  },
+  "subagent": {
+    "badge": "Sub-agent",
+    "badgeLabel": "Sub-agent task"
   },
   "tools": {
     "settings": "Tool Settings",
@@ -189,6 +194,7 @@
       "cursor": "Ready to use Cursor with {{model}}. Start typing your message below.",
       "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
       "gemini": "Ready to use Gemini with {{model}}. Start typing your message below.",
+      "antigravity": "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
       "default": "Select a provider above to begin"
     },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"

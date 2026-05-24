@@ -44,6 +44,7 @@ export default function ShellMinimalView({
     <div className="relative h-full w-full bg-gray-900">
       <div
         ref={terminalContainerRef}
+        dir="ltr"
         className="h-full w-full focus:outline-none"
         style={{ outline: 'none' }}
       />

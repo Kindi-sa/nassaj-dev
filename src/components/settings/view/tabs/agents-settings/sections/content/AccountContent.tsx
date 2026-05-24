@@ -1,4 +1,4 @@
-import { LogIn } from 'lucide-react';
+import { LogIn, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
@@ -20,9 +20,6 @@ type AgentVisualConfig = {
   description?: string;
 };
 
-// Placeholder entry for `antigravity`: provider is declared in the
-// LLMProvider union before its account UI lands. The exhaustive
-// `Record<AgentProvider, ...>` type requires every union literal.
 const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   claude: {
     name: 'Claude',
@@ -58,18 +55,20 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     buttonClass: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800',
   },
   antigravity: {
-    name: 'Antigravity',
-    bgClass: 'bg-slate-50 dark:bg-slate-900/20',
-    borderClass: 'border-slate-200 dark:border-slate-800',
-    textClass: 'text-slate-900 dark:text-slate-100',
-    subtextClass: 'text-slate-700 dark:text-slate-300',
-    buttonClass: 'bg-slate-600 hover:bg-slate-700 active:bg-slate-800',
+    name: 'Antigravity (agy)',
+    description: 'Google AI Pro via the agy CLI',
+    bgClass: 'bg-emerald-50 dark:bg-emerald-900/20',
+    borderClass: 'border-emerald-200 dark:border-emerald-800',
+    textClass: 'text-emerald-900 dark:text-emerald-100',
+    subtextClass: 'text-emerald-700 dark:text-emerald-300',
+    buttonClass: 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800',
   },
 };
 
 export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
+  const isAntigravity = agent === 'antigravity';
 
   return (
     <div className="space-y-6">
@@ -77,7 +76,11 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
         <SessionProviderLogo provider={agent} className="h-6 w-6" />
         <div>
           <h3 className="text-lg font-medium text-foreground">{config.name}</h3>
-          <p className="text-sm text-muted-foreground">{t(`agents.account.${agent}.description`)}</p>
+          <p className="text-sm text-muted-foreground">
+            {t(`agents.account.${agent}.description`, {
+              defaultValue: config.description || '',
+            })}
+          </p>
         </div>
       </div>
 
@@ -117,29 +120,66 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
             </div>
           </div>
 
-          {authStatus.method !== 'api_key' && (
+          {isAntigravity ? (
+            /*
+             * agy authenticates via Google OAuth from its own CLI; we cannot drive
+             * that flow from here. Instead we surface the CLI instruction and a
+             * short note about model selection.
+             */
             <div className="border-t border-border/50 pt-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className={`font-medium ${config.textClass}`}>
-                    {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
-                  </div>
-                  <div className={`text-sm ${config.subtextClass}`}>
-                    {authStatus.authenticated
-                      ? t('agents.login.reAuthDescription')
-                      : t('agents.login.description', { agent: config.name })}
-                  </div>
-                </div>
-                <Button
-                  onClick={onLogin}
-                  className={`${config.buttonClass} text-white`}
-                  size="sm"
-                >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
-                </Button>
+              <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${config.textClass}`}>
+                <Terminal className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  {authStatus.authenticated
+                    ? t('agents.antigravity.reauthTitle', {
+                        defaultValue: 'Re-authenticate via CLI',
+                      })
+                    : t('agents.antigravity.authTitle', {
+                        defaultValue: 'Authenticate via CLI',
+                      })}
+                </span>
               </div>
+              <p className={`mb-2 text-sm ${config.subtextClass}`}>
+                {t('agents.antigravity.instruction', {
+                  defaultValue:
+                    'Run the following command in your terminal to start Google OAuth and create the first agy session:',
+                })}
+              </p>
+              <pre className="rounded border border-emerald-200 bg-white/70 px-3 py-2 font-mono text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                <code>agy -p &quot;hello&quot;</code>
+              </pre>
+              <p className={`mt-3 text-xs ${config.subtextClass}`}>
+                {t('agents.antigravity.modelNote', {
+                  defaultValue:
+                    'Uses Google AI Pro via agy CLI (v1.x). The active model is selected inside agy settings, not from this UI.',
+                })}
+              </p>
             </div>
+          ) : (
+            authStatus.method !== 'api_key' && (
+              <div className="border-t border-border/50 pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className={`font-medium ${config.textClass}`}>
+                      {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
+                    </div>
+                    <div className={`text-sm ${config.subtextClass}`}>
+                      {authStatus.authenticated
+                        ? t('agents.login.reAuthDescription')
+                        : t('agents.login.description', { agent: config.name })}
+                    </div>
+                  </div>
+                  <Button
+                    onClick={onLogin}
+                    className={`${config.buttonClass} text-white`}
+                    size="sm"
+                  >
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
+                  </Button>
+                </div>
+              </div>
+            )
           )}
 
           {authStatus.error && (

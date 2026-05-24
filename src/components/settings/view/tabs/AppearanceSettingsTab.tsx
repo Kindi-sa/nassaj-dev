@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { DarkModeToggle } from '../../../../shared/view/ui';
+import { useRtl } from '../../../../contexts/RtlContext';
 import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import SettingsCard from '../SettingsCard';
@@ -29,16 +30,28 @@ export default function AppearanceSettingsTab({
   onCodeEditorFontSizeChange,
 }: AppearanceSettingsTabProps) {
   const { t } = useTranslation('settings');
+  const { rtlLayout, setRtlLayout } = useRtl();
 
   return (
     <div className="space-y-8">
       <SettingsSection title={t('appearanceSettings.darkMode.label')}>
-        <SettingsCard>
+        <SettingsCard divided>
           <SettingsRow
             label={t('appearanceSettings.darkMode.label')}
             description={t('appearanceSettings.darkMode.description')}
           >
             <DarkModeToggle ariaLabel={t('appearanceSettings.darkMode.label')} />
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.rtlLayout.label')}
+            description={t('appearanceSettings.rtlLayout.description')}
+          >
+            <SettingsToggle
+              checked={rtlLayout}
+              onChange={setRtlLayout}
+              ariaLabel={t('appearanceSettings.rtlLayout.label')}
+            />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>

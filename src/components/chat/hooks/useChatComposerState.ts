@@ -42,6 +42,7 @@ interface UseChatComposerStateArgs {
   claudeModel: string;
   codexModel: string;
   geminiModel: string;
+  antigravityModel: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -111,6 +112,7 @@ export function useChatComposerState({
   claudeModel,
   codexModel,
   geminiModel,
+  antigravityModel,
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -285,7 +287,16 @@ export function useChatComposerState({
           projectId: selectedProject.projectId,
           sessionId: currentSessionId,
           provider,
-          model: provider === 'cursor' ? cursorModel : provider === 'codex' ? codexModel : provider === 'gemini' ? geminiModel : claudeModel,
+          model:
+            provider === 'cursor'
+              ? cursorModel
+              : provider === 'codex'
+                ? codexModel
+                : provider === 'gemini'
+                  ? geminiModel
+                  : provider === 'antigravity'
+                    ? antigravityModel
+                    : claudeModel,
           tokenUsage: tokenBudget,
         };
 
@@ -332,6 +343,7 @@ export function useChatComposerState({
       }
     },
     [
+      antigravityModel,
       claudeModel,
       codexModel,
       currentSessionId,
@@ -577,7 +589,9 @@ export function useChatComposerState({
                 ? 'codex-settings'
                 : provider === 'gemini'
                   ? 'gemini-settings'
-                  : 'claude-settings';
+                  : provider === 'antigravity'
+                    ? 'antigravity-settings'
+                    : 'claude-settings';
           const savedSettings = safeLocalStorage.getItem(settingsKey);
           if (savedSettings) {
             return JSON.parse(savedSettings);
@@ -644,6 +658,26 @@ export function useChatComposerState({
             toolsSettings,
           },
         });
+      } else if (provider === 'antigravity') {
+        // Antigravity (agy CLI) ignores the `model` field because the underlying
+        // model is selected from agy's own settings file; we still send it for
+        // parity with other providers in case the backend later starts honoring
+        // it as an override.
+        sendMessage({
+          type: 'antigravity-command',
+          command: messageContent,
+          sessionId: effectiveSessionId,
+          options: {
+            cwd: resolvedProjectPath,
+            projectPath: resolvedProjectPath,
+            sessionId: effectiveSessionId,
+            resume: Boolean(effectiveSessionId),
+            model: antigravityModel,
+            sessionSummary,
+            permissionMode,
+            toolsSettings,
+          },
+        });
       } else {
         sendMessage({
           type: 'claude-command',
@@ -679,6 +713,7 @@ export function useChatComposerState({
     },
     [
       selectedSession,
+      antigravityModel,
       attachedImages,
       claudeModel,
       codexModel,

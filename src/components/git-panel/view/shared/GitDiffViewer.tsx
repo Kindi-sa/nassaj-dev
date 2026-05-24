@@ -62,7 +62,7 @@ export default function GitDiffViewer({ diff, isMobile, wrapText }: GitDiffViewe
   };
 
   return (
-    <div className="diff-viewer">
+    <div dir="ltr" className="diff-viewer">
       {isPreviewTruncated && (
         <div className="mb-2 rounded-md border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
           Large diff preview: rendering is limited to keep the tab responsive.

@@ -26,7 +26,7 @@ export default function AgentsSettingsTab({
   const { isWindowsServer } = useServerPlatform();
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    const all: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini'];
+    const all: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity'];
     if (isWindowsServer) {
       return all.filter((id) => id !== 'cursor');
     }
@@ -57,9 +57,9 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.gemini,
       onLogin: () => onProviderLogin('gemini'),
     },
-    // Placeholder context: `antigravity` is excluded from `visibleAgents` so
-    // this entry is never rendered, but the exhaustive `Record<AgentProvider, ...>`
-    // type requires every key in the union to be present.
+    // `onLogin` is wired but `AccountContent` for antigravity does not surface
+    // a login button — agy uses Google OAuth from its CLI and the panel only
+    // shows status plus instructions to run `agy -p hello`.
     antigravity: {
       authStatus: providerAuthStatus.antigravity,
       onLogin: () => onProviderLogin('antigravity'),

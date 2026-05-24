@@ -1,0 +1,281 @@
+{
+  "codeBlock": {
+    "copy": "نسخ",
+    "copied": "تم النسخ",
+    "copyCode": "نسخ الكود"
+  },
+  "copyMessage": {
+    "copy": "نسخ الرسالة",
+    "copied": "تم نسخ الرسالة",
+    "selectFormat": "اختر صيغة النسخ",
+    "copyAsMarkdown": "نسخ كـ Markdown",
+    "copyAsText": "نسخ كنص"
+  },
+  "messageTypes": {
+    "user": "أ",
+    "error": "خطأ",
+    "tool": "أداة",
+    "claude": "Claude",
+    "cursor": "Cursor",
+    "codex": "Codex",
+    "gemini": "Gemini",
+    "antigravity": "Antigravity"
+  },
+  "subagent": {
+    "badge": "وكيل فرعي",
+    "badgeLabel": "مهمة وكيل فرعي"
+  },
+  "tools": {
+    "settings": "إعدادات الأدوات",
+    "error": "خطأ في الأداة",
+    "result": "نتيجة الأداة",
+    "viewParams": "عرض معاملات الإدخال",
+    "viewRawParams": "عرض المعاملات الخام",
+    "viewDiff": "عرض الفروقات لـ",
+    "creatingFile": "إنشاء ملف جديد:",
+    "updatingTodo": "تحديث قائمة المهام",
+    "read": "قراءة",
+    "readFile": "قراءة الملف",
+    "updateTodo": "تحديث قائمة المهام",
+    "readTodo": "قراءة قائمة المهام",
+    "searchResults": "نتائج"
+  },
+  "search": {
+    "found": "تم العثور على {{count}} {{type}}",
+    "file": "ملف",
+    "files": "ملفات",
+    "pattern": "النمط:",
+    "in": "في:"
+  },
+  "fileOperations": {
+    "updated": "تم تحديث الملف بنجاح",
+    "created": "تم إنشاء الملف بنجاح",
+    "written": "تمت كتابة الملف بنجاح",
+    "diff": "الفروقات",
+    "newFile": "ملف جديد",
+    "viewContent": "عرض محتوى الملف",
+    "viewFullOutput": "عرض الإخراج الكامل ({{count}} حرف)",
+    "contentDisplayed": "محتوى الملف معروض في عرض الفروقات أعلاه"
+  },
+  "interactive": {
+    "title": "موجّه تفاعلي",
+    "waiting": "بانتظار ردك في CLI",
+    "instruction": "يرجى اختيار خيار في الطرفية حيث يعمل Claude.",
+    "selectedOption": "✓ اختار Claude الخيار {{number}}",
+    "instructionDetail": "في CLI ستختار هذا الخيار تفاعلياً باستخدام أسهم لوحة المفاتيح أو بكتابة الرقم."
+  },
+  "thinking": {
+    "title": "يفكّر...",
+    "emoji": "💭 يفكّر..."
+  },
+  "json": {
+    "response": "استجابة JSON"
+  },
+  "permissions": {
+    "grant": "منح الإذن لـ {{tool}}",
+    "added": "تمت إضافة الإذن",
+    "addTo": "يضيف {{entry}} إلى الأدوات المسموح بها.",
+    "retry": "تم حفظ الإذن. أعد المحاولة لاستخدام الأداة.",
+    "error": "تعذّر تحديث الأذونات. يرجى المحاولة مجدداً.",
+    "openSettings": "فتح الإعدادات"
+  },
+  "todo": {
+    "updated": "تم تحديث قائمة المهام بنجاح",
+    "current": "قائمة المهام الحالية"
+  },
+  "plan": {
+    "viewPlan": "📋 عرض خطة التنفيذ",
+    "title": "خطة التنفيذ"
+  },
+  "usageLimit": {
+    "resetAt": "تم بلوغ حد استخدام Claude. سيُعاد ضبط الحد في **{{time}} {{timezone}}** - {{date}}"
+  },
+  "codex": {
+    "permissionMode": "وضع الأذونات",
+    "modes": {
+      "default": "الوضع الافتراضي",
+      "auto": "الوضع التلقائي",
+      "acceptEdits": "قبول التعديلات",
+      "bypassPermissions": "تجاوز الأذونات",
+      "plan": "وضع التخطيط"
+    },
+    "descriptions": {
+      "default": "تعمل الأوامر الموثوقة فقط (ls، cat، grep، git status، إلخ) تلقائياً. الأوامر الأخرى تُتخطّى. يمكنه الكتابة في مساحة العمل.",
+      "auto": "مصنّف بالنموذج يقرّر لكل استدعاء أداة الموافقة أو الرفض. أكثر أماناً من Bypass — الرفض ما يزال ممكناً.",
+      "acceptEdits": "تعمل جميع الأوامر تلقائياً داخل مساحة العمل. وضع تلقائي كامل بتنفيذ معزول.",
+      "bypassPermissions": "وصول كامل للنظام بدون قيود. تعمل جميع الأوامر تلقائياً مع كامل الوصول للقرص والشبكة. استخدم بحذر.",
+      "plan": "وضع التخطيط - لا تُنفَّذ أي أوامر"
+    },
+    "technicalDetails": "تفاصيل تقنية"
+  },
+  "gemini": {
+    "permissionMode": "وضع أذونات Gemini",
+    "description": "تحكّم في كيفية تعامل Gemini CLI مع الموافقات على العمليات.",
+    "modes": {
+      "default": {
+        "title": "قياسي (طلب الموافقة)",
+        "description": "سيطلب Gemini الموافقة قبل تنفيذ الأوامر وكتابة الملفات وجلب موارد الويب."
+      },
+      "autoEdit": {
+        "title": "تعديل تلقائي (تخطّي موافقات الملفات)",
+        "description": "سيوافق Gemini تلقائياً على تعديلات الملفات وجلب الويب، لكنه سيظل يطلب الموافقة لأوامر Shell."
+      },
+      "yolo": {
+        "title": "YOLO (تجاوز جميع الأذونات)",
+        "description": "سيُنفّذ Gemini جميع العمليات دون طلب الموافقة. توخَّ الحذر."
+      }
+    }
+  },
+  "input": {
+    "placeholder": "اكتب / للأوامر، @ للملفات، أو اسأل {{provider}} أي شيء...",
+    "placeholderDefault": "اكتب رسالتك...",
+    "disabled": "الإدخال معطّل",
+    "attachFiles": "إرفاق ملفات",
+    "attachImages": "إرفاق صور",
+    "send": "إرسال",
+    "stop": "إيقاف",
+    "hintText": {
+      "ctrlEnter": "Ctrl+Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash",
+      "enter": "Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash"
+    },
+    "clickToChangeMode": "اضغط لتغيير وضع الأذونات (أو اضغط Tab في الإدخال)",
+    "showAllCommands": "عرض كل الأوامر",
+    "clearInput": "مسح الإدخال",
+    "scrollToBottom": "التمرير إلى الأسفل"
+  },
+  "thinkingMode": {
+    "selector": {
+      "title": "وضع التفكير",
+      "description": "التفكير الممتد يمنح Claude وقتاً إضافياً لتقييم البدائل",
+      "active": "نشط",
+      "tip": "أوضاع التفكير الأعلى تستغرق وقتاً أكثر لكنها توفّر تحليلاً أعمق"
+    },
+    "modes": {
+      "none": {
+        "name": "قياسي",
+        "description": "استجابة Claude العادية",
+        "prefix": ""
+      },
+      "think": {
+        "name": "تفكير",
+        "description": "تفكير ممتد أساسي",
+        "prefix": "think"
+      },
+      "thinkHard": {
+        "name": "تفكير عميق",
+        "description": "تقييم أعمق",
+        "prefix": "think hard"
+      },
+      "thinkHarder": {
+        "name": "تفكير أعمق",
+        "description": "تحليل عميق مع البدائل",
+        "prefix": "think harder"
+      },
+      "ultrathink": {
+        "name": "تفكير أقصى",
+        "description": "أقصى ميزانية تفكير",
+        "prefix": "ultrathink"
+      }
+    },
+    "buttonTitle": "وضع التفكير: {{mode}}"
+  },
+  "providerSelection": {
+    "title": "اختر مساعدك الذكي",
+    "description": "اختر provider لبدء محادثة جديدة",
+    "selectModel": "اختر النموذج",
+    "providerInfo": {
+      "anthropic": "من Anthropic",
+      "openai": "من OpenAI",
+      "cursorEditor": "محرر أكواد بالذكاء الاصطناعي",
+      "google": "من Google"
+    },
+    "readyPrompt": {
+      "claude": "جاهز لاستخدام Claude مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "cursor": "جاهز لاستخدام Cursor مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "codex": "جاهز لاستخدام Codex مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "gemini": "جاهز لاستخدام Gemini مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
+      "default": "اختر provider أعلاه للبدء"
+    },
+    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits"
+  },
+  "session": {
+    "continue": {
+      "title": "أكمل محادثتك",
+      "description": "اطرح أسئلة عن كودك، اطلب تغييرات، أو احصل على مساعدة في مهام التطوير"
+    },
+    "loading": {
+      "olderMessages": "جارٍ تحميل الرسائل الأقدم...",
+      "sessionMessages": "جارٍ تحميل رسائل الجلسة..."
+    },
+    "messages": {
+      "showingOf": "عرض {{shown}} من {{total}} رسالة",
+      "scrollToLoad": "مرّر لأعلى لتحميل المزيد",
+      "showingLast": "عرض آخر {{count}} رسالة (المجموع {{total}})",
+      "loadEarlier": "تحميل الرسائل الأقدم",
+      "loadAll": "تحميل جميع الرسائل",
+      "loadingAll": "جارٍ تحميل جميع الرسائل...",
+      "allLoaded": "تم تحميل جميع الرسائل",
+      "perfWarning": "تم تحميل جميع الرسائل — قد يصبح التمرير أبطأ. اضغط \"التمرير إلى الأسفل\" لاستعادة الأداء."
+    }
+  },
+  "shell": {
+    "selectProject": {
+      "title": "اختر مشروعاً",
+      "description": "اختر مشروعاً لفتح shell تفاعلي في مجلده"
+    },
+    "status": {
+      "newSession": "جلسة جديدة",
+      "initializing": "جارٍ التهيئة...",
+      "restarting": "جارٍ إعادة التشغيل..."
+    },
+    "actions": {
+      "disconnect": "قطع الاتصال",
+      "disconnectTitle": "قطع الاتصال من shell",
+      "restart": "إعادة تشغيل",
+      "restartTitle": "إعادة تشغيل Shell (افصل الاتصال أولاً)",
+      "connect": "المتابعة في Shell",
+      "connectTitle": "الاتصال بـ shell"
+    },
+    "loading": "جارٍ تحميل الطرفية...",
+    "connecting": "جارٍ الاتصال بـ shell...",
+    "startSession": "ابدأ جلسة Claude جديدة",
+    "resumeSession": "استئناف الجلسة: {{displayName}}...",
+    "runCommand": "تشغيل {{command}} في {{projectName}}",
+    "startCli": "بدء Claude CLI في {{projectName}}",
+    "defaultCommand": "command"
+  },
+  "claudeStatus": {
+    "actions": {
+      "thinking": "يفكّر",
+      "processing": "يعالج",
+      "analyzing": "يحلّل",
+      "working": "يعمل",
+      "computing": "يحسب",
+      "reasoning": "يستنتج"
+    },
+    "state": {
+      "live": "مباشر",
+      "paused": "متوقّف"
+    },
+    "elapsed": {
+      "seconds": "{{count}}ث",
+      "minutesSeconds": "{{minutes}}د {{seconds}}ث",
+      "label": "انقضى {{time}}",
+      "startingNow": "يبدأ الآن"
+    },
+    "controls": {
+      "stopGeneration": "إيقاف التوليد",
+      "pressEscToStop": "اضغط Esc في أي وقت للإيقاف"
+    },
+    "providers": {
+      "assistant": "المساعد"
+    }
+  },
+  "projectSelection": {
+    "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
+  },
+  "tasks": {
+    "nextTaskPrompt": "ابدأ المهمة التالية"
+  }
+}

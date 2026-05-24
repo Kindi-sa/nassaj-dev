@@ -176,7 +176,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 </div>
               )}
               <div className="text-sm font-medium text-gray-900 dark:text-white">
-                {message.type === 'error' ? t('messageTypes.error') : message.type === 'tool' ? t('messageTypes.tool') : (provider === 'cursor' ? t('messageTypes.cursor') : provider === 'codex' ? t('messageTypes.codex') : provider === 'gemini' ? t('messageTypes.gemini') : t('messageTypes.claude'))}
+                {message.type === 'error'
+                  ? t('messageTypes.error')
+                  : message.type === 'tool'
+                    ? t('messageTypes.tool')
+                    : provider === 'cursor'
+                      ? t('messageTypes.cursor')
+                      : provider === 'codex'
+                        ? t('messageTypes.codex')
+                        : provider === 'gemini'
+                          ? t('messageTypes.gemini')
+                          : provider === 'antigravity'
+                            ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
+                            : t('messageTypes.claude')}
               </div>
             </div>
           )}
@@ -185,6 +197,24 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
 
             {message.isToolUse ? (
               <>
+                {/*
+                 * Sub-agent badge: any `Task` tool call delegates to a child
+                 * agent (subagent). Surfaced as a small pill so the user can
+                 * tell the work is being done by a delegated agent rather
+                 * than the primary model.
+                 */}
+                {message.toolName === 'Task' && (
+                  <div className="mb-1.5 flex">
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md border border-purple-300/70 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700 dark:border-purple-700/60 dark:bg-purple-900/30 dark:text-purple-200"
+                      aria-label={t('subagent.badgeLabel', { defaultValue: 'Sub-agent task' })}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-purple-500 dark:bg-purple-400" aria-hidden="true" />
+                      {t('subagent.badge', { defaultValue: 'Sub-agent' })}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex flex-col">
                   <div className="flex flex-col">
                     <Markdown className="prose prose-sm max-w-none dark:prose-invert">

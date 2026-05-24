@@ -122,6 +122,10 @@
       "label": "Dark Mode",
       "description": "Toggle between light and dark themes"
     },
+    "rtlLayout": {
+      "label": "RTL Layout",
+      "description": "Switch interface direction between RTL and LTR (independent of language)"
+    },
     "projectSorting": {
       "label": "Project Sorting",
       "description": "How projects are ordered in the sidebar",
@@ -322,7 +326,16 @@
       },
       "gemini": {
         "description": "Google Gemini AI assistant"
+      },
+      "antigravity": {
+        "description": "Google AI Pro via the agy CLI"
       }
+    },
+    "antigravity": {
+      "authTitle": "Authenticate via CLI",
+      "reauthTitle": "Re-authenticate via CLI",
+      "instruction": "Run the following command in your terminal to start Google OAuth and create the first agy session:",
+      "modelNote": "Uses Google AI Pro via agy CLI (v1.x). The active model is selected inside agy settings, not from this UI."
     },
     "connectionStatus": "Connection Status",
     "login": {

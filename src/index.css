@@ -934,3 +934,49 @@
     }
   }
 }
+
+/* ============================================================
+   RTL & Arabic typography
+   ------------------------------------------------------------
+   The RTL toggle lives in Appearance settings (RtlContext) and
+   sets `dir="rtl"` + `lang="ar"` on <html>. We keep the default
+   sans stack for LTR and switch to Tajawal only when RTL is on.
+   Technical surfaces (CodeMirror, xterm, git diffs, file paths)
+   override with dir="ltr" inline; they keep their monospace font
+   via the existing component styles.
+   ============================================================ */
+:root[dir="rtl"] body,
+:root[dir="rtl"] {
+  font-family: 'Tajawal', 'IBM Plex Sans Arabic', system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Force LTR + monospace on technical surfaces, even when document is RTL.
+   These containers are tagged with dir="ltr" in their components; the
+   selector below is a safety net for descendants that may inherit dir. */
+:root[dir="rtl"] [dir="ltr"],
+:root[dir="rtl"] .cm-editor,
+:root[dir="rtl"] .xterm,
+:root[dir="rtl"] .xterm-viewport,
+:root[dir="rtl"] .xterm-screen,
+:root[dir="rtl"] .diff-viewer,
+:root[dir="rtl"] pre,
+:root[dir="rtl"] code,
+:root[dir="rtl"] kbd,
+:root[dir="rtl"] samp {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+}
+
+/* Keep mono fonts inside the code/terminal contexts in RTL mode */
+:root[dir="rtl"] .cm-editor,
+:root[dir="rtl"] .cm-content,
+:root[dir="rtl"] .xterm,
+:root[dir="rtl"] pre,
+:root[dir="rtl"] code,
+:root[dir="rtl"] kbd,
+:root[dir="rtl"] samp {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+}

@@ -1,0 +1,136 @@
+{
+  "projects": {
+    "title": "المشاريع",
+    "newProject": "مشروع جديد",
+    "deleteProject": "إزالة المشروع",
+    "renameProject": "إعادة تسمية المشروع",
+    "noProjects": "لا توجد مشاريع",
+    "loadingProjects": "جارٍ تحميل المشاريع...",
+    "searchPlaceholder": "ابحث في المشاريع...",
+    "projectNamePlaceholder": "اسم المشروع",
+    "starred": "مفضّلة",
+    "all": "الكل",
+    "untitledSession": "جلسة بدون عنوان",
+    "newSession": "جلسة جديدة",
+    "codexSession": "جلسة Codex",
+    "fetchingProjects": "جارٍ جلب مشاريع وجلسات Claude",
+    "projects": "مشاريع",
+    "noMatchingProjects": "لا توجد مشاريع مطابقة",
+    "tryDifferentSearch": "جرّب تعديل كلمة البحث",
+    "runClaudeCli": "شغّل Claude CLI داخل مجلد مشروع للبدء"
+  },
+  "app": {
+    "title": "CloudCLI",
+    "subtitle": "واجهة مساعد البرمجة بالذكاء الاصطناعي"
+  },
+  "sessions": {
+    "title": "الجلسات",
+    "newSession": "جلسة جديدة",
+    "deleteSession": "حذف الجلسة",
+    "renameSession": "إعادة تسمية الجلسة",
+    "noSessions": "لا توجد جلسات بعد",
+    "loadingSessions": "جارٍ تحميل الجلسات...",
+    "unnamed": "بدون اسم",
+    "loading": "جارٍ التحميل...",
+    "showMore": "عرض المزيد من الجلسات"
+  },
+  "tooltips": {
+    "viewEnvironments": "عرض البيئات",
+    "hideSidebar": "إخفاء الشريط الجانبي",
+    "createProject": "إنشاء مشروع جديد",
+    "refresh": "تحديث المشاريع والجلسات (Ctrl+R)",
+    "renameProject": "إعادة تسمية المشروع (F2)",
+    "deleteProject": "إزالة المشروع من الشريط الجانبي (Delete)",
+    "addToFavorites": "إضافة إلى المفضلة",
+    "removeFromFavorites": "إزالة من المفضلة",
+    "editSessionName": "تعديل اسم الجلسة يدوياً",
+    "deleteSession": "حذف هذه الجلسة نهائياً",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "clearSearch": "مسح البحث",
+    "openCommandPalette": "فتح لوحة الأوامر"
+  },
+  "navigation": {
+    "chat": "محادثة",
+    "files": "ملفات",
+    "git": "Git",
+    "terminal": "Terminal",
+    "tasks": "مهام"
+  },
+  "actions": {
+    "refresh": "تحديث",
+    "settings": "الإعدادات",
+    "collapseAll": "طيّ الكل",
+    "expandAll": "توسيع الكل",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "delete": "حذف",
+    "rename": "إعادة تسمية",
+    "joinCommunity": "انضم إلى المجتمع",
+    "reportIssue": "الإبلاغ عن مشكلة",
+    "starOnGithub": "تمييز على GitHub"
+  },
+  "branding": {
+    "openSource": "مفتوح المصدر"
+  },
+  "status": {
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "thinking": "يفكّر...",
+    "error": "خطأ",
+    "aborted": "أُلغي",
+    "unknown": "غير معروف"
+  },
+  "time": {
+    "justNow": "للتو",
+    "oneMinuteAgo": "قبل دقيقة",
+    "minutesAgo": "قبل {{count}} دقيقة",
+    "oneHourAgo": "قبل ساعة",
+    "hoursAgo": "قبل {{count}} ساعة",
+    "oneDayAgo": "قبل يوم",
+    "daysAgo": "قبل {{count}} يوم"
+  },
+  "messages": {
+    "deleteConfirm": "هل أنت متأكد من الحذف؟",
+    "renameSuccess": "تمت إعادة التسمية بنجاح",
+    "deleteSuccess": "تم الحذف بنجاح",
+    "errorOccurred": "حدث خطأ",
+    "deleteSessionConfirm": "هل أنت متأكد من حذف هذه الجلسة؟ لا يمكن التراجع عن هذا الإجراء.",
+    "deleteProjectConfirm": "إزالة هذا المشروع من الشريط الجانبي؟ لن تُحذف ملفات المشروع أو الذاكرة أو بيانات الجلسات.",
+    "enterProjectPath": "يرجى إدخال مسار المشروع",
+    "deleteSessionFailed": "فشل حذف الجلسة. يرجى المحاولة مجدداً.",
+    "deleteSessionError": "خطأ أثناء حذف الجلسة. يرجى المحاولة مجدداً.",
+    "renameSessionFailed": "فشل إعادة تسمية الجلسة. يرجى المحاولة مجدداً.",
+    "renameSessionError": "خطأ أثناء إعادة تسمية الجلسة. يرجى المحاولة مجدداً.",
+    "deleteProjectFailed": "فشل إزالة المشروع. يرجى المحاولة مجدداً.",
+    "deleteProjectError": "خطأ أثناء إزالة المشروع. يرجى المحاولة مجدداً.",
+    "createProjectFailed": "فشل إنشاء المشروع. يرجى المحاولة مجدداً.",
+    "createProjectError": "خطأ أثناء إنشاء المشروع. يرجى المحاولة مجدداً."
+  },
+  "version": {
+    "updateAvailable": "تحديث متاح"
+  },
+  "search": {
+    "modeProjects": "المشاريع",
+    "modeConversations": "المحادثات",
+    "conversationsPlaceholder": "ابحث في المحادثات...",
+    "searching": "جارٍ البحث...",
+    "noResults": "لا توجد نتائج",
+    "tryDifferentQuery": "جرّب استعلام بحث مختلف",
+    "matches_one": "{{count}} نتيجة",
+    "matches_other": "{{count}} نتيجة",
+    "projectsScanned_one": "تم فحص {{count}} مشروع",
+    "projectsScanned_other": "تم فحص {{count}} مشروع"
+  },
+  "deleteConfirmation": {
+    "deleteProject": "إزالة المشروع",
+    "deleteSession": "حذف الجلسة",
+    "confirmDelete": "ماذا تريد أن تفعل بـ",
+    "sessionCount_one": "يحتوي هذا المشروع على {{count}} محادثة.",
+    "sessionCount_other": "يحتوي هذا المشروع على {{count}} محادثة.",
+    "removeFromSidebar": "إزالة من الشريط الجانبي فقط",
+    "deleteAllData": "حذف جميع البيانات نهائياً",
+    "allConversationsDeleted": "ستُزال المشروع من الشريط الجانبي. ستُحفظ ملفاتك وذاكرتك وبيانات الجلسات.",
+    "cannotUndo": "يمكنك إعادة إضافة المشروع لاحقاً."
+  }
+}

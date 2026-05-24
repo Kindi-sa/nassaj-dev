@@ -1,0 +1,503 @@
+{
+  "title": "الإعدادات",
+  "tabs": {
+    "account": "الحساب",
+    "permissions": "الأذونات",
+    "mcpServers": "خوادم MCP",
+    "appearance": "المظهر"
+  },
+  "account": {
+    "title": "الحساب",
+    "language": "اللغة",
+    "languageLabel": "لغة العرض",
+    "languageDescription": "اختر اللغة المفضّلة للواجهة",
+    "username": "اسم المستخدم",
+    "email": "البريد الإلكتروني",
+    "profile": "الملف الشخصي",
+    "changePassword": "تغيير كلمة المرور"
+  },
+  "mcp": {
+    "title": "خوادم MCP",
+    "addServer": "إضافة خادم",
+    "editServer": "تعديل خادم",
+    "deleteServer": "حذف خادم",
+    "serverName": "اسم الخادم",
+    "serverType": "نوع الخادم",
+    "config": "الإعداد",
+    "testConnection": "اختبار الاتصال",
+    "status": "الحالة",
+    "connected": "متصل",
+    "disconnected": "غير متصل",
+    "scope": {
+      "label": "النطاق",
+      "user": "المستخدم",
+      "project": "المشروع"
+    }
+  },
+  "appearance": {
+    "title": "المظهر",
+    "theme": "السمة",
+    "codeEditor": "محرر الكود",
+    "editorTheme": "سمة المحرر",
+    "wordWrap": "التفاف الكلمات",
+    "showMinimap": "إظهار الخريطة المصغّرة",
+    "lineNumbers": "أرقام الأسطر",
+    "fontSize": "حجم الخط"
+  },
+  "actions": {
+    "saveChanges": "حفظ التغييرات",
+    "resetToDefaults": "استعادة الافتراضي",
+    "cancelChanges": "إلغاء التغييرات"
+  },
+  "quickSettings": {
+    "title": "إعدادات سريعة",
+    "sections": {
+      "appearance": "المظهر",
+      "toolDisplay": "عرض الأدوات",
+      "viewOptions": "خيارات العرض",
+      "inputSettings": "إعدادات الإدخال"
+    },
+    "darkMode": "الوضع الداكن",
+    "autoExpandTools": "توسيع الأدوات تلقائياً",
+    "showRawParameters": "إظهار المعاملات الخام",
+    "showThinking": "إظهار التفكير",
+    "autoScrollToBottom": "التمرير التلقائي إلى الأسفل",
+    "sendByCtrlEnter": "الإرسال بـ Ctrl+Enter",
+    "sendByCtrlEnterDescription": "عند التفعيل، يؤدّي الضغط على Ctrl+Enter إلى إرسال الرسالة بدلاً من Enter فقط. مفيد لمستخدمي IME لتجنّب الإرسال غير المقصود.",
+    "dragHandle": {
+      "dragging": "سحب المقبض",
+      "closePanel": "إغلاق لوحة الإعدادات",
+      "openPanel": "فتح لوحة الإعدادات",
+      "draggingStatus": "جارٍ السحب...",
+      "toggleAndMove": "اضغط للتبديل، اسحب للتحريك"
+    }
+  },
+  "terminalShortcuts": {
+    "title": "اختصارات الطرفية",
+    "sectionKeys": "المفاتيح",
+    "sectionNavigation": "التنقّل",
+    "escape": "Escape",
+    "tab": "Tab",
+    "shiftTab": "Shift+Tab",
+    "arrowUp": "السهم لأعلى",
+    "arrowDown": "السهم لأسفل",
+    "scrollDown": "التمرير لأسفل",
+    "handle": {
+      "closePanel": "إغلاق لوحة الاختصارات",
+      "openPanel": "فتح لوحة الاختصارات"
+    }
+  },
+  "mainTabs": {
+    "label": "الإعدادات",
+    "agents": "الوكلاء",
+    "appearance": "المظهر",
+    "git": "Git",
+    "apiTokens": "API والرموز",
+    "tasks": "المهام",
+    "notifications": "الإشعارات",
+    "plugins": "الإضافات",
+    "about": "حول"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "description": "تحكّم في أحداث الإشعارات التي تستقبلها.",
+    "webPush": {
+      "title": "إشعارات Web Push",
+      "enable": "تفعيل إشعارات الدفع",
+      "disable": "تعطيل إشعارات الدفع",
+      "enabled": "إشعارات الدفع مفعّلة",
+      "loading": "جارٍ التحديث...",
+      "unsupported": "إشعارات الدفع غير مدعومة في هذا المتصفّح.",
+      "denied": "إشعارات الدفع محجوبة. يرجى السماح بها في إعدادات المتصفّح."
+    },
+    "events": {
+      "title": "أنواع الأحداث",
+      "actionRequired": "إجراء مطلوب",
+      "stop": "تم إيقاف التشغيل",
+      "error": "فشل التشغيل"
+    }
+  },
+  "appearanceSettings": {
+    "darkMode": {
+      "label": "الوضع الداكن",
+      "description": "التبديل بين السمتين الفاتحة والداكنة"
+    },
+    "rtlLayout": {
+      "label": "تخطيط من اليمين لليسار (RTL)",
+      "description": "تبديل اتجاه الواجهة بين RTL وLTR (مستقل عن اللغة)"
+    },
+    "projectSorting": {
+      "label": "ترتيب المشاريع",
+      "description": "كيفية ترتيب المشاريع في الشريط الجانبي",
+      "alphabetical": "أبجدياً",
+      "recentActivity": "النشاط الأخير"
+    },
+    "codeEditor": {
+      "title": "محرر الكود",
+      "theme": {
+        "label": "سمة المحرر",
+        "description": "السمة الافتراضية لمحرر الكود"
+      },
+      "wordWrap": {
+        "label": "التفاف الكلمات",
+        "description": "تفعيل التفاف الكلمات افتراضياً في المحرر"
+      },
+      "showMinimap": {
+        "label": "إظهار الخريطة المصغّرة",
+        "description": "عرض خريطة مصغّرة لتسهيل التنقّل في عرض الفروقات"
+      },
+      "lineNumbers": {
+        "label": "إظهار أرقام الأسطر",
+        "description": "عرض أرقام الأسطر في المحرر"
+      },
+      "fontSize": {
+        "label": "حجم الخط",
+        "description": "حجم خط المحرر بالبكسل"
+      }
+    }
+  },
+  "mcpForm": {
+    "title": {
+      "add": "إضافة خادم MCP",
+      "edit": "تعديل خادم MCP"
+    },
+    "importMode": {
+      "form": "إدخال نموذجي",
+      "json": "استيراد JSON"
+    },
+    "scope": {
+      "label": "النطاق",
+      "userGlobal": "المستخدم (عام)",
+      "projectLocal": "المشروع (محلي)",
+      "userDescription": "نطاق المستخدم: متاح في جميع المشاريع على جهازك",
+      "projectDescription": "نطاق محلي: متاح فقط في المشروع المحدّد",
+      "cannotChange": "لا يمكن تغيير النطاق عند تعديل خادم قائم"
+    },
+    "fields": {
+      "serverName": "اسم الخادم",
+      "transportType": "نوع النقل",
+      "command": "الأمر",
+      "arguments": "المعاملات (واحد لكل سطر)",
+      "jsonConfig": "إعداد JSON",
+      "url": "URL",
+      "envVars": "متغيّرات البيئة (KEY=value، واحد لكل سطر)",
+      "headers": "الرؤوس (KEY=value، واحد لكل سطر)",
+      "selectProject": "اختر مشروعاً..."
+    },
+    "placeholders": {
+      "serverName": "my-server"
+    },
+    "validation": {
+      "missingType": "حقل مطلوب مفقود: type",
+      "stdioRequiresCommand": "نوع stdio يتطلّب حقل command",
+      "httpRequiresUrl": "نوع {{type}} يتطلّب حقل url",
+      "invalidJson": "صيغة JSON غير صالحة",
+      "jsonHelp": "ألصق إعداد خادم MCP بصيغة JSON. أمثلة:",
+      "jsonExampleStdio": "• stdio: {\"type\":\"stdio\",\"command\":\"npx\",\"args\":[\"@upstash/context7-mcp\"]}",
+      "jsonExampleHttp": "• http/sse: {\"type\":\"http\",\"url\":\"https://api.example.com/mcp\"}"
+    },
+    "configDetails": "تفاصيل الإعداد (من {{configFile}})",
+    "projectPath": "المسار: {{path}}",
+    "actions": {
+      "cancel": "إلغاء",
+      "saving": "جارٍ الحفظ...",
+      "addServer": "إضافة خادم",
+      "updateServer": "تحديث الخادم"
+    }
+  },
+  "saveStatus": {
+    "success": "تم حفظ الإعدادات بنجاح!",
+    "error": "فشل حفظ الإعدادات",
+    "saving": "جارٍ الحفظ..."
+  },
+  "footerActions": {
+    "save": "حفظ الإعدادات",
+    "cancel": "إلغاء"
+  },
+  "git": {
+    "title": "إعداد Git",
+    "description": "اضبط هويّة git لـ commits. ستُطبَّق هذه الإعدادات عالمياً عبر git config --global",
+    "name": {
+      "label": "اسم Git",
+      "help": "اسمك في git commits"
+    },
+    "email": {
+      "label": "بريد Git الإلكتروني",
+      "help": "بريدك الإلكتروني في git commits"
+    },
+    "actions": {
+      "save": "حفظ الإعداد",
+      "saving": "جارٍ الحفظ..."
+    },
+    "status": {
+      "success": "تم الحفظ بنجاح"
+    }
+  },
+  "apiKeys": {
+    "title": "مفاتيح API",
+    "description": "أنشئ مفاتيح API للوصول إلى API الخارجي من تطبيقات أخرى.",
+    "newKey": {
+      "alertTitle": "⚠️ احفظ مفتاح API",
+      "alertMessage": "هذه المرة الوحيدة التي سترى فيها هذا المفتاح. خزّنه بأمان.",
+      "iveSavedIt": "حفظته"
+    },
+    "form": {
+      "placeholder": "اسم مفتاح API (مثل: خادم الإنتاج)",
+      "createButton": "إنشاء",
+      "cancelButton": "إلغاء"
+    },
+    "newButton": "مفتاح API جديد",
+    "empty": "لم تُنشأ مفاتيح API بعد.",
+    "list": {
+      "created": "أُنشئ:",
+      "lastUsed": "آخر استخدام:"
+    },
+    "confirmDelete": "هل أنت متأكد من حذف مفتاح API هذا؟",
+    "status": {
+      "active": "نشط",
+      "inactive": "غير نشط"
+    },
+    "github": {
+      "title": "رموز GitHub",
+      "description": "أضف رموز Personal Access الخاصة بـ GitHub لاستنساخ المستودعات الخاصة عبر API الخارجي.",
+      "descriptionAlt": "أضف رموز Personal Access الخاصة بـ GitHub لاستنساخ المستودعات الخاصة. يمكنك أيضاً تمرير الرموز مباشرة في طلبات API دون تخزينها.",
+      "addButton": "إضافة رمز",
+      "form": {
+        "namePlaceholder": "اسم الرمز (مثل: المستودعات الشخصية)",
+        "tokenPlaceholder": "رمز GitHub Personal Access (ghp_...)",
+        "descriptionPlaceholder": "الوصف (اختياري)",
+        "addButton": "إضافة رمز",
+        "cancelButton": "إلغاء",
+        "howToCreate": "كيفية إنشاء رمز GitHub Personal Access ←"
+      },
+      "empty": "لم تُضف رموز GitHub بعد.",
+      "added": "أُضيف:",
+      "confirmDelete": "هل أنت متأكد من حذف رمز GitHub هذا؟"
+    },
+    "apiDocsLink": "وثائق API",
+    "documentation": {
+      "title": "وثائق API الخارجي",
+      "description": "تعلّم كيفية استخدام API الخارجي لتشغيل جلسات Claude/Cursor من تطبيقاتك.",
+      "viewLink": "عرض وثائق API ←"
+    },
+    "loading": "جارٍ التحميل...",
+    "version": {
+      "updateAvailable": "تحديث متاح: v{{version}}"
+    }
+  },
+  "tasks": {
+    "checking": "جارٍ التحقق من تثبيت TaskMaster...",
+    "notInstalled": {
+      "title": "TaskMaster AI CLI غير مثبّت",
+      "description": "TaskMaster CLI مطلوب لاستخدام ميزات إدارة المهام. ثبّته للبدء:",
+      "installCommand": "npm install -g task-master-ai",
+      "viewOnGitHub": "عرض على GitHub",
+      "afterInstallation": "بعد التثبيت:",
+      "steps": {
+        "restart": "أعد تشغيل هذا التطبيق",
+        "autoAvailable": "ستتوفّر ميزات TaskMaster تلقائياً",
+        "initCommand": "استخدم task-master init في مجلد مشروعك"
+      }
+    },
+    "settings": {
+      "enableLabel": "تفعيل تكامل TaskMaster",
+      "enableDescription": "إظهار مهام TaskMaster والشعارات ومؤشّرات الشريط الجانبي عبر الواجهة"
+    }
+  },
+  "agents": {
+    "authStatus": {
+      "checking": "جارٍ التحقق...",
+      "connected": "متصل",
+      "notConnected": "غير متصل",
+      "disconnected": "تم قطع الاتصال",
+      "checkingAuth": "جارٍ التحقق من حالة المصادقة...",
+      "loggedInAs": "تم تسجيل الدخول كـ {{email}}",
+      "authenticatedUser": "مستخدم مصادَق"
+    },
+    "account": {
+      "claude": {
+        "description": "مساعد Anthropic Claude الذكي"
+      },
+      "cursor": {
+        "description": "محرر أكواد Cursor المدعوم بالذكاء الاصطناعي"
+      },
+      "codex": {
+        "description": "مساعد OpenAI Codex الذكي"
+      },
+      "gemini": {
+        "description": "مساعد Google Gemini الذكي"
+      },
+      "antigravity": {
+        "description": "Google AI Pro عبر أداة agy CLI"
+      }
+    },
+    "antigravity": {
+      "authTitle": "المصادقة عبر سطر الأوامر",
+      "reauthTitle": "إعادة المصادقة عبر سطر الأوامر",
+      "instruction": "نفّذ الأمر التالي في الطرفية لبدء مصادقة Google OAuth وإنشاء أول جلسة agy:",
+      "modelNote": "يستخدم Google AI Pro عبر agy CLI (v1.x). يُختار النموذج النشط من داخل إعدادات agy، وليس من هذه الواجهة."
+    },
+    "connectionStatus": "حالة الاتصال",
+    "login": {
+      "title": "تسجيل الدخول",
+      "reAuthenticate": "إعادة المصادقة",
+      "description": "سجّل الدخول إلى حساب {{agent}} لتفعيل ميزات الذكاء الاصطناعي",
+      "reAuthDescription": "سجّل بحساب مختلف أو حدّث بيانات الاعتماد",
+      "button": "تسجيل الدخول",
+      "reLoginButton": "إعادة تسجيل الدخول"
+    },
+    "error": "خطأ: {{error}}"
+  },
+  "permissions": {
+    "title": "إعدادات الأذونات",
+    "skipPermissions": {
+      "label": "تخطّي طلبات الإذن (استخدم بحذر)",
+      "claudeDescription": "مكافئ لخيار --dangerously-skip-permissions",
+      "cursorDescription": "مكافئ لخيار -f في Cursor CLI"
+    },
+    "allowedTools": {
+      "title": "الأدوات المسموح بها",
+      "description": "الأدوات التي يُسمح بها تلقائياً دون طلب إذن",
+      "placeholder": "مثال: \"Bash(git log:*)\" أو \"Write\"",
+      "quickAdd": "إضافة سريعة لأدوات شائعة:",
+      "empty": "لا توجد أدوات مسموح بها معدّة"
+    },
+    "blockedTools": {
+      "title": "الأدوات المحجوبة",
+      "description": "الأدوات التي تُحجب تلقائياً دون طلب إذن",
+      "placeholder": "مثال: \"Bash(rm:*)\"",
+      "empty": "لا توجد أدوات محجوبة معدّة"
+    },
+    "allowedCommands": {
+      "title": "أوامر Shell المسموح بها",
+      "description": "أوامر Shell التي يُسمح بها تلقائياً دون طلب إذن",
+      "placeholder": "مثال: \"Shell(ls)\" أو \"Shell(git status)\"",
+      "quickAdd": "إضافة سريعة لأوامر شائعة:",
+      "empty": "لا توجد أوامر مسموح بها معدّة"
+    },
+    "blockedCommands": {
+      "title": "أوامر Shell المحجوبة",
+      "description": "أوامر Shell التي تُحجب تلقائياً",
+      "placeholder": "مثال: \"Shell(rm -rf)\" أو \"Shell(sudo)\"",
+      "empty": "لا توجد أوامر محجوبة معدّة"
+    },
+    "toolExamples": {
+      "title": "أمثلة أنماط الأدوات:",
+      "bashGitLog": "- السماح بكل أوامر git log",
+      "bashGitDiff": "- السماح بكل أوامر git diff",
+      "write": "- السماح باستخدام أداة Write كاملاً",
+      "bashRm": "- حجب كل أوامر rm (خطير)"
+    },
+    "shellExamples": {
+      "title": "أمثلة أوامر Shell:",
+      "ls": "- السماح بأمر ls",
+      "gitStatus": "- السماح بـ git status",
+      "npmInstall": "- السماح بـ npm install",
+      "rmRf": "- حجب الحذف العودي"
+    },
+    "codex": {
+      "permissionMode": "وضع الأذونات",
+      "description": "يتحكّم في كيفية تعامل Codex مع تعديلات الملفات وتنفيذ الأوامر",
+      "modes": {
+        "default": {
+          "title": "افتراضي",
+          "description": "تعمل الأوامر الموثوقة فقط (ls، cat، grep، git status، إلخ) تلقائياً. الأوامر الأخرى تُتخطّى. يمكن الكتابة في مساحة العمل."
+        },
+        "acceptEdits": {
+          "title": "قبول التعديلات",
+          "description": "تعمل جميع الأوامر تلقائياً داخل مساحة العمل. وضع تلقائي كامل بتنفيذ معزول."
+        },
+        "bypassPermissions": {
+          "title": "تجاوز الأذونات",
+          "description": "وصول كامل للنظام دون قيود. تعمل جميع الأوامر تلقائياً مع كامل الوصول للقرص والشبكة. استخدم بحذر."
+        }
+      },
+      "technicalDetails": "تفاصيل تقنية",
+      "technicalInfo": {
+        "default": "sandboxMode=workspace-write، approvalPolicy=untrusted. أوامر موثوقة: cat، cd، grep، head، ls، pwd، tail، git status/log/diff/show، find (بدون -exec)، إلخ.",
+        "acceptEdits": "sandboxMode=workspace-write، approvalPolicy=never. جميع الأوامر تنفّذ تلقائياً داخل مجلد المشروع.",
+        "bypassPermissions": "sandboxMode=danger-full-access، approvalPolicy=never. وصول كامل للنظام، استخدم في البيئات الموثوقة فقط.",
+        "overrideNote": "يمكنك تجاوز ذلك لكل جلسة باستخدام زر الوضع في واجهة المحادثة."
+      }
+    },
+    "actions": {
+      "add": "إضافة"
+    }
+  },
+  "mcpServers": {
+    "title": "خوادم MCP",
+    "description": {
+      "claude": "خوادم Model Context Protocol توفّر لـ Claude أدوات ومصادر بيانات إضافية",
+      "cursor": "خوادم Model Context Protocol توفّر لـ Cursor أدوات ومصادر بيانات إضافية",
+      "codex": "خوادم Model Context Protocol توفّر لـ Codex أدوات ومصادر بيانات إضافية"
+    },
+    "addButton": "إضافة خادم MCP",
+    "empty": "لا توجد خوادم MCP معدّة",
+    "serverType": "النوع",
+    "scope": {
+      "local": "محلي",
+      "user": "المستخدم"
+    },
+    "config": {
+      "command": "الأمر",
+      "url": "URL",
+      "args": "Args",
+      "environment": "البيئة"
+    },
+    "tools": {
+      "title": "الأدوات",
+      "count": "({{count}}):",
+      "more": "+{{count}} المزيد"
+    },
+    "actions": {
+      "edit": "تعديل الخادم",
+      "delete": "حذف الخادم"
+    },
+    "help": {
+      "title": "حول Codex MCP",
+      "description": "يدعم Codex خوادم MCP من نوع stdio. يمكنك إضافة خوادم توسّع قدرات Codex بأدوات وموارد إضافية."
+    }
+  },
+  "pluginSettings": {
+    "title": "الإضافات",
+    "description": "وسّع الواجهة بإضافات مخصّصة. ثبّت من git أو ضع مجلداً في ~/.claude-code-ui/plugins/",
+    "installPlaceholder": "https://github.com/user/my-plugin",
+    "installButton": "تثبيت",
+    "installing": "جارٍ التثبيت…",
+    "securityWarning": "ثبّت فقط الإضافات التي راجعت كودها أو من مؤلّفين تثق بهم.",
+    "scanningPlugins": "جارٍ فحص الإضافات…",
+    "noPluginsInstalled": "لا توجد إضافات مثبّتة",
+    "pullLatest": "جلب أحدث إصدار من git",
+    "noGitRemote": "لا يوجد git remote — التحديث غير متاح",
+    "uninstallPlugin": "إزالة الإضافة",
+    "confirmUninstall": "اضغط مجدداً للتأكيد",
+    "confirmUninstallMessage": "إزالة {{name}}؟ لا يمكن التراجع.",
+    "cancel": "إلغاء",
+    "remove": "إزالة",
+    "updateFailed": "فشل التحديث",
+    "installFailed": "فشل التثبيت",
+    "uninstallFailed": "فشل الإزالة",
+    "toggleFailed": "فشل التبديل",
+    "starterPluginLabel": "إضافة البداية",
+    "starter": "بداية",
+    "docs": "وثائق",
+    "starterPlugin": {
+      "name": "إحصائيات المشروع",
+      "badge": "بداية",
+      "description": "عدد الملفات، أسطر الكود، تقسيم أنواع الملفات، والنشاط الأخير لمشروعك.",
+      "install": "تثبيت"
+    },
+    "terminalPlugin": {
+      "name": "Terminal",
+      "badge": "official",
+      "description": "طرفية مدمجة مع وصول كامل لـ shell مباشرة داخل الواجهة.",
+      "install": "تثبيت"
+    },
+    "morePlugins": "المزيد",
+    "enable": "تفعيل",
+    "disable": "تعطيل",
+    "installAriaLabel": "رابط مستودع git للإضافة",
+    "tab": "تبويب",
+    "runningStatus": "يعمل"
+  }
+}

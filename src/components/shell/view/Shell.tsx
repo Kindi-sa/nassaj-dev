@@ -269,6 +269,7 @@ export default function Shell({
       <div className="relative flex-1 overflow-hidden p-2">
         <div
           ref={terminalContainerRef}
+          dir="ltr"
           className="h-full w-full focus:outline-none"
           style={{ outline: 'none' }}
         />

@@ -45,6 +45,12 @@ import {
     isGeminiSessionActive,
     getActiveGeminiSessions,
 } from './gemini-cli.js';
+import {
+    spawnAntigravity,
+    abortAntigravitySession,
+    isAntigravitySessionActive,
+    getActiveAntigravitySessions,
+} from './agy-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -94,21 +100,25 @@ const wss = createWebSocketServer(server, {
         spawnCursor,
         queryCodex,
         spawnGemini,
+        spawnAntigravity,
         abortClaudeSDKSession,
         abortCursorSession,
         abortCodexSession,
         abortGeminiSession,
+        abortAntigravitySession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
         isCodexSessionActive,
         isGeminiSessionActive,
+        isAntigravitySessionActive,
         reconnectSessionWriter,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
         getActiveCursorSessions,
         getActiveCodexSessions,
         getActiveGeminiSessions,
+        getActiveAntigravitySessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),
@@ -181,6 +191,34 @@ app.use('/api/gemini', authenticateToken, geminiRoutes);
 
 // Plugins API Routes (protected)
 app.use('/api/plugins', authenticateToken, pluginsRoutes);
+
+// Antigravity rate limiting — in-memory bucket per IP.
+// Applied before the auth middleware so abusive callers can't burn auth cycles.
+// Limits: 60 req/min/IP on /api/providers/antigravity/*
+const antigravityRateMap = new Map();
+const ANTIGRAVITY_RATE_LIMIT = 60;
+const ANTIGRAVITY_WINDOW_MS = 60_000;
+
+app.use('/api/providers/antigravity', (req, res, next) => {
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const entry = antigravityRateMap.get(ip);
+
+    if (!entry || now > entry.resetAt) {
+        antigravityRateMap.set(ip, { count: 1, resetAt: now + ANTIGRAVITY_WINDOW_MS });
+        return next();
+    }
+
+    if (entry.count >= ANTIGRAVITY_RATE_LIMIT) {
+        return res.status(429).json({
+            error: 'Too many requests',
+            retryAfter: Math.ceil((entry.resetAt - now) / 1000),
+        });
+    }
+
+    entry.count++;
+    next();
+});
 
 // Unified provider MCP routes (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);

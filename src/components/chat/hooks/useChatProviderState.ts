@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
-import { CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS } from '../../../../shared/modelConstants';
+import { ANTIGRAVITY_MODELS, CLAUDE_MODELS, CODEX_MODELS, CURSOR_MODELS, GEMINI_MODELS } from '../../../../shared/modelConstants';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 
@@ -35,6 +35,12 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
   });
   const [geminiModel, setGeminiModel] = useState<string>(() => {
     return localStorage.getItem('gemini-model') || GEMINI_MODELS.DEFAULT;
+  });
+  // Antigravity (agy) does not expose model selection from the UI; the real
+  // model is chosen inside agy's own settings. We still carry a tiny piece of
+  // state so the provider plugs into existing model-aware helpers uniformly.
+  const [antigravityModel, setAntigravityModel] = useState<string>(() => {
+    return localStorage.getItem('antigravity-model') || ANTIGRAVITY_MODELS.DEFAULT;
   });
 
   const lastProviderRef = useRef(provider);
@@ -118,6 +124,8 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
     setCodexModel,
     geminiModel,
     setGeminiModel,
+    antigravityModel,
+    setAntigravityModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,

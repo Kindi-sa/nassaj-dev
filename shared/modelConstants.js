@@ -97,11 +97,27 @@ export const GEMINI_MODELS = {
 };
 
 /**
+ * Antigravity (agy CLI) Models
+ *
+ * agy is a Google AI CLI built on top of Gemini. The actual model is
+ * selected via agy's own settings, so the UI exposes a single
+ * informational entry rather than a true model picker.
+ */
+export const ANTIGRAVITY_MODELS = {
+  OPTIONS: [
+    { value: "auto", label: "agy default" },
+  ],
+
+  DEFAULT: "auto",
+};
+
+/**
  * Ordered provider registry. Display order in selection UIs.
  */
 export const PROVIDERS = [
   { id: "claude", name: "Anthropic", models: CLAUDE_MODELS },
   { id: "codex", name: "OpenAI", models: CODEX_MODELS },
   { id: "gemini", name: "Google", models: GEMINI_MODELS },
+  { id: "antigravity", name: "Antigravity (agy)", models: ANTIGRAVITY_MODELS },
   { id: "cursor", name: "Cursor", models: CURSOR_MODELS },
 ];

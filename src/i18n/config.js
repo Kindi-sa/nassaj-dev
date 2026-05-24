@@ -24,6 +24,15 @@ import enCodeEditor from './locales/en/codeEditor.json';
 // eslint-disable-next-line import-x/order
 import enTasks from './locales/en/tasks.json';
 
+import arCommon from './locales/ar/common.json';
+import arSettings from './locales/ar/settings.json';
+import arAuth from './locales/ar/auth.json';
+import arSidebar from './locales/ar/sidebar.json';
+import arChat from './locales/ar/chat.json';
+import arCodeEditor from './locales/ar/codeEditor.json';
+// eslint-disable-next-line import-x/order
+import arTasks from './locales/ar/tasks.json';
+
 import koCommon from './locales/ko/common.json';
 import koSettings from './locales/ko/settings.json';
 import koAuth from './locales/ko/auth.json';
@@ -116,6 +125,15 @@ i18n
         chat: enChat,
         codeEditor: enCodeEditor,
         tasks: enTasks,
+      },
+      ar: {
+        common: arCommon,
+        settings: arSettings,
+        auth: arAuth,
+        sidebar: arSidebar,
+        chat: arChat,
+        codeEditor: arCodeEditor,
+        tasks: arTasks,
       },
       ko: {
         common: koCommon,

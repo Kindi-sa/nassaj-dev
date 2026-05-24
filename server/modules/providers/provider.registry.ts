@@ -1,3 +1,4 @@
+import { AntigravityProvider } from '@/modules/providers/list/antigravity/antigravity.provider.js';
 import { ClaudeProvider } from '@/modules/providers/list/claude/claude.provider.js';
 import { CodexProvider } from '@/modules/providers/list/codex/codex.provider.js';
 import { CursorProvider } from '@/modules/providers/list/cursor/cursor.provider.js';
@@ -7,10 +8,10 @@ import type { LLMProvider } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
 // Partial<Record<...>> because not every LLMProvider literal in the type union
-// is guaranteed to have a concrete provider instance registered at startup
-// (e.g. `antigravity` is declared in the union before its provider class lands).
+// is guaranteed to have a concrete provider instance registered at startup.
 // `resolveProvider` already returns an `AppError` for any unregistered key.
 const providers: Partial<Record<LLMProvider, IProvider>> = {
+  antigravity: new AntigravityProvider(),
   claude: new ClaudeProvider(),
   codex: new CodexProvider(),
   cursor: new CursorProvider(),

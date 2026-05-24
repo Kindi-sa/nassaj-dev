@@ -3,11 +3,6 @@ import SessionProviderLogo from '../../../../../llm-logo-provider/SessionProvide
 import type { AgentProvider } from '../../../../types/types';
 import type { AgentSelectorSectionProps } from '../types';
 
-// `antigravity` is a placeholder entry: the provider is declared in the
-// LLMProvider union before its agent integration lands. It is excluded from
-// the visible agent list (see AgentsSettingsTab.visibleAgents) so this label
-// stays unused at runtime, but the literal is required by the exhaustive
-// `Record<AgentProvider, string>` type.
 const AGENT_NAMES: Record<AgentProvider, string> = {
   claude: 'Claude',
   cursor: 'Cursor',
@@ -29,7 +24,8 @@ export default function AgentSelectorSection({
           const dotColor =
             agent === 'claude' ? 'bg-blue-500' :
             agent === 'cursor' ? 'bg-purple-500' :
-            agent === 'gemini' ? 'bg-indigo-500' : 'bg-foreground/60';
+            agent === 'gemini' ? 'bg-indigo-500' :
+            agent === 'antigravity' ? 'bg-emerald-500' : 'bg-foreground/60';
 
           return (
             <Pill

@@ -34,29 +34,33 @@ export default function CodeEditorSurface({
     );
   }
 
+  // Code surfaces must stay LTR even when the app is in RTL mode — source
+  // code, line numbers, gutters and syntax highlighting all assume LTR.
   return (
-    <CodeMirror
-      value={content}
-      onChange={onChange}
-      extensions={extensions}
-      theme={isDarkMode ? oneDark : undefined}
-      height="100%"
-      style={{
-        fontSize: `${fontSize}px`,
-        height: '100%',
-      }}
-      basicSetup={{
-        lineNumbers: showLineNumbers,
-        foldGutter: true,
-        dropCursor: false,
-        allowMultipleSelections: false,
-        indentOnInput: true,
-        bracketMatching: true,
-        closeBrackets: true,
-        autocompletion: true,
-        highlightSelectionMatches: true,
-        searchKeymap: true,
-      }}
-    />
+    <div dir="ltr" className="h-full">
+      <CodeMirror
+        value={content}
+        onChange={onChange}
+        extensions={extensions}
+        theme={isDarkMode ? oneDark : undefined}
+        height="100%"
+        style={{
+          fontSize: `${fontSize}px`,
+          height: '100%',
+        }}
+        basicSetup={{
+          lineNumbers: showLineNumbers,
+          foldGutter: true,
+          dropCursor: false,
+          allowMultipleSelections: false,
+          indentOnInput: true,
+          bracketMatching: true,
+          closeBrackets: true,
+          autocompletion: true,
+          highlightSelectionMatches: true,
+          searchKeymap: true,
+        }}
+      />
+    </div>
   );
 }
