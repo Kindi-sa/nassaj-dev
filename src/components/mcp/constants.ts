@@ -1,10 +1,15 @@
 import type { McpFormState, McpProvider, McpScope, McpTransport } from './types';
 
+// `antigravity` entries below are placeholders. The provider is declared in
+// the LLMProvider union before its UI integration lands; these literals only
+// exist to satisfy the exhaustive `Record<McpProvider, X>` type constraint.
+
 export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   claude: 'Claude',
   cursor: 'Cursor',
   codex: 'Codex',
   gemini: 'Gemini',
+  antigravity: 'Antigravity',
 };
 
 export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
@@ -12,6 +17,7 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   cursor: ['user', 'project'],
   codex: ['user', 'project'],
   gemini: ['user', 'project'],
+  antigravity: [],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
@@ -19,6 +25,7 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   cursor: ['stdio', 'http'],
   codex: ['stdio', 'http'],
   gemini: ['stdio', 'http', 'sse'],
+  antigravity: [],
 };
 
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
@@ -30,6 +37,7 @@ export const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   cursor: 'bg-purple-600 text-white hover:bg-purple-700',
   codex: 'bg-gray-800 text-white hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600',
   gemini: 'bg-blue-600 text-white hover:bg-blue-700',
+  antigravity: 'bg-slate-600 text-white hover:bg-slate-700',
 };
 
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
@@ -37,6 +45,7 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   cursor: false,
   codex: true,
   gemini: true,
+  antigravity: false,
 };
 
 export const DEFAULT_MCP_FORM: McpFormState = {

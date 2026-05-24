@@ -22,6 +22,10 @@ export const sessionSynchronizerService = {
       codex: 0,
       cursor: 0,
       gemini: 0,
+      // Placeholder counter: no `antigravity` provider is registered in
+      // providerRegistry yet, so this entry stays at zero until a concrete
+      // provider class lands and joins listProviders().
+      antigravity: 0,
     };
     const failures: string[] = [];
 

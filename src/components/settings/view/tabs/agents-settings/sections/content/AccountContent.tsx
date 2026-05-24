@@ -20,6 +20,9 @@ type AgentVisualConfig = {
   description?: string;
 };
 
+// Placeholder entry for `antigravity`: provider is declared in the
+// LLMProvider union before its account UI lands. The exhaustive
+// `Record<AgentProvider, ...>` type requires every union literal.
 const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   claude: {
     name: 'Claude',
@@ -53,6 +56,14 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     textClass: 'text-indigo-900 dark:text-indigo-100',
     subtextClass: 'text-indigo-700 dark:text-indigo-300',
     buttonClass: 'bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800',
+  },
+  antigravity: {
+    name: 'Antigravity',
+    bgClass: 'bg-slate-50 dark:bg-slate-900/20',
+    borderClass: 'border-slate-200 dark:border-slate-800',
+    textClass: 'text-slate-900 dark:text-slate-100',
+    subtextClass: 'text-slate-700 dark:text-slate-300',
+    buttonClass: 'bg-slate-600 hover:bg-slate-700 active:bg-slate-800',
   },
 };
 

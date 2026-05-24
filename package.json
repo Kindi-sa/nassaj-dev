@@ -1,7 +1,7 @@
 {
-  "name": "@cloudcli-ai/cloudcli",
+  "name": "nassaj-dev",
   "version": "1.32.0",
-  "description": "A web-based UI for Claude Code CLI",
+  "description": "nassaj-dev — claudecodeui fork with AntigravityProvider and RTL Arabic support",
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
@@ -15,7 +15,7 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://cloudcli.ai",
+  "homepage": "https://nassaj-dev.alkindy.tech",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/siteboon/claudecodeui.git"

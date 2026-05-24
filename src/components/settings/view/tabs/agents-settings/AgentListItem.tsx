@@ -15,6 +15,10 @@ type AgentConfig = {
   color: 'blue' | 'purple' | 'gray' | 'indigo';
 };
 
+// Placeholder entry for `antigravity`: provider is declared in the LLMProvider
+// union before its agent UI lands. The exhaustive `Record<AgentProvider, ...>`
+// type requires every union literal to be present even when the agent is
+// excluded from the visible list at runtime.
 const agentConfig: Record<AgentProvider, AgentConfig> = {
   claude: {
     name: 'Claude',
@@ -31,7 +35,11 @@ const agentConfig: Record<AgentProvider, AgentConfig> = {
   gemini: {
     name: 'Gemini',
     color: 'indigo',
-  }
+  },
+  antigravity: {
+    name: 'Antigravity',
+    color: 'gray',
+  },
 };
 
 const colorClasses = {

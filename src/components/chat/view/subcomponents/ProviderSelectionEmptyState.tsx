@@ -287,6 +287,10 @@ export default function ProviderSelectionEmptyState({
                 gemini: t("providerSelection.readyPrompt.gemini", {
                   model: geminiModel,
                 }),
+                antigravity: t("providerSelection.readyPrompt.gemini", {
+                  model: geminiModel,
+                  defaultValue: `Ready to use Antigravity with ${geminiModel}. Start typing your message below.`,
+                }),
               }[provider]
             }
           </p>

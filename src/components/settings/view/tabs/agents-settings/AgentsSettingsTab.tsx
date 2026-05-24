@@ -57,12 +57,20 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.gemini,
       onLogin: () => onProviderLogin('gemini'),
     },
+    // Placeholder context: `antigravity` is excluded from `visibleAgents` so
+    // this entry is never rendered, but the exhaustive `Record<AgentProvider, ...>`
+    // type requires every key in the union to be present.
+    antigravity: {
+      authStatus: providerAuthStatus.antigravity,
+      onLogin: () => onProviderLogin('antigravity'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
     providerAuthStatus.codex,
     providerAuthStatus.cursor,
     providerAuthStatus.gemini,
+    providerAuthStatus.antigravity,
   ]);
 
   return (
