@@ -249,7 +249,11 @@ router.get(
   '/:provider/auth/status',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
-    const status = await providerAuthService.getProviderAuthStatus(provider);
+    // Pass the authenticated user so credential-isolating providers report the
+    // status of THIS user's resolved environment (CLAUDE_CONFIG_DIR), not the
+    // operator's fixed home. `req.user` is set by authenticateToken middleware.
+    const userId = (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+    const status = await providerAuthService.getProviderAuthStatus(provider, userId);
     res.json(createApiSuccessResponse(status));
   }),
 );

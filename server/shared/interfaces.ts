@@ -38,8 +38,12 @@ export interface IProvider {
 export interface IProviderAuth {
   /**
    * Checks whether the provider is installed and has usable credentials.
+   *
+   * `userId` lets credential-isolating providers (e.g. Claude) report the auth
+   * state of the user's actual resolved environment instead of the operator's
+   * fixed home. Providers that are not per-user isolated may ignore it.
    */
-  getStatus(): Promise<ProviderAuthStatus>;
+  getStatus(userId?: string | number | null): Promise<ProviderAuthStatus>;
 }
 
 // ---------------------------

@@ -4,10 +4,16 @@ import type { LLMProvider, ProviderAuthStatus } from '@/shared/types.js';
 export const providerAuthService = {
   /**
    * Resolves a provider and returns its installation/authentication status.
+   *
+   * `userId` is forwarded to the provider so credential-isolating providers
+   * report the status of that user's resolved environment, not the operator's.
    */
-  async getProviderAuthStatus(providerName: string): Promise<ProviderAuthStatus> {
+  async getProviderAuthStatus(
+    providerName: string,
+    userId?: string | number | null,
+  ): Promise<ProviderAuthStatus> {
     const provider = providerRegistry.resolveProvider(providerName);
-    return provider.auth.getStatus();
+    return provider.auth.getStatus(userId);
   },
 
   /**

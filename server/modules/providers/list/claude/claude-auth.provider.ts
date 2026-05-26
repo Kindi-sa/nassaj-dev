@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import spawn from 'cross-spawn';
 
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
@@ -31,9 +32,14 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Returns Claude installation and credential status using Claude Code's auth priority.
+   * Returns Claude installation and credential status using Claude Code's auth
+   * priority, reported against the SAME environment a spawn for this user would
+   * use. `userId` is resolved through resolveProviderEnv so an isolated user is
+   * checked against their own CLAUDE_CONFIG_DIR, while a shared/anonymous check
+   * falls back to the operator's ~/.claude — i.e. the status always reflects the
+   * real spawn environment instead of a fixed operator path.
    */
-  async getStatus(): Promise<ProviderAuthStatus> {
+  async getStatus(userId?: string | number | null): Promise<ProviderAuthStatus> {
     const installed = this.checkInstalled();
 
     if (!installed) {
@@ -47,7 +53,11 @@ export class ClaudeProviderAuth implements IProviderAuth {
       };
     }
 
-    const credentials = await this.checkCredentials();
+    // Build the same env the spawn path uses for this user. When claude is
+    // shared (admin policy) or there is no user, this returns the base env
+    // unchanged so the operator credential at ~/.claude is checked.
+    const env = resolveProviderEnv(userId ?? null, 'claude', process.env);
+    const credentials = await this.checkCredentials(env);
 
     return {
       installed,
@@ -60,11 +70,23 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Reads Claude settings env values that the CLI can use even when the server process env is empty.
+   * Resolves the Claude config directory for the given (already-resolved) env.
+   * Honors CLAUDE_CONFIG_DIR (set by resolveProviderEnv when isolated) and falls
+   * back to the operator's ~/.claude when unset (shared / anonymous).
    */
-  private async loadSettingsEnv(): Promise<Record<string, unknown>> {
+  private resolveConfigDir(env: NodeJS.ProcessEnv): string {
+    const configDir = readOptionalString(env.CLAUDE_CONFIG_DIR);
+    return configDir ?? path.join(os.homedir(), '.claude');
+  }
+
+  /**
+   * Reads Claude settings env values that the CLI can use even when the server
+   * process env is empty. Reads from the resolved config dir so an isolated
+   * user's own settings.json is consulted.
+   */
+  private async loadSettingsEnv(configDir: string): Promise<Record<string, unknown>> {
     try {
-      const settingsPath = path.join(os.homedir(), '.claude', 'settings.json');
+      const settingsPath = path.join(configDir, 'settings.json');
       const content = await readFile(settingsPath, 'utf8');
       const settings = readObjectRecord(JSON.parse(content));
       return readObjectRecord(settings?.env) ?? {};
@@ -74,14 +96,17 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Checks Claude credentials in the same priority order used by Claude Code.
+   * Checks Claude credentials in the same priority order used by Claude Code,
+   * against the resolved environment for the user being checked.
    */
-  private async checkCredentials(): Promise<ClaudeCredentialsStatus> {
-    if (process.env.ANTHROPIC_API_KEY?.trim()) {
+  private async checkCredentials(env: NodeJS.ProcessEnv): Promise<ClaudeCredentialsStatus> {
+    if (readOptionalString(env.ANTHROPIC_API_KEY)) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
 
-    const settingsEnv = await this.loadSettingsEnv();
+    const configDir = this.resolveConfigDir(env);
+
+    const settingsEnv = await this.loadSettingsEnv(configDir);
     if (readOptionalString(settingsEnv.ANTHROPIC_API_KEY)) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
@@ -91,7 +116,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
     }
 
     try {
-      const credPath = path.join(os.homedir(), '.claude', '.credentials.json');
+      const credPath = path.join(configDir, '.credentials.json');
       const content = await readFile(credPath, 'utf8');
       const creds = readObjectRecord(JSON.parse(content)) ?? {};
       const oauth = readObjectRecord(creds.claudeAiOauth);
