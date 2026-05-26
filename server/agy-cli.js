@@ -144,6 +144,45 @@ function buildTranscriptPath(brainUUID, userId = null) {
     return path.join(getBrainDir(userId), brainUUID, '.system_generated', 'logs', 'transcript.jsonl');
 }
 
+// Extract the brain UUID embedded in a transcript jsonl_path, i.e. the path
+// segment immediately under the brain root: .../brain/<UUID>/.system_generated/...
+// Returns null when the path does not match the expected antigravity layout.
+function extractBrainUUIDFromJsonlPath(jsonlPath) {
+    if (typeof jsonlPath !== 'string' || !jsonlPath) {
+        return null;
+    }
+    const marker = `${path.sep}brain${path.sep}`;
+    const markerIndex = jsonlPath.indexOf(marker);
+    if (markerIndex === -1) {
+        return null;
+    }
+    const afterBrain = jsonlPath.slice(markerIndex + marker.length);
+    const uuid = afterBrain.split(path.sep)[0];
+    return uuid || null;
+}
+
+// Recover the agy brain UUID for a resumed session from the persisted DB row.
+// Used when the in-memory sessionManager has no `cliSessionId` (server restart,
+// or a conversation opened from history). Only antigravity rows are honoured so
+// a Claude/cursor session id can never be misread as a brain UUID. The brain
+// UUID is taken from the jsonl_path when present and otherwise from the
+// session_id itself, which for antigravity sessions equals the brain UUID.
+function resolveBrainUUIDFromDb(sessionId) {
+    let row;
+    try {
+        row = sessionsDb.getSessionById(sessionId);
+    } catch (err) {
+        console.error('[agy] failed to look up session for resume:', err?.message || err);
+        return null;
+    }
+
+    if (!row || row.provider !== 'antigravity') {
+        return null;
+    }
+
+    return extractBrainUUIDFromJsonlPath(row.jsonl_path) || row.session_id || null;
+}
+
 // Discovers the brain UUID created by a fresh agy run and binds it to its real
 // workspace path. Runs at most once per spawn (idempotent via the shared state
 // object). We register the real path in two places so a concurrent synchronize()
@@ -208,10 +247,19 @@ async function spawnAntigravity(command, options = {}, ws) {
     // an isolated agy reads/writes the same per-user brain store.
     const userId = ws?.userId ?? null;
 
-    // Resolve the brain UUID for resume. The sessionManager stores it under
-    // `cliSessionId` to match the gemini adapter naming.
+    // Resolve the brain UUID for resume. Primary source is the in-memory
+    // sessionManager (`cliSessionId`, matching the gemini adapter naming). It is
+    // populated only during the run that created the conversation, so it is
+    // empty after a server restart or when the chat was resumed from history.
+    // Fall back to the persisted session row in that case: for antigravity
+    // sessions the nassaj session_id IS the brain UUID (see
+    // discoverAndRegisterBrainSession below, which writes the row keyed by the
+    // discovered brain UUID), and the jsonl_path embeds the same UUID. Without
+    // this fallback a resume would be misdetected as a fresh conversation and
+    // start a new brain instead of continuing the existing transcript.
     const existingSession = sessionId ? sessionManager.getSession(sessionId) : null;
-    const existingBrainUUID = existingSession?.cliSessionId || null;
+    const existingBrainUUID = existingSession?.cliSessionId
+        || (sessionId ? resolveBrainUUIDFromDb(sessionId) : null);
 
     // B-ISO-AGYLOCK: only fresh conversations (no brain to resume) race on UUID
     // discovery, so serialize the discovery window for those only. Resumed

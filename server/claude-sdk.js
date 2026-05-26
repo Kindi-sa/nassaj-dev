@@ -38,6 +38,23 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
+/**
+ * Detects the Claude Code "stale resume" failure: a `--resume <id>` (SDK
+ * `resume` option) request whose conversation no longer exists on disk. The
+ * CLI/SDK surfaces this as a thrown error or an error result whose text reads
+ * e.g. "No conversation found with session ID: <uuid>". We match defensively on
+ * the stable substring so we can transparently restart as a fresh session
+ * instead of dead-ending the user's message. Narrowly scoped on purpose: any
+ * other resume failure keeps the original error behaviour.
+ */
+function isResumeSessionMissingError(value) {
+  if (!value) {
+    return false;
+  }
+  const text = typeof value === 'string' ? value : (value.message || String(value));
+  return /no conversation found with session id/i.test(text);
+}
+
 function createRequestId() {
   if (typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -477,7 +494,8 @@ async function loadMcpConfig(cwd) {
  * @param {Object} ws - WebSocket connection
  * @returns {Promise<void>}
  */
-async function queryClaudeSDK(command, options = {}, ws) {
+async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}) {
+  const { suppressResumeMissError = false } = internalOptions;
   const { sessionId, sessionSummary } = options;
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
@@ -698,6 +716,18 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
       // Extract and send token budget updates from result messages
       if (message.type === 'result') {
+        // A stale `resume` surfaces as an error result whose text names the
+        // missing conversation. Throw a tagged error so the shared catch path
+        // can trigger the fresh-session fallback instead of streaming a
+        // dead-end error to the user.
+        if (message.is_error || message.subtype === 'error_during_execution') {
+          const resultText = typeof message.result === 'string' ? message.result : '';
+          if (isResumeSessionMissingError(resultText)) {
+            const resumeError = new Error(resultText);
+            resumeError.resumeSessionMissing = true;
+            throw resumeError;
+          }
+        }
         const models = Object.keys(message.modelUsage || {});
         if (models.length > 0) {
           // Model info available in result message
@@ -727,6 +757,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
       stopReason: 'completed'
     });
     // Complete
+    return { ok: true };
 
   } catch (error) {
     console.error('SDK query error:', error);
@@ -738,6 +769,13 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
     // Clean up temporary image files on error
     await cleanupTempFiles(tempImagePaths, tempDir);
+
+    // Stale-resume fallback: when the caller is allowed to retry, swallow the
+    // missing-conversation error here (no UI error, no failure notification) and
+    // hand control back so the wrapper can restart as a fresh session.
+    if (suppressResumeMissError && (error?.resumeSessionMissing || isResumeSessionMissingError(error))) {
+      return { ok: false, resumeSessionMissing: true };
+    }
 
     // Check if Claude CLI is installed for a clearer error message
     const installed = await providerAuthService.isProviderInstalled('claude');
@@ -754,7 +792,59 @@ async function queryClaudeSDK(command, options = {}, ws) {
       sessionName: sessionSummary,
       error
     });
+    return { ok: false };
   }
+}
+
+/**
+ * Public entry point. Wraps {@link runClaudeSDKQuery} with a one-shot
+ * fresh-session fallback for stale resumes.
+ *
+ * When a `--resume` (SDK `resume`) target no longer exists, the underlying CLI
+ * dead-ends the user's message with "No conversation found with session ID".
+ * Here we detect that single failure mode, tell the user the previous session
+ * ended, and transparently re-run the same prompt as a brand-new conversation.
+ * Every other error keeps the original behaviour, and runs that never asked to
+ * resume skip the retry path entirely.
+ *
+ * @param {string} command - User prompt/command
+ * @param {Object} options - Query options
+ * @param {Object} ws - WebSocket connection
+ * @returns {Promise<void>}
+ */
+async function queryClaudeSDK(command, options = {}, ws) {
+  const { sessionId } = options;
+
+  // No resume requested → nothing to fall back from. Run once, plain.
+  if (!sessionId) {
+    await runClaudeSDKQuery(command, options, ws);
+    return;
+  }
+
+  const result = await runClaudeSDKQuery(command, options, ws, {
+    suppressResumeMissError: true,
+  });
+
+  if (!result?.resumeSessionMissing) {
+    return;
+  }
+
+  // The previous conversation is gone. Announce it inline (the chat has no
+  // global toast surface) and restart without `resume` so a fresh session id
+  // is minted and reported via `session_created`.
+  ws.send(createNormalizedMessage({
+    kind: 'text',
+    role: 'assistant',
+    content:
+      'The previous session could not be resumed (it has expired or been removed). '
+      + 'A new conversation was started and your message was sent to it.',
+    sessionId: null,
+    provider: 'claude',
+    isSessionResetNotice: true,
+  }));
+
+  const { sessionId: _staleSessionId, ...freshOptions } = options;
+  await runClaudeSDKQuery(command, freshOptions, ws);
 }
 
 /**

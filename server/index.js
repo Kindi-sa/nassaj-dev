@@ -74,7 +74,7 @@ import pluginsRoutes from './routes/plugins.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, projectsDb } from './modules/database/index.js';
+import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
@@ -104,6 +104,21 @@ const wss = createWebSocketServer(server, {
         queryCodex,
         spawnGemini,
         spawnAntigravity,
+        // Authoritative provider lookup for resumed sessions. Routing must follow
+        // the provider persisted in the DB, not the client-chosen message type,
+        // so an antigravity session is never resumed through the Claude SDK.
+        getSessionProvider: (sessionId) => {
+            if (!sessionId) {
+                return null;
+            }
+            try {
+                const row = sessionsDb.getSessionById(sessionId);
+                return row?.provider ?? null;
+            } catch (error) {
+                console.error('[ERROR] getSessionProvider lookup failed:', error?.message || error);
+                return null;
+            }
+        },
         abortClaudeSDKSession,
         abortCursorSession,
         abortCodexSession,

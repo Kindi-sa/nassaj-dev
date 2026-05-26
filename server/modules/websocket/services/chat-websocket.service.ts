@@ -30,6 +30,12 @@ type ChatWebSocketDependencies = {
   queryCodex: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnGemini: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnAntigravity: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  /**
+   * Resolves the authoritative provider for an existing session from the
+   * database. Returns null when the session is unknown (e.g. a brand-new
+   * conversation that has not been persisted yet).
+   */
+  getSessionProvider: (sessionId: string) => LLMProvider | null;
   abortClaudeSDKSession: (sessionId: string) => Promise<boolean>;
   abortCursorSession: (sessionId: string) => boolean;
   abortCodexSession: (sessionId: string) => boolean;
@@ -73,6 +79,88 @@ function readProvider(value: unknown): LLMProvider {
   }
 
   return DEFAULT_PROVIDER;
+}
+
+/**
+ * Maps each chat command message type to the provider its payload was authored
+ * for by the client. Used as the *default* routing target before the database
+ * provider (the source of truth for resumed sessions) is consulted.
+ */
+const COMMAND_TYPE_TO_PROVIDER: Record<string, LLMProvider> = {
+  'claude-command': 'claude',
+  'cursor-command': 'cursor',
+  'codex-command': 'codex',
+  'gemini-command': 'gemini',
+  'antigravity-command': 'antigravity',
+};
+
+/**
+ * Reads the resume session id carried by a chat command payload. The client
+ * places it on `options.sessionId` for every provider and additionally on the
+ * top-level `sessionId` for the CLI providers, so we accept either form.
+ */
+function readResumeSessionId(data: ChatIncomingMessage): string | null {
+  const options = (data.options ?? {}) as { sessionId?: unknown };
+  const fromOptions = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
+  if (fromOptions) {
+    return fromOptions;
+  }
+
+  const fromTop = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+  return fromTop || null;
+}
+
+/**
+ * Dispatches a chat command to the handler that owns the resolved provider.
+ *
+ * Routing is provider-driven, not message-type-driven: when a command carries a
+ * resume session id, the persisted provider for that session (looked up in the
+ * database) overrides the message type chosen by the client. This prevents a
+ * stale client provider selection from resuming, say, an antigravity session
+ * through the Claude SDK — which would fail with "No conversation found".
+ */
+async function dispatchProviderCommand(
+  messageType: string,
+  data: ChatIncomingMessage,
+  writer: WebSocketWriter,
+  dependencies: ChatWebSocketDependencies
+): Promise<void> {
+  const command = data.command ?? '';
+  const requestedProvider = COMMAND_TYPE_TO_PROVIDER[messageType] ?? DEFAULT_PROVIDER;
+
+  // Only existing (resumed) sessions can be re-routed; a fresh conversation has
+  // no persisted provider yet, so we honour the client's chosen handler.
+  const resumeSessionId = readResumeSessionId(data);
+  const persistedProvider = resumeSessionId
+    ? dependencies.getSessionProvider(resumeSessionId)
+    : null;
+  const targetProvider = persistedProvider ?? requestedProvider;
+
+  if (persistedProvider && persistedProvider !== requestedProvider) {
+    console.log(
+      `[INFO] Re-routing resumed session ${resumeSessionId} from `
+      + `${requestedProvider} to persisted provider ${persistedProvider}`
+    );
+  }
+
+  if (targetProvider === 'cursor') {
+    await dependencies.spawnCursor(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'codex') {
+    await dependencies.queryCodex(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'gemini') {
+    await dependencies.spawnGemini(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'antigravity') {
+    await dependencies.spawnAntigravity(command, data.options, writer);
+    return;
+  }
+
+  await dependencies.queryClaudeSDK(command, data.options, writer);
 }
 
 /**
@@ -124,28 +212,8 @@ export function handleChatConnection(
         throw new Error('Message type is required');
       }
 
-      if (messageType === 'claude-command') {
-        await dependencies.queryClaudeSDK(data.command ?? '', data.options, writer);
-        return;
-      }
-
-      if (messageType === 'cursor-command') {
-        await dependencies.spawnCursor(data.command ?? '', data.options, writer);
-        return;
-      }
-
-      if (messageType === 'codex-command') {
-        await dependencies.queryCodex(data.command ?? '', data.options, writer);
-        return;
-      }
-
-      if (messageType === 'gemini-command') {
-        await dependencies.spawnGemini(data.command ?? '', data.options, writer);
-        return;
-      }
-
-      if (messageType === 'antigravity-command') {
-        await dependencies.spawnAntigravity(data.command ?? '', data.options, writer);
+      if (messageType in COMMAND_TYPE_TO_PROVIDER) {
+        await dispatchProviderCommand(messageType, data, writer, dependencies);
         return;
       }
 

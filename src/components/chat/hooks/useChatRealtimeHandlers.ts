@@ -243,6 +243,23 @@ export function useChatRealtimeHandlers({
           setPendingPermissionRequests((prev) =>
             prev.map((r) => (r.sessionId ? r : { ...r, sessionId: newSessionId })),
           );
+        } else if (newSessionId !== currentSessionId) {
+          // Stale-resume fallback: the backend could not resume the active
+          // session and minted a fresh one. `session_created` never fires for a
+          // healthy resume, so a mismatch here means the old id is dead — migrate
+          // the view (messages, pending permissions) onto the new conversation.
+          console.log('Session reset: replacing', currentSessionId, 'with', newSessionId);
+          sessionStore.replaceSessionId(currentSessionId, newSessionId);
+          sessionStorage.setItem('pendingSessionId', newSessionId);
+          if (pendingViewSessionRef.current) {
+            pendingViewSessionRef.current.sessionId = newSessionId;
+          }
+          setCurrentSessionId(newSessionId);
+          setPendingPermissionRequests((prev) =>
+            prev.map((r) => ({ ...r, sessionId: newSessionId })),
+          );
+          onNavigateToSession?.(newSessionId, { replace: true });
+          break;
         }
         onNavigateToSession?.(newSessionId);
         break;
