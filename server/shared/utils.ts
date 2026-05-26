@@ -603,8 +603,12 @@ export async function readProviderSkillMarkdownDefinition(
  * Produces a compact session title suitable for UI rendering and DB storage.
  *
  * Use this when converting provider-native names into a consistent title value.
- * The helper collapses repeated whitespace, trims the result, and truncates it
- * to 120 characters so every provider writes stable and bounded metadata.
+ * The helper collapses repeated whitespace, trims the result, and bounds the
+ * length to 120 (Unicode) characters so every provider writes stable metadata.
+ * When truncation is needed it breaks on a word boundary (the last space before
+ * the 117th character) and appends an ellipsis "…" so the cut is never mid-word
+ * and is visibly marked. Length is measured in code points (`Array.from`) so
+ * emoji and composed Arabic glyphs are counted as single characters.
  * If the normalized input is empty, it returns the supplied fallback title.
  */
 export function normalizeSessionName(rawValue: string | undefined, fallback: string): string {
@@ -613,7 +617,18 @@ export function normalizeSessionName(rawValue: string | undefined, fallback: str
     return fallback;
   }
 
-  return normalized.slice(0, 120);
+  const codePoints = Array.from(normalized);
+  if (codePoints.length <= 120) {
+    return normalized;
+  }
+
+  // Reserve room for the ellipsis: keep at most 117 code points, then prefer
+  // cutting at the last whitespace inside that window so we never split a word.
+  const window = codePoints.slice(0, 117);
+  const lastSpace = window.lastIndexOf(' ');
+  const kept = lastSpace > 0 ? window.slice(0, lastSpace) : window;
+
+  return `${kept.join('').trimEnd()}…`;
 }
 
 // ---------------------------

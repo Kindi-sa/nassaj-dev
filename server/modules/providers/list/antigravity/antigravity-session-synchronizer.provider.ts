@@ -139,10 +139,15 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
     );
   }
 
+  /** How many leading transcript lines we scan for the first USER_INPUT title. */
+  private readonly TITLE_SCAN_LINE_LIMIT = 10;
+
   /**
    * Reads the transcript for one brain UUID and produces session metadata.
    *
-   * - Title comes from the first USER_INPUT `<USER_REQUEST>` body.
+   * - Title comes from the first USER_INPUT `<USER_REQUEST>` body. agy may emit
+   *   system lines (e.g. CONVERSATION_HISTORY) before the human turn, so we scan
+   *   the leading lines for the first USER_INPUT rather than assuming line 0.
    * - `created_at` is read from the first transcript line.
    * - `updated_at` is the transcript file mtime.
    * - When `since` is provided, sessions whose transcript mtime is older are skipped.
@@ -175,20 +180,12 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
       return null;
     }
 
-    let firstLine: AnyRecord | null = null;
-    try {
-      const content = await readFile(transcriptPath, 'utf8');
-      const newlineIndex = content.indexOf('\n');
-      const firstLineRaw = newlineIndex >= 0 ? content.slice(0, newlineIndex) : content;
-      const trimmed = firstLineRaw.trim();
-      if (trimmed) {
-        firstLine = readObjectRecord(JSON.parse(trimmed));
-      }
-    } catch {
-      firstLine = null;
-    }
+    // Parse only the leading transcript lines. Transcripts can be huge, so we
+    // slice off just the first TITLE_SCAN_LINE_LIMIT lines and stop there.
+    const leadingRecords = await this.readLeadingRecords(transcriptPath);
+    const firstLine = leadingRecords[0] ?? null;
 
-    const title = this.extractTitleFromFirstLine(firstLine);
+    const title = this.extractTitleFromLeadingRecords(leadingRecords);
     const createdAtFromTranscript = typeof firstLine?.created_at === 'string'
       ? firstLine.created_at
       : undefined;
@@ -205,7 +202,53 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
   }
 
   /**
-   * Pulls the user prompt out of a USER_INPUT first line for use as the title.
+   * Reads at most TITLE_SCAN_LINE_LIMIT leading JSONL records from a transcript.
+   *
+   * Transcripts can be very large, so we cap the read at the byte span covering
+   * the first N newlines instead of loading the whole file. Each line is parsed
+   * independently; a malformed line is skipped rather than aborting the scan so
+   * a single bad record never costs us the session metadata.
+   */
+  private async readLeadingRecords(transcriptPath: string): Promise<AnyRecord[]> {
+    let content: string;
+    try {
+      content = await readFile(transcriptPath, 'utf8');
+    } catch {
+      return [];
+    }
+
+    const records: AnyRecord[] = [];
+    let cursor = 0;
+    while (records.length < this.TITLE_SCAN_LINE_LIMIT && cursor <= content.length) {
+      const newlineIndex = content.indexOf('\n', cursor);
+      const end = newlineIndex >= 0 ? newlineIndex : content.length;
+      const lineRaw = content.slice(cursor, end).trim();
+      if (lineRaw) {
+        try {
+          const record = readObjectRecord(JSON.parse(lineRaw));
+          if (record) {
+            records.push(record);
+          }
+        } catch {
+          // Skip an unparseable line; keep scanning the remaining lines.
+        }
+      }
+      if (newlineIndex < 0) {
+        break;
+      }
+      cursor = newlineIndex + 1;
+    }
+
+    return records;
+  }
+
+  /**
+   * Pulls the user prompt out of the first USER_INPUT record for use as the title.
+   *
+   * agy can emit system records (e.g. CONVERSATION_HISTORY) before the human's
+   * first turn, so we scan the leading records for the first USER_INPUT instead
+   * of assuming line 0. When no USER_INPUT is found within the scanned window we
+   * return undefined so the caller falls back to the default title.
    *
    * `<instructions>...</instructions>` blocks are stripped first because agy
    * injects them as system-level directives (e.g. response-language rules), not
@@ -214,12 +257,13 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
    * block is removed. When nothing user-authored remains we return undefined so
    * the caller falls back to the default "New Antigravity Chat" title.
    */
-  private extractTitleFromFirstLine(firstLine: AnyRecord | null): string | undefined {
-    if (!firstLine || firstLine.type !== 'USER_INPUT') {
+  private extractTitleFromLeadingRecords(records: AnyRecord[]): string | undefined {
+    const userInput = records.find((record) => record.type === 'USER_INPUT');
+    if (!userInput) {
       return undefined;
     }
 
-    const rawContent = typeof firstLine.content === 'string' ? firstLine.content : '';
+    const rawContent = typeof userInput.content === 'string' ? userInput.content : '';
     if (!rawContent) {
       return undefined;
     }

@@ -10,6 +10,7 @@ import {
   registerAntigravityProjectPath,
 } from '@/modules/providers/list/antigravity/antigravity-project-registry.js';
 import { AntigravitySessionSynchronizer } from '@/modules/providers/list/antigravity/antigravity-session-synchronizer.provider.js';
+import { normalizeSessionName } from '@/shared/utils.js';
 
 const SESSION_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH = '/__antigravity__';
@@ -63,6 +64,21 @@ async function writeTranscript(brainDir: string, uuid: string, firstLine: unknow
   await mkdir(transcriptDir, { recursive: true });
   const transcriptPath = path.join(transcriptDir, 'transcript.jsonl');
   await writeFile(transcriptPath, JSON.stringify(firstLine) + '\n', 'utf8');
+  return transcriptPath;
+}
+
+/**
+ * Writes a transcript made of several JSONL records so tests can exercise the
+ * leading-line scan (e.g. a system line before the first USER_INPUT). The
+ * synchronizer reads only the first TITLE_SCAN_LINE_LIMIT lines, so order
+ * matters here.
+ */
+async function writeTranscriptLines(brainDir: string, uuid: string, lines: unknown[]): Promise<string> {
+  const transcriptDir = path.join(brainDir, uuid, '.system_generated', 'logs');
+  await mkdir(transcriptDir, { recursive: true });
+  const transcriptPath = path.join(transcriptDir, 'transcript.jsonl');
+  const body = lines.map((line) => JSON.stringify(line)).join('\n') + '\n';
+  await writeFile(transcriptPath, body, 'utf8');
   return transcriptPath;
 }
 
@@ -354,4 +370,191 @@ test('synchronizeFile indexes a single transcript path and returns its session i
       assert.equal(row?.custom_name, 'single file ingest');
     },
   );
+});
+
+// --------------------------------------------------------------------------
+// Edge cases: title extraction from leading transcript lines
+// --------------------------------------------------------------------------
+
+test('synchronize reads the title from the first USER_INPUT even when a system line precedes it', async () => {
+  // agy can emit a CONVERSATION_HISTORY (or other system) line before the human's
+  // first turn. The scan must look past line 0 and capture the USER_INPUT title
+  // instead of falling back to the default name.
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscriptLines(brainDir, SESSION_UUID, [
+        {
+          step_index: 0,
+          source: 'SYSTEM',
+          type: 'CONVERSATION_HISTORY',
+          status: 'DONE',
+          created_at: '2026-01-01T00:00:00Z',
+          content: 'restored prior conversation context',
+        },
+        {
+          step_index: 1,
+          source: 'USER_EXPLICIT',
+          type: 'USER_INPUT',
+          status: 'DONE',
+          created_at: '2026-01-01T00:00:05Z',
+          content: '<USER_REQUEST>\nSummarize the meeting notes\n</USER_REQUEST>',
+        },
+      ]);
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'Summarize the meeting notes');
+      assert.notEqual(row?.custom_name, 'New Antigravity Chat');
+    },
+  );
+});
+
+test('synchronize truncates a long Arabic title on a word boundary and appends an ellipsis', async () => {
+  // A single Arabic word repeated past the 120 code-point bound. normalizeSessionName
+  // must cut inside the first 117 code points, break on the last space so no word is
+  // split, and mark the cut with "…".
+  const ARABIC_WORD = 'مرحبا'; // 5 code points
+  // 25 words * (5 + 1 space) = 150 code points -> well over the 120 bound.
+  const longArabic = Array.from({ length: 25 }, () => ARABIC_WORD).join(' ');
+
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: `<USER_REQUEST>\n${longArabic}\n</USER_REQUEST>`,
+      });
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      const name = row?.custom_name ?? '';
+
+      assert.ok(name.endsWith('…'), 'expected the truncated title to end with an ellipsis');
+      assert.ok(name.length < longArabic.length, 'expected the title to be shorter than the source');
+
+      // The kept text (without the ellipsis) must be a clean word boundary: it
+      // is a whole number of ARABIC_WORD tokens joined by spaces, never a partial word.
+      const kept = name.slice(0, -1).trimEnd();
+      const tokens = kept.split(' ');
+      for (const token of tokens) {
+        assert.equal(token, ARABIC_WORD, 'expected every kept token to be a whole word');
+      }
+
+      // Code-point length of the kept portion must respect the 117-window bound.
+      assert.ok(Array.from(kept).length <= 117, 'kept portion must stay within the 117 code-point window');
+    },
+  );
+});
+
+test('synchronize falls back to the default title when no USER_INPUT appears in the first 10 lines', async () => {
+  // The scan window is bounded to TITLE_SCAN_LINE_LIMIT (10). A USER_INPUT that
+  // only shows up on line 11 must not be reached, so the title falls back.
+  await withSyncFixture(
+    async (brainDir) => {
+      const systemLines = Array.from({ length: 10 }, (_, index) => ({
+        step_index: index,
+        source: 'SYSTEM',
+        type: 'PLANNER_RESPONSE',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: `system warmup ${index}`,
+      }));
+      const lateUserInput = {
+        step_index: 10,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:11Z',
+        content: '<USER_REQUEST>too late to be the title</USER_REQUEST>',
+      };
+      await writeTranscriptLines(brainDir, SESSION_UUID, [...systemLines, lateUserInput]);
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'New Antigravity Chat');
+    },
+  );
+});
+
+test('synchronize falls back to the default title for a completely empty transcript file', async () => {
+  await withSyncFixture(
+    async (brainDir) => {
+      const transcriptDir = path.join(brainDir, SESSION_UUID, '.system_generated', 'logs');
+      await mkdir(transcriptDir, { recursive: true });
+      await writeFile(path.join(transcriptDir, 'transcript.jsonl'), '', 'utf8');
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'New Antigravity Chat');
+    },
+  );
+});
+
+// --------------------------------------------------------------------------
+// Unit: normalizeSessionName (title bounding helper)
+// --------------------------------------------------------------------------
+
+test('normalizeSessionName returns input unchanged when at or below 120 code points', () => {
+  const exactly120 = 'a'.repeat(120);
+  assert.equal(Array.from(exactly120).length, 120);
+  assert.equal(normalizeSessionName(exactly120, 'fallback'), exactly120);
+
+  const short = 'a short title';
+  assert.equal(normalizeSessionName(short, 'fallback'), short);
+});
+
+test('normalizeSessionName collapses internal whitespace before bounding', () => {
+  assert.equal(normalizeSessionName('  hello\t\nworld  ', 'fallback'), 'hello world');
+});
+
+test('normalizeSessionName returns the fallback for empty or whitespace-only input', () => {
+  assert.equal(normalizeSessionName('', 'New Antigravity Chat'), 'New Antigravity Chat');
+  assert.equal(normalizeSessionName('   \n\t ', 'New Antigravity Chat'), 'New Antigravity Chat');
+  assert.equal(normalizeSessionName(undefined, 'New Antigravity Chat'), 'New Antigravity Chat');
+});
+
+test('normalizeSessionName truncates long Arabic text on a word boundary with an ellipsis', () => {
+  const word = 'مرحبا'; // 5 code points
+  const source = Array.from({ length: 25 }, () => word).join(' '); // 150 code points
+  assert.ok(Array.from(source).length > 120);
+
+  const result = normalizeSessionName(source, 'fallback');
+
+  assert.ok(result.endsWith('…'), 'expected an ellipsis suffix');
+  const kept = result.slice(0, -1).trimEnd();
+
+  // Word boundary: every kept token is a whole word, never split mid-glyph.
+  for (const token of kept.split(' ')) {
+    assert.equal(token, word);
+  }
+  assert.ok(Array.from(kept).length <= 117, 'kept portion must respect the 117 code-point window');
+});
+
+test('normalizeSessionName counts composed glyphs as single code points (emoji not split)', () => {
+  // 60 two-emoji-wide tokens far exceed 120 code points but must still cut on a
+  // space boundary, never inside a surrogate pair.
+  const token = '🌟a'; // 2 code points
+  const source = Array.from({ length: 80 }, () => token).join(' ');
+  const result = normalizeSessionName(source, 'fallback');
+
+  assert.ok(result.endsWith('…'));
+  const kept = result.slice(0, -1).trimEnd();
+  for (const t of kept.split(' ')) {
+    assert.equal(t, token, 'expected each kept token to be intact (no split surrogate)');
+  }
 });
