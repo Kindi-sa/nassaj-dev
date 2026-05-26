@@ -1,14 +1,13 @@
+import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Check, Edit2, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
-import { Badge, Button } from '../../../../shared/view/ui';
+import { Badge } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
-
-import SessionContextMenu from './SessionContextMenu';
 
 /**
  * Builds the absolute, openable session URL on the current origin, honoring any
@@ -105,6 +104,18 @@ export default function SidebarSessionItem({
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
 
+  // The row is a real anchor so the browser's native context menu offers
+  // "Open in new tab/window". A plain left-click stays an in-app SPA
+  // navigation (no full reload); modified clicks and middle-clicks are left
+  // to the browser so they open the session URL in a new tab/window.
+  const handleSessionLinkClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    onSessionSelect(session, project.projectId);
+  };
+
   return (
     <div className="group relative">
       {sessionView.isActive && (
@@ -165,15 +176,14 @@ export default function SidebarSessionItem({
         </div>
       </div>
 
-      <SessionContextMenu sessionUrl={buildSessionUrl(session.id)} t={t}>
       <div className="hidden md:block">
-        <Button
-          variant="ghost"
+        <a
+          href={buildSessionUrl(session.id)}
+          onClick={handleSessionLinkClick}
           className={cn(
-            'w-full justify-start p-2 h-auto font-normal text-left hover:bg-accent/50 transition-colors duration-200',
+            'no-underline flex w-full items-center justify-start rounded-md p-2 h-auto text-sm font-normal text-left text-foreground hover:bg-accent/50 transition-colors duration-200',
             isSelected && 'bg-accent text-accent-foreground',
           )}
-          onClick={() => onSessionSelect(session, project.projectId)}
         >
           <div className="flex w-full min-w-0 items-start gap-2">
             <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3 w-3 flex-shrink-0" />
@@ -191,7 +201,7 @@ export default function SidebarSessionItem({
               </div>
             </div>
           </div>
-        </Button>
+        </a>
 
         <div className="absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 opacity-0 transition-all duration-200 group-hover:opacity-100">
             {editingSession === session.id ? (
@@ -261,7 +271,6 @@ export default function SidebarSessionItem({
             )}
           </div>
       </div>
-      </SessionContextMenu>
     </div>
   );
 }

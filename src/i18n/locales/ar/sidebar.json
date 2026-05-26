@@ -32,9 +32,7 @@
     "loadingSessions": "جارٍ تحميل الجلسات...",
     "unnamed": "بدون اسم",
     "loading": "جارٍ التحميل...",
-    "showMore": "عرض المزيد من الجلسات",
-    "openInNewTab": "فتح في تبويب جديد",
-    "contextMenuLabel": "خيارات الجلسة"
+    "showMore": "عرض المزيد من الجلسات"
   },
   "tooltips": {
     "viewEnvironments": "عرض البيئات",
