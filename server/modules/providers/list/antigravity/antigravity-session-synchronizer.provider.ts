@@ -206,6 +206,13 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
 
   /**
    * Pulls the user prompt out of a USER_INPUT first line for use as the title.
+   *
+   * `<instructions>...</instructions>` blocks are stripped first because agy
+   * injects them as system-level directives (e.g. response-language rules), not
+   * as text the human typed; letting them seed the title would surface machine
+   * instructions as the conversation name. The match is global so every injected
+   * block is removed. When nothing user-authored remains we return undefined so
+   * the caller falls back to the default "New Antigravity Chat" title.
    */
   private extractTitleFromFirstLine(firstLine: AnyRecord | null): string | undefined {
     if (!firstLine || firstLine.type !== 'USER_INPUT') {
@@ -217,13 +224,16 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
       return undefined;
     }
 
+    let text = rawContent;
     const match = rawContent.match(/<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/);
     if (match && typeof match[1] === 'string') {
-      const text = match[1].trim();
-      return text.length > 0 ? text : undefined;
+      text = match[1];
     }
 
-    return rawContent.trim() || undefined;
+    text = text.replace(/<instructions>[\s\S]*?<\/instructions>/gi, '');
+
+    const trimmed = text.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   /**

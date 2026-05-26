@@ -4,9 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection } from '@/modules/database/connection.js';
-import { initializeDatabase } from '@/modules/database/init-db.js';
-import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { AntigravitySessionsProvider } from '@/modules/providers/list/antigravity/antigravity-sessions.provider.js';
 
 const SESSION_ID = '11111111-2222-3333-4444-555555555555';
@@ -87,6 +85,70 @@ test('fetchHistory normalizes USER_INPUT into a single user text turn', async ()
       assert.equal(messages[0]?.content, 'hello world');
       assert.equal(messages[0]?.provider, 'antigravity');
       assert.equal(total, 1);
+    },
+  );
+});
+
+test('fetchHistory strips out <instructions> tags from USER_INPUT content', async () => {
+  await withTranscriptFixture(
+    [
+      {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>\n<instructions>\nIMPORTANT: Arabic only\n</instructions>\n\nhello world\n</USER_REQUEST>',
+      },
+    ],
+    async (provider) => {
+      const { messages } = await provider.fetchHistory(SESSION_ID);
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0]?.content, 'hello world');
+    },
+  );
+});
+
+test('fetchHistory strips every <instructions> block when several are present', async () => {
+  await withTranscriptFixture(
+    [
+      {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content:
+          '<USER_REQUEST>\n<instructions>\nArabic only\n</instructions>\nhello world\n<instructions>\nbe concise\n</instructions>\n</USER_REQUEST>',
+      },
+    ],
+    async (provider) => {
+      const { messages } = await provider.fetchHistory(SESSION_ID);
+      assert.equal(messages.length, 1);
+      assert.equal(messages[0]?.content, 'hello world');
+    },
+  );
+});
+
+test('fetchHistory drops a USER_INPUT that is nothing but an <instructions> block', async () => {
+  await withTranscriptFixture(
+    [
+      {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>\n<instructions>\nIMPORTANT: Arabic only\n</instructions>\n</USER_REQUEST>',
+      },
+    ],
+    async (provider) => {
+      // The whole turn is injected system instructions; once stripped nothing
+      // user-authored remains, so extractUserRequest returns '' and the message
+      // is dropped rather than rendered as an empty user bubble.
+      const { messages, total } = await provider.fetchHistory(SESSION_ID);
+      assert.equal(messages.length, 0);
+      assert.equal(total, 0);
     },
   );
 });

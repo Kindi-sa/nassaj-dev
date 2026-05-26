@@ -33,18 +33,26 @@ type AgyTranscriptLine = {
  * agy wraps the actual prompt in `<USER_REQUEST>...</USER_REQUEST>` and appends
  * environment metadata blocks after it. If the markers are missing we fall back
  * to the raw content so we never drop a user turn just because the wrapper drifts.
+ *
+ * `<instructions>...</instructions>` blocks are stripped because agy injects them
+ * as system-level directives (e.g. response-language rules); they are not part of
+ * what the human typed, so surfacing them as the user turn would be misleading.
+ * The match is global so every injected block is removed, not just the first.
  */
 function extractUserRequest(rawContent: string | undefined): string {
   if (!rawContent) {
     return '';
   }
 
+  let text = rawContent;
   const match = rawContent.match(/<USER_REQUEST>\s*([\s\S]*?)\s*<\/USER_REQUEST>/);
   if (match && typeof match[1] === 'string') {
-    return match[1].trim();
+    text = match[1];
   }
 
-  return rawContent.trim();
+  text = text.replace(/<instructions>[\s\S]*?<\/instructions>/gi, '');
+
+  return text.trim();
 }
 
 /**

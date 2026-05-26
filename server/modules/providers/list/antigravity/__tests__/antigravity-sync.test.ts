@@ -105,6 +105,76 @@ test('synchronize indexes a brain UUID and writes a session row with the transcr
   );
 });
 
+test('synchronize strips out <instructions> tags from the session title', async () => {
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>\n<instructions>\nIMPORTANT: Arabic only\n</instructions>\n\nWrite me a poem\n</USER_REQUEST>',
+      });
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'Write me a poem');
+    },
+  );
+});
+
+test('synchronize strips every <instructions> block from the title when several are present', async () => {
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content:
+          '<USER_REQUEST>\n<instructions>\nArabic only\n</instructions>\nWrite me a poem\n<instructions>\nbe concise\n</instructions>\n</USER_REQUEST>',
+      });
+    },
+    async (sync) => {
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'Write me a poem');
+    },
+  );
+});
+
+test('synchronize falls back to the default title when the request is only an <instructions> block', async () => {
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>\n<instructions>\nIMPORTANT: Arabic only\n</instructions>\n</USER_REQUEST>',
+      });
+    },
+    async (sync) => {
+      // Stripping the injected instructions leaves no user text, so
+      // extractTitleFromFirstLine returns undefined and the synchronizer falls
+      // back to the default title rather than naming the chat after machine input.
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.custom_name, 'New Antigravity Chat');
+    },
+  );
+});
+
 test('synchronize preserves an existing real project_path instead of clobbering it with the placeholder', async () => {
   // Regression: agy-cli.js registers a freshly created session under its real
   // workspace cwd on process close. A subsequent full sync must NOT relocate
