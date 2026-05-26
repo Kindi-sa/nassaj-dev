@@ -1,11 +1,19 @@
 import { useTranslation } from 'react-i18next';
-import { useCallback, useRef } from 'react';
+import { Fragment, useCallback, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 import type { ChatMessage } from '../../types/types';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import { getIntrinsicMessageKey } from '../../utils/messageKeys';
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
+import DateSeparator from './DateSeparator';
+
+// Parse a ChatMessage timestamp (string | number | Date) into a valid Date, or null.
+function toValidDate(timestamp: string | number | Date | undefined): Date | null {
+  if (timestamp == null) return null;
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement>;
@@ -242,22 +250,29 @@ export default function ChatMessagesPane({
 
           {visibleMessages.map((message, index) => {
             const prevMessage = index > 0 ? visibleMessages[index - 1] : null;
+            const messageDate = toValidDate(message.timestamp);
+            const prevDate = prevMessage ? toValidDate(prevMessage.timestamp) : null;
+            const showSeparator =
+              messageDate != null &&
+              (prevDate == null || messageDate.toDateString() !== prevDate.toDateString());
             return (
-              <MessageComponent
-                key={getMessageKey(message)}
-                message={message}
-                prevMessage={prevMessage}
-                createDiff={createDiff}
-                onFileOpen={onFileOpen}
-                onShowSettings={onShowSettings}
-                onGrantToolPermission={onGrantToolPermission}
-                onStartNewSession={onStartNewSession}
-                autoExpandTools={autoExpandTools}
-                showRawParameters={showRawParameters}
-                showThinking={showThinking}
-                selectedProject={selectedProject}
-                provider={displayProvider}
-              />
+              <Fragment key={getMessageKey(message)}>
+                {showSeparator && messageDate && <DateSeparator date={messageDate} />}
+                <MessageComponent
+                  message={message}
+                  prevMessage={prevMessage}
+                  createDiff={createDiff}
+                  onFileOpen={onFileOpen}
+                  onShowSettings={onShowSettings}
+                  onGrantToolPermission={onGrantToolPermission}
+                  onStartNewSession={onStartNewSession}
+                  autoExpandTools={autoExpandTools}
+                  showRawParameters={showRawParameters}
+                  showThinking={showThinking}
+                  selectedProject={selectedProject}
+                  provider={displayProvider}
+                />
+              </Fragment>
             );
           })}
         </>

@@ -123,7 +123,30 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     };
   }, [autoExpandTools, isExpanded, message.isToolUse]);
 
-  const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
+  const formattedTime = useMemo(() => {
+    const d = new Date(message.timestamp);
+    // Guard against missing/invalid timestamps (e.g. some agy tool_use or
+    // thinking events arrive without one) so we never render "Invalid Date".
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }, [message.timestamp]);
+
+  const fullDateTime = useMemo(() => {
+    const d = new Date(message.timestamp);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString([], {
+      year: 'numeric', month: 'short', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }, [message.timestamp]);
+
+  // `<time dateTime>` requires a string; normalise the (string | number | Date)
+  // timestamp to a machine-readable ISO value, falling back to an empty string
+  // for invalid dates so the attribute stays valid.
+  const isoTimestamp = useMemo(() => {
+    const d = new Date(message.timestamp);
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+  }, [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
   // Stale-resume error: the backend reported the conversation no longer exists
   // instead of silently restarting. Surface an explicit retry action.
@@ -164,7 +187,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
               {shouldShowUserCopyControl && (
                 <MessageCopyControl content={userCopyContent} messageType="user" />
               )}
-              <span>{formattedTime}</span>
+              {formattedTime && (
+                <time
+                  dateTime={isoTimestamp}
+                  title={fullDateTime}
+                  className="cursor-default"
+                >
+                  {formattedTime}
+                </time>
+              )}
             </div>
           </div>
           {!isGrouped && (
@@ -529,14 +560,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
               </div>
             )}
 
-            {(shouldShowAssistantCopyControl || !isGrouped) && (
-              <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
-                {shouldShowAssistantCopyControl && (
-                  <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
-                )}
-                {!isGrouped && <span>{formattedTime}</span>}
-              </div>
-            )}
+            <div className="mt-1 flex w-full items-center gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+              {shouldShowAssistantCopyControl && (
+                <MessageCopyControl content={assistantCopyContent} messageType="assistant" />
+              )}
+              {formattedTime && (
+                <time
+                  dateTime={isoTimestamp}
+                  title={fullDateTime}
+                  className="cursor-default"
+                >
+                  {formattedTime}
+                </time>
+              )}
+            </div>
           </div>
         </div>
       )}
