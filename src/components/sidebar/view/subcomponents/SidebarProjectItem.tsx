@@ -183,7 +183,7 @@ export default function SidebarProjectItem({
                   ) : (
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <h3 className="truncate text-sm font-medium text-foreground">{project.displayName}</h3>
+                        <h3 className="min-w-0 truncate text-sm font-medium text-foreground">{project.displayName}</h3>
                         {tasksEnabled && (
                           <TaskIndicator
                             status={taskStatus}
@@ -204,7 +204,7 @@ export default function SidebarProjectItem({
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="relative z-10 flex flex-shrink-0 items-center gap-1.5 ps-2">
                 {isEditing ? (
                   <>
                     <button
@@ -350,11 +350,11 @@ export default function SidebarProjectItem({
             </div>
           </div>
 
-          <div className="flex flex-shrink-0 items-center gap-1">
+          <div className="relative z-10 flex flex-shrink-0 items-center gap-1 ps-2">
             {isEditing ? (
               <>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-green-600 transition-colors hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20"
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded text-green-600 transition-colors hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20"
                   onClick={(event) => {
                     event.stopPropagation();
                     saveProjectName();
@@ -363,7 +363,7 @@ export default function SidebarProjectItem({
                   <Check className="h-3 w-3" />
                 </div>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800"
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCancelEditingProject();
@@ -375,13 +375,23 @@ export default function SidebarProjectItem({
             ) : (
               <>
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
                   className={cn(
-                    'w-6 h-6 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center rounded cursor-pointer touch:opacity-100',
+                    'w-7 h-7 opacity-0 group-hover:opacity-100 transition-all duration-200 flex items-center justify-center rounded cursor-pointer touch:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                     isStarred ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20 opacity-100' : 'hover:bg-accent',
                   )}
                   onClick={(event) => {
                     event.stopPropagation();
                     toggleStarProject();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggleStarProject();
+                    }
                   }}
                   title={isStarred ? t('tooltips.removeFromFavorites') : t('tooltips.addToFavorites')}
                 >
@@ -395,7 +405,7 @@ export default function SidebarProjectItem({
                   />
                 </div>
                 <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
+                  className="touch:opacity-100 flex h-7 w-7 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     onStartEditingProject(project);
@@ -405,7 +415,7 @@ export default function SidebarProjectItem({
                   <Edit3 className="h-3 w-3" />
                 </div>
                 <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
+                  className="touch:opacity-100 flex h-7 w-7 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
                   onClick={(event) => {
                     event.stopPropagation();
                     onDeleteProject(project);
