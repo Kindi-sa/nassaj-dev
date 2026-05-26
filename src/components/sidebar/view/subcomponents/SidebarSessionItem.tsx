@@ -8,6 +8,18 @@ import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 
+import SessionContextMenu from './SessionContextMenu';
+
+/**
+ * Builds the absolute, openable session URL on the current origin, honoring any
+ * router basename. Mirrors the in-app route `/session/:sessionId`, so opening it
+ * in a new tab loads the same conversation directly.
+ */
+const buildSessionUrl = (sessionId: string): string => {
+  const basename = window.__ROUTER_BASENAME__ || '';
+  return `${window.location.origin}${basename}/session/${encodeURIComponent(sessionId)}`;
+};
+
 type SidebarSessionItemProps = {
   project: Project;
   session: SessionWithProvider;
@@ -153,6 +165,7 @@ export default function SidebarSessionItem({
         </div>
       </div>
 
+      <SessionContextMenu sessionUrl={buildSessionUrl(session.id)} t={t}>
       <div className="hidden md:block">
         <Button
           variant="ghost"
@@ -248,6 +261,7 @@ export default function SidebarSessionItem({
             )}
           </div>
       </div>
+      </SessionContextMenu>
     </div>
   );
 }
