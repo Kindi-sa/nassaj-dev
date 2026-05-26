@@ -1,6 +1,9 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import ParticipantAvatar from '../../../participants/ParticipantAvatar';
+import type { SessionParticipant } from '../../../participants/types';
+import { useAuth } from '../../../auth/context/AuthContext';
 import type {
   ChatMessage,
   ClaudePermissionSuggestion,
@@ -45,7 +48,23 @@ type PermissionGrantState = 'idle' | 'granted' | 'error';
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
-  const { t } = useTranslation('chat');
+  const { t, i18n } = useTranslation('chat');
+  const { user } = useAuth();
+  // Build a minimal participant view of the signed-in user so the chat reuses
+  // the shared avatar component (image with coloured-initial fallback) instead
+  // of a hard-coded "U" placeholder.
+  const currentUserParticipant = useMemo<SessionParticipant>(() => {
+    const username = user?.username ?? '';
+    return {
+      userId: user?.id ?? username ?? 'me',
+      username,
+      role: typeof user?.role === 'string' ? user.role : 'user',
+      first_seen: '',
+      last_seen: '',
+      message_count: 0,
+      avatarUrl: typeof user?.avatarUrl === 'string' ? user.avatarUrl : null,
+    };
+  }, [user?.id, user?.username, user?.role, user?.avatarUrl]);
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
       (prevMessage.type === 'user') ||
@@ -144,8 +163,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
             </div>
           </div>
           {!isGrouped && (
-            <div className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm text-white sm:flex">
-              U
+            <div className="hidden flex-shrink-0 sm:flex">
+              <ParticipantAvatar
+                participant={currentUserParticipant}
+                size="sm"
+                locale={i18n.language}
+                t={t}
+                stacked={false}
+                avatarUrl={currentUserParticipant.avatarUrl ?? undefined}
+              />
             </div>
           )}
         </div>
