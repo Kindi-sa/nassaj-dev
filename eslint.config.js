@@ -165,6 +165,11 @@ export default tseslint.config(
           mode: "file",
         },
         {
+          type: "backend-isolation-service", // per-provider environment isolation helpers consumed directly by provider modules
+          pattern: "server/services/isolation/*", // classify isolation service files so provider modules can depend on them explicitly
+          mode: "file",
+        },
+        {
           type: "backend-legacy-runtime", // legacy runtime persistence modules used while providers migrate into server/modules
           pattern: [
             "server/projects.js",
