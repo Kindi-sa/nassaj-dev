@@ -112,6 +112,19 @@ async function listBrainIds(userId = null) {
     }
 }
 
+// True when the agy brain folder backing a resume still exists on disk. A
+// missing folder is the agy equivalent of Claude's "No conversation found":
+// the conversation we were asked to resume is gone. Detecting it on the
+// filesystem before spawn is more reliable than parsing agy's plain-text output.
+async function brainExists(brainUUID, userId = null) {
+    try {
+        const stats = await fs.stat(path.join(getBrainDir(userId), brainUUID));
+        return stats.isDirectory();
+    } catch {
+        return false;
+    }
+}
+
 // B-ISO-AGYLOCK: narrow in-process mutex over the brain-UUID discovery window.
 //
 // agy reports no session id; we identify a fresh brain by diffing the BRAIN_DIR
@@ -260,6 +273,26 @@ async function spawnAntigravity(command, options = {}, ws) {
     const existingSession = sessionId ? sessionManager.getSession(sessionId) : null;
     const existingBrainUUID = existingSession?.cliSessionId
         || (sessionId ? resolveBrainUUIDFromDb(sessionId) : null);
+
+    // Stale-resume guard: a resume request whose backing brain folder no longer
+    // exists must not silently start a fresh conversation. Emit an explicit
+    // `conversation_not_found` signal carrying the stale session id and the
+    // original command so the client can offer a deliberate "start new session"
+    // action that re-sends this prompt.
+    if (existingBrainUUID && !(await brainExists(existingBrainUUID, userId))) {
+        if (ws) {
+            ws.send(createNormalizedMessage({
+                kind: 'error',
+                code: 'conversation_not_found',
+                content: 'The previous session could not be resumed — it has expired or been removed.',
+                staleSessionId: sessionId,
+                command: command || '',
+                sessionId,
+                provider: 'antigravity',
+            }));
+        }
+        return { code: 0, sessionId };
+    }
 
     // B-ISO-AGYLOCK: only fresh conversations (no brain to resume) race on UUID
     // discovery, so serialize the discovery window for those only. Resumed

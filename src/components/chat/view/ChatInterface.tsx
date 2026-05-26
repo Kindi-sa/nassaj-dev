@@ -178,6 +178,7 @@ function ChatInterface({
     handlePermissionDecision,
     handleGrantToolPermission,
     handleInputFocusChange,
+    startFreshSession,
     isInputFocused,
   } = useChatComposerState({
     selectedProject,
@@ -353,6 +354,7 @@ function ChatInterface({
           onFileOpen={onFileOpen}
           onShowSettings={onShowSettings}
           onGrantToolPermission={handleGrantToolPermission}
+          onStartNewSession={startFreshSession}
           autoExpandTools={autoExpandTools}
           showRawParameters={showRawParameters}
           showThinking={showThinking}

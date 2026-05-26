@@ -142,6 +142,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           type: 'error',
           content: msg.content || 'Unknown error',
           timestamp: msg.timestamp,
+          // Carry the stale-resume signal so the renderer can offer an explicit
+          // "start new session" action instead of a plain error bubble.
+          errorCode: msg.code,
+          staleSessionId: msg.staleSessionId,
+          failedCommand: msg.command,
           ...sharedMetadata,
         });
         break;

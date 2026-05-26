@@ -474,6 +474,106 @@ export function useChatComposerState({
     noKeyboard: true,
   });
 
+  // Reads the per-provider tool settings persisted in localStorage, falling back
+  // to permissive defaults when none are stored or parsing fails.
+  const getToolsSettings = useCallback(() => {
+    try {
+      const settingsKey =
+        provider === 'cursor'
+          ? 'cursor-tools-settings'
+          : provider === 'codex'
+            ? 'codex-settings'
+            : provider === 'gemini'
+              ? 'gemini-settings'
+              : provider === 'antigravity'
+                ? 'antigravity-settings'
+                : 'claude-settings';
+      const savedSettings = safeLocalStorage.getItem(settingsKey);
+      if (savedSettings) {
+        return JSON.parse(savedSettings);
+      }
+    } catch (error) {
+      console.error('Error loading tools settings:', error);
+    }
+
+    return { allowedTools: [], disallowedTools: [], skipPermissions: false };
+  }, [provider]);
+
+  // Single source of truth for building and sending a provider chat command.
+  // `targetSessionId` is null/undefined for a brand-new conversation. Shared by
+  // the composer submit and the explicit "start new session" retry action so
+  // both paths stay in lockstep across providers.
+  const dispatchProviderCommand = useCallback(
+    (
+      messageContent: string,
+      targetSessionId: string | null | undefined,
+      uploadedImages: unknown[] = [],
+    ) => {
+      const toolsSettings = getToolsSettings();
+      const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
+      const sessionSummary = getNotificationSessionSummary(selectedSession, messageContent);
+      const resume = Boolean(targetSessionId);
+
+      if (provider === 'cursor') {
+        sendMessage({
+          type: 'cursor-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: cursorModel, skipPermissions: toolsSettings?.skipPermissions || false,
+            sessionSummary, toolsSettings,
+          },
+        });
+      } else if (provider === 'codex') {
+        sendMessage({
+          type: 'codex-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: codexModel, sessionSummary,
+            permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
+          },
+        });
+      } else if (provider === 'gemini') {
+        sendMessage({
+          type: 'gemini-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: geminiModel, sessionSummary, permissionMode, toolsSettings,
+          },
+        });
+      } else if (provider === 'antigravity') {
+        sendMessage({
+          type: 'antigravity-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: antigravityModel, sessionSummary, permissionMode, toolsSettings,
+          },
+        });
+      } else {
+        sendMessage({
+          type: 'claude-command',
+          command: messageContent,
+          options: {
+            projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
+            resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
+            images: uploadedImages,
+          },
+        });
+      }
+    },
+    [
+      antigravityModel, claudeModel, codexModel, cursorModel, geminiModel,
+      getToolsSettings, permissionMode, provider, selectedProject, selectedSession, sendMessage,
+    ],
+  );
+
   const handleSubmit = useCallback(
     async (
       event: FormEvent<HTMLFormElement> | MouseEvent | TouchEvent | KeyboardEvent<HTMLTextAreaElement>,
@@ -580,121 +680,7 @@ export function useChatComposerState({
         onSessionProcessing?.(effectiveSessionId);
       }
 
-      const getToolsSettings = () => {
-        try {
-          const settingsKey =
-            provider === 'cursor'
-              ? 'cursor-tools-settings'
-              : provider === 'codex'
-                ? 'codex-settings'
-                : provider === 'gemini'
-                  ? 'gemini-settings'
-                  : provider === 'antigravity'
-                    ? 'antigravity-settings'
-                    : 'claude-settings';
-          const savedSettings = safeLocalStorage.getItem(settingsKey);
-          if (savedSettings) {
-            return JSON.parse(savedSettings);
-          }
-        } catch (error) {
-          console.error('Error loading tools settings:', error);
-        }
-
-        return {
-          allowedTools: [],
-          disallowedTools: [],
-          skipPermissions: false,
-        };
-      };
-
-      const toolsSettings = getToolsSettings();
-      const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
-      const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
-
-      if (provider === 'cursor') {
-        sendMessage({
-          type: 'cursor-command',
-          command: messageContent,
-          sessionId: effectiveSessionId,
-          options: {
-            cwd: resolvedProjectPath,
-            projectPath: resolvedProjectPath,
-            sessionId: effectiveSessionId,
-            resume: Boolean(effectiveSessionId),
-            model: cursorModel,
-            skipPermissions: toolsSettings?.skipPermissions || false,
-            sessionSummary,
-            toolsSettings,
-          },
-        });
-      } else if (provider === 'codex') {
-        sendMessage({
-          type: 'codex-command',
-          command: messageContent,
-          sessionId: effectiveSessionId,
-          options: {
-            cwd: resolvedProjectPath,
-            projectPath: resolvedProjectPath,
-            sessionId: effectiveSessionId,
-            resume: Boolean(effectiveSessionId),
-            model: codexModel,
-            sessionSummary,
-            permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
-          },
-        });
-      } else if (provider === 'gemini') {
-        sendMessage({
-          type: 'gemini-command',
-          command: messageContent,
-          sessionId: effectiveSessionId,
-          options: {
-            cwd: resolvedProjectPath,
-            projectPath: resolvedProjectPath,
-            sessionId: effectiveSessionId,
-            resume: Boolean(effectiveSessionId),
-            model: geminiModel,
-            sessionSummary,
-            permissionMode,
-            toolsSettings,
-          },
-        });
-      } else if (provider === 'antigravity') {
-        // Antigravity (agy CLI) ignores the `model` field because the underlying
-        // model is selected from agy's own settings file; we still send it for
-        // parity with other providers in case the backend later starts honoring
-        // it as an override.
-        sendMessage({
-          type: 'antigravity-command',
-          command: messageContent,
-          sessionId: effectiveSessionId,
-          options: {
-            cwd: resolvedProjectPath,
-            projectPath: resolvedProjectPath,
-            sessionId: effectiveSessionId,
-            resume: Boolean(effectiveSessionId),
-            model: antigravityModel,
-            sessionSummary,
-            permissionMode,
-            toolsSettings,
-          },
-        });
-      } else {
-        sendMessage({
-          type: 'claude-command',
-          command: messageContent,
-          options: {
-            projectPath: resolvedProjectPath,
-            cwd: resolvedProjectPath,
-            sessionId: effectiveSessionId,
-            resume: Boolean(effectiveSessionId),
-            toolsSettings,
-            permissionMode,
-            model: claudeModel,
-            sessionSummary,
-            images: uploadedImages,
-          },
-        });
-      }
+      dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages);
 
       setInput('');
       inputValueRef.current = '';
@@ -713,24 +699,17 @@ export function useChatComposerState({
     },
     [
       selectedSession,
-      antigravityModel,
       attachedImages,
-      claudeModel,
-      codexModel,
       currentSessionId,
-      cursorModel,
+      dispatchProviderCommand,
       executeCommand,
-      geminiModel,
       isLoading,
       onSessionActive,
       onSessionProcessing,
       pendingViewSessionRef,
-      permissionMode,
-      provider,
       resetCommandMenuState,
       scrollToBottom,
       selectedProject,
-      sendMessage,
       setCanAbortSession,
       addMessage,
       setClaudeStatus,
@@ -738,6 +717,37 @@ export function useChatComposerState({
       setIsUserScrolledUp,
       slashCommands,
       thinkingMode,
+    ],
+  );
+
+  // Explicit "start new session" retry. Invoked from the conversation_not_found
+  // error bubble: re-sends the command that failed to resume as a brand-new
+  // conversation (no resume id), reusing the exact dispatch path of a normal
+  // submit so a fresh provider session id is minted via `session_created`.
+  const startFreshSession = useCallback(
+    (command: string) => {
+      const trimmed = (command || '').trim();
+      if (!trimmed || isLoading || !selectedProject) {
+        return;
+      }
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('pendingSessionId');
+      }
+      pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
+
+      addMessage({ type: 'user', content: command, timestamp: new Date() });
+      setIsLoading(true);
+      setCanAbortSession(true);
+      setClaudeStatus({ text: 'Processing', tokens: 0, can_interrupt: true });
+      setIsUserScrolledUp(false);
+      setTimeout(() => scrollToBottom(), 100);
+
+      dispatchProviderCommand(command, undefined);
+    },
+    [
+      addMessage, dispatchProviderCommand, isLoading, pendingViewSessionRef, scrollToBottom,
+      selectedProject, setCanAbortSession, setClaudeStatus, setIsLoading, setIsUserScrolledUp,
     ],
   );
 
@@ -1014,6 +1024,7 @@ export function useChatComposerState({
     handlePermissionDecision,
     handleGrantToolPermission,
     handleInputFocusChange,
+    startFreshSession,
     isInputFocused,
   };
 }

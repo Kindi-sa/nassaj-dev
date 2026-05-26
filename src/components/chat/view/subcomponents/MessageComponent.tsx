@@ -31,6 +31,7 @@ type MessageComponentProps = {
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
+  onStartNewSession?: (command: string) => void;
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
@@ -47,7 +48,7 @@ type InteractiveOption = {
 type PermissionGrantState = 'idle' | 'granted' | 'error';
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
   const { t, i18n } = useTranslation('chat');
   const { user } = useAuth();
   // Build a minimal participant view of the signed-in user so the chat reuses
@@ -124,6 +125,10 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  // Stale-resume error: the backend reported the conversation no longer exists
+  // instead of silently restarting. Surface an explicit retry action.
+  const isSessionNotResumable =
+    message.type === 'error' && message.errorCode === 'conversation_not_found';
 
   if (shouldHideThinkingMessage) {
     return null;
@@ -221,7 +226,22 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
 
           <div className="w-full">
 
-            {message.isToolUse ? (
+            {isSessionNotResumable ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+                <p className="text-sm text-red-800 dark:text-red-200" dir="auto">
+                  {t('sessionNotResumable.message')}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onStartNewSession?.(String(message.failedCommand || ''))}
+                  disabled={!message.failedCommand || !onStartNewSession}
+                  aria-label={t('sessionNotResumable.startNew')}
+                  className="mt-3 inline-flex items-center rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-500 dark:hover:bg-red-600"
+                >
+                  {t('sessionNotResumable.startNew')}
+                </button>
+              </div>
+            ) : message.isToolUse ? (
               <>
                 {/*
                  * Sub-agent badge: any `Task` tool call delegates to a child

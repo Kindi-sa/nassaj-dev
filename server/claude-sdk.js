@@ -797,15 +797,16 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 }
 
 /**
- * Public entry point. Wraps {@link runClaudeSDKQuery} with a one-shot
- * fresh-session fallback for stale resumes.
+ * Public entry point. Wraps {@link runClaudeSDKQuery} and, when a `--resume`
+ * (SDK `resume`) target no longer exists, surfaces an explicit
+ * `conversation_not_found` signal to the client instead of silently starting a
+ * fresh conversation.
  *
- * When a `--resume` (SDK `resume`) target no longer exists, the underlying CLI
- * dead-ends the user's message with "No conversation found with session ID".
- * Here we detect that single failure mode, tell the user the previous session
- * ended, and transparently re-run the same prompt as a brand-new conversation.
+ * Rationale: a silent auto-restart loses the user's expectation that they are
+ * continuing a specific conversation. Instead, the client renders a clear error
+ * with a "start new session" button so the restart is a deliberate user action.
  * Every other error keeps the original behaviour, and runs that never asked to
- * resume skip the retry path entirely.
+ * resume skip the detection path entirely.
  *
  * @param {string} command - User prompt/command
  * @param {Object} options - Query options
@@ -815,7 +816,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 async function queryClaudeSDK(command, options = {}, ws) {
   const { sessionId } = options;
 
-  // No resume requested → nothing to fall back from. Run once, plain.
+  // No resume requested → nothing to detect. Run once, plain.
   if (!sessionId) {
     await runClaudeSDKQuery(command, options, ws);
     return;
@@ -829,22 +830,18 @@ async function queryClaudeSDK(command, options = {}, ws) {
     return;
   }
 
-  // The previous conversation is gone. Announce it inline (the chat has no
-  // global toast surface) and restart without `resume` so a fresh session id
-  // is minted and reported via `session_created`.
+  // The previous conversation is gone. Do NOT auto-restart: emit an explicit
+  // signal carrying the stale session id and the original command so the client
+  // can offer a "start new session" action that re-sends this same prompt.
   ws.send(createNormalizedMessage({
-    kind: 'text',
-    role: 'assistant',
-    content:
-      'The previous session could not be resumed (it has expired or been removed). '
-      + 'A new conversation was started and your message was sent to it.',
-    sessionId: null,
+    kind: 'error',
+    code: 'conversation_not_found',
+    content: 'The previous session could not be resumed — it has expired or been removed.',
+    staleSessionId: sessionId,
+    command,
+    sessionId,
     provider: 'claude',
-    isSessionResetNotice: true,
   }));
-
-  const { sessionId: _staleSessionId, ...freshOptions } = options;
-  await runClaudeSDKQuery(command, freshOptions, ws);
 }
 
 /**

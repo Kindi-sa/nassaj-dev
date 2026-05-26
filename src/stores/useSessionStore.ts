@@ -60,6 +60,12 @@ export interface NormalizedMessage {
   toolId?: string;
   toolResult?: { content: string; isError: boolean; toolUseResult?: unknown } | null;
   isError?: boolean;
+  /** Machine-readable error discriminator (e.g. 'conversation_not_found'). */
+  code?: string;
+  /** Stale resume target reported alongside a 'conversation_not_found' error. */
+  staleSessionId?: string;
+  /** Original command that failed to resume, used to retry as a new session. */
+  command?: string;
   text?: string;
   tokens?: number;
   canInterrupt?: boolean;

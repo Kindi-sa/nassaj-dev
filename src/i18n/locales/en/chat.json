@@ -25,6 +25,10 @@
     "badge": "Sub-agent",
     "badgeLabel": "Sub-agent task"
   },
+  "sessionNotResumable": {
+    "message": "This session could not be resumed — it no longer exists at the provider.",
+    "startNew": "Start a new session"
+  },
   "tools": {
     "settings": "Tool Settings",
     "error": "Tool Error",
