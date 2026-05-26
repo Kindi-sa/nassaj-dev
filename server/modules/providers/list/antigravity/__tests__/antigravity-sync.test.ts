@@ -4,9 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection } from '@/modules/database/connection.js';
-import { initializeDatabase } from '@/modules/database/init-db.js';
-import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import {
+  clearAntigravityProjectPath,
+  registerAntigravityProjectPath,
+} from '@/modules/providers/list/antigravity/antigravity-project-registry.js';
 import { AntigravitySessionSynchronizer } from '@/modules/providers/list/antigravity/antigravity-session-synchronizer.provider.js';
 
 const SESSION_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
@@ -99,6 +101,75 @@ test('synchronize indexes a brain UUID and writes a session row with the transcr
       assert.equal(row?.project_path, ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH);
       assert.equal(row?.custom_name, 'Write me a poem');
       assert.match(row?.jsonl_path ?? '', /transcript\.jsonl$/);
+    },
+  );
+});
+
+test('synchronize preserves an existing real project_path instead of clobbering it with the placeholder', async () => {
+  // Regression: agy-cli.js registers a freshly created session under its real
+  // workspace cwd on process close. A subsequent full sync must NOT relocate
+  // that session into the phantom /__antigravity__ workspace, or it disappears
+  // from the owning project's sidebar.
+  const REAL_PROJECT_PATH = '/home/nassaj/Project/nassaj-dev';
+
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>\nhello from a real project\n</USER_REQUEST>',
+      });
+    },
+    async (sync) => {
+      // Simulate agy-cli.js close handler having already filed the session
+      // under the real project path.
+      sessionsDb.createSession(SESSION_UUID, 'antigravity', REAL_PROJECT_PATH);
+
+      const processed = await sync.synchronize();
+      assert.equal(processed, 1);
+
+      const row = sessionsDb.getSessionById(SESSION_UUID);
+      assert.equal(row?.project_path, REAL_PROJECT_PATH);
+      assert.notEqual(row?.project_path, ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH);
+    },
+  );
+});
+
+test('synchronize uses the in-process registry path when the DB row does not exist yet', async () => {
+  // Regression: a synchronize() (boot / sidebar refresh / watcher) can reach a
+  // brand-new brain UUID *before* agy-cli.js has written its DB row. Without the
+  // registry fallback the first sync files the /__antigravity__ placeholder and
+  // nothing ever corrects it — the conversation vanishes from its project folder.
+  const REAL_PROJECT_PATH = '/home/nassaj/Project/nassaj-dev';
+
+  await withSyncFixture(
+    async (brainDir) => {
+      await writeTranscript(brainDir, SESSION_UUID, {
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        status: 'DONE',
+        created_at: '2026-01-01T00:00:00Z',
+        content: '<USER_REQUEST>raced against the close handler</USER_REQUEST>',
+      });
+    },
+    async (sync) => {
+      // The spawn adapter publishes the binding the instant it discovers the UUID,
+      // before any DB row exists for it.
+      registerAntigravityProjectPath(SESSION_UUID, REAL_PROJECT_PATH);
+      try {
+        const processed = await sync.synchronize();
+        assert.equal(processed, 1);
+
+        const row = sessionsDb.getSessionById(SESSION_UUID);
+        assert.equal(row?.project_path, REAL_PROJECT_PATH);
+        assert.notEqual(row?.project_path, ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH);
+      } finally {
+        clearAntigravityProjectPath(SESSION_UUID);
+      }
     },
   );
 });

@@ -105,6 +105,49 @@
 - **Work Items:** M-50, M-51, M-52, M-53, M-54, M-55, M-56 → `docs/workitems/PHASE-4.md`
 - **المخرجات:** test suite كامل (≥ 70% للمنطق الأساسي)، تقرير regression لـ Claude provider، توثيق ADRs النهائية، checklist شرط الانتقال موقَّع.
 
+### المرحلة MU — Multi-User (Phase-MU)
+- **الهدف:** جعل `nassaj-dev` متعدّد المستخدمين لفريق نسَّاج: **عزل اعتماد per-user**
+  (Claude إلزامي، Gemini) مع **مشاركة حيّة كاملة** للمحادثات والملفات والتعليمات، وطبقة
+  **Auth مدمجة داخل التطبيق** (لا proxy منفصل).
+- **المسؤول:** backend-dev + frontend-dev (بدعم architect للقرارات، scribe للتوثيق)
+- **الحالة:** ⏳ معلّقة
+- **يستكمل عمل:** المراحل 0→4 (single-user مكتملة)؛ تبني عليها لتُحوّل النسخة إلى multi-user.
+- **Work Items:** C-AUTH-1..4, B-ISO-RESOLVER, B-ISO-CLAUDE, B-ISO-GEMINI, B-ISO-CODEX, B-ISO-PROVISION, B-ISO-AGYLOCK, C-UI-1..3, m-*, M-ISO-E2E → `docs/workitems/PHASE-MU.md`
+- **القرارات المعتمدة (ملخص):**
+  1. **Auth مدمج داخل التطبيق** — لا auth-proxy، لا cli-wrappers، لا تبديل cloudflared. كل
+     شيء في DB الموجودة `db.sqlite` (ADR-015).
+  2. **JWT stateless** (لا جدول sessions)، أدوار `owner`/`admin`/`user`، تسجيل
+     **بالدعوة فقط** (invite-only)، تجزئة **argon2id**، **bootstrap owner** عند أول تشغيل.
+  3. **عزل اعتماد Claude إلزامي (أولوية قصوى):** `CLAUDE_CONFIG_DIR` لكل مستخدم في
+     `~/.nassaj-users/<userId>/.claude`، مع symlink لـ `projects/` (محادثات) و
+     `CLAUDE.md`/`NASSAJ.md` (تعليمات) نحو الجذر المشترك (ADR-014).
+  4. **Gemini:** عزل اعتماد عبر `GEMINI_CLI_HOME`؛ المحادثات مشتركة.
+  5. **Codex:** عزل مؤجَّل (استخدام شبه معدوم).
+  6. **agy مشترك** باعتماد المالك في V1 — brain ثابت مشترك، عزل مؤجَّل للإنتاج (ADR-016).
+  7. **التزامن:** لا قفل عام؛ مشاركة حيّة كاملة + قفل discovery ضيّق على brain UUID (ADR-017).
+  8. **طبقة محورية:** `resolveProviderEnv(userId, provider)` مصدر الحقيقة الوحيد للعزل.
+- **المخرجات:** جداول `users`+`audit_log`، JWT auth + bootstrap owner، middleware HTTP+WS،
+  invite flow، `resolveProviderEnv`، عزل Claude/Gemini، provisioning `~/.nassaj-users/<uid>`،
+  قفل discovery، شاشات RTL (login/users/invites)، اختبار E2E لمستخدمين باعتمادين مختلفين/نفس brain.
+- **مسار الترحيل:** بعد التحقق على `:3004`، تُنقل طبقة العزل ومجلد `~/.nassaj-users/` كما هما
+  إلى الإنتاج `nassaj.alkindy.tech`.
+
+#### معايير القبول لمرحلة MU (Acceptance Criteria)
+1. **عزل اعتماد Claude يعمل:** مستخدمان مختلفان يشغّلان Claude باعتمادين منفصلين
+   (`CLAUDE_CONFIG_DIR` مختلف فعلياً لكل userId).
+2. **مشاركة المحادثات:** المستخدمان يريان نفس المحادثات (symlink لـ `projects/` فعّال)،
+   بما فيها النشطة لحظياً (مشاركة حيّة).
+3. **نفس brain لـ agy:** مستخدمان يريان نفس brain/محادثات agy المشتركة دون خلط.
+4. **عزل Gemini:** `GEMINI_CLI_HOME` مختلف لكل مستخدم؛ المحادثات تبقى مشتركة.
+5. **invite-only E2E:** لا تسجيل عام؛ مستخدم جديد يدخل فقط عبر دعوة من owner/admin
+   (مسار دعوة → قبول → دخول يعمل end-to-end).
+6. **bootstrap owner:** أول تشغيل على DB فارغة يُنشئ owner، ولا يُكرَّر بعدها.
+7. **حراسة WS+HTTP:** طلب HTTP بلا JWT صالح يردّ 401؛ WebSocket upgrade بلا JWT صالح يُرفض.
+8. **RTL في شاشة auth:** شاشة تسجيل الدخول وإدارة المستخدمين والدعوات تعمل بـ RTL عربي صحيح.
+9. **`resolveProviderEnv` مصدر وحيد:** كل spawn لأي مزوّد يبني env عبر هذه الطبقة لا غيرها.
+10. **provisioning عند الدعوة:** قبول دعوة يُنشئ `~/.nassaj-users/<uid>/.claude` + symlinks
+    تلقائياً، و chmod 600 على DB قائم، و rate limit مفعّل على endpoints الـ auth.
+
 ---
 
 ## 🏗️ القرارات المعمارية (Decision Log)
@@ -119,6 +162,12 @@
 - **ADR-006** — Sub-agents تظهر كـ `tool_use` عادي مع badge بصري "Sub-agent" في المرحلة الأولى. تأجيل nested rendering لمرحلة لاحقة.
 - **ADR-007** — Auth = فحص وجود `agy` binary + token + ping فقط (لا login flow كامل). السبب: الـ binary مهيَّأ على مستوى النظام.
 - **ADR-008** — DB منفصلة إلزامياً عبر `NASSAJ_DB_PATH` env var. السبب: تفادي تعارض بين port 3001 (إنتاج) و 3004 (تطوير).
+
+**قرارات مرحلة Multi-User (محفوظة في `~/.claude/alkindy/decisions/`):**
+- **ADR-014** — [نطاق عزل الاعتمادات](~/.claude/alkindy/decisions/014-credential-isolation-scope.md): عزل اعتماد per-user فقط (Claude/Gemini) مع مشاركة حيّة كاملة للمحادثات والملفات والتعليمات.
+- **ADR-015** — [Auth مدمج مقابل proxy منفصل](~/.claude/alkindy/decisions/015-auth-in-app-vs-proxy.md): دمج Auth داخل التطبيق (JWT stateless، invite-only، argon2id، bootstrap owner) — لا proxy؛ يحلّ محلّ ADR-010/012.
+- **ADR-016** — [agy مشترك في V1](~/.claude/alkindy/decisions/016-agy-shared-credential-v1.md): agy باعتماد المالك مشترك، عزل مؤجَّل للإنتاج (البايناري Go بلا env knob).
+- **ADR-017** — [brain مشترك + قفل discovery ضيّق](~/.claude/alkindy/decisions/017-shared-brain-live-concurrency.md): لا قفل عام؛ قفل لحظي فقط على نافذة اكتشاف brain UUID.
 
 ---
 

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Plus, Shield, X } from 'lucide-react';
+import { AlertTriangle, Plus, Shield, Terminal, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input } from '../../../../../../../shared/view/ui';
 import type { CodexPermissionMode, GeminiPermissionMode } from '../../../../../types/types';
@@ -683,7 +683,83 @@ function GeminiPermissions({ permissionMode, onPermissionModeChange }: Omit<Gemi
   );
 }
 
-type PermissionsContentProps = ClaudePermissionsProps | CursorPermissionsProps | CodexPermissionsProps | GeminiPermissionsProps;
+type AntigravityPermissionsProps = {
+  agent: 'antigravity';
+};
+
+/*
+ * agy (Antigravity CLI) does not expose configurable allow/deny tool lists or a
+ * selectable permission mode the way Claude/Cursor/Codex/Gemini do. The server
+ * always spawns agy with `--dangerously-skip-permissions` and the agent's
+ * autonomy is governed inside agy's own CLI settings, not from this UI. We
+ * surface that reality here so the Permissions tab is never blank and matches
+ * the informational style used for the Antigravity account panel.
+ */
+function AntigravityPermissions() {
+  const { t } = useTranslation('settings');
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Shield className="h-5 w-5 text-emerald-500" aria-hidden="true" />
+          <h3 className="text-lg font-medium text-foreground">
+            {t('permissions.antigravity.title', { defaultValue: 'Permission Settings' })}
+          </h3>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {t('permissions.antigravity.description', {
+            defaultValue:
+              'The agy CLI manages its own permission behaviour. There are no allow or block lists to configure from this interface.',
+          })}
+        </p>
+
+        <div className="rounded-lg border border-orange-200 bg-orange-50 p-4 dark:border-orange-800 dark:bg-orange-900/20">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-orange-500" aria-hidden="true" />
+            <div>
+              <div className="font-medium text-orange-900 dark:text-orange-100">
+                {t('permissions.antigravity.skipPermissions.label', {
+                  defaultValue: 'Permission prompts are skipped',
+                })}
+              </div>
+              <div className="text-sm text-orange-700 dark:text-orange-300">
+                {t('permissions.antigravity.skipPermissions.description', {
+                  defaultValue:
+                    'agy runs with --dangerously-skip-permissions, so tool and command approvals are not requested during a session.',
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+            <Terminal className="h-4 w-4" aria-hidden="true" />
+            <span>
+              {t('permissions.antigravity.cliNote.title', {
+                defaultValue: 'Configure permissions in agy',
+              })}
+            </span>
+          </div>
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">
+            {t('permissions.antigravity.cliNote.description', {
+              defaultValue:
+                'Permission and autonomy options live inside the agy CLI settings, not in this UI.',
+            })}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type PermissionsContentProps =
+  | ClaudePermissionsProps
+  | CursorPermissionsProps
+  | CodexPermissionsProps
+  | GeminiPermissionsProps
+  | AntigravityPermissionsProps;
 
 export default function PermissionsContent(props: PermissionsContentProps) {
   if (props.agent === 'claude') {
@@ -696,6 +772,10 @@ export default function PermissionsContent(props: PermissionsContentProps) {
 
   if (props.agent === 'gemini') {
     return <GeminiPermissions {...props} />;
+  }
+
+  if (props.agent === 'antigravity') {
+    return <AntigravityPermissions />;
   }
 
   return <CodexPermissions {...props} />;

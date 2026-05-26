@@ -2,9 +2,14 @@ import { Database } from 'better-sqlite3';
 
 import {
   APP_CONFIG_TABLE_SCHEMA_SQL,
+  AUDIT_LOG_TABLE_SCHEMA_SQL,
+  INVITES_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
+  SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL,
+  SESSION_AGENTS_META_TABLE_SCHEMA_SQL,
+  SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
@@ -401,6 +406,139 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
   `);
 };
 
+/**
+ * Phase-MU migration: extend `users` with multi-user columns and create the
+ * `audit_log` + `invites` tables. Idempotent and non-destructive — existing
+ * rows keep their data and gain the new columns with safe defaults. The first
+ * pre-existing user (lowest id) is promoted to `owner` so a single-user install
+ * upgrading to multi-user does not lose admin access.
+ */
+const migrateMultiUserAuth = (db: Database, userColumnNames: string[]): void => {
+  // SQLite cannot add a column with a non-constant default or a FK inline via
+  // ALTER, so invited_by is added as a plain nullable INTEGER (FK enforced on
+  // fresh installs via CREATE TABLE; logically references users.id).
+  addColumnToTableIfNotExists(db, 'users', userColumnNames, 'role', "TEXT NOT NULL DEFAULT 'user'");
+  addColumnToTableIfNotExists(db, 'users', userColumnNames, 'status', "TEXT NOT NULL DEFAULT 'active'");
+  addColumnToTableIfNotExists(db, 'users', userColumnNames, 'invited_by', 'INTEGER');
+
+  db.exec(AUDIT_LOG_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at)');
+
+  db.exec(INVITES_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_invites_token_hash ON invites(token_hash)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_invites_status ON invites(status)');
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)');
+
+  // Promote the earliest pre-existing user to owner if no owner exists yet.
+  const ownerRow = db
+    .prepare("SELECT COUNT(*) AS count FROM users WHERE role = 'owner'")
+    .get() as { count: number };
+  if (ownerRow.count === 0) {
+    const firstUser = db
+      .prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1')
+      .get() as { id: number } | undefined;
+    if (firstUser) {
+      console.log('Running migration: Promoting first existing user to owner', { userId: firstUser.id });
+      db.prepare("UPDATE users SET role = 'owner' WHERE id = ?").run(firstUser.id);
+    }
+  }
+};
+
+/**
+ * Password-lifecycle migration (C-1): adds the columns backing JWT invalidation
+ * on password change and forced password rotation.
+ *
+ *   - password_changed_at: unix epoch (ms) of the last password change. Tokens
+ *     minted before this instant carry a stale `pwd_iat` and are rejected.
+ *   - must_change_password: 1 when an admin has reset the password and the user
+ *     must set a new one before normal use.
+ *
+ * Existing users are backfilled with the current time so their live sessions
+ * are not invalidated by the introduction of the `pwd_iat` check.
+ */
+const migratePasswordLifecycle = (db: Database, userColumnNames: string[]): void => {
+  const hadPasswordChangedAt = userColumnNames.includes('password_changed_at');
+
+  addColumnToTableIfNotExists(db, 'users', userColumnNames, 'password_changed_at', 'INTEGER');
+  addColumnToTableIfNotExists(
+    db,
+    'users',
+    userColumnNames,
+    'must_change_password',
+    'INTEGER NOT NULL DEFAULT 0'
+  );
+
+  // Backfill only on first introduction of the column: stamp existing users with
+  // "now" so their currently valid tokens (pwd_iat == now at issue) are not
+  // retroactively invalidated. Idempotent: skipped once the column exists.
+  if (!hadPasswordChangedAt) {
+    console.log('Running migration: Backfilling password_changed_at for existing users');
+    db.prepare(
+      'UPDATE users SET password_changed_at = ? WHERE password_changed_at IS NULL'
+    ).run(Date.now());
+  }
+};
+
+/**
+ * Participant & agent tracking migration. Creates the three tracking tables and
+ * their indexes (indexes live here, never in INIT_SCHEMA_SQL — see the 502
+ * lesson where indexing migration-added columns at init broke fresh boots), then
+ * backfills every existing session with the install owner as its 'owner'
+ * participant so historical conversations are not left without an attributed
+ * human. Idempotent: tables use IF NOT EXISTS and the backfill uses
+ * INSERT OR IGNORE, so re-runs are no-ops. The backfill is recorded once in the
+ * audit log per run that actually inserts rows.
+ */
+const migrateParticipantsAndAgents = (db: Database): void => {
+  db.exec(SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL);
+  db.exec(SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL);
+  db.exec(SESSION_AGENTS_META_TABLE_SCHEMA_SQL);
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_session_participants_session ON session_participants(session_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_session_participants_user ON session_participants(user_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_session_agents_cache_session ON session_agents_cache(session_id)');
+
+  // Backfill: attribute every existing session to the install owner so the
+  // participant view is complete from day one. Skip silently when no owner
+  // exists yet (pre-bootstrap install) or no sessions are present.
+  const owner = db.prepare("SELECT id FROM users WHERE role = 'owner' LIMIT 1").get() as
+    | { id: number }
+    | undefined;
+
+  if (!owner) {
+    return;
+  }
+
+  const sessions = db.prepare('SELECT session_id FROM sessions').all() as { session_id: string }[];
+  if (sessions.length === 0) {
+    return;
+  }
+
+  const insertOwner = db.prepare(
+    `INSERT OR IGNORE INTO session_participants (session_id, user_id, role)
+     VALUES (?, ?, 'owner')`
+  );
+
+  let inserted = 0;
+  const runBackfill = db.transaction((rows: { session_id: string }[]) => {
+    for (const s of rows) {
+      inserted += insertOwner.run(s.session_id, owner.id).changes;
+    }
+  });
+  runBackfill(sessions);
+
+  if (inserted > 0) {
+    console.log('Running migration: Backfilled session participants', { inserted });
+    db.prepare(
+      'INSERT INTO audit_log (user_id, action, metadata) VALUES (?, ?, ?)'
+    ).run(owner.id, 'participants_backfilled', JSON.stringify({ inserted }));
+  }
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -408,6 +546,7 @@ export const runMigrations = (db: Database) => {
 
     addColumnToTableIfNotExists(db, 'users', userColumnNames, 'git_name', 'TEXT');
     addColumnToTableIfNotExists(db, 'users', userColumnNames, 'git_email', 'TEXT');
+    addColumnToTableIfNotExists(db, 'users', userColumnNames, 'avatar_url', 'TEXT');
     addColumnToTableIfNotExists(
       db,
       'users',
@@ -415,6 +554,9 @@ export const runMigrations = (db: Database) => {
       'has_completed_onboarding',
       'BOOLEAN DEFAULT 0'
     );
+
+    migrateMultiUserAuth(db, userColumnNames);
+    migratePasswordLifecycle(db, userColumnNames);
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
     db.exec(USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL);
@@ -447,6 +589,11 @@ export const runMigrations = (db: Database) => {
     }
 
     db.exec(LAST_SCANNED_AT_SQL);
+
+    // Participant & agent tracking — must run after sessions/users exist so the
+    // FKs resolve and the owner backfill can find both tables.
+    migrateParticipantsAndAgents(db);
+
     console.log('Database migrations completed successfully');
   } catch (error: any) {
     console.error('Error running migrations:', error.message);

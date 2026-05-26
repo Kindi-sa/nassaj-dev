@@ -99,13 +99,26 @@ export const GEMINI_MODELS = {
 /**
  * Antigravity (agy CLI) Models
  *
- * agy is a Google AI CLI built on top of Gemini. The actual model is
- * selected via agy's own settings, so the UI exposes a single
- * informational entry rather than a true model picker.
+ * agy is a Google AI CLI built on top of Gemini. In non-interactive print
+ * mode (`agy -p`) the CLI does NOT accept a model override flag — the active
+ * model is chosen inside agy's own interactive settings and persisted there.
+ *
+ * The options below are exposed for UI parity and display only; selecting one
+ * records the user's intended model in localStorage and is forwarded to the
+ * backend, but the agy CLI ignores it until/unless a model flag is added
+ * upstream. Keep "auto" first so it remains the default "use agy's own setting"
+ * choice. Labels mirror the human-readable names agy reports in its transcript
+ * (e.g. "Gemini 3.5 Flash (Medium)").
  */
 export const ANTIGRAVITY_MODELS = {
   OPTIONS: [
     { value: "auto", label: "agy default" },
+    { value: "gemini-3.5-pro", label: "Gemini 3.5 Pro" },
+    { value: "gemini-3.5-flash", label: "Gemini 3.5 Flash" },
+    { value: "gemini-3-pro", label: "Gemini 3 Pro" },
+    { value: "gemini-3-flash", label: "Gemini 3 Flash" },
+    { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro" },
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
   ],
 
   DEFAULT: "auto",

@@ -10,6 +10,8 @@ import GeminiResponseHandler from './gemini-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { participantsDb } from './modules/database/index.js';
 
 // Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
@@ -123,6 +125,17 @@ async function spawnGemini(command, options = {}, ws) {
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
     let assistantBlocks = []; // Accumulate the full response blocks including tools
+    let participantRecorded = false;
+
+    // Record the authenticated human who spawned this run once a session id is
+    // known. Idempotent; skipped for unauthenticated runs (no ws.userId).
+    const recordParticipant = (sid) => {
+        if (participantRecorded || !sid || !ws?.userId) {
+            return;
+        }
+        participantRecorded = true;
+        participantsDb.recordSpawn(sid, ws.userId);
+    };
 
     // Use tools settings passed from frontend, or defaults
     const settings = toolsSettings || {
@@ -274,7 +287,12 @@ async function spawnGemini(command, options = {}, ws) {
         spawnArgs = ['-c', 'exec "$0" "$@"', geminiPath, ...args];
     }
 
-    const spawnEnv = await buildGeminiProcessEnv();
+    const baseSpawnEnv = await buildGeminiProcessEnv();
+    // Per-user credential isolation (B-ISO-GEMINI): the central resolver sets
+    // GEMINI_CLI_HOME to the user's isolated tree so each user has their own
+    // gemini config/state, while conversations stay shared via symlinks. Returns
+    // the base env unchanged when no userId is present.
+    const spawnEnv = resolveProviderEnv(ws?.userId ?? null, 'gemini', baseSpawnEnv);
 
     return new Promise((resolve, reject) => {
         const geminiProcess = spawnFunction(spawnCmd, spawnArgs, {
@@ -350,6 +368,10 @@ async function spawnGemini(command, options = {}, ws) {
             sessionManager.addMessage(capturedSessionId, 'user', command);
         }
 
+        // Resumed sessions already carry their id at spawn time; record the
+        // participant now (new sessions are recorded on discovery above).
+        recordParticipant(capturedSessionId);
+
         // Create response handler for NDJSON buffering
         let responseHandler;
         if (ws) {
@@ -394,6 +416,7 @@ async function spawnGemini(command, options = {}, ws) {
                     // the session once that real ID is known (same model used by Claude/Codex).
                     if (!capturedSessionId) {
                         capturedSessionId = discoveredSessionId;
+                        recordParticipant(capturedSessionId);
 
                         sessionManager.createSession(capturedSessionId, cwd || process.cwd());
                         if (command) {

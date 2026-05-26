@@ -14,6 +14,7 @@ import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
+import { SessionParticipantsBar } from '../../participants';
 
 
 type PendingViewSession = {
@@ -81,6 +82,11 @@ function ChatInterface({
   } = useChatProviderState({
     selectedSession,
   });
+
+  // Provider used for in-conversation display (message logos, status badge).
+  // Prefer the open session's own provider so an old Claude session keeps its
+  // Claude branding even if the global (composer) selection is Antigravity.
+  const displayProvider = selectedSession?.__provider ?? provider;
 
   const {
     chatMessages,
@@ -304,6 +310,7 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full flex-col">
+        <SessionParticipantsBar sessionId={currentSessionId ?? selectedSession?.id ?? null} />
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
           onWheel={handleScroll}
@@ -313,6 +320,7 @@ function ChatInterface({
           selectedSession={selectedSession}
           currentSessionId={currentSessionId}
           provider={provider}
+          displayProvider={displayProvider}
           setProvider={(nextProvider) => setProvider(nextProvider as Provider)}
           textareaRef={textareaRef}
           claudeModel={claudeModel}
@@ -359,6 +367,7 @@ function ChatInterface({
           isLoading={isLoading}
           onAbortSession={handleAbortSession}
           provider={provider}
+          displayProvider={displayProvider}
           permissionMode={permissionMode}
           onModeSwitch={cyclePermissionMode}
           thinkingMode={thinkingMode}

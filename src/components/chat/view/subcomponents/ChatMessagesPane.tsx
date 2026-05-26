@@ -16,6 +16,7 @@ interface ChatMessagesPaneProps {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   provider: LLMProvider;
+  displayProvider: LLMProvider;
   setProvider: (provider: LLMProvider) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
   claudeModel: string;
@@ -63,6 +64,7 @@ export default function ChatMessagesPane({
   selectedSession,
   currentSessionId,
   provider,
+  displayProvider,
   setProvider,
   textareaRef,
   claudeModel,
@@ -251,7 +253,7 @@ export default function ChatMessagesPane({
                 showRawParameters={showRawParameters}
                 showThinking={showThinking}
                 selectedProject={selectedProject}
-                provider={provider}
+                provider={displayProvider}
               />
             );
           })}

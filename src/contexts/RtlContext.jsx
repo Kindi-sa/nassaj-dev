@@ -38,14 +38,13 @@ export const RtlProvider = ({ children }) => {
   // announce content as Arabic; otherwise we leave it as 'en' to avoid
   // changing TTS/voice behavior unnecessarily.
   useEffect(() => {
-    const root = document.documentElement;
-    root.dir = rtlLayout ? 'rtl' : 'ltr';
-    root.lang = rtlLayout ? 'ar' : 'en';
+    // Direction is handled per-element via dir="auto" — never force on root.
+    document.documentElement.dir = 'ltr';
 
     try {
       localStorage.setItem(STORAGE_KEY, String(rtlLayout));
     } catch {
-      // Storage unavailable (private mode, quota). Direction still applied.
+      // Storage unavailable (private mode, quota).
     }
   }, [rtlLayout]);
 

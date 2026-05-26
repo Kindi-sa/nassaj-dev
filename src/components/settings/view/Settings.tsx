@@ -11,12 +11,17 @@ import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
+import ProfileSettingsTab from '../view/tabs/profile-settings/ProfileSettingsTab';
+import UsersSettingsTab from '../view/tabs/users-settings/UsersSettingsTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
+import { useAuth } from '../../auth';
 import type { SettingsProps } from '../types/types';
 
 function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: SettingsProps) {
   const { t } = useTranslation('settings');
+  const { user } = useAuth();
+  const canManageUsers = user?.role === 'owner' || user?.role === 'admin';
   const {
     activeTab,
     setActiveTab,
@@ -106,6 +111,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
           {/* Content */}
           <main className="flex-1 overflow-y-auto">
             <div key={activeTab} className="settings-content-enter space-y-6 p-4 pb-safe-area-inset-bottom md:space-y-8 md:p-6">
+              {activeTab === 'profile' && <ProfileSettingsTab />}
+
               {activeTab === 'appearance' && (
                 <AppearanceSettingsTab
                   projectSortOrder={projectSortOrder}
@@ -154,6 +161,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
               {activeTab === 'api' && <CredentialsSettingsTab />}
 
               {activeTab === 'plugins' && <PluginSettingsTab />}
+
+              {activeTab === 'users' && canManageUsers && <UsersSettingsTab />}
 
               {activeTab === 'about' && <AboutTab />}
             </div>

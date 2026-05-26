@@ -18,6 +18,7 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { participantsDb } from './modules/database/index.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
@@ -210,7 +211,18 @@ export async function queryCodex(command, options = {}, ws) {
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
   let terminalFailure = null;
+  let participantRecorded = false;
   const abortController = new AbortController();
+
+  // Record the authenticated human who spawned this run once a session id is
+  // known. Idempotent; skipped for unauthenticated runs (no ws.userId).
+  const recordParticipant = (sid) => {
+    if (participantRecorded || !sid || !ws?.userId) {
+      return;
+    }
+    participantRecorded = true;
+    participantsDb.recordSpawn(sid, ws.userId);
+  };
 
   try {
     // Initialize Codex SDK
@@ -248,6 +260,7 @@ export async function queryCodex(command, options = {}, ws) {
     // Existing sessions can be tracked immediately; new sessions are tracked after thread.started.
     if (capturedSessionId) {
       registerSession(capturedSessionId);
+      recordParticipant(capturedSessionId);
     }
 
     // Execute with streaming
@@ -262,6 +275,7 @@ export async function queryCodex(command, options = {}, ws) {
         if (discoveredSessionId && !capturedSessionId) {
           capturedSessionId = discoveredSessionId;
           registerSession(capturedSessionId);
+          recordParticipant(capturedSessionId);
 
           if (ws.setSessionId && typeof ws.setSessionId === 'function') {
             ws.setSessionId(capturedSessionId);

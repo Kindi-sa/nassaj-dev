@@ -7,6 +7,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { participantsService } from '@/modules/providers/index.js';
 
 const router = express.Router();
 
@@ -208,6 +209,15 @@ router.get('/clone-progress', async (req, res) => {
     }
   }
 });
+
+router.get(
+  '/:projectId/participants',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const result = await participantsService.getProjectParticipants(projectId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
 
 router.get(
   '/:projectId/taskmaster',

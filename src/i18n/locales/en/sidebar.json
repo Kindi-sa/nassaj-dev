@@ -132,5 +132,24 @@
     "deleteAllData": "Delete all data permanently",
     "allConversationsDeleted": "The project will be removed from the sidebar. Your files, memories, and session data will be preserved.",
     "cannotUndo": "You can re-add the project later."
+  },
+  "participants": {
+    "lastSeen": "Last seen",
+    "invocations_one": "{{count}} invocation",
+    "invocations_other": "{{count}} invocations",
+    "usersAria_one": "{{count}} participant",
+    "usersAria_other": "{{count}} participants",
+    "andMore_one": "and {{count}} more",
+    "andMore_other": "and {{count}} more",
+    "projectSummary": "{{users}} users · {{agents}} agents",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "user": "Member"
+    },
+    "agentKinds": {
+      "model": "Base model",
+      "subagent": "Subagent"
+    }
   }
 }

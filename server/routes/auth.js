@@ -1,137 +1,521 @@
+import crypto from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
 import express from 'express';
-import bcrypt from 'bcrypt';
-import { userDb } from '../modules/database/index.js';
-import { getConnection } from '../modules/database/connection.js';
-import { generateToken, authenticateToken } from '../middleware/auth.js';
+import multer from 'multer';
+
+import { userDb, auditLogDb, invitesDb } from '../modules/database/index.js';
+import { generateToken, authenticateToken, requireRole } from '../middleware/auth.js';
+import { createRateLimiter } from '../middleware/rate-limit.js';
+import { verifyPassword, needsRehash, hashPassword } from '../services/password.service.js';
+import { createInvite, acceptInvite, InviteError } from '../services/invite.service.js';
+
+const MIN_PASSWORD_LENGTH = 8;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
+
+// Avatar upload (PATCH /me/avatar). Files live under ~/.nassaj-users/<userId>/.
+const AVATARS_ROOT = path.join(os.homedir(), '.nassaj-users');
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+
+// Allowed image MIME types → canonical file extension used on disk and in URL.
+const AVATAR_MIME_TO_EXT = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
+
+// In-memory storage so the buffer is validated before any disk write; the
+// filename is derived from the (trusted, numeric) userId, never from client
+// input, which removes path-traversal risk on the upload side.
+const avatarUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: AVATAR_MAX_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (AVATAR_MIME_TO_EXT[file.mimetype]) {
+      return cb(null, true);
+    }
+    cb(null, false);
+  },
+}).single('avatar');
 
 const router = express.Router();
-const db = getConnection();
 
-// Check auth status and setup requirements
+// Brute-force protection on credential-checking endpoints (m-RATELIMIT):
+// 10 attempts / 15 min / IP on login and invite acceptance.
+const authLimiter = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 10,
+  message: 'Too many attempts, please try again later',
+});
+
+// ---------------------------------------------------------------------------
+// Public status
+// ---------------------------------------------------------------------------
+
+// Check auth status. needsSetup is true only until the bootstrap owner exists.
 router.get('/status', async (req, res) => {
   try {
     const hasUsers = await userDb.hasUsers();
-    res.json({ 
-      needsSetup: !hasUsers,
-      isAuthenticated: false // Will be overridden by frontend if token exists
-    });
+    res.json({ needsSetup: !hasUsers, isAuthenticated: false });
   } catch (error) {
     console.error('Auth status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// User registration (setup) - only allowed if no users exist
-router.post('/register', async (req, res) => {
+// ---------------------------------------------------------------------------
+// Login (public, rate-limited)
+// ---------------------------------------------------------------------------
+
+router.post('/login', authLimiter, async (req, res) => {
   try {
-    const { username, password } = req.body;
-    
-    // Validate input
-    if (!username || !password) {
+    const { username, password } = req.body ?? {};
+
+    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
       return res.status(400).json({ error: 'Username and password are required' });
     }
-    
-    if (username.length < 3 || password.length < 6) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters, password at least 6 characters' });
-    }
-    
-    // Use a transaction to prevent race conditions
-    db.prepare('BEGIN').run();
-    try {
-      // Check if users already exist (only allow one user)
-      const hasUsers = userDb.hasUsers();
-      if (hasUsers) {
-        db.prepare('ROLLBACK').run();
-        return res.status(403).json({ error: 'User already exists. This is a single-user system.' });
-      }
-      
-      // Hash password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-      
-      // Create user
-      const user = userDb.createUser(username, passwordHash);
-      
-      // Generate token
-      const token = generateToken(user);
-      
-      db.prepare('COMMIT').run();
 
-      // Update last login (non-fatal, outside transaction)
-      userDb.updateLastLogin(user.id);
-
-      res.json({
-        success: true,
-        user: { id: user.id, username: user.username },
-        token
-      });
-    } catch (error) {
-      db.prepare('ROLLBACK').run();
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      res.status(409).json({ error: 'Username already exists' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
-});
-
-// User login
-router.post('/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    // Validate input
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
-    }
-    
-    // Get user from database
     const user = userDb.getUserByUsername(username);
+    // Always run a verification path; generic error to avoid user enumeration.
     if (!user) {
+      auditLogDb.record('login_failure', {
+        metadata: { reason: 'unknown_user' },
+        ipAddress: req.ip ?? null,
+      });
       return res.status(401).json({ error: 'Invalid username or password' });
     }
-    
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
-    if (!isValidPassword) {
+
+    const isValid = await verifyPassword(user.password_hash, password);
+    if (!isValid) {
+      auditLogDb.record('login_failure', {
+        userId: user.id,
+        metadata: { reason: 'bad_password' },
+        ipAddress: req.ip ?? null,
+      });
       return res.status(401).json({ error: 'Invalid username or password' });
     }
-    
-    // Generate token
+
+    // Transparent upgrade of legacy bcrypt hashes to argon2id on login.
+    if (needsRehash(user.password_hash)) {
+      try {
+        const newHash = await hashPassword(password);
+        userDb.setPasswordHash(user.id, newHash);
+      } catch (err) {
+        console.error('Password rehash failed', { error: err?.message });
+      }
+    }
+
     const token = generateToken(user);
-    
-    // Update last login
     userDb.updateLastLogin(user.id);
-    
+    auditLogDb.record('login_success', { userId: user.id, ipAddress: req.ip ?? null });
+
     res.json({
       success: true,
-      user: { id: user.id, username: user.username },
-      token
+      user: { id: user.id, username: user.username, role: user.role },
+      token,
     });
-    
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Get current user (protected route)
+// ---------------------------------------------------------------------------
+// Token refresh (issues a fresh JWT for an authenticated user)
+// ---------------------------------------------------------------------------
+
+router.post('/refresh', authenticateToken, (req, res) => {
+  const token = generateToken(req.user);
+  auditLogDb.record('token_refresh', { userId: req.user.id, ipAddress: req.ip ?? null });
+  res.json({ success: true, token });
+});
+
+// ---------------------------------------------------------------------------
+// Current user / logout
+// ---------------------------------------------------------------------------
+
 router.get('/user', authenticateToken, (req, res) => {
+  // Map the DB row to the client contract: the row stores snake_case
+  // (avatar_url, must_change_password) but the frontend AuthUser type expects
+  // camelCase. Returning the raw row left user.avatarUrl undefined, so the
+  // sidebar/header avatar fell back to the initial after an upload.
+  const { id, username, role, status, avatar_url, mustChangePassword } = req.user;
   res.json({
-    user: req.user
+    user: {
+      id,
+      username,
+      role,
+      status,
+      avatarUrl: avatar_url ?? null,
+      mustChangePassword: Boolean(mustChangePassword),
+    },
   });
 });
 
-// Logout (client-side token removal, but this endpoint can be used for logging)
+// Current user (C-AUTH-4) — minimal identity for the client. req.user is the
+// public row (id, username, role, status, avatar_url) loaded by authenticateToken.
+router.get('/me', authenticateToken, (req, res) => {
+  const { id, username, role, status, avatar_url } = req.user;
+  res.json({ id, username, role, status, avatarUrl: avatar_url ?? null });
+});
+
 router.post('/logout', authenticateToken, (req, res) => {
-  // In a simple JWT system, logout is mainly client-side
-  // This endpoint exists for consistency and potential future logging
   res.json({ success: true, message: 'Logged out successfully' });
 });
+
+// ---------------------------------------------------------------------------
+// Invite flow (C-AUTH-4)
+// ---------------------------------------------------------------------------
+
+// Accept an invite → creates a `user` account (public, rate-limited).
+router.post('/invite/accept', authLimiter, async (req, res) => {
+  try {
+    const { token, username, password } = req.body ?? {};
+    const user = await acceptInvite({ token, username, password }, req.ip ?? null);
+    const jwtToken = generateToken(user);
+    res.json({
+      success: true,
+      user: { id: user.id, username: user.username, role: user.role },
+      token: jwtToken,
+    });
+  } catch (error) {
+    if (error instanceof InviteError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Invite accept error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create an invite (owner/admin only). Returns the plaintext token ONCE.
+router.post('/invites', authenticateToken, requireRole('owner', 'admin'), async (req, res) => {
+  try {
+    const { role, email, ttlHours } = req.body ?? {};
+    const result = await createInvite(req.user, { role, email, ttlHours });
+    res.status(201).json({ success: true, invite: result });
+  } catch (error) {
+    if (error instanceof InviteError) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    console.error('Invite create error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// List invites (owner/admin only). Token hashes are never exposed.
+router.get('/invites', authenticateToken, requireRole('owner', 'admin'), (req, res) => {
+  res.json({ invites: invitesDb.list() });
+});
+
+// Revoke a pending invite (owner/admin only).
+router.delete('/invites/:id', authenticateToken, requireRole('owner', 'admin'), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid invite id' });
+  }
+  const revoked = invitesDb.revoke(id);
+  if (!revoked) {
+    return res.status(404).json({ error: 'Invite not found or not pending' });
+  }
+  auditLogDb.record('invite_revoked', { userId: req.user.id, metadata: { inviteId: id } });
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// User management (owner/admin only) — minimal listing for RBAC UI later
+// ---------------------------------------------------------------------------
+
+router.get('/users', authenticateToken, requireRole('owner', 'admin'), (req, res) => {
+  res.json({ users: userDb.listUsers() });
+});
+
+const ASSIGNABLE_ROLES = new Set(['owner', 'admin', 'user']);
+const VALID_STATUSES = new Set(['active', 'disabled']);
+
+// Change a user's role (owner only). An owner may not demote themselves, and the
+// last remaining owner may not be demoted (avoids locking out administration).
+router.patch('/users/:id/role', authenticateToken, requireRole('owner'), (req, res) => {
+  const id = Number(req.params.id);
+  const { role } = req.body ?? {};
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  if (!role || !ASSIGNABLE_ROLES.has(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+  if (id === req.user.id) {
+    return res.status(400).json({ error: 'You cannot change your own role' });
+  }
+
+  const target = userDb.getRawById(id);
+  if (!target) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  // Guard the last owner: demoting the only remaining owner is forbidden.
+  if (target.role === 'owner' && role !== 'owner' && userDb.getOwnerCount() <= 1) {
+    return res.status(400).json({ error: 'Cannot demote the last owner' });
+  }
+  if (target.role === role) {
+    return res.json({ success: true });
+  }
+
+  userDb.setRole(id, role);
+  auditLogDb.record('role_changed', {
+    userId: req.user.id,
+    metadata: { targetUserId: id, from: target.role, to: role },
+    ipAddress: req.ip ?? null,
+  });
+  res.json({ success: true });
+});
+
+// Suspend / re-activate a user (owner only). Owners may not disable themselves,
+// and the last active owner cannot be disabled.
+router.patch('/users/:id/status', authenticateToken, requireRole('owner'), (req, res) => {
+  const id = Number(req.params.id);
+  const { status } = req.body ?? {};
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  if (!status || !VALID_STATUSES.has(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+  if (id === req.user.id) {
+    return res.status(400).json({ error: 'You cannot change your own status' });
+  }
+
+  const target = userDb.getRawById(id);
+  if (!target) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  if (target.role === 'owner' && status === 'disabled' && userDb.getOwnerCount() <= 1) {
+    return res.status(400).json({ error: 'Cannot disable the last owner' });
+  }
+  if (target.status === status) {
+    return res.json({ success: true });
+  }
+
+  userDb.setStatus(id, status);
+  auditLogDb.record(status === 'disabled' ? 'user_disabled' : 'user_enabled', {
+    userId: req.user.id,
+    metadata: { targetUserId: id },
+    ipAddress: req.ip ?? null,
+  });
+  res.json({ success: true });
+});
+
+// ---------------------------------------------------------------------------
+// Self-service account management (C-3)
+// ---------------------------------------------------------------------------
+
+// Change own password. Rate-limited (verifies a credential). On success the
+// current device's token is rotated and returned so it keeps working; all other
+// tokens are invalidated via the advanced password_changed_at.
+router.patch('/me/password', authenticateToken, authLimiter, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body ?? {};
+
+    if (
+      typeof currentPassword !== 'string' ||
+      typeof newPassword !== 'string' ||
+      !currentPassword ||
+      !newPassword
+    ) {
+      return res.status(400).json({ error: 'Current and new password are required' });
+    }
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      return res
+        .status(400)
+        .json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+    }
+
+    // req.user is the public row (no hash); load the full row to verify.
+    const fullUser = userDb.getRawById(req.user.id);
+    if (!fullUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const isValid = await verifyPassword(fullUser.password_hash, currentPassword);
+    if (!isValid) {
+      auditLogDb.record('login_failure', {
+        userId: req.user.id,
+        metadata: { reason: 'bad_current_password', context: 'password_change' },
+        ipAddress: req.ip ?? null,
+      });
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const changedAt = Date.now();
+    const newHash = await hashPassword(newPassword);
+    userDb.changePassword(req.user.id, newHash, changedAt);
+
+    // Issue a fresh token carrying the new pwd_iat so this device stays signed in.
+    const refreshedUser = userDb.getUserById(req.user.id);
+    const token = generateToken(refreshedUser);
+
+    auditLogDb.record('password_changed', {
+      userId: req.user.id,
+      ipAddress: req.ip ?? null,
+    });
+
+    res.json({ success: true, token });
+  } catch (error) {
+    console.error('Password change error:', error?.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Change own username.
+router.patch('/me/username', authenticateToken, (req, res) => {
+  try {
+    const { username } = req.body ?? {};
+
+    if (typeof username !== 'string' || !USERNAME_PATTERN.test(username)) {
+      return res.status(400).json({
+        error: 'Username must be 3-32 characters: letters, numbers, or underscore',
+      });
+    }
+
+    if (username === req.user.username) {
+      return res.json({ success: true });
+    }
+
+    const existing = userDb.getUserByUsername(username);
+    if (existing && existing.id !== req.user.id) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+
+    userDb.setUsername(req.user.id, username);
+    auditLogDb.record('username_changed', {
+      userId: req.user.id,
+      metadata: { from: req.user.username, to: username },
+      ipAddress: req.ip ?? null,
+    });
+
+    res.json({ success: true, username });
+  } catch (error) {
+    console.error('Username change error:', error?.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Upload / replace own avatar. Accepts multipart/form-data with field `avatar`
+// (jpeg/png/webp/gif, max 2 MB). The image is written to
+// ~/.nassaj-users/<userId>/avatar.<ext> (overwriting any prior avatar) and the
+// server-relative URL /avatars/<userId>.<ext> is persisted on the user row.
+router.patch('/me/avatar', authenticateToken, (req, res) => {
+  avatarUpload(req, res, async (uploadError) => {
+    try {
+      if (uploadError) {
+        if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({ error: 'Image exceeds the 2MB size limit' });
+        }
+        console.error('Avatar upload error:', uploadError?.message);
+        return res.status(400).json({ error: 'Invalid upload' });
+      }
+
+      const file = req.file;
+      if (!file) {
+        // Missing field or rejected by fileFilter (unsupported type).
+        return res
+          .status(400)
+          .json({ error: 'A valid image file (jpeg, png, webp, gif) is required' });
+      }
+
+      const ext = AVATAR_MIME_TO_EXT[file.mimetype];
+      if (!ext) {
+        return res.status(400).json({ error: 'Unsupported image type' });
+      }
+
+      // userId comes from the verified JWT (numeric), never from client input.
+      const userId = req.user.id;
+
+      // Remove any avatar in a different extension so a stale file is not left
+      // shadowing the new one (and not served by the static handler).
+      const userDir = path.join(AVATARS_ROOT, String(userId));
+      await fs.promises.mkdir(userDir, { recursive: true });
+      for (const otherExt of Object.values(AVATAR_MIME_TO_EXT)) {
+        if (otherExt === ext) {
+          continue;
+        }
+        await fs.promises.rm(path.join(userDir, `avatar.${otherExt}`), { force: true });
+      }
+
+      const targetPath = path.join(userDir, `avatar.${ext}`);
+      await fs.promises.writeFile(targetPath, file.buffer);
+
+      const avatarUrl = `/avatars/${userId}.${ext}`;
+      userDb.setAvatarUrl(userId, avatarUrl);
+
+      auditLogDb.record('avatar_updated', {
+        userId,
+        metadata: { ext, size: file.size },
+        ipAddress: req.ip ?? null,
+      });
+
+      res.json({ success: true, avatarUrl });
+    } catch (error) {
+      console.error('Avatar update error:', error?.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin password reset (C-4) — owner/admin only
+// ---------------------------------------------------------------------------
+
+// Reset another user's password to a generated temporary one, returned ONCE in
+// plaintext. The target must change it on next use (must_change_password = 1),
+// and all of the target's existing tokens are invalidated.
+router.post(
+  '/users/:id/reset-password',
+  authenticateToken,
+  requireRole('owner', 'admin'),
+  async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: 'Invalid user id' });
+      }
+
+      // Self-reset must go through /me/password (preserves current-session token).
+      if (id === req.user.id) {
+        return res.status(400).json({ error: 'Use /me/password to change your own password' });
+      }
+
+      const target = userDb.getRawById(id);
+      if (!target) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Only an owner may reset another owner's password.
+      if (target.role === 'owner' && req.user.role !== 'owner') {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+
+      // 12 random bytes → 16-char base64url temporary password (CSPRNG).
+      const tempPassword = crypto.randomBytes(12).toString('base64url');
+      const tempHash = await hashPassword(tempPassword);
+      userDb.resetPassword(id, tempHash, Date.now());
+
+      // Never log the temporary password.
+      auditLogDb.record('password_reset', {
+        userId: req.user.id,
+        metadata: { targetUserId: id },
+        ipAddress: req.ip ?? null,
+      });
+
+      res.json({ tempPassword });
+    } catch (error) {
+      console.error('Password reset error:', error?.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
 
 export default router;

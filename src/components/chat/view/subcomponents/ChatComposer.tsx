@@ -56,6 +56,7 @@ interface ChatComposerProps {
   isLoading: boolean;
   onAbortSession: () => void;
   provider: Provider | string;
+  displayProvider: Provider | string;
   permissionMode: PermissionMode | string;
   onModeSwitch: () => void;
   thinkingMode: string;
@@ -111,6 +112,7 @@ export default function ChatComposer({
   isLoading,
   onAbortSession,
   provider,
+  displayProvider,
   permissionMode,
   onModeSwitch,
   thinkingMode,
@@ -180,7 +182,7 @@ export default function ChatComposer({
           status={claudeStatus}
           isLoading={isLoading}
           onAbort={onAbortSession}
-          provider={provider}
+          provider={displayProvider}
         />
       )}
 

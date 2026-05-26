@@ -118,8 +118,13 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
 
 const markdownComponents = {
   code: CodeBlock,
+  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="mb-3 mt-4 text-2xl font-bold" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</h1>,
+  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="mb-2 mt-3 text-xl font-bold" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</h2>,
+  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="mb-2 mt-3 text-lg font-semibold" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</h3>,
+  h4: ({ children }: { children?: React.ReactNode }) => <h4 className="mb-1 mt-2 text-base font-semibold" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</h4>,
+  li: ({ children }: { children?: React.ReactNode }) => <li dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</li>,
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-600 dark:border-gray-600 dark:text-gray-400">
+    <blockquote className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-600 dark:border-gray-600 dark:text-gray-400" dir="auto" style={{ unicodeBidi: 'plaintext' }}>
       {children}
     </blockquote>
   ),
@@ -128,7 +133,7 @@ const markdownComponents = {
       {children}
     </a>
   ),
-  p: ({ children }: { children?: React.ReactNode }) => <div className="mb-2 last:mb-0">{children}</div>,
+  p: ({ children }: { children?: React.ReactNode }) => <div className="mb-2 last:mb-0" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</div>,
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
       <table className="min-w-full border-collapse border border-gray-200 dark:border-gray-700">{children}</table>
@@ -136,10 +141,10 @@ const markdownComponents = {
   ),
   thead: ({ children }: { children?: React.ReactNode }) => <thead className="bg-gray-50 dark:bg-gray-800">{children}</thead>,
   th: ({ children }: { children?: React.ReactNode }) => (
-    <th className="border border-gray-200 px-3 py-2 text-left text-sm font-semibold dark:border-gray-700">{children}</th>
+    <th className="border border-gray-200 px-3 py-2 text-left text-sm font-semibold dark:border-gray-700" dir="auto">{children}</th>
   ),
   td: ({ children }: { children?: React.ReactNode }) => (
-    <td className="border border-gray-200 px-3 py-2 align-top text-sm dark:border-gray-700">{children}</td>
+    <td className="border border-gray-200 px-3 py-2 align-top text-sm dark:border-gray-700" dir="auto">{children}</td>
   ),
 };
 
@@ -149,7 +154,7 @@ export function Markdown({ children, className }: MarkdownProps) {
   const rehypePlugins = useMemo(() => [rehypeKatex], []);
 
   return (
-    <div className={className}>
+    <div className={className} dir="auto" style={{ unicodeBidi: 'plaintext' }}>
       <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={markdownComponents as any}>
         {content}
       </ReactMarkdown>

@@ -16,11 +16,72 @@ import os from 'os';
 import path from 'path';
 
 import sessionManager from './sessionManager.js';
+import { participantsDb, sessionsDb } from './modules/database/index.js';
+import {
+    clearAntigravityProjectPath,
+    registerAntigravityProjectPath,
+} from './modules/providers/list/antigravity/antigravity-project-registry.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { userConfigDir } from './services/isolation/provision-user-dirs.js';
+import { isProviderIsolated } from './services/provider-sharing.js';
 
 const AGY_PATH = process.env.AGY_PATH || path.join(os.homedir(), '.local', 'bin', 'agy');
-const BRAIN_DIR = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain');
+
+// Brain store location. When agy is isolated for this user (admin policy) the
+// spawn env sets HOME to the per-user root, so agy materializes its brain under
+// that user's ~/.gemini/antigravity-cli/brain. The filesystem-based brain
+// discovery and transcript-path logic must read from the SAME directory, so we
+// compute it from the per-user home whenever isolation is active. When agy is
+// shared (default / ADR-016) or there is no authenticated user, fall back to the
+// operator home — identical to the previous static BRAIN_DIR.
+function getBrainDir(userId = null) {
+    const shouldIsolate =
+        userId !== null && userId !== undefined && userId !== '' && isProviderIsolated('agy');
+    const homeRoot = shouldIsolate ? userConfigDir(userId, '') : os.homedir();
+    return path.join(homeRoot, '.gemini', 'antigravity-cli', 'brain');
+}
+
+// Project-level instructions filename, mirrored at both the project root and the
+// global config dir (~/.claude). agy has no native equivalent of CLAUDE.md, so we
+// inject these instructions ourselves on the first message of a fresh conversation.
+const INSTRUCTIONS_FILENAME = 'NASSAJ.md';
+
+// Read a UTF-8 file, returning trimmed content or null on any failure (missing
+// file, permission error, etc.). Silent by design: instruction files are
+// optional and their absence must never block a run.
+async function readInstructionFile(filePath) {
+    try {
+        const content = await fs.readFile(filePath, 'utf8');
+        const trimmed = content.trim();
+        return trimmed ? trimmed : null;
+    } catch {
+        return null;
+    }
+}
+
+// Always-on base instruction injected at the start of every new conversation.
+// Kept minimal: just the language rule that agy ignores by default.
+const BASE_INSTRUCTIONS = `IMPORTANT: Always respond exclusively in formal Arabic (العربية الفصحى). Never switch to English under any circumstances, even for technical terms — transliterate or translate them instead.`;
+
+// Build the instructions prefix injected ahead of the user's first message in a
+// new conversation. Merges: base instructions (always) + project-specific file
+// (<projectPath>/NASSAJ.md or CLAUDE.md, if present).
+// The global ~/.claude/NASSAJ.md is NOT injected — it contains nassaj branding
+// that misleads agy when working in unrelated projects (e.g. diwan).
+async function buildInstructionsPrefix(projectPath) {
+    const parts = [BASE_INSTRUCTIONS];
+
+    if (projectPath) {
+        const projectInstructions =
+            (await readInstructionFile(path.join(projectPath, INSTRUCTIONS_FILENAME))) ||
+            (await readInstructionFile(path.join(projectPath, 'CLAUDE.md')));
+        if (projectInstructions) parts.push(projectInstructions);
+    }
+
+    return `<instructions>\n${parts.join('\n\n')}\n</instructions>`;
+}
 
 // Map agy CLI exit codes to actionable messages. Mirrors mapGeminiExitCodeToMessage
 // in gemini-cli.js so the chat surface stays consistent across providers.
@@ -41,14 +102,35 @@ function getAgyExitMessage(code) {
 // either from the resumed session or discovered on close for new sessions.
 const activeSessions = new Map();
 
-async function listBrainIds() {
+async function listBrainIds(userId = null) {
     try {
-        const entries = await fs.readdir(BRAIN_DIR);
+        const entries = await fs.readdir(getBrainDir(userId));
         return new Set(entries);
     } catch {
-        // BRAIN_DIR may not exist yet on a fresh install; treat as empty set.
+        // The brain dir may not exist yet on a fresh install; treat as empty set.
         return new Set();
     }
+}
+
+// B-ISO-AGYLOCK: narrow in-process mutex over the brain-UUID discovery window.
+//
+// agy reports no session id; we identify a fresh brain by diffing the BRAIN_DIR
+// snapshot taken before spawn against the dir after the brain folder appears. If
+// two fresh spawns interleave their snapshots, both could diff the same newly
+// created folder and bind the wrong conversation. We serialize ONLY the window
+// from "snapshot prior ids" to "new UUID assigned" — a few hundred ms — so it
+// never blocks conversation reads or other providers' spawns. Implemented as a
+// promise chain (no async-mutex dependency): each acquirer awaits the previous
+// release before snapshotting.
+let agyDiscoveryChain = Promise.resolve();
+
+function acquireDiscoveryLock() {
+    let release;
+    const ready = agyDiscoveryChain;
+    agyDiscoveryChain = new Promise((resolve) => {
+        release = resolve;
+    });
+    return ready.then(() => release);
 }
 
 function generateNassajSessionId() {
@@ -58,19 +140,124 @@ function generateNassajSessionId() {
     return `agy_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function buildTranscriptPath(brainUUID, userId = null) {
+    return path.join(getBrainDir(userId), brainUUID, '.system_generated', 'logs', 'transcript.jsonl');
+}
+
+// Discovers the brain UUID created by a fresh agy run and binds it to its real
+// workspace path. Runs at most once per spawn (idempotent via the shared state
+// object). We register the real path in two places so a concurrent synchronize()
+// can never file the placeholder for this conversation:
+//   * the in-process registry the synchronizer consults before falling back, and
+//   * the DB row itself, so the binding survives once written.
+// Discovery is filesystem diff-based, so it works as soon as agy materializes the
+// brain folder (on first output) rather than waiting for process exit.
+async function discoverAndRegisterBrainSession(state, priorBrainIds, cleanCwd, finalSessionId, userId = null) {
+    if (state.discovered) {
+        return;
+    }
+
+    let currentBrainIds;
+    try {
+        currentBrainIds = await listBrainIds(userId);
+    } catch {
+        return;
+    }
+
+    const discoveredBrainUUID = [...currentBrainIds].find((id) => !priorBrainIds.has(id)) || null;
+    if (!discoveredBrainUUID) {
+        // The brain folder may not exist yet on the first chunk; retry on a later
+        // chunk or at close. Leave state.discovered false so we try again.
+        return;
+    }
+
+    state.discovered = true;
+    state.brainUUID = discoveredBrainUUID;
+
+    // Bind for the synchronizer first: this is synchronous and closes the race
+    // window even if the DB write below is delayed or fails.
+    registerAntigravityProjectPath(discoveredBrainUUID, cleanCwd);
+
+    const persisted = sessionManager.getSession(finalSessionId);
+    if (persisted) {
+        persisted.cliSessionId = discoveredBrainUUID;
+        sessionManager.saveSession(finalSessionId);
+    }
+
+    try {
+        sessionsDb.createSession(
+            discoveredBrainUUID,
+            'antigravity',
+            cleanCwd,
+            undefined,
+            undefined,
+            undefined,
+            buildTranscriptPath(discoveredBrainUUID, userId),
+        );
+    } catch (err) {
+        console.error('[agy] failed to register session in DB:', err?.message || err);
+    }
+}
+
 async function spawnAntigravity(command, options = {}, ws) {
     const opts = options && typeof options === 'object' ? options : {};
     const { sessionId, projectPath, cwd, sessionSummary } = opts;
+
+    // The authenticated user driving this run. Drives both the spawn env
+    // (resolveProviderEnv) and which brain dir we read for UUID discovery, so
+    // an isolated agy reads/writes the same per-user brain store.
+    const userId = ws?.userId ?? null;
 
     // Resolve the brain UUID for resume. The sessionManager stores it under
     // `cliSessionId` to match the gemini adapter naming.
     const existingSession = sessionId ? sessionManager.getSession(sessionId) : null;
     const existingBrainUUID = existingSession?.cliSessionId || null;
 
-    // Snapshot brain UUIDs *before* spawn so we can detect the new one after close.
-    const priorBrainIds = await listBrainIds();
+    // B-ISO-AGYLOCK: only fresh conversations (no brain to resume) race on UUID
+    // discovery, so serialize the discovery window for those only. Resumed
+    // conversations carry an explicit --conversation id and need no lock.
+    const needsDiscovery = !existingBrainUUID;
+    const releaseDiscoveryLock = needsDiscovery ? await acquireDiscoveryLock() : null;
+    let discoveryLockReleased = false;
+    const freeDiscoveryLock = () => {
+        if (releaseDiscoveryLock && !discoveryLockReleased) {
+            discoveryLockReleased = true;
+            releaseDiscoveryLock();
+        }
+    };
 
-    const args = ['-p', command || '', '--dangerously-skip-permissions'];
+    // Snapshot brain UUIDs *before* spawn so we can detect the new one after close.
+    const priorBrainIds = await listBrainIds(userId);
+
+    // Inject project + global instructions only on a fresh conversation (no brain
+    // to resume). Resumed conversations already carry their context, so re-sending
+    // the prefix would duplicate it on every turn. The injected prefix is sent to
+    // agy only — sessionManager records the original user message below — so the
+    // chat history surface stays free of instruction boilerplate.
+    let commandToSend = command || '';
+    if (!existingBrainUUID) {
+        const instructionsPrefix = await buildInstructionsPrefix(projectPath || cwd);
+        if (instructionsPrefix) {
+            commandToSend = `${instructionsPrefix}\n\n${commandToSend}`;
+        }
+    }
+
+    // Resolve and sanitize the workspace dir up front — strip non-printable chars
+    // that can leak in from terminal copy/paste. This value is both the process
+    // cwd AND the explicit agy workspace (--add-dir) below.
+    const cleanCwd = (cwd || projectPath || process.cwd())
+        .replace(/[^\x20-\x7E]/g, '')
+        .trim();
+
+    // agy in --print mode ignores the OS process cwd and defaults to its internal
+    // scratch directory (~/.gemini/antigravity-cli/scratch). Without an explicit
+    // workspace it wanders the home tree and latches onto unrelated projects
+    // (e.g. it reads ~/nassaj-core/NASSAJ.md while the user is in diwan). Pin the
+    // workspace to the selected project with --add-dir so agy stays scoped to it.
+    const args = ['-p', commandToSend, '--dangerously-skip-permissions'];
+    if (cleanCwd) {
+        args.push('--add-dir', cleanCwd);
+    }
     if (existingBrainUUID) {
         args.push('--conversation', existingBrainUUID);
     }
@@ -88,12 +275,6 @@ async function spawnAntigravity(command, options = {}, ws) {
     if (command) {
         sessionManager.addMessage(finalSessionId, 'user', command);
     }
-
-    // Clean the working dir like gemini-cli.js does — strip non-printable chars
-    // that can leak in from terminal copy/paste.
-    const cleanCwd = (cwd || projectPath || process.cwd())
-        .replace(/[^\x20-\x7E]/g, '')
-        .trim();
 
     let sessionCreatedSent = false;
     let assistantText = '';
@@ -137,16 +318,31 @@ async function spawnAntigravity(command, options = {}, ws) {
     try {
         agProcess = spawn(AGY_PATH, args, {
             cwd: cleanCwd,
-            env: process.env,
+            // Single source of truth for the spawn env. When agy is isolated for
+            // this user (admin policy) the resolver overrides HOME to the per-user
+            // root so the brain store lands in the isolated tree; when shared it
+            // returns the operator env unchanged (ADR-016 default).
+            env: resolveProviderEnv(userId, 'agy', process.env),
             stdio: ['ignore', 'pipe', 'pipe'],
         });
     } catch (err) {
+        freeDiscoveryLock();
         safeSend({ kind: 'error', content: `Failed to launch agy: ${err.message}`, sessionId: finalSessionId });
         notifyTerminal({ error: err });
         throw err;
     }
 
     activeSessions.set(finalSessionId, { process: agProcess, brainUUID: existingBrainUUID });
+
+    // Record the authenticated human who spawned this agy run. Idempotent at the
+    // DB layer; skipped for unauthenticated (single-user) runs with no userId.
+    if (ws?.userId) {
+        participantsDb.recordSpawn(finalSessionId, ws.userId);
+    }
+
+    // Shared discovery state so the early stdout hook and the close-time safety
+    // net cooperate and never double-register the same brain UUID.
+    const discoveryState = { discovered: false, brainUUID: existingBrainUUID };
 
     return new Promise((resolve, reject) => {
         // Emit session_created on the first stdout chunk for new sessions so the
@@ -162,6 +358,22 @@ async function spawnAntigravity(command, options = {}, ws) {
                     newSessionId: finalSessionId,
                     sessionId: finalSessionId,
                 });
+            }
+
+            // Bind the real workspace path as early as possible — agy has already
+            // materialized the brain folder by the time it streams output — so any
+            // synchronize() that fires mid-run resolves the real project instead of
+            // racing the close handler and writing the placeholder.
+            if (!existingBrainUUID && !discoveryState.discovered) {
+                discoverAndRegisterBrainSession(discoveryState, priorBrainIds, cleanCwd, finalSessionId, userId)
+                    .then(() => {
+                        // Release the discovery lock the moment a UUID is bound, so the
+                        // window stays narrow and concurrent fresh spawns proceed.
+                        if (discoveryState.discovered) {
+                            freeDiscoveryLock();
+                        }
+                    })
+                    .catch(() => { /* retried on next chunk / at close */ });
             }
 
             assistantText += text;
@@ -180,23 +392,21 @@ async function spawnAntigravity(command, options = {}, ws) {
         agProcess.on('close', async (code) => {
             activeSessions.delete(finalSessionId);
 
-            // Persist the discovered brain UUID for new sessions so subsequent
-            // turns can resume the same agy conversation.
-            let discoveredBrainUUID = null;
+            // Safety net: a run that produced no stdout (or whose brain folder
+            // appeared only at exit) skips the early discovery hook, so retry here.
+            // discoverAndRegisterBrainSession is idempotent via discoveryState.
             if (!existingBrainUUID) {
-                try {
-                    const currentBrainIds = await listBrainIds();
-                    discoveredBrainUUID = [...currentBrainIds].find((id) => !priorBrainIds.has(id)) || null;
-                    if (discoveredBrainUUID) {
-                        const persisted = sessionManager.getSession(finalSessionId);
-                        if (persisted) {
-                            persisted.cliSessionId = discoveredBrainUUID;
-                            sessionManager.saveSession(finalSessionId);
-                        }
-                    }
-                } catch (err) {
-                    console.error('[agy] brain UUID discovery failed:', err?.message || err);
-                }
+                await discoverAndRegisterBrainSession(discoveryState, priorBrainIds, cleanCwd, finalSessionId, userId);
+            }
+            // Always release the discovery lock at close — covers runs that never
+            // produced stdout or where discovery never bound a UUID.
+            freeDiscoveryLock();
+            const discoveredBrainUUID = existingBrainUUID ? null : discoveryState.brainUUID;
+
+            // The DB row now carries the real path durably; drop the in-process
+            // binding so the registry never grows unbounded across long uptimes.
+            if (discoveredBrainUUID) {
+                clearAntigravityProjectPath(discoveredBrainUUID);
             }
 
             if (assistantText) {
@@ -242,6 +452,7 @@ async function spawnAntigravity(command, options = {}, ws) {
 
         agProcess.on('error', (err) => {
             activeSessions.delete(finalSessionId);
+            freeDiscoveryLock();
             safeSend({ kind: 'error', content: err.message, sessionId: finalSessionId });
             notifyTerminal({ error: err });
             reject(err);

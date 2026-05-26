@@ -89,6 +89,7 @@
   },
   "mainTabs": {
     "label": "Settings",
+    "profile": "Profile",
     "agents": "Agents",
     "appearance": "Appearance",
     "git": "Git",
@@ -96,7 +97,143 @@
     "tasks": "Tasks",
     "notifications": "Notifications",
     "plugins": "Plugins",
+    "users": "Users",
     "about": "About"
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "Manage your account username and password",
+    "saving": "Saving...",
+    "avatar": {
+      "title": "Profile picture",
+      "description": "Add a photo so teammates can recognise you.",
+      "change": "Change picture",
+      "uploading": "Uploading...",
+      "hint": "Square images work best. PNG or JPG.",
+      "currentAlt": "Your profile picture",
+      "placeholderAlt": "No profile picture set",
+      "success": "Profile picture updated successfully",
+      "errors": {
+        "uploadFailed": "Could not upload the picture. Please try again.",
+        "network": "Network error. Please check your connection and try again."
+      }
+    },
+    "username": {
+      "title": "Change username",
+      "description": "Update the username you use to sign in.",
+      "currentLabel": "Current username",
+      "newLabel": "New username",
+      "placeholder": "Choose a new username",
+      "hint": "3-32 characters: letters, numbers, or underscore.",
+      "save": "Save username",
+      "success": "Username updated successfully",
+      "errors": {
+        "required": "Please enter a new username",
+        "unchanged": "The new username is the same as the current one"
+      }
+    },
+    "password": {
+      "title": "Change password",
+      "description": "Use a strong password you do not use elsewhere.",
+      "currentLabel": "Current password",
+      "currentPlaceholder": "Enter your current password",
+      "newLabel": "New password",
+      "newPlaceholder": "Enter a new password",
+      "confirmLabel": "Confirm new password",
+      "confirmPlaceholder": "Re-enter the new password",
+      "hint": "At least {{min}} characters.",
+      "save": "Save password",
+      "success": "Password changed successfully",
+      "errors": {
+        "required": "Please fill in all password fields",
+        "short": "Password must be at least {{min}} characters",
+        "mismatch": "New passwords do not match"
+      }
+    }
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage workspace members and invitations",
+    "inviteButton": "Invite User",
+    "listHeading": "Members",
+    "loading": "Loading users...",
+    "empty": "No users found",
+    "you": "you",
+    "changeRole": "Change role",
+    "suspend": "Suspend",
+    "activate": "Activate",
+    "resetPassword": "Reset password",
+    "reset": {
+      "title": "Reset password",
+      "confirm": "Reset the password for {{username}}?",
+      "warning": "A temporary password will be generated and shown once. The user must change it on their next sign-in, and all their existing sessions will be signed out.",
+      "submit": "Reset password",
+      "resetting": "Resetting...",
+      "cancel": "Cancel",
+      "close": "Close",
+      "done": "Done",
+      "copy": "Copy",
+      "copied": "Copied",
+      "successHint": "Share this temporary password securely. It is shown only once.",
+      "tempPasswordLabel": "Temporary password"
+    },
+    "pendingInvites": "Pending invitations",
+    "noPendingInvites": "No pending invitations",
+    "revoke": "Revoke",
+    "expiresAt": "Expires {{date}}",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "user": "User"
+    },
+    "statuses": {
+      "active": "Active",
+      "disabled": "Suspended"
+    },
+    "invite": {
+      "title": "Invite a user",
+      "roleLabel": "Role",
+      "roleHint": "The invited user will be created with this role.",
+      "submit": "Create invite",
+      "creating": "Creating...",
+      "cancel": "Cancel",
+      "close": "Close",
+      "done": "Done",
+      "copy": "Copy",
+      "copied": "Copied",
+      "successHint": "Share this single-use link. It is shown only once."
+    }
+  },
+  "providerSharing": {
+    "heading": "Provider credential sharing",
+    "subtitle": "Choose, per provider, whether credentials are shared across all users or isolated per user.",
+    "loading": "Loading sharing settings...",
+    "modeLabel": "Sharing mode for {{provider}}",
+    "providers": {
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "codex": "Codex",
+      "agy": "Antigravity (agy)",
+      "cursor": "Cursor"
+    },
+    "modes": {
+      "shared": "Shared",
+      "isolated": "Isolated"
+    },
+    "modeDescription": {
+      "shared": "Same credentials for all users",
+      "isolated": "Each user has their own credentials"
+    },
+    "agyWarning": {
+      "title": "Experimental isolation",
+      "description": "Isolating Antigravity credentials is experimental and requires restarting active sessions to take effect."
+    },
+    "save": "Save",
+    "saving": "Saving...",
+    "saveStatus": {
+      "success": "Sharing settings saved successfully",
+      "error": "Failed to save sharing settings"
+    }
   },
   "notifications": {
     "title": "Notifications",
@@ -418,6 +555,18 @@
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
         "overrideNote": "You can override this per-session using the mode button in the chat interface."
+      }
+    },
+    "antigravity": {
+      "title": "Permission Settings",
+      "description": "The agy CLI manages its own permission behaviour. There are no allow or block lists to configure from this interface.",
+      "skipPermissions": {
+        "label": "Permission prompts are skipped",
+        "description": "agy runs with --dangerously-skip-permissions, so tool and command approvals are not requested during a session."
+      },
+      "cliNote": {
+        "title": "Configure permissions in agy",
+        "description": "Permission and autonomy options live inside the agy CLI settings, not in this UI."
       }
     },
     "actions": {

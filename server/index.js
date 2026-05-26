@@ -60,6 +60,7 @@ import {
 } from './utils/url-detection.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
 import cursorRoutes from './routes/cursor.js';
 import taskmasterRoutes from './routes/taskmaster.js';
 import mcpUtilsRoutes from './routes/mcp-utils.js';
@@ -71,9 +72,11 @@ import userRoutes from './routes/user.js';
 import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
 import providerRoutes from './modules/providers/provider.routes.js';
+import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
+import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
@@ -162,8 +165,14 @@ app.use('/api', validateApiKey);
 // Authentication routes (public)
 app.use('/api/auth', authRoutes);
 
+// Admin routes (protected; owner/admin enforced inside the router)
+app.use('/api/admin', authenticateToken, adminRoutes);
+
 // Projects API Routes (protected)
 app.use('/api/projects', authenticateToken, projectModuleRoutes);
+
+// Session participant/agent tracking (protected)
+app.use('/api/sessions', authenticateToken, participantsRoutes);
 
 // Git API Routes (protected)
 app.use('/api/git', authenticateToken, gitRoutes);
@@ -225,6 +234,33 @@ app.use('/api/providers', authenticateToken, providerRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
+
+// User avatars (public, read-only). Files live at
+// ~/.nassaj-users/<userId>/avatar.<ext> and are exposed at /avatars/<userId>.<ext>.
+// The :userId segment must be all-digits and :ext one of the allowed image
+// extensions; the served path is rebuilt from those validated parts only, so no
+// portion of the request URL is interpolated into a filesystem path (no traversal).
+const AVATARS_ROOT = path.join(os.homedir(), '.nassaj-users');
+const AVATAR_EXT_TO_MIME = {
+    jpg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+};
+app.get('/avatars/:userId.:ext', (req, res) => {
+    const { userId, ext } = req.params;
+    if (!/^\d+$/.test(userId) || !Object.prototype.hasOwnProperty.call(AVATAR_EXT_TO_MIME, ext)) {
+        return res.status(404).end();
+    }
+    const filePath = path.join(AVATARS_ROOT, userId, `avatar.${ext}`);
+    res.type(AVATAR_EXT_TO_MIME[ext]);
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.sendFile(filePath, (err) => {
+        if (err && !res.headersSent) {
+            res.status(404).end();
+        }
+    });
+});
 
 // Serve public files (like api-docs.html)
 app.use(express.static(path.join(APP_ROOT, 'public')));
@@ -1482,6 +1518,11 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // Bootstrap the initial owner on first run (no-op once an owner exists).
+        if (!IS_PLATFORM) {
+            await ensureOwnerBootstrapped();
+        }
 
         // Configure Web Push (VAPID keys)
         configureWebPush();

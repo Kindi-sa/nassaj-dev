@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Edit3, Folder, FolderOpen, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
@@ -6,6 +8,7 @@ import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
+import { ProjectParticipantsSummary } from '../../../participants';
 
 import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
@@ -93,8 +96,15 @@ export default function SidebarProjectItem({
 }: SidebarProjectItemProps) {
   // Project identity is tracked by the DB-assigned `projectId` everywhere
   // after the projectName → projectId migration.
+  const { i18n } = useTranslation();
   const isSelected = selectedProject?.projectId === project.projectId;
   const isEditing = editingProject === project.projectId;
+
+  // Lazily fetch project-level participation: only after hover or once expanded,
+  // never for every project on first render.
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const participantsActive = hasInteracted || isExpanded || isSelected;
+  const markInteracted = () => setHasInteracted(true);
   const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
@@ -117,7 +127,7 @@ export default function SidebarProjectItem({
 
   return (
     <div className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}>
-      <div className="md:group group">
+      <div className="md:group group" onMouseEnter={markInteracted} onTouchStart={markInteracted}>
         <div className="md:hidden">
           <div
             className={cn(
@@ -183,6 +193,12 @@ export default function SidebarProjectItem({
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
+                      <ProjectParticipantsSummary
+                        projectId={project.projectId}
+                        locale={i18n.language}
+                        t={t}
+                        active={participantsActive}
+                      />
                     </>
                   )}
                 </div>
@@ -323,6 +339,12 @@ export default function SidebarProjectItem({
                       </span>
                     )}
                   </div>
+                  <ProjectParticipantsSummary
+                    projectId={project.projectId}
+                    locale={i18n.language}
+                    t={t}
+                    active={participantsActive}
+                  />
                 </div>
               )}
             </div>

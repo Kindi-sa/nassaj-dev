@@ -28,6 +28,8 @@ import {
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { participantsDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -481,6 +483,18 @@ async function queryClaudeSDK(command, options = {}, ws) {
   let sessionCreatedSent = false;
   let tempImagePaths = [];
   let tempDir = null;
+  let participantRecorded = false;
+
+  // Record the authenticated human who spawned this run as a session
+  // participant. Once per spawn (idempotent at the DB layer too) and only when
+  // the WS is authenticated — anonymous/single-user runs carry no userId.
+  const recordParticipant = (sid) => {
+    if (participantRecorded || !sid || !ws?.userId) {
+      return;
+    }
+    participantRecorded = true;
+    participantsDb.recordSpawn(sid, ws.userId);
+  };
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -493,6 +507,12 @@ async function queryClaudeSDK(command, options = {}, ws) {
   try {
     // Map CLI options to SDK format
     const sdkOptions = mapCliOptionsToSDK(options);
+
+    // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
+    // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR
+    // while conversations/instructions stay shared via symlinks. Falls back to the
+    // base env unchanged when no userId is present (single-user / platform mode).
+    sdkOptions.env = resolveProviderEnv(ws?.userId ?? null, 'claude', sdkOptions.env);
 
     // Load MCP configuration
     const mcpServers = await loadMcpConfig(options.cwd);
@@ -635,6 +655,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // Track the query instance for abort capability
     if (capturedSessionId) {
       addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+      recordParticipant(capturedSessionId);
     }
 
     // Process streaming messages
@@ -645,6 +666,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
 
         capturedSessionId = message.session_id;
         addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+        recordParticipant(capturedSessionId);
 
         // Set session ID on writer
         if (ws.setSessionId && typeof ws.setSessionId === 'function') {

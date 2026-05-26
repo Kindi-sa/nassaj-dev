@@ -55,14 +55,9 @@ export function useChatProviderState({ selectedSession }: UseChatProviderStateAr
     setPermissionMode(savedMode && validModes.includes(savedMode) ? savedMode : 'default');
   }, [selectedSession?.id, provider]);
 
-  useEffect(() => {
-    if (!selectedSession?.__provider || selectedSession.__provider === provider) {
-      return;
-    }
-
-    setProvider(selectedSession.__provider);
-    localStorage.setItem('selected-provider', selectedSession.__provider);
-  }, [provider, selectedSession]);
+  // Provider is driven solely by explicit user selection (localStorage).
+  // Session's __provider is informational only — we never auto-override the
+  // user's active choice when navigating to a project that has old sessions.
 
   useEffect(() => {
     if (lastProviderRef.current === provider) {

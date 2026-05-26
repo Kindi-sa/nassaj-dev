@@ -132,5 +132,33 @@
     "deleteAllData": "حذف جميع البيانات نهائياً",
     "allConversationsDeleted": "ستُزال المشروع من الشريط الجانبي. ستُحفظ ملفاتك وذاكرتك وبيانات الجلسات.",
     "cannotUndo": "يمكنك إعادة إضافة المشروع لاحقاً."
+  },
+  "participants": {
+    "lastSeen": "آخر ظهور",
+    "invocations_one": "استدعاء واحد",
+    "invocations_two": "استدعاءان",
+    "invocations_few": "{{count}} استدعاءات",
+    "invocations_many": "{{count}} استدعاءً",
+    "invocations_other": "{{count}} استدعاء",
+    "usersAria_one": "مشارك واحد",
+    "usersAria_two": "مشاركان",
+    "usersAria_few": "{{count}} مشاركين",
+    "usersAria_many": "{{count}} مشاركاً",
+    "usersAria_other": "{{count}} مشارك",
+    "andMore_one": "وآخر",
+    "andMore_two": "وآخران",
+    "andMore_few": "و{{count}} آخرين",
+    "andMore_many": "و{{count}} آخرين",
+    "andMore_other": "و{{count}} آخرين",
+    "projectSummary": "{{users}} مستخدمين · {{agents}} وكلاء",
+    "roles": {
+      "owner": "المالك",
+      "admin": "مشرف",
+      "user": "عضو"
+    },
+    "agentKinds": {
+      "model": "النموذج الأساسي",
+      "subagent": "وكيل فرعي"
+    }
   }
 }

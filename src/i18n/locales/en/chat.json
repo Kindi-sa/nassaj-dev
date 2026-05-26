@@ -277,5 +277,25 @@
   },
   "tasks": {
     "nextTaskPrompt": "Start the next task"
+  },
+  "participants": {
+    "lastSeen": "Last seen",
+    "invocations_one": "{{count}} invocation",
+    "invocations_other": "{{count}} invocations",
+    "usersAria_one": "{{count}} participant",
+    "usersAria_other": "{{count}} participants",
+    "barAria": "Conversation participants",
+    "andMore_one": "and {{count}} more",
+    "andMore_other": "and {{count}} more",
+    "projectSummary": "{{users}} users · {{agents}} agents",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "user": "Member"
+    },
+    "agentKinds": {
+      "model": "Base model",
+      "subagent": "Subagent"
+    }
   }
 }

@@ -1,9 +1,18 @@
 # حالة المشروع — nassaj-dev
 
-> آخر تحديث: 2026-05-24
+> آخر تحديث: 2026-05-26
 
 ## الحالة الراهنة
-✅ جميع المراحل (0→4) مكتملة. nassaj-dev.alkindy.tech جاهز للاختبار.
+✅ المراحل (0→4) single-user مكتملة. ⏳ **مرحلة Multi-User (Phase-MU) مخطّطة ومعتمدة القرارات** — انتظار التنفيذ.
+
+## مرحلة Multi-User (Phase-MU) — مخطّطة
+القرارات معتمدة (ADR-014..017 في `~/.claude/alkindy/decisions/`). التفاصيل: `docs/workitems/PHASE-MU.md`.
+- **العزل:** اعتماد per-user فقط (Claude إلزامي + Gemini)؛ المحادثات/الملفات/التعليمات **مشتركة حيّاً**.
+- **Auth:** مدمج داخل التطبيق، JWT stateless، invite-only، argon2id، bootstrap owner (لا proxy منفصل).
+- **agy:** مشترك باعتماد المالك في V1 (عزل مؤجَّل للإنتاج).
+- **التزامن:** لا قفل عام؛ قفل discovery ضيّق على brain UUID.
+- **طبقة محورية:** `resolveProviderEnv(userId, provider)` مصدر الحقيقة الوحيد.
+- **المسار الحرج:** C-AUTH-1→2→3 → B-ISO-RESOLVER → (B-ISO-CLAUDE ∥ B-ISO-GEMINI) → B-ISO-PROVISION → C-UI-* → M-ISO-E2E → GATE.
 
 ## شرط الانتقال للنسخة الرئيسية
 - [ ] agy يعمل E2E بدون أخطاء (chat, history, abort) — **اختبر يدوياً**

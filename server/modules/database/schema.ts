@@ -8,7 +8,48 @@ CREATE TABLE IF NOT EXISTS users (
     is_active BOOLEAN DEFAULT 1,
     git_name TEXT,
     git_email TEXT,
-    has_completed_onboarding BOOLEAN DEFAULT 0
+    has_completed_onboarding BOOLEAN DEFAULT 0,
+    role TEXT NOT NULL DEFAULT 'user',
+    status TEXT NOT NULL DEFAULT 'active',
+    invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+`;
+
+/**
+ * audit_log — append-only record of security-relevant auth events.
+ * Never stores passwords, tokens, or raw PII; metadata is sanitized JSON.
+ */
+export const AUDIT_LOG_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    action TEXT NOT NULL,
+    metadata TEXT,
+    ip_address TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+`;
+
+/**
+ * invites — invite-only registration tokens. Only the SHA-256 hash of the
+ * token is stored (token_hash); the plaintext token is shown once at creation.
+ * status: pending | accepted | revoked. Expiry enforced at acceptance time.
+ */
+export const INVITES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS invites (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token_hash TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    invited_by INTEGER NOT NULL,
+    email TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    expires_at DATETIME NOT NULL,
+    accepted_by INTEGER,
+    accepted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (accepted_by) REFERENCES users(id) ON DELETE SET NULL
 );
 `;
 
@@ -96,6 +137,62 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 `;
 
+/**
+ * session_participants — records every authenticated human user who has
+ * spawned a run inside a session. The first participant is flagged 'owner';
+ * subsequent users are 'participant'. message_count is a coarse activity
+ * counter incremented on each spawn.
+ *
+ * NOTE: created via migration (migrateParticipantsAndAgents), NOT included in
+ * INIT_SCHEMA_SQL. Its indexes likewise live only in the migration.
+ */
+export const SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_participants (
+    session_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'participant',
+    first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+    message_count INTEGER DEFAULT 0,
+    PRIMARY KEY (session_id, user_id),
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * session_agents_cache — parsed-on-demand inventory of the non-human actors in
+ * a session transcript: the base model ('model') and any spawned subagents
+ * ('subagent'). Populated by the transcript parser and keyed so repeated parses
+ * upsert counts rather than duplicate rows.
+ *
+ * NOTE: created via migration only.
+ */
+export const SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_agents_cache (
+    session_id TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    agent_kind TEXT NOT NULL,
+    invocation_count INTEGER DEFAULT 1,
+    PRIMARY KEY (session_id, agent_name, agent_kind)
+);
+`;
+
+/**
+ * session_agents_meta — freshness sentinel for session_agents_cache. Stores the
+ * transcript file mtime at last parse so getSessionAgents can skip re-parsing
+ * an unchanged transcript.
+ *
+ * NOTE: created via migration only.
+ */
+export const SESSION_AGENTS_META_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_agents_meta (
+    session_id TEXT PRIMARY KEY,
+    transcript_mtime INTEGER NOT NULL,
+    parsed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -119,6 +216,18 @@ ${USER_TABLE_SCHEMA_SQL}
 -- Indexes for performance for user lookups
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_active ON users(is_active);
+-- NOTE: idx_users_role / idx_users_status moved to migrations.ts (migrateMultiUserAuth)
+-- because the role/status columns are added there, AFTER initial schema creation.
+-- Creating them here breaks fresh init on legacy DBs ("no such column: role").
+
+${AUDIT_LOG_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+
+${INVITES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_invites_token_hash ON invites(token_hash);
+CREATE INDEX IF NOT EXISTS idx_invites_status ON invites(status);
 
 ${API_KEYS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(api_key);

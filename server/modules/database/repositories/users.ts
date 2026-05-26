@@ -1,12 +1,16 @@
 /**
  * User repository.
  *
- * Provides typed CRUD operations for the `users` table.
- * This is a single-user system, but the schema supports multiple
- * users for forward compatibility.
+ * Provides typed CRUD operations for the `users` table. The schema is
+ * multi-user (Phase-MU): each user has a role (owner/admin/user), a status
+ * (active/disabled), and an optional inviter. All queries use prepared
+ * statements; no string interpolation of user input.
  */
 
 import { getConnection } from '@/modules/database/connection.js';
+
+export type UserRole = 'owner' | 'admin' | 'user';
+export type UserStatus = 'active' | 'disabled';
 
 type UserRow = {
   id: number;
@@ -17,10 +21,27 @@ type UserRow = {
   is_active: number;
   git_name: string | null;
   git_email: string | null;
+  avatar_url: string | null;
   has_completed_onboarding: number;
+  role: UserRole;
+  status: UserStatus;
+  invited_by: number | null;
+  password_changed_at: number | null;
+  must_change_password: number;
 };
 
-type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login'>;
+type UserPublicRow = Pick<
+  UserRow,
+  | 'id'
+  | 'username'
+  | 'created_at'
+  | 'last_login'
+  | 'role'
+  | 'status'
+  | 'avatar_url'
+  | 'password_changed_at'
+  | 'must_change_password'
+>;
 
 type UserGitConfig = {
   git_name: string | null;
@@ -28,9 +49,13 @@ type UserGitConfig = {
 };
 
 type CreateUserResult = {
-  id: number | bigint;
+  id: number;
   username: string;
+  role: UserRole;
 };
+
+const PUBLIC_COLUMNS =
+  'id, username, created_at, last_login, role, status, avatar_url, password_changed_at, must_change_password';
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -46,24 +71,108 @@ export const userDb = {
     return row.count > 0;
   },
 
-  /** Inserts a new user and returns the created ID + username. */
-  createUser(username: string, passwordHash: string): CreateUserResult {
+  /** Number of users with the owner role. Used to gate bootstrap. */
+  getOwnerCount(): number {
     const db = getConnection();
-    const result = db
-      .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
-      .run(username, passwordHash);
-    return { id: result.lastInsertRowid, username };
+    const row = db
+      .prepare("SELECT COUNT(*) as count FROM users WHERE role = 'owner'")
+      .get() as { count: number };
+    return row.count;
   },
 
   /**
-   * Looks up an active user by username.
+   * Inserts a new user with an explicit role and optional inviter.
+   * Returns the created id, username, and role.
+   */
+  createUser(
+    username: string,
+    passwordHash: string,
+    role: UserRole = 'user',
+    invitedBy: number | null = null
+  ): CreateUserResult {
+    const db = getConnection();
+    const result = db
+      .prepare(
+        'INSERT INTO users (username, password_hash, role, invited_by, status) VALUES (?, ?, ?, ?, ?)'
+      )
+      .run(username, passwordHash, role, invitedBy, 'active');
+    return { id: Number(result.lastInsertRowid), username, role };
+  },
+
+  /**
+   * Looks up an active (status=active, is_active=1) user by username.
    * Returns the full row (including password hash) for auth verification.
    */
   getUserByUsername(username: string): UserRow | undefined {
     const db = getConnection();
     return db
-      .prepare('SELECT * FROM users WHERE username = ? AND is_active = 1')
+      .prepare(
+        "SELECT * FROM users WHERE username = ? AND is_active = 1 AND status = 'active'"
+      )
       .get(username) as UserRow | undefined;
+  },
+
+  /** Replaces the stored password hash (e.g. legacy bcrypt → argon2id rehash). */
+  setPasswordHash(userId: number, passwordHash: string): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(
+      passwordHash,
+      userId
+    );
+  },
+
+  /**
+   * User-initiated password change: stores the new hash, stamps the change time
+   * (invalidating older tokens via pwd_iat), and clears any forced-rotation flag.
+   * @param changedAt unix epoch in ms (Date.now())
+   */
+  changePassword(userId: number, passwordHash: string, changedAt: number): void {
+    const db = getConnection();
+    db.prepare(
+      'UPDATE users SET password_hash = ?, password_changed_at = ?, must_change_password = 0 WHERE id = ?'
+    ).run(passwordHash, changedAt, userId);
+  },
+
+  /**
+   * Admin-initiated reset: stores the temporary hash, stamps the change time
+   * (invalidating the target's existing tokens), and forces the user to set a
+   * new password on next use.
+   * @param changedAt unix epoch in ms (Date.now())
+   */
+  resetPassword(userId: number, passwordHash: string, changedAt: number): void {
+    const db = getConnection();
+    db.prepare(
+      'UPDATE users SET password_hash = ?, password_changed_at = ?, must_change_password = 1 WHERE id = ?'
+    ).run(passwordHash, changedAt, userId);
+  },
+
+  /** Changes a user's username. Uniqueness is enforced by the UNIQUE index. */
+  setUsername(userId: number, username: string): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET username = ? WHERE id = ?').run(username, userId);
+  },
+
+  /** Sets a user's status (active/disabled). Used by admin management. */
+  setStatus(userId: number, status: UserStatus): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, userId);
+  },
+
+  /** Updates a user's role (owner/admin/user). Used by owner-only management. */
+  setRole(userId: number, role: UserRole): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
+  },
+
+  /**
+   * Returns the full row (incl. role/status) for any user by id regardless of
+   * status. Used by management routes that must act on disabled users too.
+   */
+  getRawById(userId: number): UserRow | undefined {
+    const db = getConnection();
+    return db
+      .prepare('SELECT * FROM users WHERE id = ?')
+      .get(userId) as UserRow | undefined;
   },
 
   /** Updates the last_login timestamp. Non-fatal — logs but does not throw. */
@@ -79,32 +188,36 @@ export const userDb = {
     }
   },
 
-  /** Returns public user fields by ID (no password hash). */
+  /** Returns public user fields by ID (no password hash), active only. */
   getUserById(userId: number): UserPublicRow | undefined {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
+        `SELECT ${PUBLIC_COLUMNS} FROM users WHERE id = ? AND is_active = 1 AND status = 'active'`
       )
       .get(userId) as UserPublicRow | undefined;
   },
 
-  /** Returns the first active user. Used for single-user mode lookups. */
+  /** Returns the first active user. Used for single-user / platform mode lookups. */
   getFirstUser(): UserPublicRow | undefined {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
+        `SELECT ${PUBLIC_COLUMNS} FROM users WHERE is_active = 1 AND status = 'active' ORDER BY id ASC LIMIT 1`
       )
       .get() as UserPublicRow | undefined;
   },
 
+  /** Lists all users (public fields) ordered by id. For admin management UI. */
+  listUsers(): UserPublicRow[] {
+    const db = getConnection();
+    return db
+      .prepare(`SELECT ${PUBLIC_COLUMNS} FROM users ORDER BY id ASC`)
+      .all() as UserPublicRow[];
+  },
+
   /** Stores the user's preferred git name and email. */
-  updateGitConfig(
-    userId: number,
-    gitName: string,
-    gitEmail: string
-  ): void {
+  updateGitConfig(userId: number, gitName: string, gitEmail: string): void {
     const db = getConnection();
     db.prepare('UPDATE users SET git_name = ?, git_email = ? WHERE id = ?').run(
       gitName,
@@ -121,12 +234,18 @@ export const userDb = {
       .get(userId) as UserGitConfig | undefined;
   },
 
+  /** Stores the user's avatar URL (server-relative path), or clears it with null. */
+  setAvatarUrl(userId: number, url: string | null): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET avatar_url = ? WHERE id = ?').run(url, userId);
+  },
+
   /** Marks onboarding as complete for the given user. */
   completeOnboarding(userId: number): void {
     const db = getConnection();
-    db.prepare(
-      'UPDATE users SET has_completed_onboarding = 1 WHERE id = ?'
-    ).run(userId);
+    db.prepare('UPDATE users SET has_completed_onboarding = 1 WHERE id = ?').run(
+      userId
+    );
   },
 
   /** Returns true if the user has finished the onboarding flow. */

@@ -4,6 +4,7 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { participantsDb } from './modules/database/index.js';
 
 // Use cross-spawn on Windows for better command execution
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
@@ -32,6 +33,20 @@ async function spawnCursor(command, options = {}, ws) {
     let sessionCreatedSent = false; // Track if we've already sent session-created event
     let hasRetriedWithTrust = false;
     let settled = false;
+    let participantRecorded = false;
+
+    // Record the authenticated human who spawned this run once a session id is
+    // known. Idempotent; skipped for unauthenticated runs (no ws.userId).
+    const recordParticipant = (sid) => {
+      if (participantRecorded || !sid || !ws?.userId) {
+        return;
+      }
+      participantRecorded = true;
+      participantsDb.recordSpawn(sid, ws.userId);
+    };
+
+    // Resumed sessions carry their id at spawn time.
+    recordParticipant(capturedSessionId);
 
     // Use tools settings passed from frontend, or defaults
     const settings = toolsSettings || {
@@ -158,6 +173,7 @@ async function spawnCursor(command, options = {}, ws) {
                 // Capture session ID
                 if (response.session_id && !capturedSessionId) {
                   capturedSessionId = response.session_id;
+                  recordParticipant(capturedSessionId);
 
                   // Update process key with captured session ID
                   if (processKey !== capturedSessionId) {

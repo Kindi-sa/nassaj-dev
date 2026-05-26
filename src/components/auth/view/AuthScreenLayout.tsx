@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
 import { IS_PLATFORM } from '../../../constants/config';
+import { useRtl } from '../../../contexts/RtlContext';
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -10,6 +11,12 @@ type AuthScreenLayoutProps = {
   logo?: ReactNode;
 };
 
+// Arabic-first font stack applied locally on auth screens when RTL is enabled.
+// Auth screens render before/around the app shell, so they cannot rely on the
+// global RTL document mechanism (Phase-3) and own their direction explicitly.
+const RTL_FONT_FAMILY =
+  "'Tajawal', 'IBM Plex Sans Arabic', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
 export default function AuthScreenLayout({
   title,
   description,
@@ -17,8 +24,17 @@ export default function AuthScreenLayout({
   footerText,
   logo,
 }: AuthScreenLayoutProps) {
+  const { rtlLayout } = useRtl();
+  const containerStyle: CSSProperties | undefined = rtlLayout
+    ? { fontFamily: RTL_FONT_FAMILY }
+    : undefined;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div
+      dir={rtlLayout ? 'rtl' : 'ltr'}
+      style={containerStyle}
+      className="flex min-h-screen items-center justify-center bg-background p-4"
+    >
       <div className="w-full max-w-md">
         <div className="space-y-6 rounded-lg border border-border bg-card p-8 shadow-lg">
           <div className="text-center">

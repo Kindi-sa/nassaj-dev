@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { getAntigravityProjectPath } from '@/modules/providers/list/antigravity/antigravity-project-registry.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import type { AnyRecord } from '@/shared/types.js';
 import { normalizeSessionName, readObjectRecord } from '@/shared/utils.js';
@@ -59,7 +60,7 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
-        ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH,
+        this.resolveProjectPath(parsed.sessionId),
         parsed.title,
         parsed.createdAt,
         parsed.updatedAt,
@@ -69,6 +70,41 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
     }
 
     return processed;
+  }
+
+  /**
+   * Resolves the project path to persist for a brain UUID.
+   *
+   * agy-cli.js registers a freshly created session under its real workspace
+   * `cwd` as soon as it discovers the brain UUID. Two sources can carry that
+   * real path, checked in order:
+   *
+   * 1. An existing non-placeholder `project_path` already on the DB row. Because
+   *    `createSession` upserts and overwrites `project_path`, re-syncing the same
+   *    UUID with the placeholder would otherwise relocate the session into the
+   *    phantom `/__antigravity__` workspace and hide it from the sidebar.
+   * 2. The in-process registry populated by the spawn adapter. This closes the
+   *    race where a synchronize() (boot/refresh/watcher) reaches a brand-new
+   *    brain UUID *before* the close handler has written the real path to the DB:
+   *    without it the first sync would file the placeholder and nothing would
+   *    ever correct it.
+   *
+   * Only when neither source knows the workspace do we fall back to the
+   * placeholder — e.g. conversations created directly in the standalone agy app.
+   */
+  private resolveProjectPath(sessionId: string): string {
+    const existing = sessionsDb.getSessionById(sessionId);
+    const existingPath = existing?.project_path?.trim();
+    if (existingPath && existingPath !== ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH) {
+      return existingPath;
+    }
+
+    const registeredPath = getAntigravityProjectPath(sessionId);
+    if (registeredPath) {
+      return registeredPath;
+    }
+
+    return ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH;
   }
 
   /**
@@ -95,7 +131,7 @@ export class AntigravitySessionSynchronizer implements IProviderSessionSynchroni
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
-      ANTIGRAVITY_PLACEHOLDER_PROJECT_PATH,
+      this.resolveProjectPath(parsed.sessionId),
       parsed.title,
       parsed.createdAt,
       parsed.updatedAt,

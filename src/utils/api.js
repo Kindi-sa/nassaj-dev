@@ -46,7 +46,81 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
     user: () => authenticatedFetch('/api/auth/user'),
+    // Current identity incl. role + status (Phase-MU).
+    me: () => authenticatedFetch('/api/auth/me'),
     logout: () => authenticatedFetch('/api/auth/logout', { method: 'POST' }),
+
+    // Self-service profile (Phase-MU F-1 / F-2).
+    // Change own password — returns a fresh token so the current device stays signed in.
+    changePassword: (currentPassword, newPassword) =>
+      authenticatedFetch('/api/auth/me/password', {
+        method: 'PATCH',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+    // Change own username.
+    changeUsername: (username) =>
+      authenticatedFetch('/api/auth/me/username', {
+        method: 'PATCH',
+        body: JSON.stringify({ username }),
+      }),
+    // Upload own profile picture (multipart). The Content-Type header is left
+    // unset so the browser adds the multipart boundary automatically.
+    updateAvatar: (file) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      return authenticatedFetch('/api/auth/me/avatar', {
+        method: 'PATCH',
+        body: formData,
+      });
+    },
+
+    // Invite acceptance (public): creates a `user` account from an invite token.
+    acceptInvite: (token, username, password) => fetch('/api/auth/invite/accept', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, username, password }),
+    }),
+
+    // Invite management (owner/admin).
+    listInvites: () => authenticatedFetch('/api/auth/invites'),
+    createInvite: ({ role, email, ttlHours } = {}) =>
+      authenticatedFetch('/api/auth/invites', {
+        method: 'POST',
+        body: JSON.stringify({ role, email, ttlHours }),
+      }),
+    revokeInvite: (id) =>
+      authenticatedFetch(`/api/auth/invites/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+
+    // User management (owner/admin list; owner-only mutations).
+    listUsers: () => authenticatedFetch('/api/auth/users'),
+    updateUserRole: (id, role) =>
+      authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}/role`, {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      }),
+    updateUserStatus: (id, status) =>
+      authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      }),
+    // Reset another user's password to a generated temporary one (owner/admin).
+    // The temp password is returned ONCE in plaintext.
+    resetUserPassword: (id) =>
+      authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}/reset-password`, {
+        method: 'POST',
+      }),
+  },
+
+  // Admin-only: per-provider credential sharing mode (shared vs isolated).
+  admin: {
+    getProviderSharing: () => authenticatedFetch('/api/admin/provider-sharing'),
+    updateProviderSharing: (config) =>
+      authenticatedFetch('/api/admin/provider-sharing', {
+        method: 'PUT',
+        body: JSON.stringify(config),
+      }),
   },
 
   // Protected endpoints
@@ -63,6 +137,14 @@ export const api = {
   },
   projectTaskmaster: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/taskmaster`),
+  // Multi-user participation (Phase-MU): humans + agents seen in a session/project.
+  // Lazy endpoints — fetched on demand (hover/open), never in the initial load.
+  sessionParticipants: (sessionId) =>
+    authenticatedFetch(`/api/sessions/${encodeURIComponent(sessionId)}/participants`),
+  sessionAgents: (sessionId) =>
+    authenticatedFetch(`/api/sessions/${encodeURIComponent(sessionId)}/agents`),
+  projectParticipants: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/participants`),
   // Unified endpoint for persisted session messages.
   // Provider/project metadata are resolved by the backend from sessionId.
   unifiedSessionMessages: (sessionId, _provider = 'claude', { limit = null, offset = 0 } = {}) => {

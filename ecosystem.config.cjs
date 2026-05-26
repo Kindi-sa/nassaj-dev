@@ -43,6 +43,22 @@ module.exports = {
         HOST: '0.0.0.0',
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
+
+        // ── Phase-MU multi-user auth (B-AUTH) ──────────────────────────────
+        // قيم placeholder. هذه الأسماء هي التي يقرأها الكود فعلاً (راجع
+        // server/middleware/auth.js و server/services/bootstrap-owner.service.js).
+        // لا تُعِد تسميتها. عند التشغيل عبر pm2 ecosystem، قيم env هنا تطغى على .env.
+        //
+        // JWT_SECRET: سرّ توقيع JWT (>= 32 محرفاً). إن تُرك فارغاً يُولَّد سرّ
+        //   per-install ويُحفظ في app_config (يعمل لكن env مُفضَّل للإنتاج).
+        //   توليد: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+        // JWT_SECRET: 'CHANGE_ME_min_32_chars_random_hex',
+        //
+        // bootstrap owner — يُنشأ تلقائياً عند أول تشغيل على DB بلا owner؛
+        // لا يُكرَّر لاحقاً. إن تُرك BOOTSTRAP_OWNER_PASSWORD فارغاً تُولَّد كلمة
+        // مرور قوية وتُطبع مرة واحدة في سجل الخادم.
+        // BOOTSTRAP_OWNER_USERNAME: 'owner',
+        // BOOTSTRAP_OWNER_PASSWORD: 'CHANGE_ME_min_12_chars',
       },
     },
   ],

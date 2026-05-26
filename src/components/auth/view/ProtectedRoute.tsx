@@ -3,6 +3,7 @@ import { IS_PLATFORM } from '../../../constants/config';
 import { useAuth } from '../context/AuthContext';
 import Onboarding from '../../onboarding/view/Onboarding';
 import AuthLoadingScreen from './AuthLoadingScreen';
+import ForceChangePasswordForm from './ForceChangePasswordForm';
 import LoginForm from './LoginForm';
 import SetupForm from './SetupForm';
 
@@ -11,7 +12,8 @@ type ProtectedRouteProps = {
 };
 
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, isLoading, needsSetup, hasCompletedOnboarding, refreshOnboardingStatus } = useAuth();
+  const { user, isLoading, needsSetup, hasCompletedOnboarding, mustChangePassword, refreshOnboardingStatus } =
+    useAuth();
 
   if (isLoading) {
     return <AuthLoadingScreen />;
@@ -31,6 +33,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!user) {
     return <LoginForm />;
+  }
+
+  // Forced rotation after an admin reset: block the app until the password is
+  // changed. This precedes onboarding so it cannot be bypassed.
+  if (mustChangePassword) {
+    return <ForceChangePasswordForm />;
   }
 
   if (!hasCompletedOnboarding) {
