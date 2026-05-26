@@ -12,6 +12,10 @@
  *       projects   -> ~/.claude/projects        (shared conversations)
  *       CLAUDE.md  -> ~/.claude/CLAUDE.md        (shared instructions, if present)
  *       NASSAJ.md  -> ~/.claude/NASSAJ.md        (shared instructions, if present)
+ *       .credentials.json -> ~/.claude/.credentials.json  (OWNER ONLY: the
+ *                  bootstrap owner reuses the operator credential so an isolated
+ *                  owner never has to re-login. Non-owner users get no link and
+ *                  must `claude login` separately.)
  *     .gemini/
  *       projects   -> ~/.gemini/projects         (shared, if present)
  *     .codex/
@@ -25,7 +29,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { auditLogDb } from '../../modules/database/index.js';
+import { auditLogDb, userDb } from '../../modules/database/index.js';
 
 const DIR_MODE = 0o750;
 
@@ -92,6 +96,29 @@ function isSymlink(p) {
 }
 
 /**
+ * True if `userId` is the bootstrap owner. The owner's isolated tree links back
+ * to the operator's real Claude credential so the owner keeps working without a
+ * separate login (the operator credential lives in ~/.claude/.credentials.json).
+ * Defensive: any DB error is treated as "not owner" and never blocks
+ * provisioning — credentials are optional, exactly like the other symlinks.
+ *
+ * @param {string|number} userId
+ * @returns {boolean}
+ */
+function isOwnerUser(userId) {
+  try {
+    const numericId = Number(userId);
+    if (!Number.isInteger(numericId)) {
+      return false;
+    }
+    const user = userDb.getUserById(numericId);
+    return user?.role === 'owner';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Ensures the isolated config tree + shared symlinks exist for a user.
  * Idempotent and safe under concurrency.
  *
@@ -120,6 +147,17 @@ export function provisionUserDirs(userId) {
     ensureSymlink(path.join(home, '.claude', 'projects'), path.join(claudeDir, 'projects'));
     ensureSymlink(path.join(home, '.claude', 'CLAUDE.md'), path.join(claudeDir, 'CLAUDE.md'));
     ensureSymlink(path.join(home, '.claude', 'NASSAJ.md'), path.join(claudeDir, 'NASSAJ.md'));
+
+    // The bootstrap owner reuses the operator's real Claude credential even when
+    // isolated, so the owner never has to re-login. Non-owner isolated users get
+    // NO credential here on purpose: each must run their own `claude login`
+    // (separate feature). ensureSymlink is a no-op if the target is missing.
+    if (isOwnerUser(userId)) {
+      ensureSymlink(
+        path.join(home, '.claude', '.credentials.json'),
+        path.join(claudeDir, '.credentials.json'),
+      );
+    }
 
     // --- Gemini (isolated; shared conversations if the root has them) ---
     const geminiDir = path.join(userRoot, '.gemini');
