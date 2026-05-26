@@ -72,6 +72,22 @@
       "toggleAndMove": "اضغط للتبديل، اسحب للتحريك"
     }
   },
+  "claudeUsage": {
+    "title": "استخدام Claude",
+    "loading": "جارٍ تحميل الاستخدام…",
+    "error": "تعذّر جلب حالة الاستخدام.",
+    "stale": "بيانات مخزّنة",
+    "percentUsed": "{{percent}} مُستخدَم",
+    "resetsIn": "يُعاد التعيين {{time}}",
+    "extraUsageDetail": "{{used}} من {{limit}} مُستخدَم",
+    "windows": {
+      "session": "الجلسة الحالية",
+      "weeklyAllModels": "كل النماذج (أسبوعي)",
+      "weeklySonnet": "Sonnet فقط",
+      "weeklyOpus": "Opus فقط",
+      "extraUsage": "الاستخدام الإضافي"
+    }
+  },
   "terminalShortcuts": {
     "title": "اختصارات الطرفية",
     "sectionKeys": "المفاتيح",

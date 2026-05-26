@@ -403,3 +403,47 @@ export type WorkspacePathValidationResult = {
   resolvedPath?: string;
   error?: string;
 };
+
+// ---------------------------
+//----------------- CLAUDE USAGE MODEL ------------
+/**
+ * A single rate-limit window as exposed by the Claude usage contract.
+ *
+ * `utilization` is a percentage (0-100). `resetsAt` is an ISO-8601 timestamp
+ * marking when the window resets.
+ */
+export type ClaudeUsageWindow = {
+  utilization: number;
+  resetsAt: string | null;
+};
+
+/**
+ * Extra (pay-as-you-go) usage block, present only for accounts that have it
+ * enabled. Mirrors the Anthropic `extra_usage` object in normalized casing.
+ */
+export type ClaudeExtraUsage = {
+  enabled: boolean;
+  monthlyLimit: number | null;
+  usedCredits: number | null;
+  utilization: number | null;
+  currency: string | null;
+};
+
+/**
+ * Stable response contract for `GET /api/providers/claude/usage`.
+ *
+ * The frontend depends on this exact shape. Any window the upstream API reports
+ * as `null` is surfaced as `null` here (never fabricated), except `weeklyOpus`
+ * which is normalized to a zeroed window when absent so the usage page can
+ * always render an Opus row.
+ */
+export type ClaudeUsageSummary = {
+  plan: string | null;
+  session: ClaudeUsageWindow | null;
+  weeklyAllModels: ClaudeUsageWindow | null;
+  weeklySonnet: ClaudeUsageWindow | null;
+  weeklyOpus: ClaudeUsageWindow | null;
+  extraUsage: ClaudeExtraUsage | null;
+  fetchedAt: string;
+  stale: boolean;
+};

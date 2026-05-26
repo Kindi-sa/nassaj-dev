@@ -72,6 +72,22 @@
       "toggleAndMove": "Click to toggle, drag to move"
     }
   },
+  "claudeUsage": {
+    "title": "Claude Usage",
+    "loading": "Loading usage…",
+    "error": "Could not load usage status.",
+    "stale": "Cached data",
+    "percentUsed": "{{percent}} used",
+    "resetsIn": "Resets {{time}}",
+    "extraUsageDetail": "{{used}} of {{limit}} used",
+    "windows": {
+      "session": "Current session",
+      "weeklyAllModels": "All models (weekly)",
+      "weeklySonnet": "Sonnet only",
+      "weeklyOpus": "Opus only",
+      "extraUsage": "Extra usage"
+    }
+  },
   "terminalShortcuts": {
     "title": "Terminal Shortcuts",
     "sectionKeys": "Keys",

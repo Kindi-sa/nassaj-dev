@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 type QuickSettingsSectionProps = {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   className?: string;
 };

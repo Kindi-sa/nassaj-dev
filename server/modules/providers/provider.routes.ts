@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from 'express';
 
+import { claudeUsageService } from '@/modules/providers/services/claude-usage.service.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
@@ -244,6 +245,31 @@ const parseSessionSearchLimit = (value: unknown): number => {
 
   return Math.max(1, Math.min(parsed, 100));
 };
+
+// ----------------- Claude usage route -----------------
+// Specific path declared before the generic `/:provider/*` routes so it is not
+// shadowed. Calls Anthropic from the backend only; the OAuth token never leaves
+// the server. Cached >= 180s (shared credential) with stale fallback on 429.
+router.get(
+  '/claude/usage',
+  asyncHandler(async (_req: Request, res: Response) => {
+    try {
+      const usage = await claudeUsageService.getUsage();
+      res.json(usage);
+    } catch (error) {
+      // Emit the flat frontend error contract `{ error, code }` with a real
+      // status (never a silent 500). User-facing messages stay generic.
+      if (error instanceof AppError) {
+        res.status(error.statusCode).json({ error: error.message, code: error.code });
+        return;
+      }
+      res.status(502).json({
+        error: 'Claude usage is currently unavailable.',
+        code: 'CLAUDE_USAGE_UNAVAILABLE',
+      });
+    }
+  }),
+);
 
 router.get(
   '/:provider/auth/status',

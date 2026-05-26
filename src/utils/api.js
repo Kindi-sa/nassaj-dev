@@ -326,6 +326,13 @@ export const api = {
       }),
   },
 
+  // Provider account/usage endpoints.
+  providers: {
+    // Claude account usage (plan limits, session/weekly windows, extra usage).
+    // Backend caches for 180s; the client should not poll more frequently.
+    claudeUsage: () => authenticatedFetch('/api/providers/claude/usage'),
+  },
+
   // Generic GET method for any endpoint
   get: (endpoint) => authenticatedFetch(`/api${endpoint}`),
 
