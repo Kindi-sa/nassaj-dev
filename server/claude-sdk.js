@@ -204,7 +204,7 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Add plan mode default tools
   if (permissionMode === 'plan') {
-    const planModeTools = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'WebFetch', 'WebSearch'];
+    const planModeTools = ['Read', 'Task', 'exit_plan_mode', 'TodoRead', 'TodoWrite', 'TaskCreate', 'TaskUpdate', 'TaskGet', 'TaskList', 'WebFetch', 'WebSearch'];
     for (const tool of planModeTools) {
       if (!allowedTools.includes(tool)) {
         allowedTools.push(tool);
@@ -624,7 +624,11 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       }
 
       if (decision.cancelled) {
-        return { behavior: 'deny', message: 'Permission request cancelled' };
+        // decision.cancelled originates from a runtime/transport abort (e.g. a
+        // transient SDK/transport disconnect), NOT from the user denying the
+        // request. We keep the { behavior: 'deny', message } contract but return
+        // an honest, retryable message instead of implying the user cancelled.
+        return { behavior: 'deny', message: 'Tool use was cancelled by the runtime (not by the user). This is likely a transient SDK/transport abort — the request can be retried.' };
       }
 
       if (decision.allow) {
