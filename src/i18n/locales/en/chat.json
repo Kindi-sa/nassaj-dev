@@ -201,6 +201,12 @@
       "antigravity": "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
       "default": "Select a provider above to begin"
     },
+    "antigravity": {
+      "activeModel": "Active model",
+      "activeModelLabel": "Active model",
+      "loading": "Loading…",
+      "unknown": "Unknown"
+    },
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
   },
   "session": {

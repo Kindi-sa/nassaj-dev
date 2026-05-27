@@ -201,6 +201,12 @@
       "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
       "default": "اختر provider أعلاه للبدء"
     },
+    "antigravity": {
+      "activeModel": "النموذج النشط",
+      "activeModelLabel": "النموذج النشط",
+      "loading": "جارٍ التحميل…",
+      "unknown": "غير معروف"
+    },
     "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits"
   },
   "session": {

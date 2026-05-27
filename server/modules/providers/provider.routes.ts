@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from 'express';
 
+import { antigravityActiveModelService } from '@/modules/providers/services/antigravity-active-model.service.js';
 import { claudeUsageService } from '@/modules/providers/services/claude-usage.service.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
@@ -268,6 +269,18 @@ router.get(
         code: 'CLAUDE_USAGE_UNAVAILABLE',
       });
     }
+  }),
+);
+
+// ----------------- Antigravity active-model route -----------------
+// Specific path declared before the generic `/:provider/*` routes so it is not
+// shadowed. Read-only: reflects the model the agy CLI last propagated to its
+// backend (parsed from the session log). Never changes the selection.
+router.get(
+  '/antigravity/active-model',
+  asyncHandler(async (_req: Request, res: Response) => {
+    const activeModel = await antigravityActiveModelService.getActiveModel();
+    res.json(activeModel);
   }),
 );
 

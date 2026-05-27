@@ -331,6 +331,9 @@ export const api = {
     // Claude account usage (plan limits, session/weekly windows, extra usage).
     // Backend caches for 180s; the client should not poll more frequently.
     claudeUsage: () => authenticatedFetch('/api/providers/claude/usage'),
+    // Antigravity (agy) read-only active model. The model is chosen inside agy's
+    // own settings; agy ignores any UI selection, so we only display it.
+    antigravityActiveModel: () => authenticatedFetch('/api/providers/antigravity/active-model'),
   },
 
   // Generic GET method for any endpoint

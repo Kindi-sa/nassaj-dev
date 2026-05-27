@@ -3,6 +3,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { useServerPlatform } from "../../../../hooks/useServerPlatform";
+import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import {
   ANTIGRAVITY_MODELS,
@@ -121,10 +122,31 @@ export default function ProviderSelectionEmptyState({
   const { isWindowsServer } = useServerPlatform();
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // agy ignores UI model selection: it picks the model from its own settings.
+  // So for antigravity we hide the selectable picker and show a read-only label.
+  const isAntigravity = provider === "antigravity";
+  const {
+    label: antigravityActiveLabel,
+    loading: antigravityActiveLoading,
+    error: antigravityActiveError,
+  } = useAntigravityActiveModel(isAntigravity);
+
   const visibleProviderGroups = useMemo(
     () => (isWindowsServer ? PROVIDER_GROUPS.filter((p) => p.id !== "cursor") : PROVIDER_GROUPS),
     [isWindowsServer],
   );
+
+  // Resolve the read-only label shown for antigravity: live agy value, a clear
+  // loading placeholder, or an "unknown" fallback when agy reports nothing.
+  const antigravityModelDisplay = useMemo(() => {
+    if (antigravityActiveLoading) {
+      return t("providerSelection.antigravity.loading", { defaultValue: "Loading…" });
+    }
+    if (antigravityActiveError || !antigravityActiveLabel) {
+      return t("providerSelection.antigravity.unknown", { defaultValue: "Unknown" });
+    }
+    return antigravityActiveLabel;
+  }, [antigravityActiveLoading, antigravityActiveError, antigravityActiveLabel, t]);
 
   useEffect(() => {
     if (isWindowsServer && provider === "cursor") {
@@ -200,6 +222,38 @@ export default function ProviderSelectionEmptyState({
             </p>
           </div>
 
+          {isAntigravity ? (
+            <Card
+              className="mx-auto max-w-xs border-border/60"
+              role="group"
+              aria-label={t("providerSelection.antigravity.activeModel", {
+                defaultValue: "Active model",
+              })}
+            >
+              <div className="flex items-center gap-2 p-3">
+                <SessionProviderLogo provider={provider} className="h-5 w-5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-foreground">
+                      {getProviderDisplayName(provider)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t("providerSelection.antigravity.activeModelLabel", {
+                      defaultValue: "Active model",
+                    })}
+                    {": "}
+                    <span
+                      className="font-medium text-foreground"
+                      aria-live="polite"
+                    >
+                      {antigravityModelDisplay}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </Card>
+          ) : (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Card
@@ -247,7 +301,13 @@ export default function ProviderSelectionEmptyState({
                       defaultValue: "No models found.",
                     })}
                   </CommandEmpty>
-                  {visibleProviderGroups.map((group, idx) => (
+                  {visibleProviderGroups
+                    .map((group) =>
+                      group.id === "antigravity"
+                        ? { ...group, models: group.models.slice(0, 1) }
+                        : group,
+                    )
+                    .map((group, idx) => (
                     <CommandGroup
                       key={group.id}
                       className={
@@ -284,6 +344,7 @@ export default function ProviderSelectionEmptyState({
               </Command>
             </DialogContent>
           </Dialog>
+          )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
             {

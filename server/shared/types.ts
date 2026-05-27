@@ -447,3 +447,13 @@ export type ClaudeUsageSummary = {
   fetchedAt: string;
   stale: boolean;
 };
+
+/**
+ * Read-only view of the model Antigravity (agy CLI) most recently propagated to
+ * its backend, parsed from the CLI session log. `label` is null when no
+ * selection has been recorded yet (or the log is unavailable).
+ */
+export type AntigravityActiveModel = {
+  label: string | null;
+  fetchedAt: string;
+};
