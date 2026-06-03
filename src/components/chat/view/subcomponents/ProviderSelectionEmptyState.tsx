@@ -131,9 +131,9 @@ export default function ProviderSelectionEmptyState({
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // agy ignores UI model selection: it picks the model from its own settings.
-  // So for antigravity we hide the selectable picker and show a read-only label.
-  // (Antigravity is temporarily disabled during the v1.33 sync; the backend
-  // catalog is empty and the active-model hook degrades gracefully.)
+  // So for antigravity we hide the selectable picker and show a read-only label
+  // sourced from the active-model hook (degrades gracefully when agy reports
+  // nothing). The backend now serves the live agy catalog with a fallback.
   const isAntigravity = provider === "antigravity";
   const {
     label: antigravityActiveLabel,

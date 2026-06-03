@@ -1,3 +1,4 @@
+import { getAntigravityModelCatalog } from '@/modules/providers/list/antigravity/antigravity-catalog.client.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -25,9 +26,9 @@ import {
  * NOTE (upstream sync v1.33): these values were preserved from the fork's
  * former `shared/modelConstants.js` (ANTIGRAVITY_MODELS) when upstream #762
  * migrated the model catalogs into the per-provider provider-models layer and
- * deleted that file. The Antigravity provider itself is temporarily disabled
- * via a DisabledProvider stub in provider.registry.ts; this catalog is the
- * foundation for re-enabling it. See the re-enable TODO in provider.registry.ts.
+ * deleted that file. They now serve as the graceful fallback used by
+ * {@link AntigravityProviderModels.getSupportedModels} whenever the live agy
+ * catalog (see antigravity-catalog.client.ts) cannot be fetched.
  */
 export const ANTIGRAVITY_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
@@ -43,8 +44,14 @@ export const ANTIGRAVITY_FALLBACK_MODELS: ProviderModelsDefinition = {
 };
 
 export class AntigravityProviderModels implements IProviderModels {
+  /**
+   * Returns the live agy model catalog when reachable, otherwise the preserved
+   * {@link ANTIGRAVITY_FALLBACK_MODELS}. The catalog client owns the network
+   * fetch, timeout, circuit breaker, and graceful fallback; the provider-models
+   * service caches whatever is returned for several days.
+   */
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    return ANTIGRAVITY_FALLBACK_MODELS;
+    return getAntigravityModelCatalog();
   }
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {

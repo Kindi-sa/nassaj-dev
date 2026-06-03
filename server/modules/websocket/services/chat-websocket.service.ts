@@ -161,32 +161,7 @@ async function dispatchProviderCommand(
     return;
   }
   if (targetProvider === 'antigravity') {
-    // Antigravity (agy) is temporarily disabled during the upstream v1.33 sync.
-    // Do NOT spawn the agy CLI; resumed agy sessions and new agy chats both get
-    // a graceful "temporarily disabled" notice instead of a crash or a live
-    // process. (Resume/listing/history go through the provider.registry
-    // DisabledProvider stub; this is the chat-send equivalent.)
-    // TODO(antigravity-reenable): restore `await dependencies.spawnAntigravity(...)`
-    //   once the agy adapter is rebuilt over the provider-models layer.
-    const sessionId = readResumeSessionId(data) ?? '';
-    writer.send(
-      createNormalizedMessage({
-        kind: 'error',
-        provider: 'antigravity',
-        sessionId,
-        isError: true,
-        text: 'Antigravity (agy) is temporarily disabled.',
-      })
-    );
-    writer.send(
-      createNormalizedMessage({
-        kind: 'complete',
-        provider: 'antigravity',
-        sessionId,
-        exitCode: 1,
-        success: false,
-      })
-    );
+    await dependencies.spawnAntigravity(command, data.options, writer);
     return;
   }
 
