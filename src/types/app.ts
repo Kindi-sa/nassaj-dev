@@ -1,4 +1,21 @@
-export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity';
+export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity' | 'opencode';
+
+export type ProviderModelOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+export type ProviderModelsDefinition = {
+  OPTIONS: ProviderModelOption[];
+  DEFAULT: string;
+};
+
+export type ProviderModelsCacheInfo = {
+  updatedAt: string;
+  expiresAt: string;
+  source: 'memory' | 'disk' | 'fresh';
+};
 
 export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'preview' | `plugin:${string}`;
 
@@ -47,6 +64,7 @@ export interface Project {
   codexSessions?: ProjectSession[];
   geminiSessions?: ProjectSession[];
   antigravitySessions?: ProjectSession[];
+  opencodeSessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
   taskmaster?: ProjectTaskmasterInfo;
   [key: string]: unknown;

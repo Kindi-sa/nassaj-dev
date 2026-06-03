@@ -10,8 +10,9 @@ import { spawn } from 'child_process';
 import express from 'express';
 import cors from 'cors';
 import mime from 'mime-types';
+import Database from 'better-sqlite3';
 
-import { AppError, WORKSPACES_ROOT, validateWorkspacePath } from '@/shared/utils.js';
+import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
@@ -26,6 +27,7 @@ import {
     resolveToolApproval,
     getPendingApprovalsForSession,
     reconnectSessionWriter,
+    resolveContextWindow,
 } from './claude-sdk.js';
 import {
     spawnCursor,
@@ -51,6 +53,12 @@ import {
     isAntigravitySessionActive,
     getActiveAntigravitySessions,
 } from './agy-cli.js';
+import {
+    spawnOpenCode,
+    abortOpenCodeSession,
+    isOpenCodeSessionActive,
+    getActiveOpenCodeSessions,
+} from './opencode-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -104,6 +112,7 @@ const wss = createWebSocketServer(server, {
         queryCodex,
         spawnGemini,
         spawnAntigravity,
+        spawnOpenCode,
         // Authoritative provider lookup for resumed sessions. Routing must follow
         // the provider persisted in the DB, not the client-chosen message type,
         // so an antigravity session is never resumed through the Claude SDK.
@@ -124,12 +133,14 @@ const wss = createWebSocketServer(server, {
         abortCodexSession,
         abortGeminiSession,
         abortAntigravitySession,
+        abortOpenCodeSession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
         isCodexSessionActive,
         isGeminiSessionActive,
         isAntigravitySessionActive,
+        isOpenCodeSessionActive,
         reconnectSessionWriter,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
@@ -137,6 +148,7 @@ const wss = createWebSocketServer(server, {
         getActiveCodexSessions,
         getActiveGeminiSessions,
         getActiveAntigravitySessions,
+        getActiveOpenCodeSessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),
@@ -1220,21 +1232,127 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             return res.json({
                 used: 0,
                 total: 0,
-                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                inputTokens: 0,
+                outputTokens: 0,
+                breakdown: { input: 0, output: 0 },
                 unsupported: true,
                 message: 'Token usage tracking not available for Cursor sessions'
             });
         }
 
-        // Handle Gemini sessions - they are raw logs in our current setup
         if (provider === 'gemini') {
+            const session = sessionsDb.getSessionById(safeSessionId);
+            const sessionFilePath = session?.jsonl_path;
+            if (!sessionFilePath) {
+                return res.json({
+                    used: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    breakdown: { input: 0, output: 0 },
+                    unsupported: true,
+                    message: 'Token usage tracking not available for this Gemini session'
+                });
+            }
+
+            let fileContent;
+            try {
+                fileContent = await fsPromises.readFile(sessionFilePath, 'utf8');
+            } catch (error) {
+                if (error.code === 'ENOENT') {
+                    return res.status(404).json({ error: 'Session file not found', path: sessionFilePath });
+                }
+                throw error;
+            }
+
+            const lines = fileContent.trim().split('\n');
+            let inputTokens = 0;
+            let outputTokens = 0;
+            let totalTokens = 0;
+
+            for (let i = lines.length - 1; i >= 0; i--) {
+                try {
+                    const entry = JSON.parse(lines[i]);
+                    if (!entry.tokens || typeof entry.tokens !== 'object') {
+                        continue;
+                    }
+
+                    inputTokens = Number(entry.tokens.input || 0);
+                    outputTokens = Number(entry.tokens.output || 0);
+                    totalTokens = Number(entry.tokens.total || inputTokens + outputTokens || 0);
+                    break;
+                } catch {
+                    continue;
+                }
+            }
+
             return res.json({
-                used: 0,
-                total: 0,
-                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
-                unsupported: true,
-                message: 'Token usage tracking not available for Gemini sessions'
+                used: totalTokens,
+                inputTokens,
+                outputTokens,
+                breakdown: {
+                    input: inputTokens,
+                    output: outputTokens
+                }
             });
+        }
+
+        if (provider === 'opencode') {
+            const dbPath = getOpenCodeDatabasePath();
+            if (!fs.existsSync(dbPath)) {
+                return res.status(404).json({ error: 'OpenCode database not found' });
+            }
+
+            const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+            try {
+                const columns = db.prepare('PRAGMA table_info(session)').all();
+                const columnNames = new Set(columns.map((column) => column.name));
+                const requiredColumns = ['tokens_input', 'tokens_output', 'tokens_reasoning', 'tokens_cache_read', 'tokens_cache_write'];
+                if (!requiredColumns.every((column) => columnNames.has(column))) {
+                    return res.json({
+                        used: 0,
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        breakdown: { input: 0, output: 0 },
+                        unsupported: true,
+                        message: 'Token usage tracking is not available in this OpenCode database schema'
+                    });
+                }
+
+                const row = db.prepare(`
+                    SELECT
+                        tokens_input AS inputTokens,
+                        tokens_output AS outputTokens,
+                        tokens_reasoning AS reasoningTokens,
+                        tokens_cache_read AS cacheReadTokens,
+                        tokens_cache_write AS cacheWriteTokens
+                    FROM session
+                    WHERE id = ?
+                `).get(safeSessionId);
+
+                if (!row) {
+                    return res.status(404).json({ error: 'OpenCode session not found', sessionId: safeSessionId });
+                }
+
+                const inputTokens = Number(row.inputTokens || 0) + Number(row.cacheReadTokens || 0);
+                const outputTokens = Number(row.outputTokens || 0);
+                const totalUsed = Number(row.inputTokens || 0)
+                    + outputTokens
+                    + Number(row.reasoningTokens || 0)
+                    + Number(row.cacheReadTokens || 0)
+                    + Number(row.cacheWriteTokens || 0);
+
+                return res.json({
+                    used: totalUsed,
+                    inputTokens,
+                    outputTokens,
+                    breakdown: {
+                        input: inputTokens,
+                        output: outputTokens
+                    }
+                });
+            } finally {
+                db.close();
+            }
         }
 
         // Handle Codex sessions
@@ -1277,6 +1395,8 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                 throw error;
             }
             const lines = fileContent.trim().split('\n');
+            let inputTokens = 0;
+            let outputTokens = 0;
             let totalTokens = 0;
             let contextWindow = 200000; // Default for Codex/OpenAI
 
@@ -1289,7 +1409,9 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
                         const tokenInfo = entry.payload.info;
                         if (tokenInfo.total_token_usage) {
-                            totalTokens = tokenInfo.total_token_usage.total_tokens || 0;
+                            inputTokens = tokenInfo.total_token_usage.input_tokens || 0;
+                            outputTokens = tokenInfo.total_token_usage.output_tokens || 0;
+                            totalTokens = tokenInfo.total_token_usage.total_tokens || inputTokens + outputTokens;
                         }
                         if (tokenInfo.model_context_window) {
                             contextWindow = tokenInfo.model_context_window;
@@ -1304,7 +1426,13 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
 
             return res.json({
                 used: totalTokens,
-                total: contextWindow
+                total: contextWindow,
+                inputTokens,
+                outputTokens,
+                breakdown: {
+                    input: inputTokens,
+                    output: outputTokens
+                }
             });
         }
 
@@ -1344,11 +1472,15 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         }
         const lines = fileContent.trim().split('\n');
 
-        const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
-        const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
+        // Full input must include cached tokens: Anthropic's `input_tokens`
+        // excludes `cache_read_input_tokens` and `cache_creation_input_tokens`,
+        // so with prompt caching enabled (the default) counting input_tokens
+        // alone underreports real context usage badly.
         let inputTokens = 0;
-        let cacheCreationTokens = 0;
-        let cacheReadTokens = 0;
+        let outputTokens = 0;
+        let cacheRead = 0;
+        let cacheCreation = 0;
+        let modelName = null;
 
         // Find the latest assistant message with usage data (scan from end)
         for (let i = lines.length - 1; i >= 0; i--) {
@@ -1360,9 +1492,14 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     const usage = entry.message.usage;
 
                     // Use token counts from latest assistant message only
-                    inputTokens = usage.input_tokens || 0;
-                    cacheCreationTokens = usage.cache_creation_input_tokens || 0;
-                    cacheReadTokens = usage.cache_read_input_tokens || 0;
+                    const rawInput = usage.input_tokens || 0;
+                    cacheRead = usage.cache_read_input_tokens || 0;
+                    cacheCreation = usage.cache_creation_input_tokens || 0;
+                    inputTokens = rawInput + cacheRead + cacheCreation;
+                    outputTokens = usage.output_tokens || 0;
+                    if (typeof entry.message.model === 'string') {
+                        modelName = entry.message.model;
+                    }
 
                     break; // Stop after finding the latest assistant message
                 }
@@ -1372,16 +1509,20 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             }
         }
 
-        // Calculate total context usage (excluding output_tokens, as per ccusage)
-        const totalUsed = inputTokens + cacheCreationTokens + cacheReadTokens;
+        // Real model context window (env override > model inference > default).
+        const contextWindow = resolveContextWindow(modelName);
+        const totalUsed = inputTokens + outputTokens;
 
         res.json({
             used: totalUsed,
             total: contextWindow,
+            inputTokens,
+            outputTokens,
             breakdown: {
                 input: inputTokens,
-                cacheCreation: cacheCreationTokens,
-                cacheRead: cacheReadTokens
+                output: outputTokens,
+                cacheRead,
+                cacheCreation
             }
         });
     } catch (error) {

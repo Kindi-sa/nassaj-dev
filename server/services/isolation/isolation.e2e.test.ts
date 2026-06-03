@@ -69,8 +69,7 @@ assert.equal(
 );
 
 // Now safe to import the modules under test (they pick up the tmp DB + HOME).
-const { initializeDatabase, closeConnection } = await import('@/modules/database/index.js');
-const { getConnection } = await import('@/modules/database/connection.js');
+const { initializeDatabase, closeConnection, getConnection } = await import('@/modules/database/index.js');
 const {
   getProviderSharingConfig,
   setProviderSharingConfig,

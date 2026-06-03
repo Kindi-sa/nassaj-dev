@@ -646,6 +646,12 @@
     "starterPluginLabel": "إضافة البداية",
     "starter": "بداية",
     "docs": "وثائق",
+    "sections": {
+      "officialTitle": "الإضافات الرسمية",
+      "officialDescription": "تُصان من فريق CloudCLI وجاهزة للتثبيت المباشر.",
+      "unofficialTitle": "إضافات أخرى",
+      "unofficialDescription": "إضافات وتكاملات غير رسمية من مستخدمين آخرين. راجع المصدر قبل التثبيت."
+    },
     "starterPlugin": {
       "name": "إحصائيات المشروع",
       "badge": "بداية",
@@ -656,6 +662,18 @@
       "name": "Terminal",
       "badge": "official",
       "description": "طرفية مدمجة مع وصول كامل لـ shell مباشرة داخل الواجهة.",
+      "install": "تثبيت"
+    },
+    "scheduledPromptPlugin": {
+      "name": "المطالبات المجدوَلة",
+      "badge": "unofficial",
+      "description": "جدولة مطالبات مساحة العمل، ومراجعة سجل التشغيل، وإدارة المهام المحلية المتكررة.",
+      "install": "تثبيت"
+    },
+    "claudeWatchPlugin": {
+      "name": "مراقبة Claude",
+      "badge": "unofficial",
+      "description": "مراقبة جلسات Claude Code الطويلة لاكتشاف التعليق وإتاحة التحكم في العملية.",
       "install": "تثبيت"
     },
     "morePlugins": "المزيد",

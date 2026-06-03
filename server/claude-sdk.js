@@ -17,7 +17,8 @@ import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { CLAUDE_MODELS } from '../shared/modelConstants.js';
+import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
+import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
   createNotificationEvent,
@@ -33,6 +34,10 @@ import { participantsDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
+// Guards the race window between removeSession() and the next addSession() for
+// the same sessionId — a writer swap during this gap would mismatch the new ws.
+const recentlyEndedSessions = new Map(); // sessionId → expiry timestamp
+const RECENTLY_ENDED_GRACE_MS = 2000;
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
@@ -223,7 +228,7 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Map model (default to sonnet)
   // Valid models: sonnet, opus, haiku, opusplan, sonnet[1m]
-  sdkOptions.model = options.model || CLAUDE_MODELS.DEFAULT;
+  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
   // Model logged at query start below
 
   // Map system prompt configuration
@@ -268,6 +273,9 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // Mark as recently ended to block writer swaps during the race window
+  recentlyEndedSessions.set(sessionId, Date.now() + RECENTLY_ENDED_GRACE_MS);
+  setTimeout(() => recentlyEndedSessions.delete(sessionId), RECENTLY_ENDED_GRACE_MS);
 }
 
 /**
@@ -303,43 +311,156 @@ function transformMessage(sdkMessage) {
   return sdkMessage;
 }
 
+function readNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 /**
- * Extracts token usage from SDK result messages
- * @param {Object} resultMessage - SDK result message
+ * Resolves the real context window (in tokens) for a given model.
+ *
+ * Priority:
+ *  1. `CONTEXT_WINDOW` env var when explicitly set (respects user override).
+ *  2. Inferred from the model name: Opus and Sonnet 4.6+ ship a 1M window;
+ *     other known models default to 200000.
+ *  3. When the model name is unavailable, defaults to 1000000 (the modern
+ *     Opus/Sonnet long-context default) instead of the stale 160000 value.
+ *
+ * Returns the model's true window — the frontend applies its own effective
+ * factor on top of this number.
+ * @param {string} [modelName] - Model identifier (e.g. "claude-opus-4-8")
+ * @returns {number} Context window in tokens
+ */
+function resolveContextWindow(modelName) {
+  const override = parseInt(process.env.CONTEXT_WINDOW, 10);
+  if (Number.isFinite(override) && override > 0) {
+    return override;
+  }
+
+  const name = typeof modelName === 'string' ? modelName.toLowerCase() : '';
+
+  // Opus (all current generations) ships a 1M context window.
+  if (name.includes('opus')) {
+    return 1000000;
+  }
+
+  // Sonnet 4.6 and later ship a 1M context window.
+  if (name.includes('sonnet')) {
+    const versionMatch = name.match(/sonnet[^0-9]*(\d+)(?:[.-](\d+))?/);
+    if (versionMatch) {
+      const major = Number(versionMatch[1]);
+      const minor = Number(versionMatch[2] || 0);
+      if (major > 4 || (major === 4 && minor >= 6)) {
+        return 1000000;
+      }
+    }
+    return 200000;
+  }
+
+  // Known model name but not long-context → conservative default.
+  if (name) {
+    return 200000;
+  }
+
+  // Model name unavailable → modern long-context default (was 160000).
+  return 1000000;
+}
+
+/**
+ * Sums the full input token count, including cached tokens.
+ * Anthropic's `input_tokens` excludes both `cache_read_input_tokens` and
+ * `cache_creation_input_tokens`; with prompt caching enabled (the default)
+ * counting `input_tokens` alone wildly underreports real context usage.
+ * @param {Object} usage - Usage object (snake_case or camelCase fields)
+ * @returns {{ input: number, cacheRead: number, cacheCreation: number, full: number }}
+ */
+function readInputTokens(usage) {
+  const input = readNumber(usage.input_tokens ?? usage.inputTokens);
+  const cacheRead = readNumber(usage.cache_read_input_tokens ?? usage.cacheReadInputTokens);
+  const cacheCreation = readNumber(usage.cache_creation_input_tokens ?? usage.cacheCreationInputTokens);
+  return { input, cacheRead, cacheCreation, full: input + cacheRead + cacheCreation };
+}
+
+/**
+ * Extracts token usage from SDK messages.
+ * Prefers per-step `message.usage` (Claude message payload), then falls back
+ * to result-level usage/modelUsage for compatibility across SDK versions.
+ *
+ * `inputTokens` reflects the FULL input (raw input + cache read + cache
+ * creation) so the budget counter is accurate under prompt caching.
+ * @param {Object} sdkMessage - SDK stream message
  * @returns {Object|null} Token budget object or null
  */
-function extractTokenBudget(resultMessage) {
-  if (resultMessage.type !== 'result' || !resultMessage.modelUsage) {
+function extractTokenBudget(sdkMessage) {
+  if (!sdkMessage || typeof sdkMessage !== 'object') {
     return null;
   }
 
-  // Get the first model's usage data
-  const modelKey = Object.keys(resultMessage.modelUsage)[0];
-  const modelData = resultMessage.modelUsage[modelKey];
+  // Model name (when present) lets us pick the correct context window.
+  const modelName = sdkMessage.message?.model
+    || sdkMessage.model
+    || (sdkMessage.modelUsage && Object.keys(sdkMessage.modelUsage)[0]);
 
-  if (!modelData) {
+  const messageUsage = sdkMessage.message?.usage || sdkMessage.usage;
+  if (messageUsage && typeof messageUsage === 'object') {
+    const { full: fullInput, cacheRead, cacheCreation } = readInputTokens(messageUsage);
+    const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
+    const totalUsed = fullInput + outputTokens;
+    const contextWindow = resolveContextWindow(modelName);
+
+    return {
+      used: totalUsed,
+      total: contextWindow,
+      inputTokens: fullInput,
+      outputTokens,
+      breakdown: {
+        input: fullInput,
+        output: outputTokens,
+        cacheRead,
+        cacheCreation,
+      },
+    };
+  }
+
+  if (!sdkMessage.modelUsage || typeof sdkMessage.modelUsage !== 'object') {
     return null;
   }
 
-  // Use cumulative tokens if available (tracks total for the session)
-  // Otherwise fall back to per-request tokens
-  const inputTokens = modelData.cumulativeInputTokens || modelData.inputTokens || 0;
-  const outputTokens = modelData.cumulativeOutputTokens || modelData.outputTokens || 0;
-  const cacheReadTokens = modelData.cumulativeCacheReadInputTokens || modelData.cacheReadInputTokens || 0;
-  const cacheCreationTokens = modelData.cumulativeCacheCreationInputTokens || modelData.cacheCreationInputTokens || 0;
+  // Fallback for older SDK messages with only modelUsage
+  const modelKey = Object.keys(sdkMessage.modelUsage)[0];
+  const modelData = sdkMessage.modelUsage[modelKey];
 
-  // Total used = input + output + cache tokens
-  const totalUsed = inputTokens + outputTokens + cacheReadTokens + cacheCreationTokens;
+  if (!modelData || typeof modelData !== 'object') {
+    return null;
+  }
 
-  // Use configured context window budget from environment (default 160000)
-  // This is the user's budget limit, not the model's context window
-  const contextWindow = parseInt(process.env.CONTEXT_WINDOW) || 160000;
-
-  // Token calc logged via token-budget WS event
+  const rawInput = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
+  const cacheRead = readNumber(
+    modelData.cumulativeCacheReadInputTokens
+    ?? modelData.cacheReadInputTokens
+    ?? modelData.cache_read_input_tokens
+  );
+  const cacheCreation = readNumber(
+    modelData.cumulativeCacheCreationInputTokens
+    ?? modelData.cacheCreationInputTokens
+    ?? modelData.cache_creation_input_tokens
+  );
+  const fullInput = rawInput + cacheRead + cacheCreation;
+  const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
+  const totalUsed = fullInput + outputTokens;
+  const contextWindow = resolveContextWindow(modelKey);
 
   return {
     used: totalUsed,
-    total: contextWindow
+    total: contextWindow,
+    inputTokens: fullInput,
+    outputTokens,
+    breakdown: {
+      input: fullInput,
+      output: outputTokens,
+      cacheRead,
+      cacheCreation,
+    },
   };
 }
 
@@ -523,8 +644,17 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   };
 
   try {
+    const resolvedModel = await providerModelsService.resolveResumeModel(
+      'claude',
+      sessionId,
+      options.model,
+    );
+
     // Map CLI options to SDK format
-    const sdkOptions = mapCliOptionsToSDK(options);
+    const sdkOptions = mapCliOptionsToSDK({
+      ...options,
+      model: resolvedModel || options.model,
+    });
 
     // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
     // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR
@@ -718,12 +848,11 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         ws.send(msg);
       }
 
-      // Extract and send token budget updates from result messages
+      // Fork: stale `resume` surfaces as an error result whose text names the
+      // missing conversation. Throw a tagged error so the shared catch path
+      // can trigger the fresh-session fallback instead of streaming a
+      // dead-end error to the user. (result-only guard — keep inside this block.)
       if (message.type === 'result') {
-        // A stale `resume` surfaces as an error result whose text names the
-        // missing conversation. Throw a tagged error so the shared catch path
-        // can trigger the fresh-session fallback instead of streaming a
-        // dead-end error to the user.
         if (message.is_error || message.subtype === 'error_during_execution') {
           const resultText = typeof message.result === 'string' ? message.result : '';
           if (isResumeSessionMissingError(resultText)) {
@@ -732,14 +861,12 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
             throw resumeError;
           }
         }
-        const models = Object.keys(message.modelUsage || {});
-        if (models.length > 0) {
-          // Model info available in result message
-        }
-        const tokenBudgetData = extractTokenBudget(message);
-        if (tokenBudgetData) {
-          ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
-        }
+      }
+
+      // Extract and send token budget updates from assistant/result usage payloads (#807)
+      const tokenBudgetData = extractTokenBudget(message);
+      if (tokenBudgetData) {
+        ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       }
     }
 
@@ -931,6 +1058,12 @@ function getPendingApprovalsForSession(sessionId) {
  * @returns {boolean} True if writer was successfully reconnected
  */
 function reconnectSessionWriter(sessionId, newRawWs) {
+  // Block swap during the grace window after session end — prevents race
+  // between removeSession() and the next addSession() for the same sessionId.
+  if (recentlyEndedSessions.has(sessionId)) {
+    console.log(`[RECONNECT] Skipped writer swap for ${sessionId} — in grace period`);
+    return false;
+  }
   const session = getSession(sessionId);
   if (!session?.writer?.updateWebSocket) return false;
   session.writer.updateWebSocket(newRawWs);
@@ -946,5 +1079,6 @@ export {
   getActiveClaudeSDKSessions,
   resolveToolApproval,
   getPendingApprovalsForSession,
-  reconnectSessionWriter
+  reconnectSessionWriter,
+  resolveContextWindow
 };

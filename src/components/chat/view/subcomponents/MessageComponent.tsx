@@ -242,15 +242,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   ? t('messageTypes.error')
                   : message.type === 'tool'
                     ? t('messageTypes.tool')
-                    : provider === 'cursor'
-                      ? t('messageTypes.cursor')
-                      : provider === 'codex'
-                        ? t('messageTypes.codex')
-                        : provider === 'gemini'
-                          ? t('messageTypes.gemini')
-                          : provider === 'antigravity'
-                            ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
-                            : t('messageTypes.claude')}
+                    : (provider === 'cursor'
+                        ? t('messageTypes.cursor')
+                        : provider === 'codex'
+                          ? t('messageTypes.codex')
+                          : provider === 'gemini'
+                            ? t('messageTypes.gemini')
+                            : provider === 'antigravity'
+                              ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
+                            : provider === 'opencode'
+                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+                              : t('messageTypes.claude'))}
               </div>
             </div>
           )}

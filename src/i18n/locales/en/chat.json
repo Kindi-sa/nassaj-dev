@@ -1,4 +1,19 @@
 {
+  "contextRot": {
+    "label": "Context",
+    "barAria": "Effective context usage",
+    "empty": "No token usage yet",
+    "percentUsed": "{{percent}} of effective context",
+    "tooltipUsed": "Used: {{used}} / {{total}}",
+    "tooltipRealWindow": "Real window: {{total}}",
+    "tooltipCacheRead": "Cache read: {{value}}",
+    "levels": {
+      "safe": "Safe — context is healthy.",
+      "attention": "Pay attention — context is filling up.",
+      "warning": "Possible degradation — consider /compact or a subagent.",
+      "critical": "Severe degradation — consider starting a fresh session."
+    }
+  },
   "codeBlock": {
     "copy": "Copy",
     "copied": "Copied",
@@ -19,7 +34,8 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "gemini": "Gemini",
-    "antigravity": "Antigravity"
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode"
   },
   "subagent": {
     "badge": "Sub-agent",
@@ -199,6 +215,7 @@
       "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
       "gemini": "Ready to use Gemini with {{model}}. Start typing your message below.",
       "antigravity": "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
+      "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
       "default": "Select a provider above to begin"
     },
     "antigravity": {

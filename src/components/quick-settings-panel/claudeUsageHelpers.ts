@@ -1,6 +1,6 @@
 // Pure helpers for rendering Claude usage. No React, no i18n side effects.
 
-// Bar color thresholds mirror TokenUsagePie.tsx: blue < 50, orange < 75, red >= 75.
+// Bar color thresholds: blue < 50, orange < 75, red >= 75.
 // Returns Tailwind background classes so dark mode is handled by the palette.
 export function usageBarColorClass(utilization: number): string {
   if (utilization < 50) return 'bg-blue-500';

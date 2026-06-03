@@ -45,6 +45,7 @@
     "removeFromFavorites": "إزالة من المفضلة",
     "editSessionName": "تعديل اسم الجلسة يدوياً",
     "deleteSession": "حذف هذه الجلسة نهائياً",
+    "activeSessionIndicator": "جلسة نشطة مؤخراً (آخر 10 دقائق)",
     "save": "حفظ",
     "cancel": "إلغاء",
     "clearSearch": "مسح البحث",

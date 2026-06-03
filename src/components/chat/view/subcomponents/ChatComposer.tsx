@@ -18,7 +18,7 @@ import ClaudeStatus from './ClaudeStatus';
 import ImageAttachment from './ImageAttachment';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import ThinkingModeSelector from './ThinkingModeSelector';
-import TokenUsagePie from './TokenUsagePie';
+import TokenUsageSummary from './TokenUsageSummary';
 import {
   PromptInput,
   PromptInputHeader,
@@ -61,7 +61,7 @@ interface ChatComposerProps {
   onModeSwitch: () => void;
   thinkingMode: string;
   setThinkingMode: Dispatch<SetStateAction<string>>;
-  tokenBudget: { used?: number; total?: number } | null;
+  tokenBudget: Record<string, unknown> | null;
   slashCommandsCount: number;
   onToggleCommandMenu: () => void;
   hasInput: boolean;
@@ -363,7 +363,7 @@ export default function ChatComposer({
               <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
             )}
 
-            <TokenUsagePie used={tokenBudget?.used || 0} total={tokenBudget?.total || parseInt(import.meta.env.VITE_CONTEXT_WINDOW) || 160000} />
+            <TokenUsageSummary usage={tokenBudget} />
 
             <PromptInputButton
               tooltip={{ content: t('input.showAllCommands') }}
@@ -403,14 +403,6 @@ export default function ChatComposer({
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
               className="h-10 w-10 sm:h-10 sm:w-10"
-              onMouseDown={(event) => {
-                event.preventDefault();
-                onSubmit(event as unknown as MouseEvent<HTMLButtonElement>);
-              }}
-              onTouchStart={(event) => {
-                event.preventDefault();
-                onSubmit(event as unknown as TouchEvent<HTMLButtonElement>);
-              }}
             />
           </div>
         </PromptInputFooter>

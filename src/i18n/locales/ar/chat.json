@@ -1,4 +1,19 @@
 {
+  "contextRot": {
+    "label": "السياق",
+    "barAria": "استهلاك السياق الفعّال",
+    "empty": "لا استهلاك توكنز بعد",
+    "percentUsed": "{{percent}} من السياق الفعّال",
+    "tooltipUsed": "المستخدَم: {{used}} / {{total}}",
+    "tooltipRealWindow": "النافذة الحقيقية: {{total}}",
+    "tooltipCacheRead": "قراءة من الكاش: {{value}}",
+    "levels": {
+      "safe": "آمن — السياق سليم.",
+      "attention": "ابدأ الانتباه — السياق يمتلئ.",
+      "warning": "تدهور محتمل — يُنصح بـ /compact أو وكيل فرعي.",
+      "critical": "تدهور حاد — يُنصح بالبدء من جديد."
+    }
+  },
   "codeBlock": {
     "copy": "نسخ",
     "copied": "تم النسخ",

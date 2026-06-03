@@ -4,6 +4,7 @@ import ClaudeLogo from './ClaudeLogo';
 import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
 import GeminiLogo from './GeminiLogo';
+import OpenCodeLogo from './OpenCodeLogo';
 
 type SessionProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -28,6 +29,10 @@ export default function SessionProviderLogo({
 
   if (provider === 'antigravity') {
     return <AntigravityLogo className={className} />;
+  }
+
+  if (provider === 'opencode') {
+    return <OpenCodeLogo className={className} />;
   }
 
   return <ClaudeLogo className={className} />;
