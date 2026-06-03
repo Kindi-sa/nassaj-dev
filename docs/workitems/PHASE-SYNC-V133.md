@@ -14,8 +14,10 @@
 - التقدير السابق استخدم `git merge-tree <parent> main <commit-مفرد>`. لكن **merge-base بين `main` والـ commit المفرد هو v1.32.0** (commit `10f721c` = "chore(release): v1.32.0")، فأظهرت المحاكاة تعارضات **الموجة كاملة** منسوبةً خطأً للـ PR المفرد.
 - النتيجة: عمودا "نتيجة محاكاة الدمج" و"CLEAN" في النسخة السابقة **باطلان كلياً**.
 
+> **تحديث (إعادة تفعيل Antigravity — بعد إتمام المزامنة):** التعطيل المؤقت بـ `DisabledProvider` المُوصَّف أدناه **أُلغي**. أُعيد تفعيل Antigravity فوق طبقة `provider-models` الجديدة عبر `antigravity-models.provider.ts` + `antigravity-catalog.client.ts`: كتالوج موديلات **حيّ** من نقطة CloudCode (نفس ما يستدعيه `agy`) مع **fallback متدرّج** عند فشل التوكن/الشبكة، محميّ بـ abort timeout + circuit breaker. نتيجة الـ fallback تُعلَّم `degraded` فتُخزَّن في كاش `provider-models` بـ TTL قصير (5 دقائق) بدل 3 أيام، فيُعاد الجلب الحيّ سريعاً. الأقسام التالية التي تصف Antigravity كـ "معطّل" تُقرأ بوصفها سياق المزامنة التاريخي.
+
 **تحريرات المراجعة الثانية (qa-critic — شرط رفع الفيتو، 2026-06-03):** ثلاث تصحيحات دقّة نصية بلا تغيير بنيوي:
-> 1. تحديد آلية تعطيل Antigravity كـ `DisabledProvider` stub (لا حذف تسجيل) لأن `resolveProvider` يرمي `UNSUPPORTED_PROVIDER` — §تعطيل Antigravity.
+> 1. تحديد آلية تعطيل Antigravity كـ `DisabledProvider` stub (لا حذف تسجيل) لأن `resolveProvider` يرمي `UNSUPPORTED_PROVIDER` — §تعطيل Antigravity. **(تاريخي — أُعيد التفعيل لاحقاً، انظر تحديث إعادة التفعيل أعلاه.)**
 > 2. تصحيح عدد تعارضات #804 من 1 إلى **2 ملف** (إضافة `AgentsSettingsTab.tsx`) — جدول التعارضات + موجة 2.
 > 3. توضيح بقاء حالتي `provider='agy'` في `isolation.e2e.test.ts` ضمن gate الانحدار — §Gates.
 
@@ -155,7 +157,7 @@ npm test 2>&1 | tee /tmp/baseline-tests-pre-v133.txt
 | **1a** | دمج الملفات الإضافية الصرفة (`opencode/*`, `codex/*`, `*-models.provider.ts`, `provider-models.service.ts`). commit. |
 | **1b** | **معالجة modify/delete على `shared/modelConstants.js`** (§أدناه — لا قبول صامت للحذف). commit. |
 | **1c** | حل `provider.registry.ts` + `provider.routes.ts` بـ **مراجعة يدوية لكل hunk** (لا accept-both افتراضي — ملفات الـ fork الكثيفة). commit. |
-| **1d** | **تعطيل Antigravity fail-safe** بتسجيل `DisabledProvider` stub تحت مفتاح `antigravity` (لا حذف التسجيل — انظر الآلية في §تعطيل Antigravity). commit. |
+| **1d** | **تعطيل Antigravity fail-safe** بتسجيل `DisabledProvider` stub تحت مفتاح `antigravity` (لا حذف التسجيل — انظر الآلية في §تعطيل Antigravity). commit. **(تاريخي — لاحقاً أُعيد تفعيل Antigravity فوق طبقة provider-models بكتالوج حيّ + fallback؛ انظر تحديث إعادة التفعيل أعلى الملف.)** |
 | **1e** | حل بقية ملفات chat/settings/sidebar/i18n الـ 30. commit. build. |
 
 #### معالجة modify/delete على `shared/modelConstants.js` (بند صريح)
@@ -206,6 +208,8 @@ npm test 2>&1 | tee /tmp/baseline-tests-pre-v133.txt
 
 ## تعطيل Antigravity — **fail-safe routing (لا مجرد إخفاء UI)**
 
+> **تاريخي:** هذا القسم يصف التعطيل المؤقت أثناء المزامنة فقط. **أُعيد تفعيل Antigravity** فوق طبقة `provider-models` بكتالوج حيّ + fallback متدرّج (`degraded` ⇒ TTL قصير). انظر «تحديث إعادة التفعيل» أعلى الملف.
+
 **البصمة:** `git grep -il antigravity` = **58 ملف**، منها routing حساس **مؤكَّد**:
 `provider.registry.ts`, `provider.routes.ts`, `chat-websocket.service.ts`, `session-synchronizer.service.ts`, `resolve-provider-env.js`, `useChatProviderState.ts`, `useSessionsSource.ts`.
 
@@ -226,7 +230,7 @@ npm test 2>&1 | tee /tmp/baseline-tests-pre-v133.txt
 - **السؤال الحرج:** ماذا يحدث لجلسات `agy` القائمة في DB عند `resume`؟
 - **المطلوب:** عند طلب provider = `antigravity`/`agy` (سواء من جلسة DB قائمة أو request جديد)، يرجع `provider.registry` عبر الـ `DisabledProvider` stub **مساراً معطّلاً بأمان** ("المزوّد معطّل مؤقتاً") **بدلاً من throw `UNSUPPORTED_PROVIDER` / undefined provider**. الجلسات القائمة تُعرَض كـ معطّلة، لا تُسقِط الواجهة ولا تُنتج 400/500.
 - **معيار القبول (مرتبط مباشرةً بالآلية أعلاه):** resume لجلسة agy قائمة عبر `session-synchronizer.service.ts` / `sessions.service.ts` لا يُنتج خطأ runtime ولا `UNSUPPORTED_PROVIDER`؛ يظهر للمستخدم حالة "معطّل مؤقتاً".
-- نقطة إعادة التفعيل موثَّقة (`TODO` + work item منفصل) عبر `antigravity-models.provider.ts` فوق طبقة `provider-models` الجديدة.
+- نقطة إعادة التفعيل **نُفِّذت** عبر `antigravity-models.provider.ts` + `antigravity-catalog.client.ts` فوق طبقة `provider-models` الجديدة (كتالوج حيّ + fallback `degraded` بـ TTL قصير). انظر «تحديث إعادة التفعيل» أعلى الملف.
 - `antigravity-token-reader.ts` اليتيم → يُحذف ضمن هذا المسار.
 
 ---
@@ -266,7 +270,7 @@ npm test 2>&1 | tee /tmp/baseline-tests-pre-v133.txt
 | **modelConstants.js modify/delete** | معالَج صراحةً (نقل لطبقة provider-models قبل قبول الحذف + اختبار). |
 | **migrations** | لا migration upstream في الـ 15 commit. خطر مستقبلي إن أعاد upstream بناء `sessions`/`users`. التخفيف: نسخة DB دائماً. |
 | **RTL مقابل i18n** | لا تعارض (RTL toggle مستقل عن اللغة). |
-| **إعادة تفعيل Antigravity** | work item منفصل (يحتاج `antigravity-models.provider.ts`). |
+| **إعادة تفعيل Antigravity** | **منجَز** — فوق طبقة `provider-models` عبر `antigravity-models.provider.ts` + `antigravity-catalog.client.ts` (كتالوج حيّ + fallback `degraded` بـ TTL قصير). |
 | **claude-agent-sdk** | الـ fork رقّاه (`b455706`)؛ سياسة lockfile تحفظه عبر `--theirs package.json` + `npm install`. |
 
 ---

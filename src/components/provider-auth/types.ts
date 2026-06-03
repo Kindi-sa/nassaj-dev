@@ -10,9 +10,9 @@ export type ProviderAuthStatus = {
 
 export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 
-// Providers actively probed by the auth status refresher. Antigravity is kept
-// here even while disabled: its auth status endpoint resolves through the
-// DisabledProvider stub and returns a graceful "not installed" status.
+// Providers actively probed by the auth status refresher. Antigravity is
+// enabled again over the provider-models layer (live agy catalog with a
+// graceful fallback); its auth status endpoint reports the real agy auth state.
 export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
