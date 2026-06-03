@@ -1,5 +1,6 @@
 import type { LLMProvider } from '../../../../types/app';
 import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
+
 import AgentConnectionCard from './AgentConnectionCard';
 
 type AgentConnectionsStepProps = {
@@ -42,6 +43,13 @@ const providerCards = [
     connectedClassName: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800',
     iconContainerClassName: 'bg-orange-100 dark:bg-orange-900/30',
     loginButtonClassName: 'bg-orange-600 hover:bg-orange-700',
+  },
+  {
+    provider: 'opencode' as const,
+    title: 'OpenCode',
+    connectedClassName: 'bg-zinc-100 dark:bg-zinc-800/50 border-zinc-300 dark:border-zinc-600',
+    iconContainerClassName: 'bg-zinc-100 dark:bg-zinc-800',
+    loginButtonClassName: 'bg-zinc-800 hover:bg-zinc-900 dark:bg-zinc-700 dark:hover:bg-zinc-600',
   },
 ];
 

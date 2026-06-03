@@ -10,8 +10,10 @@ export type ProviderAuthStatus = {
 
 export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 
-// Providers actively probed by the auth status refresher.
-export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity'];
+// Providers actively probed by the auth status refresher. Antigravity is kept
+// here even while disabled: its auth status endpoint resolves through the
+// DisabledProvider stub and returns a graceful "not installed" status.
+export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   claude: '/api/providers/claude/auth/status',
@@ -19,6 +21,7 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   codex: '/api/providers/codex/auth/status',
   gemini: '/api/providers/gemini/auth/status',
   antigravity: '/api/providers/antigravity/auth/status',
+  opencode: '/api/providers/opencode/auth/status',
 };
 
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
@@ -27,4 +30,5 @@ export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuth
   codex: { authenticated: false, email: null, method: null, error: null, loading },
   gemini: { authenticated: false, email: null, method: null, error: null, loading },
   antigravity: { authenticated: false, email: null, method: null, error: null, loading },
+  opencode: { authenticated: false, email: null, method: null, error: null, loading },
 });

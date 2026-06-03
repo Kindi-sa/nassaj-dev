@@ -1,5 +1,5 @@
 export { initializeDatabase } from '@/modules/database/init-db.js';
-export { closeConnection } from '@/modules/database/connection.js';
+export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
 export { appConfigDb } from '@/modules/database/repositories/app-config.js';
 export { auditLogDb } from '@/modules/database/repositories/audit-log.js';

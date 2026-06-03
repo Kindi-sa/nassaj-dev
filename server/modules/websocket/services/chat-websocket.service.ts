@@ -30,6 +30,7 @@ type ChatWebSocketDependencies = {
   queryCodex: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnGemini: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnAntigravity: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnOpenCode: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   /**
    * Resolves the authoritative provider for an existing session from the
    * database. Returns null when the session is unknown (e.g. a brand-new
@@ -41,6 +42,7 @@ type ChatWebSocketDependencies = {
   abortCodexSession: (sessionId: string) => boolean;
   abortGeminiSession: (sessionId: string) => boolean;
   abortAntigravitySession: (sessionId: string) => boolean;
+  abortOpenCodeSession: (sessionId: string) => boolean;
   resolveToolApproval: (
     requestId: string,
     payload: {
@@ -55,6 +57,7 @@ type ChatWebSocketDependencies = {
   isCodexSessionActive: (sessionId: string) => boolean;
   isGeminiSessionActive: (sessionId: string) => boolean;
   isAntigravitySessionActive: (sessionId: string) => boolean;
+  isOpenCodeSessionActive: (sessionId: string) => boolean;
   reconnectSessionWriter: (sessionId: string, ws: WebSocket) => boolean;
   getPendingApprovalsForSession: (sessionId: string) => unknown[];
   getActiveClaudeSDKSessions: () => unknown;
@@ -62,6 +65,7 @@ type ChatWebSocketDependencies = {
   getActiveCodexSessions: () => unknown;
   getActiveGeminiSessions: () => unknown;
   getActiveAntigravitySessions: () => unknown;
+  getActiveOpenCodeSessions: () => unknown;
 };
 
 /**
@@ -74,6 +78,7 @@ function readProvider(value: unknown): LLMProvider {
     || value === 'codex'
     || value === 'gemini'
     || value === 'antigravity'
+    || value === 'opencode'
   ) {
     return value;
   }
@@ -156,7 +161,32 @@ async function dispatchProviderCommand(
     return;
   }
   if (targetProvider === 'antigravity') {
-    await dependencies.spawnAntigravity(command, data.options, writer);
+    // Antigravity (agy) is temporarily disabled during the upstream v1.33 sync.
+    // Do NOT spawn the agy CLI; resumed agy sessions and new agy chats both get
+    // a graceful "temporarily disabled" notice instead of a crash or a live
+    // process. (Resume/listing/history go through the provider.registry
+    // DisabledProvider stub; this is the chat-send equivalent.)
+    // TODO(antigravity-reenable): restore `await dependencies.spawnAntigravity(...)`
+    //   once the agy adapter is rebuilt over the provider-models layer.
+    const sessionId = readResumeSessionId(data) ?? '';
+    writer.send(
+      createNormalizedMessage({
+        kind: 'error',
+        provider: 'antigravity',
+        sessionId,
+        isError: true,
+        text: 'Antigravity (agy) is temporarily disabled.',
+      })
+    );
+    writer.send(
+      createNormalizedMessage({
+        kind: 'complete',
+        provider: 'antigravity',
+        sessionId,
+        exitCode: 1,
+        success: false,
+      })
+    );
     return;
   }
 
@@ -217,6 +247,11 @@ export function handleChatConnection(
         return;
       }
 
+      if (messageType === 'opencode-command') {
+        await dependencies.spawnOpenCode(data.command ?? '', data.options, writer);
+        return;
+      }
+
       if (messageType === 'cursor-resume') {
         await dependencies.spawnCursor(
           '',
@@ -243,6 +278,8 @@ export function handleChatConnection(
           success = dependencies.abortGeminiSession(sessionId);
         } else if (provider === 'antigravity') {
           success = dependencies.abortAntigravitySession(sessionId);
+        } else if (provider === 'opencode') {
+          success = dependencies.abortOpenCodeSession(sessionId);
         } else {
           success = await dependencies.abortClaudeSDKSession(sessionId);
         }
@@ -301,6 +338,8 @@ export function handleChatConnection(
           isActive = dependencies.isGeminiSessionActive(sessionId);
         } else if (provider === 'antigravity') {
           isActive = dependencies.isAntigravitySessionActive(sessionId);
+        } else if (provider === 'opencode') {
+          isActive = dependencies.isOpenCodeSessionActive(sessionId);
         } else {
           isActive = dependencies.isClaudeSDKSessionActive(sessionId);
           // Writer swap must NOT happen while a query is active (tool_use in progress).
@@ -343,6 +382,7 @@ export function handleChatConnection(
             codex: dependencies.getActiveCodexSessions(),
             gemini: dependencies.getActiveGeminiSessions(),
             antigravity: dependencies.getActiveAntigravitySessions(),
+            opencode: dependencies.getActiveOpenCodeSessions(),
           },
         });
       }

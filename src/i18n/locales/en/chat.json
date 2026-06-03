@@ -19,7 +19,8 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "gemini": "Gemini",
-    "antigravity": "Antigravity"
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode"
   },
   "subagent": {
     "badge": "Sub-agent",
@@ -199,6 +200,7 @@
       "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
       "gemini": "Ready to use Gemini with {{model}}. Start typing your message below.",
       "antigravity": "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
+      "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
       "default": "Select a provider above to begin"
     },
     "antigravity": {

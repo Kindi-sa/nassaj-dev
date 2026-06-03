@@ -17,7 +17,8 @@ import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
-import { CLAUDE_MODELS } from '../shared/modelConstants.js';
+import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
+import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
   createNotificationEvent,
@@ -227,7 +228,7 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Map model (default to sonnet)
   // Valid models: sonnet, opus, haiku, opusplan, sonnet[1m]
-  sdkOptions.model = options.model || CLAUDE_MODELS.DEFAULT;
+  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
   // Model logged at query start below
 
   // Map system prompt configuration
@@ -530,8 +531,17 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   };
 
   try {
+    const resolvedModel = await providerModelsService.resolveResumeModel(
+      'claude',
+      sessionId,
+      options.model,
+    );
+
     // Map CLI options to SDK format
-    const sdkOptions = mapCliOptionsToSDK(options);
+    const sdkOptions = mapCliOptionsToSDK({
+      ...options,
+      model: resolvedModel || options.model,
+    });
 
     // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
     // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR

@@ -51,6 +51,12 @@ import {
     isAntigravitySessionActive,
     getActiveAntigravitySessions,
 } from './agy-cli.js';
+import {
+    spawnOpenCode,
+    abortOpenCodeSession,
+    isOpenCodeSessionActive,
+    getActiveOpenCodeSessions,
+} from './opencode-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -104,6 +110,7 @@ const wss = createWebSocketServer(server, {
         queryCodex,
         spawnGemini,
         spawnAntigravity,
+        spawnOpenCode,
         // Authoritative provider lookup for resumed sessions. Routing must follow
         // the provider persisted in the DB, not the client-chosen message type,
         // so an antigravity session is never resumed through the Claude SDK.
@@ -124,12 +131,14 @@ const wss = createWebSocketServer(server, {
         abortCodexSession,
         abortGeminiSession,
         abortAntigravitySession,
+        abortOpenCodeSession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
         isCodexSessionActive,
         isGeminiSessionActive,
         isAntigravitySessionActive,
+        isOpenCodeSessionActive,
         reconnectSessionWriter,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
@@ -137,6 +146,7 @@ const wss = createWebSocketServer(server, {
         getActiveCodexSessions,
         getActiveGeminiSessions,
         getActiveAntigravitySessions,
+        getActiveOpenCodeSessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),
@@ -1234,6 +1244,18 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                 breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
                 unsupported: true,
                 message: 'Token usage tracking not available for Gemini sessions'
+            });
+        }
+
+        // OpenCode token totals are surfaced through provider history reads.
+        // This legacy endpoint only knows file-backed session formats.
+        if (provider === 'opencode') {
+            return res.json({
+                used: 0,
+                total: 0,
+                breakdown: { input: 0, cacheCreation: 0, cacheRead: 0 },
+                unsupported: true,
+                message: 'Token usage tracking is available in OpenCode session history, not this legacy endpoint'
             });
         }
 
