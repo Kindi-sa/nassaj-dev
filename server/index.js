@@ -27,6 +27,7 @@ import {
     resolveToolApproval,
     getPendingApprovalsForSession,
     reconnectSessionWriter,
+    resolveContextWindow,
 } from './claude-sdk.js';
 import {
     spawnCursor,
@@ -1471,10 +1472,15 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         }
         const lines = fileContent.trim().split('\n');
 
-        const parsedContextWindow = parseInt(process.env.CONTEXT_WINDOW, 10);
-        const contextWindow = Number.isFinite(parsedContextWindow) ? parsedContextWindow : 160000;
+        // Full input must include cached tokens: Anthropic's `input_tokens`
+        // excludes `cache_read_input_tokens` and `cache_creation_input_tokens`,
+        // so with prompt caching enabled (the default) counting input_tokens
+        // alone underreports real context usage badly.
         let inputTokens = 0;
         let outputTokens = 0;
+        let cacheRead = 0;
+        let cacheCreation = 0;
+        let modelName = null;
 
         // Find the latest assistant message with usage data (scan from end)
         for (let i = lines.length - 1; i >= 0; i--) {
@@ -1486,8 +1492,14 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     const usage = entry.message.usage;
 
                     // Use token counts from latest assistant message only
-                    inputTokens = usage.input_tokens || 0;
+                    const rawInput = usage.input_tokens || 0;
+                    cacheRead = usage.cache_read_input_tokens || 0;
+                    cacheCreation = usage.cache_creation_input_tokens || 0;
+                    inputTokens = rawInput + cacheRead + cacheCreation;
                     outputTokens = usage.output_tokens || 0;
+                    if (typeof entry.message.model === 'string') {
+                        modelName = entry.message.model;
+                    }
 
                     break; // Stop after finding the latest assistant message
                 }
@@ -1497,6 +1509,8 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             }
         }
 
+        // Real model context window (env override > model inference > default).
+        const contextWindow = resolveContextWindow(modelName);
         const totalUsed = inputTokens + outputTokens;
 
         res.json({
@@ -1506,7 +1520,9 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
             outputTokens,
             breakdown: {
                 input: inputTokens,
-                output: outputTokens
+                output: outputTokens,
+                cacheRead,
+                cacheCreation
             }
         });
     } catch (error) {

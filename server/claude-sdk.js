@@ -317,9 +317,77 @@ function readNumber(value) {
 }
 
 /**
+ * Resolves the real context window (in tokens) for a given model.
+ *
+ * Priority:
+ *  1. `CONTEXT_WINDOW` env var when explicitly set (respects user override).
+ *  2. Inferred from the model name: Opus and Sonnet 4.6+ ship a 1M window;
+ *     other known models default to 200000.
+ *  3. When the model name is unavailable, defaults to 1000000 (the modern
+ *     Opus/Sonnet long-context default) instead of the stale 160000 value.
+ *
+ * Returns the model's true window — the frontend applies its own effective
+ * factor on top of this number.
+ * @param {string} [modelName] - Model identifier (e.g. "claude-opus-4-8")
+ * @returns {number} Context window in tokens
+ */
+function resolveContextWindow(modelName) {
+  const override = parseInt(process.env.CONTEXT_WINDOW, 10);
+  if (Number.isFinite(override) && override > 0) {
+    return override;
+  }
+
+  const name = typeof modelName === 'string' ? modelName.toLowerCase() : '';
+
+  // Opus (all current generations) ships a 1M context window.
+  if (name.includes('opus')) {
+    return 1000000;
+  }
+
+  // Sonnet 4.6 and later ship a 1M context window.
+  if (name.includes('sonnet')) {
+    const versionMatch = name.match(/sonnet[^0-9]*(\d+)(?:[.-](\d+))?/);
+    if (versionMatch) {
+      const major = Number(versionMatch[1]);
+      const minor = Number(versionMatch[2] || 0);
+      if (major > 4 || (major === 4 && minor >= 6)) {
+        return 1000000;
+      }
+    }
+    return 200000;
+  }
+
+  // Known model name but not long-context → conservative default.
+  if (name) {
+    return 200000;
+  }
+
+  // Model name unavailable → modern long-context default (was 160000).
+  return 1000000;
+}
+
+/**
+ * Sums the full input token count, including cached tokens.
+ * Anthropic's `input_tokens` excludes both `cache_read_input_tokens` and
+ * `cache_creation_input_tokens`; with prompt caching enabled (the default)
+ * counting `input_tokens` alone wildly underreports real context usage.
+ * @param {Object} usage - Usage object (snake_case or camelCase fields)
+ * @returns {{ input: number, cacheRead: number, cacheCreation: number, full: number }}
+ */
+function readInputTokens(usage) {
+  const input = readNumber(usage.input_tokens ?? usage.inputTokens);
+  const cacheRead = readNumber(usage.cache_read_input_tokens ?? usage.cacheReadInputTokens);
+  const cacheCreation = readNumber(usage.cache_creation_input_tokens ?? usage.cacheCreationInputTokens);
+  return { input, cacheRead, cacheCreation, full: input + cacheRead + cacheCreation };
+}
+
+/**
  * Extracts token usage from SDK messages.
  * Prefers per-step `message.usage` (Claude message payload), then falls back
  * to result-level usage/modelUsage for compatibility across SDK versions.
+ *
+ * `inputTokens` reflects the FULL input (raw input + cache read + cache
+ * creation) so the budget counter is accurate under prompt caching.
  * @param {Object} sdkMessage - SDK stream message
  * @returns {Object|null} Token budget object or null
  */
@@ -328,21 +396,28 @@ function extractTokenBudget(sdkMessage) {
     return null;
   }
 
+  // Model name (when present) lets us pick the correct context window.
+  const modelName = sdkMessage.message?.model
+    || sdkMessage.model
+    || (sdkMessage.modelUsage && Object.keys(sdkMessage.modelUsage)[0]);
+
   const messageUsage = sdkMessage.message?.usage || sdkMessage.usage;
   if (messageUsage && typeof messageUsage === 'object') {
-    const inputTokens = readNumber(messageUsage.input_tokens ?? messageUsage.inputTokens);
+    const { full: fullInput, cacheRead, cacheCreation } = readInputTokens(messageUsage);
     const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
-    const totalUsed = inputTokens + outputTokens;
-    const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
+    const totalUsed = fullInput + outputTokens;
+    const contextWindow = resolveContextWindow(modelName);
 
     return {
       used: totalUsed,
       total: contextWindow,
-      inputTokens,
+      inputTokens: fullInput,
       outputTokens,
       breakdown: {
-        input: inputTokens,
+        input: fullInput,
         output: outputTokens,
+        cacheRead,
+        cacheCreation,
       },
     };
   }
@@ -359,19 +434,32 @@ function extractTokenBudget(sdkMessage) {
     return null;
   }
 
-  const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
+  const rawInput = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
+  const cacheRead = readNumber(
+    modelData.cumulativeCacheReadInputTokens
+    ?? modelData.cacheReadInputTokens
+    ?? modelData.cache_read_input_tokens
+  );
+  const cacheCreation = readNumber(
+    modelData.cumulativeCacheCreationInputTokens
+    ?? modelData.cacheCreationInputTokens
+    ?? modelData.cache_creation_input_tokens
+  );
+  const fullInput = rawInput + cacheRead + cacheCreation;
   const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
-  const totalUsed = inputTokens + outputTokens;
-  const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
+  const totalUsed = fullInput + outputTokens;
+  const contextWindow = resolveContextWindow(modelKey);
 
   return {
     used: totalUsed,
     total: contextWindow,
-    inputTokens,
+    inputTokens: fullInput,
     outputTokens,
     breakdown: {
-      input: inputTokens,
+      input: fullInput,
       output: outputTokens,
+      cacheRead,
+      cacheCreation,
     },
   };
 }
@@ -991,5 +1079,6 @@ export {
   getActiveClaudeSDKSessions,
   resolveToolApproval,
   getPendingApprovalsForSession,
-  reconnectSessionWriter
+  reconnectSessionWriter,
+  resolveContextWindow
 };

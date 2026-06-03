@@ -1,4 +1,19 @@
 {
+  "contextRot": {
+    "label": "Context",
+    "barAria": "Effective context usage",
+    "empty": "No token usage yet",
+    "percentUsed": "{{percent}} of effective context",
+    "tooltipUsed": "Used: {{used}} / {{total}}",
+    "tooltipRealWindow": "Real window: {{total}}",
+    "tooltipCacheRead": "Cache read: {{value}}",
+    "levels": {
+      "safe": "Safe — context is healthy.",
+      "attention": "Pay attention — context is filling up.",
+      "warning": "Possible degradation — consider /compact or a subagent.",
+      "critical": "Severe degradation — consider starting a fresh session."
+    }
+  },
   "codeBlock": {
     "copy": "Copy",
     "copied": "Copied",
