@@ -324,7 +324,9 @@ test('providerMcpService handles gemini and cursor MCP JSON config formats', { c
 
 /**
  * This test covers the global MCP adder requirement: only http/stdio are allowed and
- * one payload is written to all providers.
+ * one payload is written to every ENABLED provider. Disabled providers (e.g. the
+ * antigravity stub) are excluded, so the result has 5 entries — one per enabled
+ * provider (claude, codex, cursor, gemini, opencode) — all created.
  */
 test('providerMcpService global adder writes to all providers and rejects unsupported transports', { concurrency: false }, async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-global-'));

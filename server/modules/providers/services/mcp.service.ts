@@ -64,7 +64,10 @@ export const providerMcpService = {
 
     const scope = input.scope ?? 'project';
     const results: Array<{ provider: LLMProvider; created: boolean; error?: string }> = [];
-    const providers = providerRegistry.listProviders();
+    // Skip disabled providers (e.g. antigravity stub): their `upsertServer`
+    // always throws PROVIDER_TEMPORARILY_DISABLED, which would otherwise leave
+    // a spurious failed entry in the global add result.
+    const providers = providerRegistry.listEnabledProviders();
     for (const provider of providers) {
       try {
         await provider.mcp.upsertServer({ ...input, scope });

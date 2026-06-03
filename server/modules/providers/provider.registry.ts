@@ -42,6 +42,25 @@ export const providerRegistry = {
     return Object.values(providers);
   },
 
+  /**
+   * Returns true when the given provider is currently a disabled stub
+   * (registered as a `DisabledProvider`, e.g. antigravity during the v1.33
+   * sync). Callers that mutate provider state — like the global MCP adder —
+   * should skip disabled providers instead of triggering their guaranteed
+   * write failure.
+   */
+  isDisabled(provider: IProvider): boolean {
+    return provider instanceof DisabledProvider;
+  },
+
+  /**
+   * Lists only the providers that are actively backed by a real
+   * implementation, excluding any `DisabledProvider` stubs.
+   */
+  listEnabledProviders(): IProvider[] {
+    return this.listProviders().filter((provider) => !this.isDisabled(provider));
+  },
+
   resolveProvider(provider: string): IProvider {
     const key = provider as LLMProvider;
     const resolvedProvider = providers[key];
