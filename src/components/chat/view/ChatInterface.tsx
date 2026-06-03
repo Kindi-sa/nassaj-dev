@@ -19,6 +19,7 @@ import CommandResultModal from './subcomponents/CommandResultModal';
 
 
 type PendingViewSession = {
+  sessionId: string | null;
   startedAt: number;
 };
 

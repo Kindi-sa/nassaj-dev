@@ -7,6 +7,7 @@ import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 
 type PendingViewSession = {
+  sessionId: string | null;
   startedAt: number;
 };
 

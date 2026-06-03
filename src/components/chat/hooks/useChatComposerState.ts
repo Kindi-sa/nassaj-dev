@@ -27,6 +27,7 @@ import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
 type PendingViewSession = {
+  sessionId: string | null;
   startedAt: number;
 };
 
@@ -748,7 +749,7 @@ export function useChatComposerState({
       if (!effectiveSessionId && !selectedSession?.id) {
         // This tracks only that a request is in flight before the provider has
         // emitted its real session id; routing still waits for session_created.
-        pendingViewSessionRef.current = { startedAt: Date.now() };
+        pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
       }
       if (effectiveSessionId) {
         onSessionActive?.(effectiveSessionId);
