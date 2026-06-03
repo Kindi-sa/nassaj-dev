@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
-import { useServerPlatform } from "../../../../hooks/useServerPlatform";
 import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import type {
@@ -129,7 +128,6 @@ export default function ProviderSelectionEmptyState({
   setInput,
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
-  const { isWindowsServer } = useServerPlatform();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // agy ignores UI model selection: it picks the model from its own settings.
@@ -143,14 +141,13 @@ export default function ProviderSelectionEmptyState({
     error: antigravityActiveError,
   } = useAntigravityActiveModel(isAntigravity);
 
-  const visibleProviderGroups = useMemo(() => {
-    const groups: ProviderGroup[] = PROVIDER_META.map((p) => ({
+  const visibleProviderGroups = useMemo<ProviderGroup[]>(() => {
+    return PROVIDER_META.map((p) => ({
       id: p.id,
       name: p.name,
       models: providerModelCatalog[p.id]?.OPTIONS ?? [],
     }));
-    return isWindowsServer ? groups.filter((p) => p.id !== "cursor") : groups;
-  }, [isWindowsServer, providerModelCatalog]);
+  }, [providerModelCatalog]);
 
   // Resolve the read-only label shown for antigravity: live agy value, a clear
   // loading placeholder, or an "unknown" fallback when agy reports nothing.
@@ -163,13 +160,6 @@ export default function ProviderSelectionEmptyState({
     }
     return antigravityActiveLabel;
   }, [antigravityActiveLoading, antigravityActiveError, antigravityActiveLabel, t]);
-
-  useEffect(() => {
-    if (isWindowsServer && provider === "cursor") {
-      setProvider("claude");
-      localStorage.setItem("selected-provider", "claude");
-    }
-  }, [isWindowsServer, provider, setProvider]);
 
   const nextTaskPrompt = t("tasks.nextTaskPrompt", {
     defaultValue: "Start the next task",
