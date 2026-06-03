@@ -17,6 +17,10 @@ type ClaudeCredentialsStatus = {
   error?: string;
 };
 
+const hasErrorCode = (error: unknown, code: string): boolean => (
+  error instanceof Error && 'code' in error && error.code === code
+);
+
 export class ClaudeProviderAuth implements IProviderAuth {
   /**
    * Checks whether the Claude Code CLI is available on this host.
@@ -100,6 +104,8 @@ export class ClaudeProviderAuth implements IProviderAuth {
    * against the resolved environment for the user being checked.
    */
   private async checkCredentials(env: NodeJS.ProcessEnv): Promise<ClaudeCredentialsStatus> {
+    const missingCredentialsError = 'Claude CLI is not authenticated. Run claude /login or configure ANTHROPIC_API_KEY.';
+
     if (readOptionalString(env.ANTHROPIC_API_KEY)) {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
@@ -135,15 +141,33 @@ export class ClaudeProviderAuth implements IProviderAuth {
 
         return {
           authenticated: false,
-          email,
-          method: 'credentials_file',
-          error: 'OAuth token has expired. Please re-authenticate with claude login',
+          email: null,
+          method: null,
+          error: 'Claude login has expired. Run claude /login again.',
         };
       }
 
-      return { authenticated: false, email: null, method: null };
-    } catch {
-      return { authenticated: false, email: null, method: null };
+      return {
+        authenticated: false,
+        email: null,
+        method: null,
+        error: missingCredentialsError,
+      };
+    } catch (error) {
+      let errorMessage = 'Unable to read Claude credentials. Run claude /login again.';
+
+      if (hasErrorCode(error, 'ENOENT')) {
+        errorMessage = missingCredentialsError;
+      } else if (error instanceof SyntaxError) {
+        errorMessage = 'Claude credentials are unreadable. Run claude /login again.';
+      }
+
+      return {
+        authenticated: false,
+        email: null,
+        method: null,
+        error: errorMessage,
+      };
     }
   }
 }
