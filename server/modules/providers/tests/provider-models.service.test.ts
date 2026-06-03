@@ -7,6 +7,7 @@ import test from 'node:test';
 import {
   createProviderModelsService,
   PROVIDER_MODELS_CACHE_TTL_MS,
+  PROVIDER_MODELS_DEGRADED_CACHE_TTL_MS,
 } from '@/modules/providers/services/provider-models.service.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -125,6 +126,51 @@ test('provider models are cached for the three-day ttl', async () => {
     const refreshed = await service.getProviderModels('codex');
     assert.equal(loadCount, 2);
     assert.equal(refreshed.models.DEFAULT, 'codex-2');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('degraded provider catalog is cached under the short ttl, not the three-day ttl', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-degraded-'));
+  let currentTime = 1_000;
+  let loadCount = 0;
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: path.join(tempRoot, 'models-cache.json'),
+      now: () => currentTime,
+      resolveProvider: (provider) => ({
+        models: {
+          getSupportedModels: async () => {
+            loadCount += 1;
+            // Simulate a provider that degrades to a fallback catalog.
+            return { ...createModels(`${provider}-${loadCount}`), degraded: true };
+          },
+          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        },
+      }),
+    });
+
+    const first = await service.getProviderModels('antigravity');
+    assert.equal(loadCount, 1);
+    assert.equal(first.models.degraded, true);
+
+    // Just before the short TTL elapses, the degraded result is still cached.
+    currentTime += PROVIDER_MODELS_DEGRADED_CACHE_TTL_MS - 1;
+    await service.getProviderModels('antigravity');
+    assert.equal(loadCount, 1);
+
+    // Just after the short TTL, the live fetch is re-attempted — proving the
+    // degraded result was NOT pinned for the multi-day TTL.
+    currentTime += 2;
+    const refreshed = await service.getProviderModels('antigravity');
+    assert.equal(loadCount, 2);
+    assert.equal(refreshed.models.DEFAULT, 'antigravity-2');
+
+    // Guard the contrast explicitly: the short TTL is far below the long one.
+    assert.ok(PROVIDER_MODELS_DEGRADED_CACHE_TTL_MS < PROVIDER_MODELS_CACHE_TTL_MS);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

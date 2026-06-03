@@ -16,6 +16,16 @@ import type {
 import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+/**
+ * Short TTL applied when a provider returns a degraded/fallback catalog
+ * (`ProviderModelsDefinition.degraded === true`). A degraded result must not be
+ * pinned for the normal multi-day TTL: the live fetch is re-attempted within
+ * minutes so the catalog recovers quickly once the provider's token/network is
+ * back. Five minutes mirrors the catalog client's circuit-breaker cooldown, so
+ * the next refresh lands right around when the breaker reopens.
+ */
+export const PROVIDER_MODELS_DEGRADED_CACHE_TTL_MS = 5 * 60 * 1000;
 const PROVIDER_MODELS_CACHE_VERSION = 1;
 
 type ProviderModelsServiceDependencies = {
@@ -202,9 +212,14 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     models: ProviderModelsDefinition,
   ): Promise<ProviderModelsCacheEntry> => {
     const currentTime = now();
+    // A degraded/fallback catalog is cached only briefly so the live fetch is
+    // re-attempted soon; an authoritative live catalog keeps the long TTL.
+    const ttl = models.degraded === true
+      ? PROVIDER_MODELS_DEGRADED_CACHE_TTL_MS
+      : PROVIDER_MODELS_CACHE_TTL_MS;
     const entry: ProviderModelsCacheEntry = {
       updatedAt: currentTime,
-      expiresAt: currentTime + PROVIDER_MODELS_CACHE_TTL_MS,
+      expiresAt: currentTime + ttl,
       models,
     };
 

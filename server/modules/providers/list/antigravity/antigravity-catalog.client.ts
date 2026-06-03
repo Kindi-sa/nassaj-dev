@@ -61,6 +61,17 @@ function recordFailure(now: number): void {
   }
 }
 
+/**
+ * Builds the degraded/fallback catalog returned when the live fetch is
+ * unavailable. The `degraded: true` flag tells the provider-models cache layer
+ * to store this under a short TTL and re-attempt the live fetch soon, instead
+ * of pinning the fallback for the normal multi-day TTL. A successful live fetch
+ * returns its parsed catalog without this flag, so the two cases stay distinct.
+ */
+function degradedFallbackCatalog(): ProviderModelsDefinition {
+  return { ...ANTIGRAVITY_FALLBACK_MODELS, degraded: true };
+}
+
 /** Resets breaker state. Exported for unit tests only. */
 export function __resetAntigravityCatalogCircuit(): void {
   circuit.consecutiveFailures = 0;
@@ -177,6 +188,9 @@ async function fetchLiveCatalog(): Promise<ProviderModelsDefinition | null> {
     });
 
     if (!response.ok) {
+      // Drain/cancel the undici response body so the connection is released
+      // instead of leaving an unconsumed stream around (Node 24 fetch).
+      await response.body?.cancel();
       return null;
     }
 
@@ -197,16 +211,17 @@ async function fetchLiveCatalog(): Promise<ProviderModelsDefinition | null> {
  * persistently-failing endpoint (e.g. a consumer account that always 401s)
  * stops adding network latency.
  *
- * The provider-models service caches whatever this returns for several days, so
- * a successful live fetch is what gets persisted and a fallback is only re-tried
- * after the service cache expires (or the breaker cooldown elapses on a forced
- * refresh). This never throws.
+ * A successful live fetch returns its parsed catalog (no `degraded` flag) and is
+ * cached by the provider-models service for the normal multi-day TTL. A fallback
+ * result is flagged `degraded: true`, so the service caches it only briefly and
+ * re-attempts the live fetch within minutes (around when the breaker reopens),
+ * instead of pinning the fallback for days. This never throws.
  */
 export async function getAntigravityModelCatalog(): Promise<ProviderModelsDefinition> {
   const now = Date.now();
 
   if (isCircuitOpen(now)) {
-    return ANTIGRAVITY_FALLBACK_MODELS;
+    return degradedFallbackCatalog();
   }
 
   const liveCatalog = await fetchLiveCatalog();
@@ -216,5 +231,5 @@ export async function getAntigravityModelCatalog(): Promise<ProviderModelsDefini
   }
 
   recordFailure(Date.now());
-  return ANTIGRAVITY_FALLBACK_MODELS;
+  return degradedFallbackCatalog();
 }

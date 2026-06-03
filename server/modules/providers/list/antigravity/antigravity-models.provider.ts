@@ -46,9 +46,10 @@ export const ANTIGRAVITY_FALLBACK_MODELS: ProviderModelsDefinition = {
 export class AntigravityProviderModels implements IProviderModels {
   /**
    * Returns the live agy model catalog when reachable, otherwise the preserved
-   * {@link ANTIGRAVITY_FALLBACK_MODELS}. The catalog client owns the network
-   * fetch, timeout, circuit breaker, and graceful fallback; the provider-models
-   * service caches whatever is returned for several days.
+   * {@link ANTIGRAVITY_FALLBACK_MODELS} flagged as degraded. The catalog client
+   * owns the network fetch, timeout, circuit breaker, and graceful fallback. The
+   * provider-models service caches a live catalog for the normal multi-day TTL
+   * and a degraded fallback only briefly, so the live fetch recovers soon.
    */
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
     return getAntigravityModelCatalog();

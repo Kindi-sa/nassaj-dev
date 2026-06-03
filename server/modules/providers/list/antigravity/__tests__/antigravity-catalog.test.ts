@@ -87,7 +87,7 @@ test('getAntigravityModelCatalog: falls back when no token file exists', async (
   });
   try {
     const result = await getAntigravityModelCatalog();
-    assert.deepEqual(result, ANTIGRAVITY_FALLBACK_MODELS);
+    assert.deepEqual(result, { ...ANTIGRAVITY_FALLBACK_MODELS, degraded: true });
   } finally {
     restoreFetch();
     restoreHome();
@@ -109,6 +109,9 @@ test('getAntigravityModelCatalog: returns live catalog on a successful fetch', a
   try {
     const result = await getAntigravityModelCatalog();
     assert.ok(result.OPTIONS.some((o) => o.value === 'gemini-9-pro'));
+    // A live fetch is authoritative — it must NOT be flagged degraded, so the
+    // provider-models cache keeps it under the normal long TTL.
+    assert.notEqual(result.degraded, true);
   } finally {
     restoreFetch();
     restoreHome();
@@ -131,12 +134,12 @@ test('getAntigravityModelCatalog: falls back on HTTP error and opens the breaker
     // by the open breaker and not hit fetch again.
     for (let i = 0; i < 3; i += 1) {
       const result = await getAntigravityModelCatalog();
-      assert.deepEqual(result, ANTIGRAVITY_FALLBACK_MODELS);
+      assert.deepEqual(result, { ...ANTIGRAVITY_FALLBACK_MODELS, degraded: true });
     }
     assert.equal(calls, 3);
 
     const afterOpen = await getAntigravityModelCatalog();
-    assert.deepEqual(afterOpen, ANTIGRAVITY_FALLBACK_MODELS);
+    assert.deepEqual(afterOpen, { ...ANTIGRAVITY_FALLBACK_MODELS, degraded: true });
     assert.equal(calls, 3, 'breaker must be open: no further fetch calls');
   } finally {
     restoreFetch();

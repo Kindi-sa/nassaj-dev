@@ -82,6 +82,17 @@ export type ProviderModelOption = {
 export type ProviderModelsDefinition = {
   OPTIONS: ProviderModelOption[];
   DEFAULT: string;
+  /**
+   * Marks this catalog as a degraded/fallback result rather than a live fetch
+   * from the provider (e.g. the provider's network/auth was unavailable and a
+   * built-in fallback was served).
+   *
+   * Provider adapters that can fail gracefully set this so the provider-models
+   * cache layer stores the result under a short TTL and re-attempts the live
+   * fetch soon, instead of pinning a stale fallback for the normal long TTL.
+   * Adapters that always return a live/authoritative catalog leave it unset.
+   */
+  degraded?: boolean;
 };
 
 /**
