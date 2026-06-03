@@ -1,6 +1,6 @@
 import type { Server as HttpServer } from 'node:http';
 
-import { WebSocketServer, type VerifyClientCallbackSync } from 'ws';
+import { WebSocket, WebSocketServer, type VerifyClientCallbackSync } from 'ws';
 
 import { handleChatConnection } from '@/modules/websocket/services/chat-websocket.service.js';
 import { verifyWebSocketClient } from '@/modules/websocket/services/websocket-auth.service.js';
@@ -14,6 +14,12 @@ type WebSocketServerDependencies = {
   shell: Parameters<typeof handleShellConnection>[1];
   getPluginPort: Parameters<typeof handlePluginWsProxy>[2];
 };
+
+/** WebSocket with keepalive liveness flag. */
+type AliveWebSocket = WebSocket & { isAlive: boolean };
+
+/** Ping interval in ms — must stay below Cloudflare Tunnel's 90s idle timeout. */
+const PING_INTERVAL_MS = 30_000;
 
 /**
  * Creates and wires the server-wide websocket gateway used for chat, shell, and
@@ -30,7 +36,30 @@ export function createWebSocketServer(
     ) => verifyWebSocketClient(info, dependencies.verifyClient)),
   });
 
+  // Keepalive: ping every 30s to prevent Cloudflare Tunnel 90s idle timeout.
+  const pingInterval = setInterval(() => {
+    wss.clients.forEach((client) => {
+      const ws = client as AliveWebSocket;
+      if (ws.isAlive === false) {
+        ws.terminate();
+        return;
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, PING_INTERVAL_MS);
+
+  wss.on('close', () => {
+    clearInterval(pingInterval);
+  });
+
   wss.on('connection', (ws, request) => {
+    const aliveWs = ws as AliveWebSocket;
+    aliveWs.isAlive = true;
+    aliveWs.on('pong', () => {
+      aliveWs.isAlive = true;
+    });
+
     const incomingRequest = request as AuthenticatedWebSocketRequest;
     const url = incomingRequest.url ?? '/';
     const pathname = new URL(url, 'http://localhost').pathname;

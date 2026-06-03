@@ -33,6 +33,10 @@ import { participantsDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
+// Guards the race window between removeSession() and the next addSession() for
+// the same sessionId — a writer swap during this gap would mismatch the new ws.
+const recentlyEndedSessions = new Map(); // sessionId → expiry timestamp
+const RECENTLY_ENDED_GRACE_MS = 2000;
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
@@ -268,6 +272,9 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // Mark as recently ended to block writer swaps during the race window
+  recentlyEndedSessions.set(sessionId, Date.now() + RECENTLY_ENDED_GRACE_MS);
+  setTimeout(() => recentlyEndedSessions.delete(sessionId), RECENTLY_ENDED_GRACE_MS);
 }
 
 /**
@@ -931,6 +938,12 @@ function getPendingApprovalsForSession(sessionId) {
  * @returns {boolean} True if writer was successfully reconnected
  */
 function reconnectSessionWriter(sessionId, newRawWs) {
+  // Block swap during the grace window after session end — prevents race
+  // between removeSession() and the next addSession() for the same sessionId.
+  if (recentlyEndedSessions.has(sessionId)) {
+    console.log(`[RECONNECT] Skipped writer swap for ${sessionId} — in grace period`);
+    return false;
+  }
   const session = getSession(sessionId);
   if (!session?.writer?.updateWebSocket) return false;
   session.writer.updateWebSocket(newRawWs);

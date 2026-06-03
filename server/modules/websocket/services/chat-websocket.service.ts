@@ -303,7 +303,11 @@ export function handleChatConnection(
           isActive = dependencies.isAntigravitySessionActive(sessionId);
         } else {
           isActive = dependencies.isClaudeSDKSessionActive(sessionId);
-          if (isActive) {
+          // Writer swap must NOT happen while a query is active (tool_use in progress).
+          // Swapping the writer mid-query desynchronises the SDK from the WebSocket
+          // and causes "The user doesn't want to proceed with this tool use." aborts.
+          // Only reconnect when the session exists but is idle (not processing).
+          if (!isActive) {
             dependencies.reconnectSessionWriter(sessionId, ws);
           }
         }
