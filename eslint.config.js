@@ -170,6 +170,11 @@ export default tseslint.config(
           mode: "file",
         },
         {
+          type: "backend-service-shared", // cross-cutting backend service consumed directly by the isolation seam (admin provider-sharing policy)
+          pattern: "server/services/provider-sharing.js", // classify the provider-sharing policy file so isolation files importing it are recognized by boundaries
+          mode: "file",
+        },
+        {
           type: "backend-legacy-runtime", // legacy runtime persistence modules used while providers migrate into server/modules
           pattern: [
             "server/projects.js",
