@@ -97,6 +97,19 @@
 - **Work Items:** B-40, B-41, B-42, B-43, B-44, C-45, C-46, C-47 → `docs/workitems/PHASE-3.md`
 - **المخرجات:** `dir="rtl"` ديناميكي، `tailwindcss-rtl` plugin مفعَّل، خطوط `Tajawal`، ملفات i18n عربية لـ sidebar/chat/settings/auth/errors/tools/common.
 
+### المرحلة PK — Passkey (WebAuthn/FIDO2)
+- **الهدف:** إضافة دعم Passkey كطريقة مصادقة ثانية بجانب كلمة المرور (لا تحلّ محلّها في MVP).
+- **المسؤول:** backend-dev + frontend-dev
+- **الحالة:** ⏳ معلّقة — **تعتمد على اكتمال Phase MU (Auth الأساسي)**
+- **يستكمل عمل:** Phase MU (تعتمد على وجود جدول `users` + JWT + `user_credentials`).
+- **Work Items:** m-PK-1, m-PK-2, M-PK-1..3, C-PK-1..3, B-PK-1..3 → `docs/workitems/PHASE-PK.md`
+- **المخرجات:** جدولا `passkey_credentials` و `passkey_challenges`، 6 API endpoints، `PasskeyRegisterSection`، `PasskeyLoginButton`، `usePasskey` hook.
+- **القيود الأمنية الحرجة:**
+  - `userVerification: required` إلزامي (nassaj-dev يُتيح تنفيذ أوامر على السيرفر).
+  - التحقق من `rpID` و `origin` server-side في كل assertion.
+  - Challenge لمرة واحدة مع TTL ≤ 5 دقائق.
+  - `signCount` يُتحقق منه ويُحدَّث atomically مع JWT.
+
 ### المرحلة 4 — Hardening
 - **الهدف:** اختبارات شاملة، regression suite، توثيق نهائي، تجهيز شرط الانتقال.
 - **المسؤول:** qa-tester + backend-dev + frontend-dev
@@ -162,6 +175,9 @@
 - **ADR-006** — Sub-agents تظهر كـ `tool_use` عادي مع badge بصري "Sub-agent" في المرحلة الأولى. تأجيل nested rendering لمرحلة لاحقة.
 - **ADR-007** — Auth = فحص وجود `agy` binary + token + ping فقط (لا login flow كامل). السبب: الـ binary مهيَّأ على مستوى النظام.
 - **ADR-008** — DB منفصلة إلزامياً عبر `NASSAJ_DB_PATH` env var. السبب: تفادي تعارض بين port 3001 (إنتاج) و 3004 (تطوير).
+- **ADR-018** — Passkey باستخدام `@simplewebauthn/server` v10 (لا WebAuthn API الخام). السبب: يُغلّف CBOR/attestation/assertion تلقائياً، TypeScript native، بدون متطلبات خارجية.
+- **ADR-019** — Passkey طريقة مصادقة إضافية لا بديلة في MVP (Fallback إلى كلمة المرور إلزامي). السبب: تجنّب lockout في غياب جهاز Passkey.
+- **ADR-020** — `pwd_iat` = `null` في JWT الصادر عبر Passkey + `auth_method: 'passkey'` claim. السبب: Passkey لا يرتبط بإصدار كلمة مرور؛ middleware يتجاهل شرط `pwd_iat` عند `auth_method: 'passkey'`.
 
 **قرارات مرحلة Multi-User (محفوظة في `~/.claude/alkindy/decisions/`):**
 - **ADR-014** — [نطاق عزل الاعتمادات](~/.claude/alkindy/decisions/014-credential-isolation-scope.md): عزل اعتماد per-user فقط (Claude/Gemini) مع مشاركة حيّة كاملة للمحادثات والملفات والتعليمات.
