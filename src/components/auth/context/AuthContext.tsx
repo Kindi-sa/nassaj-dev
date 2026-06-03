@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IS_PLATFORM } from '../../../constants/config';
 import { api } from '../../../utils/api';
 import { AUTH_ERROR_MESSAGES, AUTH_TOKEN_STORAGE_KEY } from '../constants';
@@ -41,6 +41,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [needsSetup, setNeedsSetup] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Prevent checkAuthStatus from re-running immediately after a successful login/register/invite.
+  // Without this flag, changing `token` state causes checkAuthStatus to be rebuilt
+  // (it closes over `token`), which re-triggers the useEffect and may call clearSession()
+  // before the new token is settled in all async paths.
+  const skipNextAuthCheck = useRef(false);
 
   const setSession = useCallback((nextUser: AuthUser, nextToken: string) => {
     setUser(nextUser);
@@ -94,6 +99,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [checkOnboardingStatus]);
 
   const checkAuthStatus = useCallback(async () => {
+    // Skip the re-check that fires immediately after login/register/invite sets a new token.
+    // The login flow already validates the session via the /login response itself.
+    if (skipNextAuthCheck.current) {
+      skipNextAuthCheck.current = false;
+      setIsLoading(false);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
@@ -114,7 +127,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const userResponse = await api.auth.user();
       if (!userResponse.ok) {
-        clearSession();
+        // Only clear the session on definitive auth rejection (401/403).
+        // Do not clear on transient errors (5xx, network) to avoid logout loops.
+        const status = userResponse.status;
+        if (status === 401 || status === 403) {
+          clearSession();
+        } else {
+          console.error('[Auth] Transient error checking auth status, keeping session:', status);
+          setError(AUTH_ERROR_MESSAGES.authStatusCheckFailed);
+        }
         return;
       }
 
@@ -128,6 +149,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await checkOnboardingStatus();
     } catch (caughtError) {
       console.error('[Auth] Auth status check failed:', caughtError);
+      // Network error — do not clear the session, let the user retry.
       setError(AUTH_ERROR_MESSAGES.authStatusCheckFailed);
     } finally {
       setIsLoading(false);
@@ -160,6 +182,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return { success: false, error: message };
         }
 
+        // Prevent the token-change-driven useEffect from re-running checkAuthStatus
+        // (which would call clearSession if any intermediate state is stale).
+        skipNextAuthCheck.current = true;
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
         await hydrateUserIdentity();
@@ -187,6 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return { success: false, error: message };
         }
 
+        skipNextAuthCheck.current = true;
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
         await checkOnboardingStatus();
@@ -213,6 +239,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return { success: false, error: message };
         }
 
+        skipNextAuthCheck.current = true;
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
         await checkOnboardingStatus();
