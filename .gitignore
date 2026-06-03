@@ -12,6 +12,8 @@ dist-server/
 dist-ssr/
 build/
 out/
+# Deploy rollback backups
+*.rollback-bak/
 
 # Environment variables
 .env
