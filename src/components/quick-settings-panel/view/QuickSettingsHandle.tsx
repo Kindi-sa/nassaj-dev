@@ -46,29 +46,36 @@ export default function QuickSettingsHandle({
     ? t('quickSettings.dragHandle.draggingStatus')
     : t('quickSettings.dragHandle.toggleAndMove');
 
+  const { transform: baseTransform, ...positionStyle } = style;
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-      className={`fixed ${placementClass} z-50 ${transitionClass} border bg-white dark:bg-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg opacity-0 hover:opacity-100 transition-[colors,opacity] hover:bg-gray-100 dark:hover:bg-gray-700 ${cursorClass} touch-none`}
-      style={{
-        ...style,
-        touchAction: 'none',
-        WebkitTouchCallout: 'none',
-        WebkitUserSelect: 'none',
-      }}
-      aria-label={ariaLabel}
-      title={title}
+    <div
+      className={`fixed ${placementClass} z-50 ${transitionClass} ${!isOpen && !isDragging ? 'translate-x-[75%] hover:translate-x-0' : ''}`}
+      style={positionStyle}
     >
-      {isDragging ? (
-        <GripVertical className="h-5 w-5 text-blue-500 dark:text-blue-400" />
-      ) : isOpen ? (
-        <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-      ) : (
-        <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-      )}
-    </button>
+      <button
+        type="button"
+        onClick={onClick}
+        onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
+        className={`border bg-white dark:bg-gray-800 ${borderClass} rounded-l-md p-2 shadow-lg transition-[colors,transform,opacity] hover:bg-gray-100 dark:hover:bg-gray-700 ${cursorClass} touch-none`}
+        style={{
+          transform: baseTransform,
+          touchAction: 'none',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+        }}
+        aria-label={ariaLabel}
+        title={title}
+      >
+        {isDragging ? (
+          <GripVertical className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+        ) : isOpen ? (
+          <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        ) : (
+          <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+        )}
+      </button>
+    </div>
   );
 }
