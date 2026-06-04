@@ -8,9 +8,9 @@ type TokenUsageSummaryProps = {
 // --- Configurable context-rot tuning ------------------------------------------------
 // The effective context window is shorter than the model's nominal window because
 // attention degrades ("context rot") well before the real limit is reached.
-const EFFECTIVE_CONTEXT_FACTOR = 0.6; // effectiveTotal = total * factor
+const EFFECTIVE_CONTEXT_FACTOR = 0.6; // sole knob for the color level only
 
-// fillRatio thresholds (share of the *effective* window).
+// Color-level thresholds (share of the *effective* window via rotRatio).
 const ATTENTION = 0.3; // >= here: start paying attention (yellow)
 const WARNING = 0.5; // >= here: possible degradation (orange)
 const CRITICAL = 0.7; // >= here: severe degradation (red)
@@ -89,8 +89,7 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
   const totalTokens = readUsageNumber(usage?.total);
   const cacheRead = readUsageNumber(breakdown?.cacheRead);
 
-  const effectiveTotal = totalTokens * EFFECTIVE_CONTEXT_FACTOR;
-  const hasWindow = effectiveTotal > 0 && Number.isFinite(effectiveTotal);
+  const hasWindow = totalTokens > 0 && Number.isFinite(totalTokens);
 
   // --- Neutral / empty state: no valid window, render a plain badge (as before) ----
   if (!hasWindow) {
@@ -108,22 +107,25 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
     );
   }
 
-  const fillRatio = clamp01(usedTokens / effectiveTotal);
-  const level = levelFromRatio(fillRatio);
-  const percentValue = fillRatio * 100;
+  // Displayed percentage / bar / number = raw occupancy of the real window.
+  const rawRatio = clamp01(usedTokens / totalTokens);
+  // Color level = context-rot signal: raw occupancy of the *effective* window
+  // (shorter than nominal because attention degrades before the real limit).
+  const rotRatio = clamp01(usedTokens / (totalTokens * EFFECTIVE_CONTEXT_FACTOR));
+  const level = levelFromRatio(rotRatio);
+  const percentValue = rawRatio * 100;
   const percentLabel = new Intl.NumberFormat(locale, {
     style: 'percent',
     maximumFractionDigits: 0,
-  }).format(fillRatio);
+  }).format(rawRatio);
 
   // Multi-line native tooltip (RTL-friendly, dependency-free).
   const tooltipLines = [
     t('contextRot.levels.' + level),
     t('contextRot.tooltipUsed', {
       used: usedTokens.toLocaleString(locale),
-      total: Math.round(effectiveTotal).toLocaleString(locale),
+      total: totalTokens.toLocaleString(locale),
     }),
-    t('contextRot.tooltipRealWindow', { total: totalTokens.toLocaleString(locale) }),
     cacheRead > 0
       ? t('contextRot.tooltipCacheRead', { value: cacheRead.toLocaleString(locale) })
       : null,
@@ -157,7 +159,7 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
 
       <span className="font-medium tabular-nums text-foreground">{percentLabel}</span>
       <span className="hidden tabular-nums text-muted-foreground/70 sm:inline">
-        {formatTokenCount(usedTokens)}
+        {formatTokenCount(usedTokens)} / {formatTokenCount(totalTokens)}
       </span>
     </div>
   );

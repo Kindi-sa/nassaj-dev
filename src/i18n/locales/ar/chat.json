@@ -1,11 +1,10 @@
 {
   "contextRot": {
     "label": "السياق",
-    "barAria": "استهلاك السياق الفعّال",
+    "barAria": "استهلاك السياق",
     "empty": "لا استهلاك توكنز بعد",
-    "percentUsed": "{{percent}} من السياق الفعّال",
-    "tooltipUsed": "المستخدَم: {{used}} / {{total}}",
-    "tooltipRealWindow": "النافذة الحقيقية: {{total}}",
+    "percentUsed": "{{percent}} من النافذة الحقيقية",
+    "tooltipUsed": "المستخدَم من النافذة الحقيقية: {{used}} / {{total}}",
     "tooltipCacheRead": "قراءة من الكاش: {{value}}",
     "levels": {
       "safe": "آمن — السياق سليم.",

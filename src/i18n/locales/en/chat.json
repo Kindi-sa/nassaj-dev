@@ -1,11 +1,10 @@
 {
   "contextRot": {
     "label": "Context",
-    "barAria": "Effective context usage",
+    "barAria": "Context usage",
     "empty": "No token usage yet",
-    "percentUsed": "{{percent}} of effective context",
-    "tooltipUsed": "Used: {{used}} / {{total}}",
-    "tooltipRealWindow": "Real window: {{total}}",
+    "percentUsed": "{{percent}} of real window",
+    "tooltipUsed": "Used of real window: {{used}} / {{total}}",
     "tooltipCacheRead": "Cache read: {{value}}",
     "levels": {
       "safe": "Safe — context is healthy.",
