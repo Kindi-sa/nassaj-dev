@@ -10,7 +10,6 @@ import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/Palett
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
-import { useUiPreferences } from '../../hooks/useUiPreferences';
 
 export default function AppContent() {
   return (
@@ -25,8 +24,6 @@ function AppContentInner() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const { preferences } = useUiPreferences();
-  const isSidebarCollapsed = !isMobile && !preferences.sidebarVisible;
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
 
@@ -143,13 +140,7 @@ function AppContentInner() {
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
       {!isMobile ? (
-        <div
-          className={`group h-full flex-shrink-0 border-r border-border/50 transition-transform duration-200 ease-out ${
-            isSidebarCollapsed
-              ? '-translate-x-[38px] hover:translate-x-0 overflow-visible relative z-10'
-              : ''
-          }`}
-        >
+        <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />
         </div>
       ) : (
