@@ -69,6 +69,14 @@ const isPromiseLike = (value: unknown): value is Promise<unknown> =>
 const isSkillCommand = (command: SlashCommand) =>
   command.type === 'skill' || command.metadata?.type === 'skill';
 
+// Built-in Claude Code commands that have no dedicated UI handler. They must be
+// forwarded raw to the CLI dispatch path (not /api/commands/execute). In the
+// menu they behave like skills: selecting them inserts the command into the
+// input so the user can append arguments (e.g. `/review 123`) and press Enter.
+export const isPassthroughBuiltInCommand = (command: SlashCommand) =>
+  (command.type === 'built-in' || command.namespace === 'builtin') &&
+  command.metadata?.hasHandler === false;
+
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
 
@@ -332,7 +340,7 @@ export function useSlashCommands({
 
   const selectCommandFromKeyboard = useCallback(
     (command: SlashCommand) => {
-      if (isSkillCommand(command)) {
+      if (isSkillCommand(command) || isPassthroughBuiltInCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }
@@ -354,7 +362,7 @@ export function useSlashCommands({
       }
 
       trackCommandUsage(command);
-      if (isSkillCommand(command)) {
+      if (isSkillCommand(command) || isPassthroughBuiltInCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }

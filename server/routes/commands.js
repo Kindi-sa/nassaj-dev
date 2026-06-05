@@ -160,41 +160,124 @@ async function scanCommandsDirectory(dir, baseDir, namespace) {
  * Built-in commands that are always available
  */
 const builtInCommands = [
+  // Commands with a dedicated UI handler (executed via /api/commands/execute).
+  // `hasHandler: true` -> the web layer renders the result locally.
   {
     name: "/help",
     description: "Show help documentation for Claude Code",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
   },
   {
     name: "/models",
     description: "View available models for the current provider",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
   },
   {
     name: "/cost",
     description: "Display token usage information",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
   },
   {
     name: "/memory",
     description: "Open CLAUDE.md memory file for editing",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
   },
   {
     name: "/config",
     description: "Open settings and configuration",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
   },
   {
     name: "/status",
     description: "Show system status and version information",
     namespace: "builtin",
-    metadata: { type: "builtin" },
+    metadata: { type: "builtin", hasHandler: true },
+  },
+  // Built-in Claude Code commands without a dedicated UI handler.
+  // `hasHandler: false` -> the web layer must pass the raw text straight to the
+  // CLI dispatch path instead of calling /api/commands/execute.
+  {
+    name: "/clear",
+    description: "Clear conversation history",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/compact",
+    description: "Compact conversation context",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/agents",
+    description: "Manage agents / subagents",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/init",
+    description: "Initialize CLAUDE.md for the codebase",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/review",
+    description: "Review a pull request",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/resume",
+    description: "Resume a previous session",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/mcp",
+    description: "Manage MCP servers",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/permissions",
+    description: "Manage tool permissions",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/export",
+    description: "Export conversation",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/doctor",
+    description: "Diagnose installation health",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/add-dir",
+    description: "Add a working directory",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/hooks",
+    description: "Manage hooks",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
+  },
+  {
+    name: "/vim",
+    description: "Toggle vim mode",
+    namespace: "builtin",
+    metadata: { type: "builtin", hasHandler: false },
   },
 ];
 

@@ -24,7 +24,7 @@ import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } fr
 import { escapeRegExp } from '../utils/chatFormatting';
 
 import { useFileMentions } from './useFileMentions';
-import { type SlashCommand, useSlashCommands } from './useSlashCommands';
+import { isPassthroughBuiltInCommand, type SlashCommand, useSlashCommands } from './useSlashCommands';
 
 // Maximum number of images that can be attached to a single chat message.
 // Must stay in sync with the server-side multer limit (`upload.array('images', 15)`).
@@ -683,7 +683,15 @@ export function useChatComposerState({
                 metadata: { type: 'builtin' },
               } as SlashCommand)
             : undefined);
-        if (matchedCommand && matchedCommand.type !== 'skill') {
+        // Built-in commands without a UI handler (passthrough) and skills are NOT
+        // sent to /api/commands/execute. They fall through below so the raw text
+        // (including any args, e.g. `/review 123`) is dispatched straight to the
+        // CLI via dispatchProviderCommand, exactly like a normal message.
+        if (
+          matchedCommand &&
+          matchedCommand.type !== 'skill' &&
+          !isPassthroughBuiltInCommand(matchedCommand)
+        ) {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';
