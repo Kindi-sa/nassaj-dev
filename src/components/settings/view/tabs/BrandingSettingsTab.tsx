@@ -11,9 +11,10 @@ import SettingsSection from '../SettingsSection';
 
 const TITLE_MAX_LENGTH = 60;
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — must match the server limit.
-// SVG is intentionally excluded (XSS vector); the server validates real magic
-// bytes and only accepts these raster formats.
-const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp'];
+// Raster formats are validated by magic bytes on the server; SVG is detected by
+// XML content and sanitized server-side (DOMPurify) before storage, then served
+// under a strict CSP + nosniff. This client list only gates the file picker.
+const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
 
 type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 

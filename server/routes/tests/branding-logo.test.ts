@@ -2,12 +2,16 @@
  * Tests for the branding logo upload hardening (server/routes/settings.js).
  *
  * Security-focused coverage:
- *  1. Magic-byte unit check (detectImageExt) — the single source of truth for
- *     "what kind of image is this". Verifies real PNG/JPEG/WEBP signatures are
- *     accepted and that spoofed / SVG / truncated content is rejected (null).
+ *  1. Magic-byte / content unit check (detectImageExt) — the single source of
+ *     truth for "what kind of image is this". Verifies real PNG/JPEG/WEBP
+ *     signatures are accepted, that a valid <svg>-rooted document is detected as
+ *     'svg', and that spoofed / non-SVG / truncated content is rejected (null).
  *  2. POST /api/settings/branding/logo end-to-end:
+ *     - a clean SVG -> 200 and the sanitized markup is written to disk.
+ *     - an SVG carrying <script>/onload -> 200 but the STORED file is sanitized
+ *       (no <script>, no on* handlers). This is the key XSS-regression guard.
  *     - a file declared image/png whose bytes are NOT a real PNG -> 400.
- *     - an SVG (no longer supported, XML/script vector) -> 400.
+ *     - non-SVG content with a forged image/svg+xml type -> 400.
  *     - a payload exceeding the 2MB limit -> 413.
  *
  * Framework: node:test (built-in) + node:assert/strict, run via tsx — matching
@@ -17,18 +21,30 @@
  * path never touches the real key/value store.
  *
  * The route's owner check (requireRole('owner')) reads req.user.role, so the test
- * harness injects a verified owner user via a stand-in middleware. None of the
- * asserted cases reach the disk-write branch (all are rejected before it), so the
- * test performs no filesystem side effects.
+ * harness injects a verified owner user via a stand-in middleware. Filesystem
+ * isolation: HOME (and USERPROFILE on Windows) is redirected to a per-run temp
+ * dir BEFORE settings.js is imported, because BRANDING_ROOT is derived from
+ * os.homedir() at module load. The accepting tests therefore write only into
+ * that throwaway directory, never the real ~/.nassaj-users.
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { AddressInfo } from 'node:net';
+import os from 'node:os';
 import path from 'node:path';
 import test, { mock } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
 import express from 'express';
+
+// Redirect the home directory to an isolated temp dir so the branding logo is
+// written under <tmp>/.nassaj-users/.branding instead of the real home. Must run
+// BEFORE importing settings.js (BRANDING_ROOT = os.homedir()/... at load time).
+const TMP_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'nassaj-branding-test-'));
+process.env.HOME = TMP_HOME;
+process.env.USERPROFILE = TMP_HOME;
+const BRANDING_DIR = path.join(TMP_HOME, '.nassaj-users', '.branding');
 
 // In-memory stand-in for app_config so the route never touches the real store.
 const appConfigStore = new Map<string, string>();
@@ -101,8 +117,24 @@ function webpFixture(extraBytes = 16): Buffer {
     Buffer.alloc(extraBytes, 0),
   ]);
 }
-const SVG_FIXTURE = Buffer.from(
-  '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+// A clean, valid SVG logo (no active content).
+const CLEAN_SVG = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">' +
+    '<rect width="24" height="24" fill="#0a84ff"/></svg>',
+  'utf8'
+);
+// A hostile SVG: inline <script> + onload handler + javascript: href. This must
+// be ACCEPTED (200) but stored only in sanitized form.
+const MALICIOUS_SVG = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)" viewBox="0 0 24 24">' +
+    '<script>alert(2)</script>' +
+    '<a href="javascript:alert(3)"><rect width="24" height="24"/></a>' +
+    '</svg>',
+  'utf8'
+);
+// Content that is NOT an svg-rooted document but is declared image/svg+xml.
+const FORGED_SVG = Buffer.from(
+  '<html><body><svg></svg></body></html>',
   'utf8'
 );
 
@@ -121,8 +153,14 @@ test('detectImageExt accepts a real WEBP signature', () => {
   assert.equal(detectImageExt(webpFixture()), 'webp');
 });
 
-test('detectImageExt rejects SVG (no longer supported)', () => {
-  assert.equal(detectImageExt(SVG_FIXTURE), null);
+test('detectImageExt detects a valid <svg>-rooted document as svg', () => {
+  assert.equal(detectImageExt(CLEAN_SVG), 'svg');
+  assert.equal(detectImageExt(MALICIOUS_SVG), 'svg');
+});
+
+test('detectImageExt rejects non-svg-rooted content (svg not the root element)', () => {
+  // "<svg" appears, but the document root is <html>, so it must NOT be 'svg'.
+  assert.equal(detectImageExt(FORGED_SVG), null);
 });
 
 test('detectImageExt rejects content with a spoofed/incorrect signature', () => {
@@ -216,12 +254,45 @@ test('POST branding/logo rejects a file declaring image/png whose bytes are not 
   }
 });
 
-test('POST branding/logo rejects an SVG upload (400)', async () => {
+test('POST branding/logo accepts a clean SVG (200) and stores it', async () => {
   const srv = await buildServer();
   try {
-    // Declared as image/png so it survives the lenient multer fileFilter; the
-    // magic-byte check must still reject it because the bytes are SVG/XML.
-    const { status } = await srv.uploadLogo('logo.png', 'image/png', SVG_FIXTURE);
+    fs.rmSync(path.join(BRANDING_DIR, 'logo.svg'), { force: true });
+    const { status } = await srv.uploadLogo('logo.svg', 'image/svg+xml', CLEAN_SVG);
+    assert.equal(status, 200);
+    const stored = fs.readFileSync(path.join(BRANDING_DIR, 'logo.svg'), 'utf8');
+    assert.match(stored, /^<svg[\s>]/i, 'stored file must still be an <svg> document');
+    assert.match(stored, /<rect/i, 'legitimate <rect> content must survive sanitization');
+  } finally {
+    await srv.close();
+  }
+});
+
+// The key XSS-regression guard: a hostile SVG is accepted but the persisted file
+// must be stripped of all active content. We assert against the bytes on disk —
+// the original (unsanitized) buffer must never be what gets written.
+test('POST branding/logo sanitizes a hostile SVG before storing it (no script / on*)', async () => {
+  const srv = await buildServer();
+  try {
+    fs.rmSync(path.join(BRANDING_DIR, 'logo.svg'), { force: true });
+    const { status } = await srv.uploadLogo('logo.svg', 'image/svg+xml', MALICIOUS_SVG);
+    assert.equal(status, 200);
+
+    const stored = fs.readFileSync(path.join(BRANDING_DIR, 'logo.svg'), 'utf8');
+    assert.doesNotMatch(stored, /<script/i, 'stored SVG must not contain <script>');
+    assert.doesNotMatch(stored, /onload/i, 'stored SVG must not contain onload handler');
+    assert.doesNotMatch(stored, /\bon[a-z]+\s*=/i, 'stored SVG must not contain any on* handler');
+    assert.doesNotMatch(stored, /javascript:/i, 'stored SVG must not contain javascript: URLs');
+    assert.match(stored, /^<svg[\s>]/i, 'sanitized result is still a valid <svg> root');
+  } finally {
+    await srv.close();
+  }
+});
+
+test('POST branding/logo rejects non-SVG content with a forged image/svg+xml type (400)', async () => {
+  const srv = await buildServer();
+  try {
+    const { status } = await srv.uploadLogo('logo.svg', 'image/svg+xml', FORGED_SVG);
     assert.equal(status, 400);
   } finally {
     await srv.close();
@@ -238,5 +309,14 @@ test('POST branding/logo rejects a payload exceeding the 2MB limit (413)', async
     assert.equal(status, 413);
   } finally {
     await srv.close();
+  }
+});
+
+// Best-effort removal of the isolated temp home created at module load.
+process.on('exit', () => {
+  try {
+    fs.rmSync(TMP_HOME, { recursive: true, force: true });
+  } catch {
+    /* ignore cleanup errors */
   }
 });

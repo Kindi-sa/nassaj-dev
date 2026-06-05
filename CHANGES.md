@@ -1,5 +1,33 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Change: hide GitHub badge; allow sanitized SVG logo upload
+
+**الملخص (AR):** (أ) **إخفاء شارة GitHub كاملةً** (النجوم والرابط معاً) من ترويسة الشريط الجانبي بإزالة `<GitHubStarBadge />` واستيراده من `SidebarHeader.tsx` (سطح المكتب؛ لم تكن معروضة في الجوال). (ب) **إعادة دعم رفع شعار SVG بأمان** دون إعادة فتح ثغرة stored-XSS: (1) كشف SVG **بالمحتوى** لا بتوقيع ثابت — `detectImageExt` يتعرّف على `'svg'` فقط حين يكون جذر المستند الفعلي عنصر `<svg>` (بعد تجاوز BOM/مسافات/`<?xml?>`/تعليقات/`<!DOCTYPE>`)، فلا يكفي مجرد احتواء السلسلة. (2) **تعقيم خادمي إلزامي** عبر **DOMPurify** موصولاً ببيئة DOM من **jsdom** (تبعية مُضافة) بملف `server/services/svg-sanitizer.js`، بإعداد `USE_PROFILES:{svg,svgFilters}` و`FORBID_TAGS`/`FORBID_ATTR` تشمل `script`/`foreignObject`/`use`/`style` ومعالجات `on*` — والمكتوب على القرص هو **النسخة المعقّمة فقط** لا الأصل، فتُزال `<script>`/`onload`/`javascript:`/مراجع `<use>` الخارجية وحقن CSS (`expression`/`url(javascript:)`). (3) **رؤوس تصلّب عند الخدمة** على `/branding/logo.:ext`: `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:` بالإضافة إلى `X-Content-Type-Options: nosniff` (دفاع طبقي). أُعيد `image/svg+xml`→`svg` للقوائم البيضاء في `settings.js`/`server/index.js` والواجهة (`ACCEPTED_MIME`/`accept`). اختبارات `branding-logo.test.ts` مُحدَّثة: SVG نظيف→200 ويُخزَّن، SVG خبيث (`<script>`+`onload`)→200 لكن المخرَّن مُعقَّم (لا script/`on*`/`javascript:`)، محتوى مزوّر بنوع svg→400، مع إبقاء PNG مزوّر→400 وتجاوز 2MB→413.
+
+**Summary (EN):**
+- Hid the GitHub badge entirely (stars + link) by removing `<GitHubStarBadge />`
+  and its import from `SidebarHeader.tsx`. The `GitHubStarBadge`/`useGitHubStars`
+  modules are left in place but unused.
+- Re-enabled SVG logo upload **safely**:
+  - Content-based SVG detection in `detectImageExt` (must have an `<svg>` *root*,
+    not just contain the substring); otherwise rejected.
+  - Mandatory server-side sanitization in `server/services/svg-sanitizer.js`
+    using **DOMPurify** + **jsdom** (new dependency) with the SVG profile and
+    forbid lists for `script`/`foreignObject`/`use`/`style`/`on*`. Only the
+    sanitized markup is written to disk; `<script>`, `on*` handlers,
+    `javascript:` URLs, external `<use>` and CSS `expression()`/`url(javascript:)`
+    are stripped.
+  - Hardening headers on the logo serving route in `server/index.js`:
+    `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline';
+    img-src 'self' data:` alongside the existing `X-Content-Type-Options: nosniff`.
+  - `image/svg+xml`→`svg` restored in the server MIME maps and client
+    `ACCEPTED_MIME`/`accept`. Size limit (2MB), owner-only, fixed `logo.svg`
+    filename all retained.
+- Tests (`server/routes/tests/branding-logo.test.ts`): clean SVG → 200 + stored;
+  hostile SVG (`<script>`+`onload`) → 200 but stored file is sanitized (no
+  script/`on*`/`javascript:`); forged non-SVG with svg type → 400; PNG-spoof →
+  400 and >2MB → 413 retained. Full suite: 169 passing.
+
 ## 2026-06-05 — Security: Harden branding logo upload (post-review fixes)
 
 **الملخص (AR):** تحصين أمني لميزة العلامة بعد مراجعة (فيتو). (1) **إزالة دعم SVG نهائياً** من الخادم (`BRANDING_MIME_TO_EXT`/`BRANDING_EXT_TO_MIME`) والواجهة (`ACCEPTED_MIME`) — يقتل ثغرة stored-XSS عبر SVG؛ صار المقبول `png`/`jpeg`/`webp` فقط. (2) **تحقّق نوع الصورة عبر البايتات الفعلية (magic bytes)** لا عبر `Content-Type` العميل: دالة `detectImageExt` تفحص توقيع PNG (`89 50 4E 47 0D 0A 1A 0A`) وJPEG (`FF D8 FF`) وWEBP (`RIFF…WEBP`)، والامتداد على القرص يُشتق من النوع المكتشَف؛ أي تزوير → 400 (فحص يدوي، بلا تبعية جديدة). (3) **توحيد التفويض على owner فقط** في الواجهة (`SettingsSidebar.tsx`, `Settings.tsx`) ليطابق الخادم (كان يُظهر التبويب لـadmin فيفشل). (4) **`X-Content-Type-Options: nosniff`** على مسارَي خدمة `/branding/logo.:ext` و`/avatars/:userId.:ext`. (5) **منع خدمة الملفات اليتيمة**: مسار الشعار الساكن يطابق `ext` المطلوب مع المخزَّن في `app_config` قبل `sendFile`، وإلا 404. كما صُحّح خطأ منطقي سابق في `getBrandingLogoUrl` (كان يقارن الامتداد بمفاتيح MIME فيُرجِع null دائماً). اختبارات `node:test` جديدة في `server/routes/tests/branding-logo.test.ts` (فحص التواقيع كوحدة + رفض PNG مزوّر/SVG/تجاوز 2MB عبر المسار).

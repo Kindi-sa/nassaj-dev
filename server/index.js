@@ -303,14 +303,16 @@ app.get('/avatars/:userId.:ext', (req, res) => {
 // part only, so no portion of the request URL is interpolated into a filesystem
 // path (no traversal). The on-disk filename is always logo.<ext> derived from the
 // uploaded file's MIME type, never from any client-supplied name.
-// SVG is intentionally excluded here too: the upload path no longer accepts it,
-// and serving SVG same-origin is an XSS vector.
+// SVG is supported: the upload path sanitizes it server-side (DOMPurify) before
+// writing, and this route additionally serves it under a strict CSP + nosniff
+// (defense in depth) so no active content can execute even on direct navigation.
 const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
 const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
 const BRANDING_EXT_TO_MIME = {
     png: 'image/png',
     jpg: 'image/jpeg',
     webp: 'image/webp',
+    svg: 'image/svg+xml',
 };
 app.get('/branding/logo.:ext', (req, res) => {
     const { ext } = req.params;
@@ -330,6 +332,14 @@ app.get('/branding/logo.:ext', (req, res) => {
     // Defense in depth: forbid MIME sniffing so the file can never be
     // re-interpreted as HTML/script by the browser regardless of its bytes.
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Hardening for direct navigation to the asset — most important for SVG,
+    // which a browser renders as a document. A locked-down CSP forbids any
+    // script/object/external fetch, so even a sanitizer bypass cannot execute
+    // code when the logo is opened directly. Applied to every logo extension.
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:"
+    );
     // The logo is public-facing chrome shown to every authenticated user; a short
     // cache keeps the header snappy while still picking up changes within a minute.
     res.setHeader('Cache-Control', 'public, max-age=60');

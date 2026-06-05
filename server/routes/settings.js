@@ -9,6 +9,7 @@ import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsD
 import { requireRole } from '../middleware/auth.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
+import { sanitizeSvg, looksLikeSvgRoot } from '../services/svg-sanitizer.js';
 
 const router = express.Router();
 
@@ -32,19 +33,23 @@ const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
 const BRANDING_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 
 // Allowed image MIME types → canonical extension used on disk and in the URL.
-// SVG is intentionally excluded: it is an XML document that can carry inline
-// scripts/event handlers (stored-XSS vector when served same-origin), and it
-// cannot be validated by a fixed binary signature. Only raster formats with a
-// stable magic-byte prefix are accepted.
 //
-// The extension is ALWAYS derived from the magic bytes of the file content
-// (see detectImageExt) — never from file.mimetype (client-controlled) nor the
-// client-supplied filename — which removes both the spoofing and the
-// path-traversal risk.
+// SVG is supported but special-cased: it is an XML document (no fixed binary
+// signature) that can carry inline scripts/event handlers — a stored-XSS vector
+// when served same-origin. It is therefore (a) detected by inspecting the actual
+// XML content for an <svg> root (see detectImageExt), (b) sanitized server-side
+// with DOMPurify before any disk write (only the cleaned markup is persisted),
+// and (c) served with a strict CSP + nosniff (see server/index.js).
+//
+// For raster formats the extension is ALWAYS derived from the magic bytes of the
+// file content (see detectImageExt) — never from file.mimetype (client-
+// controlled) nor the client-supplied filename — which removes both the spoofing
+// and the path-traversal risk.
 const BRANDING_MIME_TO_EXT = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
+  'image/svg+xml': 'svg',
 };
 
 // Inspect the real leading bytes of the buffer and return the canonical
@@ -52,7 +57,18 @@ const BRANDING_MIME_TO_EXT = {
 // signature. This is the single source of truth for "what kind of image is
 // this" — the client-declared Content-Type is never trusted.
 export function detectImageExt(buffer) {
-  if (!buffer || buffer.length < 12) {
+  if (!buffer || buffer.length === 0) {
+    return null;
+  }
+  // SVG is text/XML, not a binary signature. Detect it by content: the document
+  // (after BOM/whitespace/<?xml?>/comments) must have an <svg> ROOT element —
+  // not merely contain the substring "<svg" somewhere. This is checked before
+  // the 12-byte minimum used for raster signatures because a valid SVG can be
+  // shorter than 12 bytes.
+  if (looksLikeSvgRoot(buffer.toString('utf8'))) {
+    return 'svg';
+  }
+  if (buffer.length < 12) {
     return null;
   }
   // PNG: 89 50 4E 47 0D 0A 1A 0A
@@ -190,6 +206,21 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
         return res.status(400).json({ error: 'Unsupported image type' });
       }
 
+      // For SVG we never persist the uploaded bytes as-is: they are sanitized
+      // server-side (DOMPurify, SVG profile) to strip <script>, event handlers,
+      // javascript: URLs, external <use>, <foreignObject> and CSS payloads. Only
+      // the cleaned markup is written to disk. Raster formats are written
+      // verbatim (already validated by magic bytes above).
+      let outputBuffer = file.buffer;
+      if (ext === 'svg') {
+        const sanitized = sanitizeSvg(file.buffer.toString('utf8'));
+        if (!sanitized) {
+          // Not a valid SVG document (or nothing survived sanitization).
+          return res.status(400).json({ error: 'Unsupported image type' });
+        }
+        outputBuffer = Buffer.from(sanitized, 'utf8');
+      }
+
       await fs.promises.mkdir(BRANDING_ROOT, { recursive: true });
 
       // Remove any logo stored under a different extension so a stale file is not
@@ -202,7 +233,7 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
       }
 
       const targetPath = path.join(BRANDING_ROOT, `logo.${ext}`);
-      await fs.promises.writeFile(targetPath, file.buffer);
+      await fs.promises.writeFile(targetPath, outputBuffer);
 
       // Persist only the extension; the public URL is rebuilt from it on read.
       appConfigDb.set(BRANDING_LOGO_PATH_KEY, ext);
