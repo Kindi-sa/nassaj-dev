@@ -1,5 +1,30 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Security: redact auth token from WebSocket logs (adopted from upstream #827)
+
+**الملخص (AR):** كانت خدمة مصادقة WebSocket تسجّل عنوان طلب الترقية (`request.url`) خاماً عبر `console.log`، وبما أن توكن JWT يُمرَّر كـ query param (`?token=...`) في رابط الاتصال، كان التوكن يُسرَّب نصاً صريحاً في سجلّات السيرفر. الحل: قبل التسجيل نبني نسخة من الـURL ونستبدل قيمة `token` بـ`REDACTED`، ثم نسجّل المسار والاستعلام المحجوبَين فقط. لم يُمَسّ منطق التحقق/المصادقة/العزل إطلاقاً — تغيير تسجيل فقط. مقتبس حرفياً من إصلاح upstream في siteboon/claudecodeui#827 (ضمن v1.33.1).
+
+**Problem:**
+The WebSocket auth service logged the raw upgrade URL (`request.url`) via
+`console.log`. Because the JWT auth token is passed as a query parameter
+(`?token=...`) on the connection URL, the token was leaked in clear text into
+the server logs on every WebSocket connection attempt.
+
+**Fix:**
+- Before logging, build a copy of the parsed upgrade URL and, if a `token`
+  query param is present, replace its value with `REDACTED`. Only the redacted
+  `pathname` + `search` is then logged.
+- The token-extraction / authentication / per-user isolation logic is left
+  entirely unchanged — this is a logging-only change. (The `upgradeUrl` parse
+  was hoisted so it is shared between the redacted-log path and token reading.)
+- Confirmed the sibling WS dispatcher (`websocket-server.service.ts`) only logs
+  `pathname` (no query string), so no further redaction was needed there.
+- Adopted verbatim from upstream siteboon/claudecodeui#827 (commit `14ddbc7`,
+  part of v1.33.1); our file matched the upstream pre-fix version exactly.
+
+**Files Changed:**
+- `server/modules/websocket/services/websocket-auth.service.ts`
+
 ## 2026-06-05 — Feature: Select a linked GitHub repository when creating a project
 
 **الملخص (AR):** كان حقل المستودع في حوار "إنشاء مشروع جديد" يقبل لصق رابط URL يدوياً فقط. الآن يمكن للمستخدم اختيار مستودع من حساب GitHub الخاص به مباشرة عبر قائمة قابلة للبحث (combobox)، باستخدام التوكن المخزّن لكل مستخدم. أُضيف endpoint جديد `GET /api/github/repos` يجلب المستودعات عبر octokit. الإبقاء على خيار لصق الرابط اليدوي ومسار الاستنساخ (clone) بلا تغيير، مع toggle بين "اختر من مستودعاتي" و"الصق رابط". لا يُسرَّب التوكن في الرد أو اللوغ، والوصول مقيَّد بـ `user_id`.
