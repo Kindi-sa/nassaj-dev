@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -14,8 +13,6 @@ import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
 
-import { Button } from '../../../shared/view/ui';
-
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
 import { SessionParticipantsBar } from '../../participants';
@@ -26,6 +23,47 @@ type PendingViewSession = {
   sessionId: string | null;
   startedAt: number;
 };
+
+/** Matches the `participants-bar-slide-up` animation duration in tailwind.config.js. */
+const PARTICIPANTS_BAR_COLLAPSE_MS = 200;
+
+/**
+ * Drive the mount lifecycle of the participants bar so it can slide up on hide
+ * yet stay fully unmounted while stably hidden (so its hook/polling never runs).
+ *
+ * - `shown === true`  → mounted, sliding down.
+ * - `shown === false` → keeps the bar mounted for one short collapse animation,
+ *   then unmounts it entirely.
+ *
+ * Returns `{ mounted, closing }`: render the bar only while `mounted`, and apply
+ * the slide-up class while `closing`.
+ */
+function useCollapsibleMount(shown: boolean) {
+  const [mounted, setMounted] = useState(shown);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (shown) {
+      setClosing(false);
+      setMounted(true);
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    setClosing(true);
+    const timer = window.setTimeout(() => {
+      setMounted(false);
+      setClosing(false);
+    }, PARTICIPANTS_BAR_COLLAPSE_MS);
+    return () => window.clearTimeout(timer);
+    // `mounted` is intentionally excluded: re-running on its change would
+    // restart the timer mid-collapse. We only react to `shown` flipping.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown]);
+
+  return { mounted, closing };
+}
 
 function ChatInterface({
   selectedProject,
@@ -54,6 +92,7 @@ function ChatInterface({
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
   const { showParticipantsBar, setShowParticipantsBar } = useParticipantsBar();
+  const participantsBar = useCollapsibleMount(showParticipantsBar);
 
   const sessionStore = useSessionStore();
   const streamTimerRef = useRef<number | null>(null);
@@ -327,23 +366,18 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full flex-col">
-        {showParticipantsBar ? (
-          <SessionParticipantsBar
-            sessionId={currentSessionId ?? selectedSession?.id ?? null}
-            onHide={() => setShowParticipantsBar(false)}
-          />
-        ) : (
-          <div className="flex justify-end border-b border-border/60 px-3 py-1 sm:px-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
-              onClick={() => setShowParticipantsBar(true)}
-              aria-label={t('participants.show', { defaultValue: 'Show participants bar' })}
-              title={t('participants.show', { defaultValue: 'Show participants bar' })}
-            >
-              <Eye className="h-3.5 w-3.5" />
-            </Button>
+        {participantsBar.mounted && (
+          <div
+            className={
+              participantsBar.closing
+                ? 'overflow-hidden animate-participants-bar-slide-up'
+                : 'overflow-hidden animate-participants-bar-slide-down'
+            }
+          >
+            <SessionParticipantsBar
+              sessionId={currentSessionId ?? selectedSession?.id ?? null}
+              onHide={() => setShowParticipantsBar(false)}
+            />
           </div>
         )}
         <ChatMessagesPane

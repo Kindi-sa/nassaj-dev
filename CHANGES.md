@@ -1,5 +1,23 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Change: participants bar fully collapses on hide (slide-up); re-show via settings toggle
+
+**الملخص (AR):** زر الإخفاء داخل شريط المشاركين (`EyeOff`) صار يُخفي الشريط بالكامل: لم يعد هناك «مقبض» رفيع متبقٍّ في `ChatInterface.tsx`. عند الإخفاء ينطوي الشريط للأعلى عبر animation (`participants-bar-slide-up`, ~200ms) ثم يُلغى تركيبه نهائياً — في حالة الإخفاء المستقرّة لا يبقى `SessionParticipantsBar` مركّباً، فلا يعمل `useSessionParticipants`/الـpolling (حفاظ على الشبكة). يدير ذلك hook محلي `useCollapsibleMount(shown)` يُبقي المكوّن مركّباً لمدة الانتقال القصير فقط ثم يفصله؛ والإظهار ينزلق للأسفل (`participants-bar-slide-down`). أُعيد صفّ toggle شريط المشاركين إلى تبويب المظهر (`AppearanceSettingsTab.tsx`) كوسيلة أساسية لإعادة الإظهار بعد الإخفاء inline، يكتب نفس `showParticipantsBar` المزامَن مع localStorage. الإخفاء سريع inline، والإظهار من الإعدادات.
+
+**Summary (EN):**
+- The inline hide button (`EyeOff`) now collapses the participants bar entirely —
+  the thin always-present "show" handle was removed from `ChatInterface.tsx`.
+- On hide the bar slides up (`participants-bar-slide-up` keyframe, ~200ms) then
+  fully unmounts. In the stable hidden state `SessionParticipantsBar` is not
+  mounted, so `useSessionParticipants`/polling never runs (network-friendly). A
+  local `useCollapsibleMount(shown)` hook keeps it mounted only for the short
+  collapse animation, then drops it. Showing slides down
+  (`participants-bar-slide-down`).
+- Restored the participants-bar toggle row in `AppearanceSettingsTab.tsx` (using
+  `useParticipantsBar` + existing `appearanceSettings.participantsBar.*` i18n) as
+  the primary way to re-show the bar after an inline hide. Both paths write the
+  same localStorage-synced `showParticipantsBar`.
+
 ## 2026-06-05 — Fix: cache-bust branding logo URL so new uploads appear immediately
 
 **الملخص (AR):** كان الشعار يُخدَّم على رابط ثابت `/branding/logo.<ext>` (نفس URL عند الاستبدال) مع `Cache-Control: max-age=60`، فتظل الصورة القديمة من كاش المتصفّح/Service Worker بعد رفع شعار جديد. الإصلاح: تخزين **نسخة** في `app_config` تحت `branding.logo_version` = `Date.now()` تُحدَّث عند كل **رفع ناجح** (`POST /api/settings/branding/logo`) وعند **الحذف** (`DELETE`). تُلحِق `getBrandingLogoUrl` معامل استعلام `?v=<version>`، فيصبح الرابط `/branding/logo.<ext>?v=<version>` — رابط جديد مع كل تحديث = تجاوز للكاش. معامل الاستعلام لا يؤثر على مطابقة المسار `/branding/logo.:ext` (يطابق المسار فقط) فتبقى الخدمة والحراسة (تطابق ext + nosniff + CSP) سليمة. خُفّض رأس التخزين إلى `public, max-age=60, must-revalidate` (دفاع طبقي). الواجهة (`BrandingSettingsTab`) تستدعي `refresh()` أصلاً بعد الرفع/الحذف، فيصل `logoUrl` الجديد (بـ`?v` الجديد) إلى المعاينة وإلى `SidebarHeader` فوراً دون إعادة تحميل. `GET /branding` يُرجِع الآن `logoUrl` متضمّناً `?v`. السلوك الافتراضي (لا شعار → SVG داخلي) بلا تغيير. اختباران مُضافان في `branding-logo.test.ts`: الرفع يُرجِع `?v=<digits>`، ورفعتان متتاليتان تُنتجان رابطين مختلفين.
