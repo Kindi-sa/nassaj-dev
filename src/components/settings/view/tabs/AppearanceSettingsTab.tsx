@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { DarkModeToggle } from '../../../../shared/view/ui';
 import { useRtl } from '../../../../contexts/RtlContext';
+import { useParticipantsBar } from '../../../../contexts/ParticipantsBarContext';
 import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
 import SettingsCard from '../SettingsCard';
@@ -31,6 +32,7 @@ export default function AppearanceSettingsTab({
 }: AppearanceSettingsTabProps) {
   const { t } = useTranslation('settings');
   const { rtlLayout, setRtlLayout } = useRtl();
+  const { showParticipantsBar, setShowParticipantsBar } = useParticipantsBar();
 
   return (
     <div className="space-y-8">
@@ -51,6 +53,17 @@ export default function AppearanceSettingsTab({
               checked={rtlLayout}
               onChange={setRtlLayout}
               ariaLabel={t('appearanceSettings.rtlLayout.label')}
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            label={t('appearanceSettings.participantsBar.label')}
+            description={t('appearanceSettings.participantsBar.description')}
+          >
+            <SettingsToggle
+              checked={showParticipantsBar}
+              onChange={setShowParticipantsBar}
+              ariaLabel={t('appearanceSettings.participantsBar.label')}
             />
           </SettingsRow>
         </SettingsCard>

@@ -1,4 +1,13 @@
-// Shared types for the multi-user participation UI (Phase-MU).
+// Shared types for the session participants strip.
+//
+// The core of this UI is the agents/roles display (model + subagents) sourced
+// from the transcript — it is independent of identity/multi-user and is what
+// the bar primarily exists to show. The human "participants" piece is just a
+// session owner/participants display layered on top; it degrades safely to a
+// single user (or to nothing) when the identity layer is unavailable. The
+// backend tables (session_participants, etc.) remain, but the UI does not
+// depend on them to render.
+//
 // Mirrors the backend contract:
 //   GET /api/sessions/:sessionId/participants
 //   GET /api/sessions/:sessionId/agents

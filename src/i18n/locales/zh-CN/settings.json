@@ -122,6 +122,10 @@
       "label": "深色模式",
       "description": "切换浅色和深色主题"
     },
+    "participantsBar": {
+      "label": "显示参与者栏",
+      "description": "在对话顶部显示代理和参与者栏"
+    },
     "projectSorting": {
       "label": "项目排序",
       "description": "项目在侧边栏中的排列方式",

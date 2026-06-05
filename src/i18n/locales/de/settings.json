@@ -102,6 +102,10 @@
       "label": "Darkmode",
       "description": "Zwischen hellem und dunklem Design wechseln"
     },
+    "participantsBar": {
+      "label": "Teilnehmerleiste anzeigen",
+      "description": "Die Leiste mit Agenten und Teilnehmern oben in der Konversation anzeigen"
+    },
     "projectSorting": {
       "label": "Projektsortierung",
       "description": "Wie Projekte in der Seitenleiste angeordnet werden",

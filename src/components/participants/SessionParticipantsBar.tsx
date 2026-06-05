@@ -25,9 +25,14 @@ function orderForNames<T extends { role: string; last_seen: string }>(items: T[]
 }
 
 /**
- * Wider participants strip shown at the top of an open conversation (F-2):
- * a full avatar stack plus inline names (when space allows) and agent chips
- * with invocation counts.
+ * Wider participants strip shown at the top of an open conversation (F-2).
+ *
+ * The strip's primary content is the agent/role row (model + subagents),
+ * derived from the transcript and fully independent of identity/multi-user.
+ * It renders whenever any agents are present. The human-participants block
+ * (avatar stack + names) is an *optional, additive* layer that degrades
+ * safely to nothing when the identity layer returns no participants — it
+ * never gates the bar on its own.
  */
 export default function SessionParticipantsBar({ sessionId, className }: SessionParticipantsBarProps) {
   const { t, i18n } = useTranslation('chat');
@@ -59,7 +64,12 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
     );
   }
 
-  if (status === 'error' || (participants.length === 0 && agents.length === 0)) {
+  // Agents alone are enough to show the bar; the human-participants block is
+  // additive and may be empty. Only hide when there is genuinely nothing to
+  // show (no agents AND no participants) or on a hard error.
+  const hasAgents = agents.length > 0;
+  const hasParticipants = participants.length > 0;
+  if (status === 'error' || (!hasAgents && !hasParticipants)) {
     return null;
   }
 
@@ -76,7 +86,7 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
       role="group"
       aria-label={t('participants.barAria', { defaultValue: 'Conversation participants' })}
     >
-      {participants.length > 0 && (
+      {hasParticipants && (
         <div className="flex items-center gap-2">
           <ParticipantAvatarStack
             participants={participants}
@@ -106,11 +116,11 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
         </div>
       )}
 
-      {participants.length > 0 && agents.length > 0 && (
+      {hasParticipants && hasAgents && (
         <span aria-hidden className="hidden h-4 w-px bg-border sm:block" />
       )}
 
-      {agents.length > 0 && <AgentChipRow agents={agents} max={5} t={t} />}
+      {hasAgents && <AgentChipRow agents={agents} max={5} t={t} />}
     </div>
   );
 }

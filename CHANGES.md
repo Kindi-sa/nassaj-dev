@@ -1,5 +1,44 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Feature: toggle to show/hide the session participants bar + decouple it from multi-user
+
+**الملخص (AR):** أضفنا تفضيل واجهة "إظهار شريط المشاركين" (Show participants bar) في تبويب المظهر (Appearance) بجوار مفتاح RTL تماماً، يتبع نفس نمطه: context موحّد (`ParticipantsBarProvider` + `useParticipantsBar`) يقرأ/يكتب القيمة في `localStorage` (مفتاح `showParticipantsBar`)، والافتراضي **ظاهر (on)** حتى لا يتغيّر سلوك المستخدمين الحاليين. في `ChatInterface` صار الشريط ملفوفاً بشرط `{showParticipantsBar && <SessionParticipantsBar/>}` يلفّ المكوّن نفسه — فعند الإخفاء لا يُركَّب المكوّن إطلاقاً، وبالتالي لا يُستدعى الـhook ولا الـpolling (كل 10 ثوانٍ) ولا أي طلب شبكي. أُضيفت مفاتيح الترجمة `appearanceSettings.participantsBar` لكل اللغات التسع، مع `aria-label` على المفتاح. كذلك فككنا ارتباط الشريط الخفيف عن الهوية الملغاة (multi-user): جوهر الشريط هو صف الوكلاء/الأدوار (model + subagents) المستخرج من الترانسكريبت وهو مستقل تماماً عن الهوية، ويُعرض طالما `agents.length > 0` وحده؛ أما كتلة المستخدمين البشر (كوم الصور + الأسماء) فأصبحت طبقة إضافية اختيارية تتدهور بأمان لمستخدم واحد أو لا شيء عند خواء قائمة participants، ولا تَحجُب الشريط وحدها. لم نلمس الخادم ولا schema قاعدة البيانات ولا الـAPI (جداول `session_participants` باقية كما هي) — تعديل واجهة فقط.
+
+**Feature:**
+- New Appearance-tab toggle "Show participants bar" next to the RTL toggle,
+  following the exact same pattern: a unified context
+  (`ParticipantsBarProvider` + `useParticipantsBar`) that reads/writes
+  `localStorage` (key `showParticipantsBar`). Default is **on** so existing
+  users see no behaviour change.
+- In `ChatInterface` the bar is now wrapped as
+  `{showParticipantsBar && <SessionParticipantsBar/>}` — the condition wraps the
+  component itself, so when hidden the component never mounts and therefore the
+  `useSessionParticipants` hook, its 10s polling, and all network requests are
+  skipped entirely (network saving).
+- Added `appearanceSettings.participantsBar` i18n keys to all nine locales;
+  `aria-label` on the toggle. No hardcoded strings.
+
+**Decouple from multi-user:**
+- The bar's core is the agents/roles row (model + subagents) derived from the
+  transcript — fully independent of identity/multi-user. It renders whenever
+  `agents.length > 0` on its own.
+- The human-participants block (avatar stack + names) is now an explicitly
+  additive, optional layer that degrades safely to a single user (or nothing)
+  when the identity layer returns no participants; it never gates the bar.
+- Comment-only update to `participants/types.ts` reflecting that the agents/roles
+  display is the core and the human piece is just a session owner/participants
+  display. No server, DB schema, or API changes; `session_participants` tables
+  remain untouched.
+
+**Files Changed:**
+- `src/contexts/ParticipantsBarContext.jsx` (new)
+- `src/App.tsx`
+- `src/components/chat/view/ChatInterface.tsx`
+- `src/components/settings/view/tabs/AppearanceSettingsTab.tsx`
+- `src/components/participants/SessionParticipantsBar.tsx`
+- `src/components/participants/types.ts`
+- `src/i18n/locales/{ar,de,en,it,ja,ko,ru,tr,zh-CN}/settings.json`
+
 ## 2026-06-05 — Change: point update checker to our own repo (independent fork channel)
 
 **الملخص (AR):** كان مدقّق التحديث (`useVersionCheck`) يقارن نسختنا المحلية بأحدث إصدار في مستودع الأصل `siteboon/claudecodeui`. وبما أننا fork مستقل تقدّمنا فيه بميزات كثيرة لكننا متأخرون برقم نسخة الصيانة (patch) عن الأصل، كانت علامة "يتوفّر تحديث" تظهر دائماً كإزعاج كاذب لا يعكس واقعنا. الحل: توجيه المدقّق إلى قناتنا `Kindi-sa/nassaj-dev` بتغيير وسيطَي owner/repo في موضعَي الاستدعاء فقط. لم يُمَسّ منطق المدقّق (المقارنة، الفحص الدوري كل 5 دقائق، معالجة الأخطاء). حتى ننشئ releases على مستودعنا، يفشل الجلب (مستودع خاص → 404) فلا تظهر أي علامة — وهو السلوك المقصود والآمن. دمج تحديثات upstream يبقى عملية انتقائية يدوية مستقلة عن هذه العلامة.

@@ -279,6 +279,10 @@
       "label": "RTL Layout",
       "description": "Switch interface direction between RTL and LTR (independent of language)"
     },
+    "participantsBar": {
+      "label": "Show participants bar",
+      "description": "Show the agents and participants strip at the top of the conversation"
+    },
     "projectSorting": {
       "label": "Project Sorting",
       "description": "How projects are ordered in the sidebar",
