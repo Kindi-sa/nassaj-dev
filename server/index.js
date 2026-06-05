@@ -1164,12 +1164,12 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
             fileFilter,
             limits: {
                 fileSize: 5 * 1024 * 1024, // 5MB
-                files: 5
+                files: 15
             }
         });
 
         // Handle multipart form data
-        upload.array('images', 5)(req, res, async (err) => {
+        upload.array('images', 15)(req, res, async (err) => {
             if (err) {
                 return res.status(400).json({ error: err.message });
             }

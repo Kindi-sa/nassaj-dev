@@ -26,6 +26,10 @@ import { escapeRegExp } from '../utils/chatFormatting';
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
 
+// Maximum number of images that can be attached to a single chat message.
+// Must stay in sync with the server-side multer limit (`upload.array('images', 15)`).
+const MAX_IMAGES = 15;
+
 type PendingViewSession = {
   sessionId: string | null;
   startedAt: number;
@@ -484,7 +488,23 @@ export function useChatComposerState({
     });
 
     if (validFiles.length > 0) {
-      setAttachedImages((previous) => [...previous, ...validFiles].slice(0, 5));
+      setAttachedImages((previous) => {
+        const combined = [...previous, ...validFiles];
+        const next = combined.slice(0, MAX_IMAGES);
+
+        if (combined.length > MAX_IMAGES && next.length > 0) {
+          // Surface a visible error on the last kept attachment, since the
+          // overflow files are dropped and never rendered as attachments.
+          const anchorName = next[next.length - 1].name || 'Unknown file';
+          setImageErrors((previousErrors) => {
+            const updated = new Map(previousErrors);
+            updated.set(anchorName, `You can attach at most ${MAX_IMAGES} images`);
+            return updated;
+          });
+        }
+
+        return next;
+      });
     }
   }, []);
 
@@ -518,7 +538,7 @@ export function useChatComposerState({
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
     },
     maxSize: 5 * 1024 * 1024,
-    maxFiles: 5,
+    maxFiles: MAX_IMAGES,
     onDrop: handleImageFiles,
     noClick: true,
     noKeyboard: true,
