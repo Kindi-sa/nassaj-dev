@@ -172,7 +172,27 @@
       "publicRepoInfo": "パブリックリポジトリには認証は不要です。パブリックリポジトリをクローンする場合、トークンは省略できます。",
       "noTokensHelp": "保存済みトークンがありません。設定 → APIキーでトークンを追加すると再利用が簡単になります。",
       "optionalTokenPublic": "GitHubトークン（パブリックリポジトリの場合は任意）",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（パブリックリポジトリの場合は空欄可）"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（パブリックリポジトリの場合は空欄可）",
+      "repos": {
+        "fromMyRepos": "マイリポジトリから選択",
+        "pasteUrl": "URLを貼り付け",
+        "sourceToggleLabel": "GitHub ソース",
+        "help": "クローンする GitHub アカウントのリポジトリを選択",
+        "ariaLabel": "GitHub リポジトリを選択",
+        "placeholder": "リポジトリを選択...",
+        "searchPlaceholder": "リポジトリを検索...",
+        "searchAriaLabel": "GitHub リポジトリを検索",
+        "private": "プライベート",
+        "loading": "リポジトリを読み込み中...",
+        "empty": "このトークンのリポジトリが見つかりません。",
+        "noMatch": "検索に一致するリポジトリがありません。",
+        "loadError": "リポジトリの読み込みに失敗しました。もう一度お試しください。",
+        "invalidToken": "GitHub がこのトークンを拒否しました。失効しているか \"repo\" スコープがない可能性があります。",
+        "noToken": "このアカウントに GitHub トークンが設定されていません。",
+        "forbidden": "GitHub がアクセスを拒否しました。トークンに必要なスコープがないか、レート制限に達しました。",
+        "retry": "再試行",
+        "manageTokens": "設定でトークンを管理"
+      }
     },
     "step3": {
       "reviewConfig": "設定の確認",

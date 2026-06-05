@@ -172,7 +172,27 @@
       "publicRepoInfo": "공개 저장소는 인증이 필요하지 않습니다. 공개 저장소를 clone하는 경우 토큰을 생략할 수 있습니다.",
       "noTokensHelp": "저장된 토큰이 없습니다. 설정 → API Keys에서 토큰을 추가하면 재사용이 편리합니다.",
       "optionalTokenPublic": "GitHub 토큰 (공개 저장소는 선택사항)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (공개 저장소는 비워두세요)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (공개 저장소는 비워두세요)",
+      "repos": {
+        "fromMyRepos": "내 저장소에서 선택",
+        "pasteUrl": "URL 붙여넣기",
+        "sourceToggleLabel": "GitHub 소스",
+        "help": "클론할 GitHub 계정의 저장소를 선택하세요",
+        "ariaLabel": "GitHub 저장소 선택",
+        "placeholder": "저장소 선택...",
+        "searchPlaceholder": "저장소 검색...",
+        "searchAriaLabel": "GitHub 저장소 검색",
+        "private": "비공개",
+        "loading": "저장소를 불러오는 중...",
+        "empty": "이 토큰에 대한 저장소가 없습니다.",
+        "noMatch": "검색과 일치하는 저장소가 없습니다.",
+        "loadError": "저장소를 불러오지 못했습니다. 다시 시도하세요.",
+        "invalidToken": "GitHub가 이 토큰을 거부했습니다. 취소되었거나 \"repo\" 범위가 없을 수 있습니다.",
+        "noToken": "이 계정에 구성된 GitHub 토큰이 없습니다.",
+        "forbidden": "GitHub가 접근을 거부했습니다. 토큰에 필요한 범위가 없거나 속도 제한에 도달했습니다.",
+        "retry": "다시 시도",
+        "manageTokens": "설정에서 토큰 관리"
+      }
     },
     "step3": {
       "reviewConfig": "설정 검토",

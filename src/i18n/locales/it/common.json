@@ -172,7 +172,27 @@
       "publicRepoInfo": "I repository pubblici non richiedono autenticazione. Puoi saltare il token se stai clonando un repository pubblico.",
       "noTokensHelp": "Nessun token salvato disponibile. Puoi aggiungere token in Impostazioni → Chiavi API per un riutilizzo più semplice.",
       "optionalTokenPublic": "Token GitHub (opzionale per repository pubblici)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (lascia vuoto per repository pubblici)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (lascia vuoto per repository pubblici)",
+      "repos": {
+        "fromMyRepos": "Scegli dai miei repository",
+        "pasteUrl": "Incolla URL",
+        "sourceToggleLabel": "Sorgente GitHub",
+        "help": "Scegli un repository dal tuo account GitHub da clonare",
+        "ariaLabel": "Seleziona un repository GitHub",
+        "placeholder": "Seleziona un repository...",
+        "searchPlaceholder": "Cerca repository...",
+        "searchAriaLabel": "Cerca nei tuoi repository GitHub",
+        "private": "Privato",
+        "loading": "Caricamento dei tuoi repository...",
+        "empty": "Nessun repository trovato per questo token.",
+        "noMatch": "Nessun repository corrisponde alla ricerca.",
+        "loadError": "Impossibile caricare i repository. Riprova.",
+        "invalidToken": "GitHub ha rifiutato questo token. Potrebbe essere revocato o privo dello scope \"repo\".",
+        "noToken": "Nessun token GitHub configurato per questo account.",
+        "forbidden": "GitHub ha negato l'accesso. Il token potrebbe non avere lo scope richiesto o aver raggiunto il limite.",
+        "retry": "Riprova",
+        "manageTokens": "Gestisci i token nelle Impostazioni"
+      }
     },
     "step3": {
       "reviewConfig": "Rivedi la tua configurazione",

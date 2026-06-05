@@ -30,7 +30,7 @@
     "server": "node dist-server/server/index.js",
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.js",
     "server:dev-watch": "tsx watch --tsconfig server/tsconfig.json server/index.js",
-    "test": "tsx --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\"",
+    "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\"",
     "client": "vite",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",

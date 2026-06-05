@@ -172,7 +172,27 @@
       "publicRepoInfo": "Genel depolar kimlik doğrulama gerektirmez. Genel bir depo klonluyorsan token girmeyi atlayabilirsin.",
       "noTokensHelp": "Kayıtlı token yok. Kolay tekrar kullanım için Ayarlar → API Anahtarları bölümünden token ekleyebilirsin.",
       "optionalTokenPublic": "GitHub Token (Genel Depolar için İsteğe Bağlı)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (genel depolar için boş bırak)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (genel depolar için boş bırak)",
+      "repos": {
+        "fromMyRepos": "Depolarımdan seç",
+        "pasteUrl": "URL yapıştır",
+        "sourceToggleLabel": "GitHub kaynağı",
+        "help": "Klonlamak için GitHub hesabınızdan bir depo seçin",
+        "ariaLabel": "Bir GitHub deposu seçin",
+        "placeholder": "Bir depo seçin...",
+        "searchPlaceholder": "Depolarda ara...",
+        "searchAriaLabel": "GitHub depolarınızda ara",
+        "private": "Özel",
+        "loading": "Depolarınız yükleniyor...",
+        "empty": "Bu belirteç için depo bulunamadı.",
+        "noMatch": "Aramanızla eşleşen depo yok.",
+        "loadError": "Depolar yüklenemedi. Lütfen tekrar deneyin.",
+        "invalidToken": "GitHub bu belirteci reddetti. İptal edilmiş veya \"repo\" kapsamı eksik olabilir.",
+        "noToken": "Bu hesap için yapılandırılmış GitHub belirteci yok.",
+        "forbidden": "GitHub erişimi reddetti. Belirteçte gerekli kapsam olmayabilir veya hız sınırına ulaşıldı.",
+        "retry": "Yeniden dene",
+        "manageTokens": "Ayarlardan belirteçleri yönet"
+      }
     },
     "step3": {
       "reviewConfig": "Yapılandırmanı Gözden Geçir",

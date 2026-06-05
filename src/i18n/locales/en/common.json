@@ -172,7 +172,27 @@
       "publicRepoInfo": "Public repositories don't require authentication. You can skip providing a token if cloning a public repo.",
       "noTokensHelp": "No stored tokens available. You can add tokens in Settings → API Keys for easier reuse.",
       "optionalTokenPublic": "GitHub Token (Optional for Public Repos)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)",
+      "repos": {
+        "fromMyRepos": "Choose from my repositories",
+        "pasteUrl": "Paste URL",
+        "sourceToggleLabel": "GitHub source",
+        "help": "Pick a repository from your GitHub account to clone",
+        "ariaLabel": "Select a GitHub repository",
+        "placeholder": "Select a repository...",
+        "searchPlaceholder": "Search repositories...",
+        "searchAriaLabel": "Search your GitHub repositories",
+        "private": "Private",
+        "loading": "Loading your repositories...",
+        "empty": "No repositories found for this token.",
+        "noMatch": "No repositories match your search.",
+        "loadError": "Failed to load repositories. Please try again.",
+        "invalidToken": "GitHub rejected this token. It may be revoked or missing the \"repo\" scope.",
+        "noToken": "No GitHub token configured for this account.",
+        "forbidden": "GitHub denied access. The token may lack the required scope or hit a rate limit.",
+        "retry": "Retry",
+        "manageTokens": "Manage tokens in Settings"
+      }
     },
     "step3": {
       "reviewConfig": "Review Your Configuration",

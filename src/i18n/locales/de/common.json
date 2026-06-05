@@ -172,7 +172,27 @@
       "publicRepoInfo": "Öffentliche Repositories benötigen keine Authentifizierung. Du kannst das Token beim Klonen eines öffentlichen Repos weglassen.",
       "noTokensHelp": "Keine gespeicherten Token verfügbar. Du kannst Token unter Einstellungen → API-Schlüssel für einfachere Wiederverwendung hinzufügen.",
       "optionalTokenPublic": "GitHub-Token (Optional für öffentliche Repos)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leer lassen für öffentliche Repos)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leer lassen für öffentliche Repos)",
+      "repos": {
+        "fromMyRepos": "Aus meinen Repositories wählen",
+        "pasteUrl": "URL einfügen",
+        "sourceToggleLabel": "GitHub-Quelle",
+        "help": "Wähle ein Repository aus deinem GitHub-Konto zum Klonen",
+        "ariaLabel": "GitHub-Repository auswählen",
+        "placeholder": "Repository auswählen...",
+        "searchPlaceholder": "Repositories durchsuchen...",
+        "searchAriaLabel": "Deine GitHub-Repositories durchsuchen",
+        "private": "Privat",
+        "loading": "Repositories werden geladen...",
+        "empty": "Keine Repositories für dieses Token gefunden.",
+        "noMatch": "Keine Repositories entsprechen deiner Suche.",
+        "loadError": "Repositories konnten nicht geladen werden. Bitte erneut versuchen.",
+        "invalidToken": "GitHub hat dieses Token abgelehnt. Es ist möglicherweise widerrufen oder hat keinen \"repo\"-Scope.",
+        "noToken": "Für dieses Konto ist kein GitHub-Token konfiguriert.",
+        "forbidden": "GitHub hat den Zugriff verweigert. Dem Token fehlt der Scope oder das Rate-Limit wurde erreicht.",
+        "retry": "Erneut versuchen",
+        "manageTokens": "Tokens in den Einstellungen verwalten"
+      }
     },
     "step3": {
       "reviewConfig": "Konfiguration überprüfen",

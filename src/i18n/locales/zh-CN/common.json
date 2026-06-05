@@ -172,7 +172,27 @@
       "publicRepoInfo": "公共仓库不需要身份验证。如果克隆公共仓库，可以跳过提供令牌。",
       "noTokensHelp": "没有可用的已保存令牌。您可以在 设置 → API 密钥 中添加令牌以便重复使用。",
       "optionalTokenPublic": "GitHub 令牌（公共仓库可选）",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（公共仓库可留空）"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（公共仓库可留空）",
+      "repos": {
+        "fromMyRepos": "从我的仓库选择",
+        "pasteUrl": "粘贴 URL",
+        "sourceToggleLabel": "GitHub 来源",
+        "help": "从你的 GitHub 账户中选择要克隆的仓库",
+        "ariaLabel": "选择一个 GitHub 仓库",
+        "placeholder": "选择一个仓库...",
+        "searchPlaceholder": "搜索仓库...",
+        "searchAriaLabel": "搜索你的 GitHub 仓库",
+        "private": "私有",
+        "loading": "正在加载你的仓库...",
+        "empty": "此令牌下未找到仓库。",
+        "noMatch": "没有与搜索匹配的仓库。",
+        "loadError": "加载仓库失败，请重试。",
+        "invalidToken": "GitHub 拒绝了此令牌。它可能已被吊销或缺少 “repo” 权限。",
+        "noToken": "此账户未配置 GitHub 令牌。",
+        "forbidden": "GitHub 拒绝访问。令牌可能缺少所需权限或触发了速率限制。",
+        "retry": "重试",
+        "manageTokens": "在设置中管理令牌"
+      }
     },
     "step3": {
       "reviewConfig": "查看您的配置",

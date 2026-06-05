@@ -1,5 +1,53 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Feature: Select a linked GitHub repository when creating a project
+
+**الملخص (AR):** كان حقل المستودع في حوار "إنشاء مشروع جديد" يقبل لصق رابط URL يدوياً فقط. الآن يمكن للمستخدم اختيار مستودع من حساب GitHub الخاص به مباشرة عبر قائمة قابلة للبحث (combobox)، باستخدام التوكن المخزّن لكل مستخدم. أُضيف endpoint جديد `GET /api/github/repos` يجلب المستودعات عبر octokit. الإبقاء على خيار لصق الرابط اليدوي ومسار الاستنساخ (clone) بلا تغيير، مع toggle بين "اختر من مستودعاتي" و"الصق رابط". لا يُسرَّب التوكن في الرد أو اللوغ، والوصول مقيَّد بـ `user_id`.
+
+**Problem:**
+The repository field in the "Create New Project" wizard accepted only a manually
+pasted GitHub URL. Users with a stored GitHub token had no way to browse and pick
+one of their own repositories — they had to copy the URL from GitHub by hand.
+
+**Fix:**
+- Added a new backend endpoint `GET /api/github/repos` (`server/routes/github.js`,
+  mounted in `server/index.js`) that lists the authenticated user's repositories
+  via octokit, using the GitHub token stored per-user.
+- Added a searchable combobox (`GithubRepoPicker.tsx`) in step 2 of the wizard,
+  driven by the `useGithubRepos` hook and the `workspaceApi` data layer.
+- A toggle switches the repository source between "Choose from my repositories"
+  and "Paste URL". The manual URL paste path and the underlying clone flow are
+  unchanged; the picker simply fills the same repository URL field.
+- Loading / empty / no-match / error / invalid-token / no-token states are all
+  handled in the UI, with retry and "manage tokens in settings" affordances.
+- i18n strings (`projectWizard.step2.repos`) added across 9 locales.
+
+**Security:**
+- The GitHub token is never returned in the response body or written to logs;
+  only repository metadata (name, URL, visibility) is exposed.
+- Repository listing is scoped to the requesting user via `user_id`; a user
+  cannot read another user's token or repositories (IDOR protection).
+- Covered by 4 security tests in `server/routes/tests/github.test.ts`:
+  IDOR isolation, no-token handling, response-shape (no token leakage), and
+  invalid-token handling. (Test script gains `--experimental-test-module-mocks`.)
+
+**Files Changed:**
+- `server/routes/github.js` (new)
+- `server/index.js`
+- `server/routes/tests/github.test.ts` (new)
+- `package.json` (test script)
+- `src/components/project-creation-wizard/types.ts`
+- `src/components/project-creation-wizard/data/workspaceApi.ts`
+- `src/components/project-creation-wizard/hooks/useGithubRepos.ts` (new)
+- `src/components/project-creation-wizard/components/GithubRepoPicker.tsx` (new)
+- `src/components/project-creation-wizard/components/StepConfiguration.tsx`
+- `src/components/project-creation-wizard/ProjectCreationWizard.tsx`
+- `src/i18n/locales/{ar,de,en,it,ja,ko,ru,tr,zh-CN}/common.json`
+
+**Commit:** _(see git history for this feature)_
+
+---
+
 ## 2026-06-05 — Feature: Show all safe built-in Claude commands in slash menu (`71c2fb3`)
 
 **الملخص (AR):** كانت قائمة `/` تعرض 6 أوامر مدمجة فقط؛ وُسِّعت لتشمل كل أوامر Claude Code الآمنة. الأوامر بلا واجهة مخصّصة تُمرَّر خاماً للـ CLI، واستُثنيت الأوامر الحسّاسة/التفاعلية.

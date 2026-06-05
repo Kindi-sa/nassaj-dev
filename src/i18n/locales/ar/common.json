@@ -172,7 +172,27 @@
       "publicRepoInfo": "المستودعات العامة لا تتطلّب مصادقة. يمكنك تخطّي إدخال الرمز لاستنساخها.",
       "noTokensHelp": "لا توجد رموز محفوظة. يمكنك إضافة رموز في الإعدادات ← API Keys لإعادة استخدامها.",
       "optionalTokenPublic": "رمز GitHub (اختياري للمستودعات العامة)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (اتركه فارغاً للمستودعات العامة)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (اتركه فارغاً للمستودعات العامة)",
+      "repos": {
+        "fromMyRepos": "اختر من مستودعاتي",
+        "pasteUrl": "لصق رابط",
+        "sourceToggleLabel": "مصدر GitHub",
+        "help": "اختر مستودعاً من حساب GitHub لاستنساخه",
+        "ariaLabel": "اختر مستودع GitHub",
+        "placeholder": "اختر مستودعاً...",
+        "searchPlaceholder": "ابحث في المستودعات...",
+        "searchAriaLabel": "ابحث في مستودعات GitHub الخاصة بك",
+        "private": "خاص",
+        "loading": "جارٍ تحميل مستودعاتك...",
+        "empty": "لا توجد مستودعات لهذا الرمز.",
+        "noMatch": "لا توجد مستودعات تطابق بحثك.",
+        "loadError": "تعذّر تحميل المستودعات. حاول مرة أخرى.",
+        "invalidToken": "رفض GitHub هذا الرمز. قد يكون مُلغى أو يفتقد صلاحية \"repo\".",
+        "noToken": "لا يوجد رمز GitHub مهيّأ لهذا الحساب.",
+        "forbidden": "رفض GitHub الوصول. قد يفتقد الرمز الصلاحية المطلوبة أو تجاوز حد الطلبات.",
+        "retry": "إعادة المحاولة",
+        "manageTokens": "إدارة الرموز في الإعدادات"
+      }
     },
     "step3": {
       "reviewConfig": "مراجعة الإعدادات",
