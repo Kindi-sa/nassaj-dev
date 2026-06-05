@@ -250,6 +250,127 @@ function mapCliOptionsToSDK(options = {}) {
 }
 
 /**
+ * Probes the Claude Agent SDK for its built-in slash commands.
+ *
+ * Uses a streaming-input (async generator) `query` that NEVER yields a turn:
+ * `supportedCommands()` is a control request that the SDK answers from the
+ * init handshake alone — no model call, no token cost, no user input. We then
+ * `interrupt()` and let the never-resolving generator be GC'd so the SDK child
+ * process tears down immediately.
+ *
+ * Guarantees:
+ *  - No turn/prompt is ever sent (the generator awaits a release promise and
+ *    only ends after cleanup — it yields nothing before then).
+ *  - Hard timeout (default 4s): on overrun we interrupt and resolve `null`.
+ *  - Every error path swallows and returns `null` (never throws upward).
+ *  - The SDK process is always interrupted/released, even on error/timeout, so
+ *    no child process leaks.
+ *
+ * @param {Object} [context] - Optional context. `userId` selects the per-user
+ *   Claude config dir via resolveProviderEnv; `cwd` sets the working directory.
+ * @returns {Promise<Array<{name:string,description?:string,aliases?:string[],argumentHint?:string}>|null>}
+ *   Normalized command list, or `null` on any failure/timeout/old SDK.
+ */
+async function getClaudeBuiltInCommands(context = {}) {
+  const { userId = null, cwd = null } = context;
+  const PROBE_TIMEOUT_MS = 4000;
+
+  // Controls the async generator's lifetime. The generator awaits this promise
+  // and yields nothing, so no turn is ever produced. Resolving it ends the
+  // generator (after we've already pulled supportedCommands()).
+  let releaseGenerator;
+  const releasePromise = new Promise((resolve) => {
+    releaseGenerator = resolve;
+  });
+
+  // A streaming-input prompt: an async generator that emits zero turns.
+  async function* emptyPromptStream() {
+    await releasePromise;
+    // Intentionally yields nothing — keeps the session in streaming-input mode
+    // without sending any user message to the model.
+  }
+
+  let queryInstance = null;
+  let timeoutHandle = null;
+
+  // Resolve env the same way the live chat path does so the probe runs under
+  // the correct Claude config dir / credentials (no elevated privileges).
+  let probeEnv = { ...process.env };
+  try {
+    probeEnv = resolveProviderEnv(userId, 'claude', probeEnv);
+  } catch {
+    // Fall back to the base env; never let env resolution break the probe.
+    probeEnv = { ...process.env };
+  }
+
+  const cleanup = async () => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+    }
+    // Release the generator so it completes and the SDK can shut down.
+    if (releaseGenerator) {
+      releaseGenerator();
+      releaseGenerator = null;
+    }
+    if (queryInstance && typeof queryInstance.interrupt === 'function') {
+      try {
+        await queryInstance.interrupt();
+      } catch {
+        // Interrupt failures are non-fatal — the released generator + GC still
+        // tears the process down.
+      }
+    }
+  };
+
+  try {
+    const sdkOptions = {
+      env: probeEnv,
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+      // No tools/prompt/model work happens; keep options minimal & deterministic.
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+    };
+    if (cwd) {
+      sdkOptions.cwd = cwd;
+    }
+
+    queryInstance = query({
+      prompt: emptyPromptStream(),
+      options: sdkOptions,
+    });
+
+    const commandsPromise = queryInstance.supportedCommands();
+
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('__probe_timeout__'), PROBE_TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([commandsPromise, timeoutPromise]);
+
+    if (result === '__probe_timeout__' || !Array.isArray(result)) {
+      return null;
+    }
+
+    // Normalize to the shape the route merges. Drop entries without a name.
+    return result
+      .filter((cmd) => cmd && typeof cmd.name === 'string' && cmd.name.length > 0)
+      .map((cmd) => ({
+        name: cmd.name,
+        description: typeof cmd.description === 'string' ? cmd.description : '',
+        ...(Array.isArray(cmd.aliases) && cmd.aliases.length > 0 ? { aliases: cmd.aliases } : {}),
+        ...(typeof cmd.argumentHint === 'string' && cmd.argumentHint
+          ? { argumentHint: cmd.argumentHint }
+          : {}),
+      }));
+  } catch {
+    // Any failure (old SDK without supportedCommands, spawn error, etc.) → null.
+    return null;
+  } finally {
+    await cleanup();
+  }
+}
+
+/**
  * Adds a session to the active sessions map
  * @param {string} sessionId - Session identifier
  * @param {Object} queryInstance - SDK query instance
@@ -1080,5 +1201,6 @@ export {
   resolveToolApproval,
   getPendingApprovalsForSession,
   reconnectSessionWriter,
-  resolveContextWindow
+  resolveContextWindow,
+  getClaudeBuiltInCommands
 };

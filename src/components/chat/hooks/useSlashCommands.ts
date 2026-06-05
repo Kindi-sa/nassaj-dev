@@ -194,6 +194,7 @@ export function useSlashCommands({
           },
           body: JSON.stringify({
             projectPath: workspacePath || selectedProject.path,
+            provider,
           }),
         });
 

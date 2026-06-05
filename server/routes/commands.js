@@ -5,6 +5,7 @@ import path from "path";
 import express from "express";
 
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
+import { getClaudeBuiltInCommands } from "../claude-sdk.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
 
@@ -282,6 +283,161 @@ const builtInCommands = [
 ];
 
 /**
+ * Dynamic built-in command discovery (Claude only).
+ *
+ * We source Claude's real built-in slash commands from the SDK at runtime
+ * (`getClaudeBuiltInCommands`) and merge them on top of the static list above,
+ * which always remains the fallback. To keep the `/list` endpoint from ever
+ * blocking the UI, results are cached with a stale-while-revalidate policy:
+ *  - A valid (non-expired) cache entry is merged and returned immediately.
+ *  - A missing/expired entry returns the static list immediately AND kicks off
+ *    a background refresh (single-flight) so the NEXT request gets the full set.
+ *
+ * Keyed per provider; only `claude` is ever populated (see resolveDynamicBuiltIns).
+ */
+const DYNAMIC_BUILTIN_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const dynamicBuiltInCache = new Map(); // provider -> { commands, expiresAt }
+const dynamicBuiltInInFlight = new Set(); // provider -> probe currently running
+
+/**
+ * Builds the set of identifiers (name + aliases, normalized) already covered by
+ * the static built-in list. Used to dedupe dynamic commands so a dynamic
+ * `usage` aliased to `cost` does not duplicate the static `/cost`.
+ * @returns {Set<string>} lowercase identifiers, each WITHOUT a leading slash
+ */
+function buildStaticBuiltInIdentifiers() {
+  const ids = new Set();
+  const add = (value) => {
+    if (typeof value !== "string" || !value) return;
+    ids.add(value.replace(/^\//, "").toLowerCase());
+  };
+  for (const cmd of builtInCommands) {
+    add(cmd.name);
+    if (Array.isArray(cmd.metadata?.aliases)) {
+      cmd.metadata.aliases.forEach(add);
+    }
+  }
+  return ids;
+}
+
+/**
+ * Merges dynamic SDK commands on top of the static built-in list.
+ *
+ * Rules:
+ *  - The static list is the base and always stays (fallback layer).
+ *  - A dynamic command is added only if neither its name nor any of its aliases
+ *    collide with a static name/alias (case-insensitive, slash-insensitive).
+ *  - Added dynamic commands are flagged `hasHandler: false` (passthrough) so the
+ *    existing execution path forwards them raw to the CLI.
+ *  - The six handler-backed static commands keep their precedence — a dynamic
+ *    duplicate is never added, so it can never shadow them.
+ *
+ * @param {Array<{name:string,description?:string,aliases?:string[],argumentHint?:string}>} dynamicCommands
+ * @returns {Array} merged built-in command list
+ */
+function mergeBuiltInCommands(dynamicCommands) {
+  if (!Array.isArray(dynamicCommands) || dynamicCommands.length === 0) {
+    return [...builtInCommands];
+  }
+
+  const covered = buildStaticBuiltInIdentifiers();
+  const merged = [...builtInCommands];
+
+  for (const dyn of dynamicCommands) {
+    if (!dyn || typeof dyn.name !== "string" || !dyn.name) continue;
+
+    const normalizedName = dyn.name.replace(/^\//, "").toLowerCase();
+    const aliasIds = Array.isArray(dyn.aliases)
+      ? dyn.aliases.map((a) => String(a).replace(/^\//, "").toLowerCase())
+      : [];
+
+    // Skip if the name or ANY alias already exists in the static set.
+    if (covered.has(normalizedName) || aliasIds.some((id) => covered.has(id))) {
+      continue;
+    }
+
+    // Reserve this command's identifiers so a later dynamic entry sharing an
+    // alias does not double-add.
+    covered.add(normalizedName);
+    aliasIds.forEach((id) => covered.add(id));
+
+    merged.push({
+      name: dyn.name.startsWith("/") ? dyn.name : `/${dyn.name}`,
+      description: dyn.description || "",
+      namespace: "builtin",
+      metadata: {
+        type: "builtin",
+        hasHandler: false,
+        ...(aliasIds.length > 0 ? { aliases: dyn.aliases } : {}),
+        ...(dyn.argumentHint ? { argumentHint: dyn.argumentHint } : {}),
+      },
+    });
+  }
+
+  return merged;
+}
+
+/**
+ * Kicks off a background probe for a provider's dynamic commands and stores the
+ * result in the cache. Single-flight: concurrent calls for the same provider
+ * are coalesced. Never throws.
+ * @param {string} provider
+ * @param {Object} context - probe context ({ userId, cwd })
+ */
+function refreshDynamicBuiltIns(provider, context) {
+  if (dynamicBuiltInInFlight.has(provider)) {
+    return;
+  }
+  dynamicBuiltInInFlight.add(provider);
+
+  // Fire-and-forget; the current request never awaits this.
+  Promise.resolve()
+    .then(() => getClaudeBuiltInCommands(context))
+    .then((commands) => {
+      if (Array.isArray(commands)) {
+        dynamicBuiltInCache.set(provider, {
+          commands,
+          expiresAt: Date.now() + DYNAMIC_BUILTIN_TTL_MS,
+        });
+      }
+    })
+    .catch(() => {
+      // Swallow — the static fallback covers this request and the next.
+    })
+    .finally(() => {
+      dynamicBuiltInInFlight.delete(provider);
+    });
+}
+
+/**
+ * Resolves the built-in command list for a `/list` request.
+ *
+ * Non-blocking by design:
+ *  - Non-Claude providers always get the static list unchanged.
+ *  - Claude: a fresh cache entry is merged and returned synchronously; a
+ *    missing/expired entry returns the static list immediately and triggers a
+ *    background refresh (stale-while-revalidate + single-flight).
+ *
+ * @param {string} provider
+ * @param {Object} context - probe context ({ userId, cwd })
+ * @returns {Array} built-in command list to return now
+ */
+function resolveDynamicBuiltIns(provider, context) {
+  if (provider !== "claude") {
+    return builtInCommands;
+  }
+
+  const cached = dynamicBuiltInCache.get(provider);
+  if (cached && cached.expiresAt > Date.now()) {
+    return mergeBuiltInCommands(cached.commands);
+  }
+
+  // Stale or missing: return static now, refresh in the background.
+  refreshDynamicBuiltIns(provider, context);
+  return builtInCommands;
+}
+
+/**
  * Built-in command handlers
  * Each handler returns { type: 'builtin', action: string, data: any }
  */
@@ -503,7 +659,17 @@ Custom commands can be created in:
 router.post("/list", async (req, res) => {
   try {
     const { projectPath } = req.body;
-    const allCommands = [...builtInCommands];
+
+    // Per-provider dynamic built-ins (Claude only). Provider comes from the
+    // request body, mirroring how /execute reads context.provider; defaults to
+    // claude. The probe runs under the requesting user's Claude config dir.
+    const provider = readModelProvider(req.body?.provider);
+    const builtInList = resolveDynamicBuiltIns(provider, {
+      userId: req.user?.id ?? null,
+      cwd: projectPath || null,
+    });
+
+    const allCommands = [...builtInList];
 
     // Scan project-level commands (.claude/commands/)
     if (projectPath) {
@@ -535,7 +701,7 @@ router.post("/list", async (req, res) => {
     customCommands.sort((a, b) => a.name.localeCompare(b.name));
 
     res.json({
-      builtIn: builtInCommands,
+      builtIn: builtInList,
       custom: customCommands,
       count: allCommands.length,
     });
@@ -656,5 +822,8 @@ router.post("/execute", async (req, res) => {
     });
   }
 });
+
+// Exported for unit testing the dynamic built-in merge/dedupe logic.
+export { mergeBuiltInCommands, builtInCommands };
 
 export default router;

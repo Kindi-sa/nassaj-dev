@@ -1,5 +1,42 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Feature: source Claude built-in slash commands dynamically (SDK supportedCommands) with static fallback
+
+**الملخص (AR):** أوامر السلاش المدمجة لمزوّد Claude تُشتق الآن ديناميكياً من الـSDK
+(`Query.supportedCommands()`) بدل الاعتماد على قائمة ثابتة فقط. أُضيفت دالة probe في
+`server/claude-sdk.js` (`getClaudeBuiltInCommands`) تنشئ جلسة streaming-input لا تُرسل أي
+turn (لا نداء نموذج، لا كلفة)، تنتظر `supportedCommands()` بـtimeout صارم (4s)، ثم تُقاطع
+الجلسة وتُحرّر المولّد لتفكيك عملية الـSDK فوراً (بلا تسريب). كل خطأ/تجاوز يُرجِع `null`.
+في `/api/commands/list` طُبّق دمج غير حاجب إطلاقاً عبر stale-while-revalidate: عند وجود
+cache صالح (TTL 10 دقائق) لمزوّد Claude يُدمج ويُرجَع فوراً؛ وإلا تُرجَع القائمة الثابتة فوراً
+ويُطلَق تحديث cache في الخلفية (single-flight) ليحصل الطلب التالي على القائمة الكاملة — فلا
+يتأخّر فتح `/` أبداً. الدمج يبدأ بالقائمة الثابتة (طبقة fallback دائمة)، يُضيف فقط الأوامر
+الديناميكية غير الموجودة (مطابقة بالاسم + الـaliases معاً، فمثلاً ديناميكي `usage` بـalias
+`cost` لا يُكرّر `/cost`)، ويُعلّم المُضاف `hasHandler=false` (passthrough)؛ والأوامر الستة ذات
+المعالج تحتفظ بأسبقيتها. يُطبَّق الديناميكي على Claude فقط؛ بقية المزوّدين بلا تغيير.
+
+**Summary (EN):**
+- Added `getClaudeBuiltInCommands(context)` probe in `server/claude-sdk.js`: a
+  streaming-input `query` whose async-generator prompt yields **zero turns**, so
+  `supportedCommands()` resolves from the SDK init handshake with **no model
+  call and no token cost**. Hard 4s timeout → interrupt + return `null`; every
+  error path swallows and returns `null`; the generator is always released and
+  the session interrupted in `finally`, so no SDK child process leaks.
+- `/api/commands/list` now merges dynamic Claude built-ins on top of the static
+  `builtInCommands` list using **stale-while-revalidate**: a fresh per-provider
+  cache entry (10-min TTL) is merged and returned synchronously; a missing/stale
+  entry returns the static list **immediately** and fires a **single-flight**
+  background probe so the next request gets the full set. The UI never blocks.
+- Merge dedupes by name **and** aliases (dynamic `usage`/alias `cost` does not
+  duplicate static `/cost`); added commands are flagged `hasHandler:false`
+  (passthrough); the six handler-backed commands keep execution precedence.
+- Dynamic discovery is **Claude-only**; agy/gemini/cursor/codex/opencode keep the
+  static list unchanged. Any failure/timeout/old-SDK → static list, never broken.
+- Frontend passes `provider` to `/list`; `useSlashCommands.ts` merges `builtIn`
+  as before (no behavioral change there).
+- Tests: `server/routes/tests/commands-builtin-merge.test.ts` covers alias
+  dedupe, handler precedence, passthrough flagging, and the null/empty fallback.
+
 ## 2026-06-05 — Change: participants bar fully collapses on hide (slide-up); re-show via settings toggle
 
 **الملخص (AR):** زر الإخفاء داخل شريط المشاركين (`EyeOff`) صار يُخفي الشريط بالكامل: لم يعد هناك «مقبض» رفيع متبقٍّ في `ChatInterface.tsx`. عند الإخفاء ينطوي الشريط للأعلى عبر animation (`participants-bar-slide-up`, ~200ms) ثم يُلغى تركيبه نهائياً — في حالة الإخفاء المستقرّة لا يبقى `SessionParticipantsBar` مركّباً، فلا يعمل `useSessionParticipants`/الـpolling (حفاظ على الشبكة). يدير ذلك hook محلي `useCollapsibleMount(shown)` يُبقي المكوّن مركّباً لمدة الانتقال القصير فقط ثم يفصله؛ والإظهار ينزلق للأسفل (`participants-bar-slide-down`). أُعيد صفّ toggle شريط المشاركين إلى تبويب المظهر (`AppearanceSettingsTab.tsx`) كوسيلة أساسية لإعادة الإظهار بعد الإخفاء inline، يكتب نفس `showParticipantsBar` المزامَن مع localStorage. الإخفاء سريع inline، والإظهار من الإعدادات.
