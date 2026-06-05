@@ -262,7 +262,7 @@
       "disconnect": "قطع الاتصال",
       "disconnectTitle": "قطع الاتصال من shell",
       "restart": "إعادة تشغيل",
-      "restartTitle": "إعادة تشغيل Shell (افصل الاتصال أولاً)",
+      "restartTitle": "إعادة تشغيل Shell",
       "connect": "المتابعة في Shell",
       "connectTitle": "الاتصال بـ shell"
     },
