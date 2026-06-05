@@ -43,8 +43,8 @@ function Sidebar({
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
   const { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
-    'siteboon',
-    'claudecodeui',
+    'Kindi-sa',
+    'nassaj-dev',
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;

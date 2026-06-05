@@ -1,5 +1,29 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Change: point update checker to our own repo (independent fork channel)
+
+**الملخص (AR):** كان مدقّق التحديث (`useVersionCheck`) يقارن نسختنا المحلية بأحدث إصدار في مستودع الأصل `siteboon/claudecodeui`. وبما أننا fork مستقل تقدّمنا فيه بميزات كثيرة لكننا متأخرون برقم نسخة الصيانة (patch) عن الأصل، كانت علامة "يتوفّر تحديث" تظهر دائماً كإزعاج كاذب لا يعكس واقعنا. الحل: توجيه المدقّق إلى قناتنا `Kindi-sa/nassaj-dev` بتغيير وسيطَي owner/repo في موضعَي الاستدعاء فقط. لم يُمَسّ منطق المدقّق (المقارنة، الفحص الدوري كل 5 دقائق، معالجة الأخطاء). حتى ننشئ releases على مستودعنا، يفشل الجلب (مستودع خاص → 404) فلا تظهر أي علامة — وهو السلوك المقصود والآمن. دمج تحديثات upstream يبقى عملية انتقائية يدوية مستقلة عن هذه العلامة.
+
+**Problem:**
+The update checker (`useVersionCheck`) compared our local version against the
+latest GitHub release of the upstream repo `siteboon/claudecodeui`. As an
+independent fork we are ahead on features but behind on the upstream maintenance
+(patch) version number, so the "update available" badge was permanently shown —
+a false alarm that did not reflect our actual state.
+
+**Fix:**
+- Pointed the checker at our own channel `Kindi-sa/nassaj-dev` by changing only
+  the `owner` / `repo` arguments at the two call sites.
+- The checker logic itself (version comparison, 5-minute periodic check, error
+  handling) is left entirely unchanged.
+- Until we publish releases on our repo, the fetch fails (private repo → 404),
+  so no badge is shown — the intended, safe behavior. Merging upstream updates
+  remains a separate, manual, selective process unrelated to this badge.
+
+**Files Changed:**
+- `src/components/sidebar/view/Sidebar.tsx`
+- `src/components/settings/view/tabs/AboutTab.tsx`
+
 ## 2026-06-05 — Security: redact auth token from WebSocket logs (adopted from upstream #827)
 
 **الملخص (AR):** كانت خدمة مصادقة WebSocket تسجّل عنوان طلب الترقية (`request.url`) خاماً عبر `console.log`، وبما أن توكن JWT يُمرَّر كـ query param (`?token=...`) في رابط الاتصال، كان التوكن يُسرَّب نصاً صريحاً في سجلّات السيرفر. الحل: قبل التسجيل نبني نسخة من الـURL ونستبدل قيمة `token` بـ`REDACTED`، ثم نسجّل المسار والاستعلام المحجوبَين فقط. لم يُمَسّ منطق التحقق/المصادقة/العزل إطلاقاً — تغيير تسجيل فقط. مقتبس حرفياً من إصلاح upstream في siteboon/claudecodeui#827 (ضمن v1.33.1).
