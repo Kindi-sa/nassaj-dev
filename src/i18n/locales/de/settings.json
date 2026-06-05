@@ -91,11 +91,36 @@
     "label": "Einstellungen",
     "agents": "Agenten",
     "appearance": "Darstellung",
+    "branding": "Branding",
     "git": "Git",
     "apiTokens": "API & Token",
     "tasks": "Aufgaben",
     "plugins": "Plugins",
     "about": "Info"
+  },
+  "brandingSettings": {
+    "ownerOnly": "Nur der Workspace-Eigentümer kann das Branding ändern.",
+    "save": "Speichern",
+    "savedTitle": "Titel gespeichert.",
+    "savedLogo": "Logo aktualisiert.",
+    "removedLogo": "Logo entfernt. Das Standardlogo wird angezeigt.",
+    "errorGeneric": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    "errorType": "Nicht unterstützter Dateityp. Verwende PNG, JPEG, WebP oder SVG.",
+    "errorSize": "Das Bild überschreitet die Größenbeschränkung von 2 MB.",
+    "titleSection": {
+      "label": "App-Titel",
+      "description": "Wird in der Seitenleisten-Kopfzeile angezeigt. Leer lassen für Standard.",
+      "fieldLabel": "Titel"
+    },
+    "logoSection": {
+      "label": "Logo",
+      "description": "Ersetze das Standardlogo in der Seitenleisten-Kopfzeile.",
+      "uploadButton": "Logo hochladen",
+      "removeButton": "Entfernen",
+      "uploadAria": "Logobild hochladen",
+      "previewAlt": "Vorschau des aktuellen Logos",
+      "hint": "PNG, JPEG, WebP oder SVG. Max. 2 MB."
+    }
   },
   "appearanceSettings": {
     "darkMode": {

@@ -113,6 +113,30 @@ export const api = {
       }),
   },
 
+  // App-wide branding (custom logo + title). Read is available to any
+  // authenticated user (needed to render the header); writes are owner-only,
+  // enforced on the server.
+  branding: {
+    get: () => authenticatedFetch('/api/settings/branding'),
+    updateTitle: (title) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ title }),
+      }),
+    uploadLogo: (file) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      return authenticatedFetch('/api/settings/branding/logo', {
+        method: 'POST',
+        body: formData,
+      });
+    },
+    deleteLogo: () =>
+      authenticatedFetch('/api/settings/branding/logo', {
+        method: 'DELETE',
+      }),
+  },
+
   // Admin-only: per-provider credential sharing mode (shared vs isolated).
   admin: {
     getProviderSharing: () => authenticatedFetch('/api/admin/provider-sharing'),

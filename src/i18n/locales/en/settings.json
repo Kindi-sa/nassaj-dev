@@ -108,6 +108,7 @@
     "profile": "Profile",
     "agents": "Agents",
     "appearance": "Appearance",
+    "branding": "Branding",
     "git": "Git",
     "apiTokens": "API & Tokens",
     "tasks": "Tasks",
@@ -115,6 +116,31 @@
     "plugins": "Plugins",
     "users": "Users",
     "about": "About"
+  },
+  "brandingSettings": {
+    "ownerOnly": "Only the workspace owner can change branding.",
+    "save": "Save",
+    "savedTitle": "Title saved.",
+    "savedLogo": "Logo updated.",
+    "removedLogo": "Logo removed. The default logo will be shown.",
+    "errorGeneric": "Something went wrong. Please try again.",
+    "errorType": "Unsupported file type. Use PNG, JPEG, WebP, or SVG.",
+    "errorSize": "Image exceeds the 2MB size limit.",
+    "titleSection": {
+      "label": "App title",
+      "description": "Shown in the sidebar header. Leave empty to use the default.",
+      "fieldLabel": "Title"
+    },
+    "logoSection": {
+      "label": "Logo",
+      "description": "Replace the default logo shown in the sidebar header.",
+      "uploadButton": "Upload logo",
+      "removeButton": "Remove",
+      "uploadAria": "Upload a logo image",
+      "previewAlt": "Current logo preview",
+      "hint": "PNG, JPEG, WebP, or SVG. Max 2MB.",
+      "uploadAria2": ""
+    }
   },
   "profile": {
     "title": "Profile",

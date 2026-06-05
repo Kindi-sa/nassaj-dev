@@ -10,6 +10,7 @@ import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { PluginsProvider } from './contexts/PluginsContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 import AppContent from './components/app/AppContent';
 import i18n from './i18n/config.js';
 
@@ -21,12 +22,14 @@ function AuthenticatedApp() {
       <PluginsProvider>
         <TasksSettingsProvider>
           <TaskMasterProvider>
-            <ProtectedRoute>
-              <Routes>
-                <Route path="/" element={<AppContent />} />
-                <Route path="/session/:sessionId" element={<AppContent />} />
-              </Routes>
-            </ProtectedRoute>
+            <BrandingProvider>
+              <ProtectedRoute>
+                <Routes>
+                  <Route path="/" element={<AppContent />} />
+                  <Route path="/session/:sessionId" element={<AppContent />} />
+                </Routes>
+              </ProtectedRoute>
+            </BrandingProvider>
           </TaskMasterProvider>
         </TasksSettingsProvider>
       </PluginsProvider>

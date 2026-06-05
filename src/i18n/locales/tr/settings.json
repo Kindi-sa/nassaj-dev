@@ -91,12 +91,37 @@
     "label": "Ayarlar",
     "agents": "Ajanlar",
     "appearance": "Görünüm",
+    "branding": "Marka",
     "git": "Git",
     "apiTokens": "API ve Token'lar",
     "tasks": "Görevler",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
     "about": "Hakkında"
+  },
+  "brandingSettings": {
+    "ownerOnly": "Markayı yalnızca çalışma alanı sahibi değiştirebilir.",
+    "save": "Kaydet",
+    "savedTitle": "Başlık kaydedildi.",
+    "savedLogo": "Logo güncellendi.",
+    "removedLogo": "Logo kaldırıldı. Varsayılan logo gösterilecek.",
+    "errorGeneric": "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
+    "errorType": "Desteklenmeyen dosya türü. PNG, JPEG, WebP veya SVG kullanın.",
+    "errorSize": "Görsel 2 MB boyut sınırını aşıyor.",
+    "titleSection": {
+      "label": "Uygulama başlığı",
+      "description": "Kenar çubuğu başlığında gösterilir. Varsayılan için boş bırakın.",
+      "fieldLabel": "Başlık"
+    },
+    "logoSection": {
+      "label": "Logo",
+      "description": "Kenar çubuğu başlığındaki varsayılan logoyu değiştirin.",
+      "uploadButton": "Logo yükle",
+      "removeButton": "Kaldır",
+      "uploadAria": "Logo görseli yükle",
+      "previewAlt": "Geçerli logo önizlemesi",
+      "hint": "PNG, JPEG, WebP veya SVG. En fazla 2 MB."
+    }
   },
   "notifications": {
     "title": "Bildirimler",

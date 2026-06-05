@@ -108,6 +108,7 @@
     "profile": "الملف الشخصي",
     "agents": "الوكلاء",
     "appearance": "المظهر",
+    "branding": "العلامة",
     "git": "Git",
     "apiTokens": "API والرموز",
     "tasks": "المهام",
@@ -115,6 +116,30 @@
     "plugins": "الإضافات",
     "users": "المستخدمون",
     "about": "حول"
+  },
+  "brandingSettings": {
+    "ownerOnly": "يمكن لمالك مساحة العمل فقط تغيير العلامة.",
+    "save": "حفظ",
+    "savedTitle": "تم حفظ العنوان.",
+    "savedLogo": "تم تحديث الشعار.",
+    "removedLogo": "تمت إزالة الشعار. سيظهر الشعار الافتراضي.",
+    "errorGeneric": "حدث خطأ ما. حاول مرة أخرى.",
+    "errorType": "نوع ملف غير مدعوم. استخدم PNG أو JPEG أو WebP أو SVG.",
+    "errorSize": "حجم الصورة يتجاوز الحد الأقصى 2 ميغابايت.",
+    "titleSection": {
+      "label": "عنوان التطبيق",
+      "description": "يظهر في ترويسة الشريط الجانبي. اتركه فارغاً لاستخدام الافتراضي.",
+      "fieldLabel": "العنوان"
+    },
+    "logoSection": {
+      "label": "الشعار",
+      "description": "استبدل الشعار الافتراضي الظاهر في ترويسة الشريط الجانبي.",
+      "uploadButton": "رفع شعار",
+      "removeButton": "إزالة",
+      "uploadAria": "رفع صورة شعار",
+      "previewAlt": "معاينة الشعار الحالي",
+      "hint": "PNG أو JPEG أو WebP أو SVG. بحد أقصى 2 ميغابايت."
+    }
   },
   "profile": {
     "title": "الملف الشخصي",

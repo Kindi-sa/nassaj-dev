@@ -91,12 +91,37 @@
     "label": "设置",
     "agents": "智能体",
     "appearance": "外观",
+    "branding": "品牌",
     "git": "Git",
     "apiTokens": "API 和令牌",
     "tasks": "任务",
     "notifications": "通知",
     "plugins": "插件",
     "about": "关于"
+  },
+  "brandingSettings": {
+    "ownerOnly": "只有工作区所有者才能更改品牌设置。",
+    "save": "保存",
+    "savedTitle": "标题已保存。",
+    "savedLogo": "徽标已更新。",
+    "removedLogo": "徽标已移除，将显示默认徽标。",
+    "errorGeneric": "出了点问题，请重试。",
+    "errorType": "不支持的文件类型。请使用 PNG、JPEG、WebP 或 SVG。",
+    "errorSize": "图片超过 2MB 大小限制。",
+    "titleSection": {
+      "label": "应用标题",
+      "description": "显示在侧边栏顶部。留空则使用默认值。",
+      "fieldLabel": "标题"
+    },
+    "logoSection": {
+      "label": "徽标",
+      "description": "替换侧边栏顶部显示的默认徽标。",
+      "uploadButton": "上传徽标",
+      "removeButton": "移除",
+      "uploadAria": "上传徽标图片",
+      "previewAlt": "当前徽标预览",
+      "hint": "PNG、JPEG、WebP 或 SVG，最大 2MB。"
+    }
   },
   "notifications": {
     "title": "通知",

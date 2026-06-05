@@ -1,10 +1,177 @@
-import express from 'express';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 
-import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb } from '../modules/database/index.js';
+import express from 'express';
+import multer from 'multer';
+
+import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb, appConfigDb } from '../modules/database/index.js';
+import { requireRole } from '../middleware/auth.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
 
 const router = express.Router();
+
+// ===============================
+// App-wide Branding (custom logo + title)
+// ===============================
+
+// app_config keys used for branding. These live in the app-level key/value store
+// (not per-user) so the customization applies application-wide and survives
+// restarts and deployments.
+const BRANDING_TITLE_KEY = 'branding.title';
+const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
+
+const BRANDING_TITLE_MAX_LENGTH = 60;
+
+// Runtime directory for the uploaded logo. Mirrors the avatars layout: it lives
+// under the user's home dir (NOT inside dist/, which the build overwrites), so the
+// uploaded file persists across `npm run build` and pm2 deploys. The matching
+// static route (/branding/logo.<ext>) is registered in server/index.js.
+const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
+const BRANDING_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
+
+// Allowed image MIME types → canonical extension used on disk and in the URL.
+// The extension is always derived from the validated MIME type, never from the
+// client-supplied filename, which removes path-traversal risk.
+const BRANDING_MIME_TO_EXT = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+};
+
+// In-memory storage so the buffer is validated before any disk write; the
+// on-disk filename is derived from the (trusted) MIME type only.
+const logoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: BRANDING_MAX_BYTES, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (BRANDING_MIME_TO_EXT[file.mimetype]) {
+      return cb(null, true);
+    }
+    cb(null, false);
+  },
+}).single('logo');
+
+// Resolve the public, server-relative URL for the stored logo, or null. We never
+// return the absolute filesystem path to the client.
+function getBrandingLogoUrl() {
+  const ext = appConfigDb.get(BRANDING_LOGO_PATH_KEY);
+  if (!ext || !Object.prototype.hasOwnProperty.call(BRANDING_MIME_TO_EXT, ext)) {
+    return null;
+  }
+  return `/branding/logo.${ext}`;
+}
+
+// Public-ish read: any authenticated user needs this to render the header chrome.
+// (The whole /api/settings router already requires a valid token.)
+router.get('/branding', async (req, res) => {
+  try {
+    const title = appConfigDb.get(BRANDING_TITLE_KEY);
+    res.json({
+      title: title && title.length > 0 ? title : null,
+      logoUrl: getBrandingLogoUrl(),
+    });
+  } catch (error) {
+    console.error('Error fetching branding:', error);
+    res.status(500).json({ error: 'Failed to fetch branding' });
+  }
+});
+
+// Owner-only: update the custom application title. Empty/whitespace clears it
+// (falls back to the default i18n title on the client).
+router.put('/branding', requireRole('owner'), async (req, res) => {
+  try {
+    const raw = typeof req.body?.title === 'string' ? req.body.title : '';
+    // Collapse whitespace and strip control characters before length-checking.
+    const cleaned = raw.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    if (cleaned.length > BRANDING_TITLE_MAX_LENGTH) {
+      return res
+        .status(400)
+        .json({ error: `Title must be at most ${BRANDING_TITLE_MAX_LENGTH} characters` });
+    }
+
+    appConfigDb.set(BRANDING_TITLE_KEY, cleaned);
+
+    res.json({
+      title: cleaned.length > 0 ? cleaned : null,
+      logoUrl: getBrandingLogoUrl(),
+    });
+  } catch (error) {
+    console.error('Error updating branding title:', error);
+    res.status(500).json({ error: 'Failed to update branding title' });
+  }
+});
+
+// Owner-only: upload/replace the custom logo (multipart/form-data, field `logo`).
+router.post('/branding/logo', requireRole('owner'), (req, res) => {
+  logoUpload(req, res, async (uploadError) => {
+    try {
+      if (uploadError) {
+        if (uploadError instanceof multer.MulterError && uploadError.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({ error: 'Image exceeds the 2MB size limit' });
+        }
+        console.error('Branding logo upload error:', uploadError?.message);
+        return res.status(400).json({ error: 'Invalid upload' });
+      }
+
+      const file = req.file;
+      if (!file) {
+        // Missing field or rejected by fileFilter (unsupported type).
+        return res
+          .status(400)
+          .json({ error: 'A valid image file (png, jpeg, webp, svg) is required' });
+      }
+
+      const ext = BRANDING_MIME_TO_EXT[file.mimetype];
+      if (!ext) {
+        return res.status(400).json({ error: 'Unsupported image type' });
+      }
+
+      await fs.promises.mkdir(BRANDING_ROOT, { recursive: true });
+
+      // Remove any logo stored under a different extension so a stale file is not
+      // left shadowing the new one (and not served by the static handler).
+      for (const otherExt of Object.values(BRANDING_MIME_TO_EXT)) {
+        if (otherExt === ext) {
+          continue;
+        }
+        await fs.promises.rm(path.join(BRANDING_ROOT, `logo.${otherExt}`), { force: true });
+      }
+
+      const targetPath = path.join(BRANDING_ROOT, `logo.${ext}`);
+      await fs.promises.writeFile(targetPath, file.buffer);
+
+      // Persist only the extension; the public URL is rebuilt from it on read.
+      appConfigDb.set(BRANDING_LOGO_PATH_KEY, ext);
+
+      res.json({ logoUrl: `/branding/logo.${ext}` });
+    } catch (error) {
+      console.error('Branding logo update error:', error?.message);
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+});
+
+// Owner-only: remove the custom logo, reverting to the default inline SVG.
+router.delete('/branding/logo', requireRole('owner'), async (req, res) => {
+  try {
+    // Remove every possible logo file regardless of which extension is recorded.
+    await fs.promises
+      .mkdir(BRANDING_ROOT, { recursive: true })
+      .catch(() => {});
+    for (const ext of Object.values(BRANDING_MIME_TO_EXT)) {
+      await fs.promises.rm(path.join(BRANDING_ROOT, `logo.${ext}`), { force: true });
+    }
+    appConfigDb.set(BRANDING_LOGO_PATH_KEY, '');
+    res.json({ logoUrl: null });
+  } catch (error) {
+    console.error('Branding logo delete error:', error?.message);
+    res.status(500).json({ error: 'Failed to remove branding logo' });
+  }
+});
 
 // ===============================
 // API Keys Management

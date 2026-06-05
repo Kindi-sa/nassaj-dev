@@ -91,12 +91,37 @@
     "label": "Impostazioni",
     "agents": "Agenti",
     "appearance": "Aspetto",
+    "branding": "Branding",
     "git": "Git",
     "apiTokens": "API e Token",
     "tasks": "Attività",
     "notifications": "Notifiche",
     "plugins": "Plugin",
     "about": "Informazioni"
+  },
+  "brandingSettings": {
+    "ownerOnly": "Solo il proprietario dello spazio di lavoro può modificare il branding.",
+    "save": "Salva",
+    "savedTitle": "Titolo salvato.",
+    "savedLogo": "Logo aggiornato.",
+    "removedLogo": "Logo rimosso. Verrà mostrato il logo predefinito.",
+    "errorGeneric": "Qualcosa è andato storto. Riprova.",
+    "errorType": "Tipo di file non supportato. Usa PNG, JPEG, WebP o SVG.",
+    "errorSize": "L'immagine supera il limite di 2MB.",
+    "titleSection": {
+      "label": "Titolo dell'app",
+      "description": "Mostrato nell'intestazione della barra laterale. Lascia vuoto per il predefinito.",
+      "fieldLabel": "Titolo"
+    },
+    "logoSection": {
+      "label": "Logo",
+      "description": "Sostituisci il logo predefinito mostrato nell'intestazione della barra laterale.",
+      "uploadButton": "Carica logo",
+      "removeButton": "Rimuovi",
+      "uploadAria": "Carica un'immagine del logo",
+      "previewAlt": "Anteprima del logo attuale",
+      "hint": "PNG, JPEG, WebP o SVG. Max 2MB."
+    }
   },
   "notifications": {
     "title": "Notifiche",

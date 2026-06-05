@@ -1,5 +1,37 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Feature: Branding settings tab (custom logo upload + app title) and hide GitHub star count
+
+**الملخص (AR):** أُضيف تبويب إعدادات «العلامة» (Branding) لتخصيص **الشعار والعنوان الرئيسي** على مستوى التطبيق بالكامل (app-wide)، مع إخفاء عدّاد نجوم GitHub مع إبقاء الرابط. التخزين عام في جدول `app_config` (مفاتيح `branding.title` و`branding.logo_path`) عبر `appConfigDb`. **Backend** في `server/routes/settings.js`: `GET /api/settings/branding` (أي مستخدم مصادَق، يُرجِع `{title, logoUrl}`)؛ و`PUT /api/settings/branding` + `POST /api/settings/branding/logo` + `DELETE /api/settings/branding/logo` (جميعها **owner-only** عبر `requireRole('owner')`). رفع الشعار بـmulter في الذاكرة مع حدّ **2MB**، **قائمة بيضاء صارمة** للأنواع (`image/png`,`image/jpeg`,`image/webp`,`image/svg+xml`)، و**اسم ملف ثابت `logo.<ext>` مشتقّ من MIME** (لا من اسم العميل) لمنع path traversal. يُخزَّن الملف في دليل **runtime** خارج `dist/` (`~/.nassaj-users/.branding/logo.<ext>`) فيبقى عبر `npm run build` وعمليات النشر، ويُخدَّم على رابط ثابت `/branding/logo.<ext>` عبر مسار مخصّص في `server/index.js` (نظير مسار الأفاتار)، دون تسريب أي مسار نظام ملفات في الردود. **Frontend**: تبويب `BrandingSettingsTab.tsx` (حقل عنوان + زر حفظ، رفع شعار من الجهاز فقط + معاينة + إزالة/استعادة الافتراضي، حالات loading/error/success، تحقّق الحجم/النوع في الواجهة، RTL وaria)؛ و`BrandingContext` يجلب `GET /branding` عند الإقلاع ويوفّره عالمياً، مُركَّب في `App.tsx`؛ وربط `LogoBlock` في `SidebarHeader.tsx` لعرض الشعار/العنوان المخصّص مع fallback نظيف للـSVG و`app.title`. أُزيل عدّاد النجوم واستدعاء `useGitHubStars` من `GitHubStarBadge.tsx` مع إبقاء رابط المستودع. i18n لكل النصوص الجديدة في `settings.json` لكل اللغات التسع (`mainTabs.branding` + كتلة `brandingSettings`). التبويب مرئي لأدوار owner/admin.
+
+**Feature:**
+- New "Branding" settings tab to customize the **logo and app title**,
+  stored **app-wide** in `app_config` (`branding.title`, `branding.logo_path`).
+- Backend endpoints in `server/routes/settings.js`:
+  - `GET /api/settings/branding` → `{ title, logoUrl }` (any authenticated user;
+    needed to render the header).
+  - `PUT /api/settings/branding` (owner-only): set/clear the custom title
+    (control chars stripped, max 60 chars).
+  - `POST /api/settings/branding/logo` (owner-only): multipart upload, **2MB**
+    limit, strict MIME whitelist (png/jpeg/webp/svg), fixed on-disk filename
+    `logo.<ext>` derived from MIME (never from client input — no path traversal).
+  - `DELETE /api/settings/branding/logo` (owner-only): revert to the default SVG.
+- The uploaded logo is written to a **runtime** directory outside `dist/`
+  (`~/.nassaj-users/.branding/`) so it survives builds/deploys, and is served at
+  the stable URL `/branding/logo.<ext>` via a dedicated route in
+  `server/index.js` (mirrors the avatar serving route). No filesystem paths are
+  leaked in responses.
+- Frontend: `BrandingSettingsTab.tsx` (title field + save; device-only logo
+  upload with preview and remove/restore-default; loading/error/success states;
+  client-side size/type checks; RTL + aria). New `BrandingContext` fetches
+  `GET /branding` on boot and provides `{ title, logoUrl }` app-wide, mounted in
+  `App.tsx`. `LogoBlock` in `SidebarHeader.tsx` now renders the custom logo/title
+  with a clean fallback to the default SVG and `app.title`.
+- `GitHubStarBadge.tsx`: removed the live star count and the `useGitHubStars`
+  network request; kept the clickable repository link.
+- i18n keys added to `settings.json` for all nine languages (`mainTabs.branding`
+  + the `brandingSettings` block). Tab is shown to owner/admin roles.
+
 ## 2026-06-05 — Change: replace participants-bar settings toggle with an inline quick show/hide control
 
 **الملخص (AR):** نُقلت آلية إظهار/إخفاء شريط المشاركين من مفتاح (toggle) في تبويب «المظهر» بالإعدادات إلى زر inline سريع داخل المحادثة، على غرار زرّ طيّ الشريط الجانبي (إخفاء مؤقت سريع). عند ظهور الشريط يُعرض الآن زر شبحي صغير (`EyeOff`) كآخر عنصر في حاوية `SessionParticipantsBar`، مدفوعاً للنهاية بـ`ms-auto` (خاصية منطقية تحترم RTL)، يستدعي `onHide` المُمرَّر كـprop من `ChatInterface` (نمط `onCollapseSidebar`، يُبقي المكوّن نقياً). وعند الإخفاء لا يُركَّب `SessionParticipantsBar` إطلاقاً — لا hook ولا polling — بل يُعرض بدلاً منه مقبض إرجاع دائم: شريط رفيع جداً (`flex justify-end px-3 py-1 border-b`) يحوي زراً صغيراً (`Eye`) لإعادة الإظهار، نظير `SidebarCollapsed`، حتى لا يضيع الشريط بلا وسيلة إرجاع. السياق `ParticipantsBarContext` والتذكّر عبر localStorage (`showParticipantsBar`) بقيا كما هما؛ غُيّر المحفّز فقط. حُذف صفّ الإعدادات (`SettingsRow`/`SettingsToggle`) الخاص بالمشاركين من `AppearanceSettingsTab` مع تنظيف الاستيراد والـhook غير المستخدمين. أُضيفت مفاتيح i18n `participants.hide`/`participants.show` في namespace الدردشة (`chat.json`) لكل اللغات التسع لنصوص الأزرار وaria، دون أي نص hardcoded. مفاتيح الإعدادات `appearanceSettings.participantsBar.*` تُركت دون حذف.

@@ -91,12 +91,37 @@
     "label": "설정",
     "agents": "에이전트",
     "appearance": "외관",
+    "branding": "브랜딩",
     "git": "Git",
     "apiTokens": "API & 토큰",
     "tasks": "작업",
     "notifications": "알림",
     "plugins": "플러그인",
     "about": "정보"
+  },
+  "brandingSettings": {
+    "ownerOnly": "브랜딩은 워크스페이스 소유자만 변경할 수 있습니다.",
+    "save": "저장",
+    "savedTitle": "제목이 저장되었습니다.",
+    "savedLogo": "로고가 업데이트되었습니다.",
+    "removedLogo": "로고가 제거되었습니다. 기본 로고가 표시됩니다.",
+    "errorGeneric": "문제가 발생했습니다. 다시 시도해 주세요.",
+    "errorType": "지원하지 않는 파일 형식입니다. PNG, JPEG, WebP 또는 SVG를 사용하세요.",
+    "errorSize": "이미지가 2MB 크기 제한을 초과합니다.",
+    "titleSection": {
+      "label": "앱 제목",
+      "description": "사이드바 헤더에 표시됩니다. 비워 두면 기본값이 사용됩니다.",
+      "fieldLabel": "제목"
+    },
+    "logoSection": {
+      "label": "로고",
+      "description": "사이드바 헤더에 표시되는 기본 로고를 교체합니다.",
+      "uploadButton": "로고 업로드",
+      "removeButton": "제거",
+      "uploadAria": "로고 이미지 업로드",
+      "previewAlt": "현재 로고 미리보기",
+      "hint": "PNG, JPEG, WebP 또는 SVG. 최대 2MB."
+    }
   },
   "notifications": {
     "title": "알림",

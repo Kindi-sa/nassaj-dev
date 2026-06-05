@@ -293,6 +293,37 @@ app.get('/avatars/:userId.:ext', (req, res) => {
     });
 });
 
+// App-wide custom branding logo. Stored under ~/.nassaj-users/.branding/logo.<ext>
+// (a runtime directory that survives deployments — never inside dist/, which the
+// build overwrites). Served at /branding/logo.<ext>. The :ext segment must be one
+// of the allowed image extensions; the served path is rebuilt from that validated
+// part only, so no portion of the request URL is interpolated into a filesystem
+// path (no traversal). The on-disk filename is always logo.<ext> derived from the
+// uploaded file's MIME type, never from any client-supplied name.
+const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
+const BRANDING_EXT_TO_MIME = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+};
+app.get('/branding/logo.:ext', (req, res) => {
+    const { ext } = req.params;
+    if (!Object.prototype.hasOwnProperty.call(BRANDING_EXT_TO_MIME, ext)) {
+        return res.status(404).end();
+    }
+    const filePath = path.join(BRANDING_ROOT, `logo.${ext}`);
+    res.type(BRANDING_EXT_TO_MIME[ext]);
+    // The logo is public-facing chrome shown to every authenticated user; a short
+    // cache keeps the header snappy while still picking up changes within a minute.
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.sendFile(filePath, (err) => {
+        if (err && !res.headersSent) {
+            res.status(404).end();
+        }
+    });
+});
+
 // Serve public files (like api-docs.html)
 app.use(express.static(path.join(APP_ROOT, 'public')));
 

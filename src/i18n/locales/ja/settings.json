@@ -91,12 +91,37 @@
     "label": "設定",
     "agents": "エージェント",
     "appearance": "外観",
+    "branding": "ブランディング",
     "git": "Git",
     "apiTokens": "API & トークン",
     "tasks": "タスク",
     "notifications": "通知",
     "plugins": "プラグイン",
     "about": "概要"
+  },
+  "brandingSettings": {
+    "ownerOnly": "ブランディングを変更できるのはワークスペースのオーナーのみです。",
+    "save": "保存",
+    "savedTitle": "タイトルを保存しました。",
+    "savedLogo": "ロゴを更新しました。",
+    "removedLogo": "ロゴを削除しました。デフォルトのロゴが表示されます。",
+    "errorGeneric": "問題が発生しました。もう一度お試しください。",
+    "errorType": "サポートされていないファイル形式です。PNG、JPEG、WebP、SVG を使用してください。",
+    "errorSize": "画像が 2MB のサイズ制限を超えています。",
+    "titleSection": {
+      "label": "アプリのタイトル",
+      "description": "サイドバーのヘッダーに表示されます。空欄でデフォルトを使用します。",
+      "fieldLabel": "タイトル"
+    },
+    "logoSection": {
+      "label": "ロゴ",
+      "description": "サイドバーのヘッダーに表示されるデフォルトのロゴを置き換えます。",
+      "uploadButton": "ロゴをアップロード",
+      "removeButton": "削除",
+      "uploadAria": "ロゴ画像をアップロード",
+      "previewAlt": "現在のロゴのプレビュー",
+      "hint": "PNG、JPEG、WebP、SVG。最大 2MB。"
+    }
   },
   "notifications": {
     "title": "通知",
