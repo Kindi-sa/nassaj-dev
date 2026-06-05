@@ -1,5 +1,24 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Fix: cache-bust branding logo URL so new uploads appear immediately
+
+**الملخص (AR):** كان الشعار يُخدَّم على رابط ثابت `/branding/logo.<ext>` (نفس URL عند الاستبدال) مع `Cache-Control: max-age=60`، فتظل الصورة القديمة من كاش المتصفّح/Service Worker بعد رفع شعار جديد. الإصلاح: تخزين **نسخة** في `app_config` تحت `branding.logo_version` = `Date.now()` تُحدَّث عند كل **رفع ناجح** (`POST /api/settings/branding/logo`) وعند **الحذف** (`DELETE`). تُلحِق `getBrandingLogoUrl` معامل استعلام `?v=<version>`، فيصبح الرابط `/branding/logo.<ext>?v=<version>` — رابط جديد مع كل تحديث = تجاوز للكاش. معامل الاستعلام لا يؤثر على مطابقة المسار `/branding/logo.:ext` (يطابق المسار فقط) فتبقى الخدمة والحراسة (تطابق ext + nosniff + CSP) سليمة. خُفّض رأس التخزين إلى `public, max-age=60, must-revalidate` (دفاع طبقي). الواجهة (`BrandingSettingsTab`) تستدعي `refresh()` أصلاً بعد الرفع/الحذف، فيصل `logoUrl` الجديد (بـ`?v` الجديد) إلى المعاينة وإلى `SidebarHeader` فوراً دون إعادة تحميل. `GET /branding` يُرجِع الآن `logoUrl` متضمّناً `?v`. السلوك الافتراضي (لا شعار → SVG داخلي) بلا تغيير. اختباران مُضافان في `branding-logo.test.ts`: الرفع يُرجِع `?v=<digits>`، ورفعتان متتاليتان تُنتجان رابطين مختلفين.
+
+**Summary (EN):**
+- The logo was served at a stable `/branding/logo.<ext>` URL (unchanged on
+  replace) with `Cache-Control: max-age=60`, so a freshly uploaded logo stayed
+  hidden behind the cached copy.
+- Store a `branding.logo_version` (`Date.now()`) in `app_config`, bumped on every
+  successful upload and on delete. `getBrandingLogoUrl` now appends `?v=<version>`
+  → `/branding/logo.<ext>?v=<version>`; each upload yields a new URL → cache miss
+  in browser + Service Worker. The query param does not affect the
+  `/branding/logo.:ext` route match, so serving + ext-match + nosniff + CSP are
+  unchanged. Cache header relaxed to `public, max-age=60, must-revalidate`.
+- `GET /branding` returns the versioned `logoUrl`. `BrandingSettingsTab` already
+  calls `refresh()` after upload/delete, so the new URL reaches both the in-tab
+  preview and `SidebarHeader` without a page reload. Default (no logo → inline
+  SVG) behavior unchanged. Two new tests in `branding-logo.test.ts`.
+
 ## 2026-06-05 — Change: hide GitHub badge; allow sanitized SVG logo upload
 
 **الملخص (AR):** (أ) **إخفاء شارة GitHub كاملةً** (النجوم والرابط معاً) من ترويسة الشريط الجانبي بإزالة `<GitHubStarBadge />` واستيراده من `SidebarHeader.tsx` (سطح المكتب؛ لم تكن معروضة في الجوال). (ب) **إعادة دعم رفع شعار SVG بأمان** دون إعادة فتح ثغرة stored-XSS: (1) كشف SVG **بالمحتوى** لا بتوقيع ثابت — `detectImageExt` يتعرّف على `'svg'` فقط حين يكون جذر المستند الفعلي عنصر `<svg>` (بعد تجاوز BOM/مسافات/`<?xml?>`/تعليقات/`<!DOCTYPE>`)، فلا يكفي مجرد احتواء السلسلة. (2) **تعقيم خادمي إلزامي** عبر **DOMPurify** موصولاً ببيئة DOM من **jsdom** (تبعية مُضافة) بملف `server/services/svg-sanitizer.js`، بإعداد `USE_PROFILES:{svg,svgFilters}` و`FORBID_TAGS`/`FORBID_ATTR` تشمل `script`/`foreignObject`/`use`/`style` ومعالجات `on*` — والمكتوب على القرص هو **النسخة المعقّمة فقط** لا الأصل، فتُزال `<script>`/`onload`/`javascript:`/مراجع `<use>` الخارجية وحقن CSS (`expression`/`url(javascript:)`). (3) **رؤوس تصلّب عند الخدمة** على `/branding/logo.:ext`: `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:` بالإضافة إلى `X-Content-Type-Options: nosniff` (دفاع طبقي). أُعيد `image/svg+xml`→`svg` للقوائم البيضاء في `settings.js`/`server/index.js` والواجهة (`ACCEPTED_MIME`/`accept`). اختبارات `branding-logo.test.ts` مُحدَّثة: SVG نظيف→200 ويُخزَّن، SVG خبيث (`<script>`+`onload`)→200 لكن المخرَّن مُعقَّم (لا script/`on*`/`javascript:`)، محتوى مزوّر بنوع svg→400، مع إبقاء PNG مزوّر→400 وتجاوز 2MB→413.

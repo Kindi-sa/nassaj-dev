@@ -340,9 +340,13 @@ app.get('/branding/logo.:ext', (req, res) => {
         'Content-Security-Policy',
         "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:"
     );
-    // The logo is public-facing chrome shown to every authenticated user; a short
-    // cache keeps the header snappy while still picking up changes within a minute.
-    res.setHeader('Cache-Control', 'public, max-age=60');
+    // The logo is public-facing chrome shown to every authenticated user. Each
+    // upload changes the URL (getBrandingLogoUrl appends a ?v=<version> token),
+    // so a replaced logo is always a fresh URL and never hits a cached copy.
+    // We still keep a short cache for snappiness, but require revalidation once
+    // it goes stale (defense in depth: even a URL without ?v re-checks within a
+    // minute instead of serving a possibly-stale entry from cache).
+    res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
     res.sendFile(filePath, (err) => {
         if (err && !res.headersSent) {
             res.status(404).end();

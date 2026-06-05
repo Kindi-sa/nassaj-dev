@@ -22,6 +22,12 @@ const router = express.Router();
 // restarts and deployments.
 const BRANDING_TITLE_KEY = 'branding.title';
 const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
+// Opaque cache-busting token bumped on every logo upload/delete. It is appended
+// to the public logo URL as `?v=<version>` so a replaced logo (which keeps the
+// same `/branding/logo.<ext>` path) yields a brand-new URL — guaranteeing a
+// cache miss in both the browser HTTP cache and the Service Worker, so the new
+// image appears immediately instead of the stale cached one.
+const BRANDING_LOGO_VERSION_KEY = 'branding.logo_version';
 
 const BRANDING_TITLE_MAX_LENGTH = 60;
 
@@ -133,7 +139,12 @@ function getBrandingLogoUrl() {
   if (!ext || !BRANDING_ALLOWED_EXTS.has(ext)) {
     return null;
   }
-  return `/branding/logo.${ext}`;
+  // Append the cache-busting version. A `?v` query param does not affect the
+  // static route match (/branding/logo.:ext matches the path only), so the file
+  // is still served correctly, but every upload changes the URL and defeats any
+  // cached copy of the previous logo.
+  const version = appConfigDb.get(BRANDING_LOGO_VERSION_KEY);
+  return version ? `/branding/logo.${ext}?v=${version}` : `/branding/logo.${ext}`;
 }
 
 // Public-ish read: any authenticated user needs this to render the header chrome.
@@ -237,8 +248,11 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
 
       // Persist only the extension; the public URL is rebuilt from it on read.
       appConfigDb.set(BRANDING_LOGO_PATH_KEY, ext);
+      // Bump the cache-busting version so the rebuilt URL (?v=...) differs from
+      // the previous one and forces every client to fetch the new bytes.
+      appConfigDb.set(BRANDING_LOGO_VERSION_KEY, String(Date.now()));
 
-      res.json({ logoUrl: `/branding/logo.${ext}` });
+      res.json({ logoUrl: getBrandingLogoUrl() });
     } catch (error) {
       console.error('Branding logo update error:', error?.message);
       res.status(500).json({ error: 'Internal server error' });
@@ -257,6 +271,10 @@ router.delete('/branding/logo', requireRole('owner'), async (req, res) => {
       await fs.promises.rm(path.join(BRANDING_ROOT, `logo.${ext}`), { force: true });
     }
     appConfigDb.set(BRANDING_LOGO_PATH_KEY, '');
+    // Bump the version on delete too: a subsequent re-upload of an image that
+    // happens to share the previous extension will then carry a fresh ?v, and
+    // any cached copy is logically invalidated.
+    appConfigDb.set(BRANDING_LOGO_VERSION_KEY, String(Date.now()));
     res.json({ logoUrl: null });
   } catch (error) {
     console.error('Branding logo delete error:', error?.message);

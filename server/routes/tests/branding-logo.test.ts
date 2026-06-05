@@ -289,6 +289,48 @@ test('POST branding/logo sanitizes a hostile SVG before storing it (no script / 
   }
 });
 
+// Cache-busting regression guard: a successful upload must return a logoUrl that
+// carries a `?v=<version>` token. This is what makes a replaced logo (same
+// /branding/logo.<ext> path) resolve to a brand-new URL and bypass the browser /
+// Service Worker cache so the new image shows up immediately.
+test('POST branding/logo returns a logoUrl with a ?v cache-busting token', async () => {
+  const srv = await buildServer();
+  try {
+    fs.rmSync(path.join(BRANDING_DIR, 'logo.svg'), { force: true });
+    const { status, body } = await srv.uploadLogo('logo.svg', 'image/svg+xml', CLEAN_SVG);
+    assert.equal(status, 200);
+    assert.equal(
+      typeof body.logoUrl === 'string' && /^\/branding\/logo\.svg\?v=\d+$/.test(body.logoUrl),
+      true,
+      `logoUrl must be /branding/logo.svg?v=<digits>, got: ${String(body.logoUrl)}`
+    );
+  } finally {
+    await srv.close();
+  }
+});
+
+// A second upload must produce a DIFFERENT version token than the first, so the
+// URL actually changes and the old cached logo can never be reused.
+test('POST branding/logo bumps the ?v token on each upload', async () => {
+  const srv = await buildServer();
+  try {
+    fs.rmSync(path.join(BRANDING_DIR, 'logo.svg'), { force: true });
+    const first = await srv.uploadLogo('logo.svg', 'image/svg+xml', CLEAN_SVG);
+    // Ensure the wall clock advances so Date.now() differs between uploads.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const second = await srv.uploadLogo('logo.svg', 'image/svg+xml', CLEAN_SVG);
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 200);
+    assert.notEqual(
+      first.body.logoUrl,
+      second.body.logoUrl,
+      'each upload must yield a fresh versioned URL'
+    );
+  } finally {
+    await srv.close();
+  }
+});
+
 test('POST branding/logo rejects non-SVG content with a forged image/svg+xml type (400)', async () => {
   const srv = await buildServer();
   try {
