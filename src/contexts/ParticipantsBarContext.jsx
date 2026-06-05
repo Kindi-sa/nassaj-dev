@@ -1,5 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+/**
+ * @typedef {Object} ParticipantsBarContextValue
+ * @property {boolean} showParticipantsBar
+ * @property {(next: boolean) => void} setShowParticipantsBar
+ * @property {() => void} toggleParticipantsBar
+ */
+
+/** @type {import('react').Context<ParticipantsBarContextValue | null>} */
 const ParticipantsBarContext = createContext(null);
 
 const STORAGE_KEY = 'showParticipantsBar';
