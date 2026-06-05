@@ -1,5 +1,25 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Fix: bump service-worker cache to force clients to load new builds
+
+**الملخص (AR):** كانت تحديثات الواجهة لا تظهر لبعض المستخدمين بعد النشر لأن نُسخ Service Worker قديمة في متصفّحاتهم كانت تحتفظ بكاش الأصول تحت اسم الكاش نفسه (`claude-ui-v2`) وتقدّمه بدل البناء الجديد. الإصلاح الجذري: ترقية اسم الكاش في ملف المصدر `public/sw.js` من `claude-ui-v2` إلى `claude-ui-v3`، ما يجعل حدث `activate` (الذي يحذف كل كاش لا يطابق `CACHE_NAME` الحالي) يُخلي الكاش القديم تلقائياً عند تفعيل الـSW الجديد. للتفعيل الفوري دون انتظار إغلاق كل التبويبات، الـSW يستخدم `self.skipWaiting()` في `install` و`self.clients.claim()` في `activate` (كلاهما كان موجوداً مسبقاً)، فتسري الترقية فوراً. لم نمسّ منطق الـfetch/التخزين (network-first للـHTML، cache-first للأصول المُجزّأة تحت `/assets/`) — التغيير اقتصر على اسم الكاش لإجبار إخلاء الكاش القديم.
+
+**Fix:**
+- Stale Service Worker instances in users' browsers kept serving cached assets
+  under the same cache name (`claude-ui-v2`), hiding UI updates after deploy.
+- Bumped `CACHE_NAME` in the source file `public/sw.js` from `claude-ui-v2` to
+  `claude-ui-v3`. The existing `activate` handler deletes every cache whose name
+  does not match the current `CACHE_NAME`, so the stale cache is now evicted
+  automatically when the new SW activates.
+- The SW already calls `self.skipWaiting()` (in `install`) and
+  `self.clients.claim()` (in `activate`), so the new worker takes control
+  immediately without waiting for all tabs to close — future bumps apply at once.
+- No change to fetch/caching logic (network-first HTML, cache-first hashed
+  `/assets/`); only the cache name changed to force eviction.
+
+**Files Changed:**
+- `public/sw.js`
+
 ## 2026-06-05 — Feature: toggle to show/hide the session participants bar + decouple it from multi-user
 
 **الملخص (AR):** أضفنا تفضيل واجهة "إظهار شريط المشاركين" (Show participants bar) في تبويب المظهر (Appearance) بجوار مفتاح RTL تماماً، يتبع نفس نمطه: context موحّد (`ParticipantsBarProvider` + `useParticipantsBar`) يقرأ/يكتب القيمة في `localStorage` (مفتاح `showParticipantsBar`)، والافتراضي **ظاهر (on)** حتى لا يتغيّر سلوك المستخدمين الحاليين. في `ChatInterface` صار الشريط ملفوفاً بشرط `{showParticipantsBar && <SessionParticipantsBar/>}` يلفّ المكوّن نفسه — فعند الإخفاء لا يُركَّب المكوّن إطلاقاً، وبالتالي لا يُستدعى الـhook ولا الـpolling (كل 10 ثوانٍ) ولا أي طلب شبكي. أُضيفت مفاتيح الترجمة `appearanceSettings.participantsBar` لكل اللغات التسع، مع `aria-label` على المفتاح. كذلك فككنا ارتباط الشريط الخفيف عن الهوية الملغاة (multi-user): جوهر الشريط هو صف الوكلاء/الأدوار (model + subagents) المستخرج من الترانسكريبت وهو مستقل تماماً عن الهوية، ويُعرض طالما `agents.length > 0` وحده؛ أما كتلة المستخدمين البشر (كوم الصور + الأسماء) فأصبحت طبقة إضافية اختيارية تتدهور بأمان لمستخدم واحد أو لا شيء عند خواء قائمة participants، ولا تَحجُب الشريط وحدها. لم نلمس الخادم ولا schema قاعدة البيانات ولا الـAPI (جداول `session_participants` باقية كما هي) — تعديل واجهة فقط.
