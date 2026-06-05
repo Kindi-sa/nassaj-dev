@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { EyeOff } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
+import { Button } from '../../shared/view/ui';
 
 import AgentChipRow from './AgentChipRow';
 import ParticipantAvatar from './ParticipantAvatar';
@@ -12,6 +14,8 @@ import { isOwnerRole } from './utils';
 type SessionParticipantsBarProps = {
   sessionId: string | null | undefined;
   className?: string;
+  /** Quick-hide the bar (inline control), mirroring the sidebar collapse pattern. */
+  onHide?: () => void;
 };
 
 /** Owner-first, then by recency — same contract as the avatar stack. */
@@ -34,7 +38,11 @@ function orderForNames<T extends { role: string; last_seen: string }>(items: T[]
  * safely to nothing when the identity layer returns no participants — it
  * never gates the bar on its own.
  */
-export default function SessionParticipantsBar({ sessionId, className }: SessionParticipantsBarProps) {
+export default function SessionParticipantsBar({
+  sessionId,
+  className,
+  onHide,
+}: SessionParticipantsBarProps) {
   const { t, i18n } = useTranslation('chat');
   const locale = i18n.language;
   const { status, participants, agents, load } = useSessionParticipants(sessionId);
@@ -121,6 +129,19 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
       )}
 
       {hasAgents && <AgentChipRow agents={agents} max={5} t={t} />}
+
+      {onHide && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ms-auto h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+          onClick={onHide}
+          aria-label={t('participants.hide', { defaultValue: 'Hide participants bar' })}
+          title={t('participants.hide', { defaultValue: 'Hide participants bar' })}
+        >
+          <EyeOff className="h-3.5 w-3.5" />
+        </Button>
+      )}
     </div>
   );
 }

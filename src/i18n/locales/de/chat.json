@@ -271,5 +271,9 @@
   },
   "tasks": {
     "nextTaskPrompt": "Nächste Aufgabe starten"
+  },
+  "participants": {
+    "hide": "Teilnehmerleiste ausblenden",
+    "show": "Teilnehmerleiste anzeigen"
   }
 }

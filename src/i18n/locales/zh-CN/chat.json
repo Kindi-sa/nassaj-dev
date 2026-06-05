@@ -253,5 +253,9 @@
   },
   "tasks": {
     "nextTaskPrompt": "开始下一个任务"
+  },
+  "participants": {
+    "hide": "隐藏参与者栏",
+    "show": "显示参与者栏"
   }
 }

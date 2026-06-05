@@ -271,5 +271,9 @@
   },
   "tasks": {
     "nextTaskPrompt": "Sonraki görevi başlat"
+  },
+  "participants": {
+    "hide": "Katılımcı çubuğunu gizle",
+    "show": "Katılımcı çubuğunu göster"
   }
 }

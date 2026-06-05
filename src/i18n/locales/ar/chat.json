@@ -303,6 +303,8 @@
     "nextTaskPrompt": "ابدأ المهمة التالية"
   },
   "participants": {
+    "hide": "إخفاء شريط المشاركين",
+    "show": "إظهار شريط المشاركين",
     "lastSeen": "آخر ظهور",
     "invocations_one": "استدعاء واحد",
     "invocations_two": "استدعاءان",

@@ -271,5 +271,9 @@
   },
   "tasks": {
     "nextTaskPrompt": "Inizia l'attività successiva"
+  },
+  "participants": {
+    "hide": "Nascondi barra partecipanti",
+    "show": "Mostra barra partecipanti"
   }
 }

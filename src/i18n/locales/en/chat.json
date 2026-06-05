@@ -305,6 +305,8 @@
     "nextTaskPrompt": "Start the next task"
   },
   "participants": {
+    "hide": "Hide participants bar",
+    "show": "Show participants bar",
     "lastSeen": "Last seen",
     "invocations_one": "{{count}} invocation",
     "invocations_other": "{{count}} invocations",

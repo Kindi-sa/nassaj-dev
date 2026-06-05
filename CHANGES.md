@@ -1,5 +1,31 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Change: replace participants-bar settings toggle with an inline quick show/hide control
+
+**الملخص (AR):** نُقلت آلية إظهار/إخفاء شريط المشاركين من مفتاح (toggle) في تبويب «المظهر» بالإعدادات إلى زر inline سريع داخل المحادثة، على غرار زرّ طيّ الشريط الجانبي (إخفاء مؤقت سريع). عند ظهور الشريط يُعرض الآن زر شبحي صغير (`EyeOff`) كآخر عنصر في حاوية `SessionParticipantsBar`، مدفوعاً للنهاية بـ`ms-auto` (خاصية منطقية تحترم RTL)، يستدعي `onHide` المُمرَّر كـprop من `ChatInterface` (نمط `onCollapseSidebar`، يُبقي المكوّن نقياً). وعند الإخفاء لا يُركَّب `SessionParticipantsBar` إطلاقاً — لا hook ولا polling — بل يُعرض بدلاً منه مقبض إرجاع دائم: شريط رفيع جداً (`flex justify-end px-3 py-1 border-b`) يحوي زراً صغيراً (`Eye`) لإعادة الإظهار، نظير `SidebarCollapsed`، حتى لا يضيع الشريط بلا وسيلة إرجاع. السياق `ParticipantsBarContext` والتذكّر عبر localStorage (`showParticipantsBar`) بقيا كما هما؛ غُيّر المحفّز فقط. حُذف صفّ الإعدادات (`SettingsRow`/`SettingsToggle`) الخاص بالمشاركين من `AppearanceSettingsTab` مع تنظيف الاستيراد والـhook غير المستخدمين. أُضيفت مفاتيح i18n `participants.hide`/`participants.show` في namespace الدردشة (`chat.json`) لكل اللغات التسع لنصوص الأزرار وaria، دون أي نص hardcoded. مفاتيح الإعدادات `appearanceSettings.participantsBar.*` تُركت دون حذف.
+
+**Change:**
+- Moved the participants-bar visibility control out of the Appearance settings
+  tab (a `SettingsToggle`) into an inline quick show/hide control inside the
+  conversation, mirroring the sidebar-collapse UX (fast temporary hide).
+- Hide: a small ghost `EyeOff` button is rendered as the last element of the
+  `SessionParticipantsBar` container, pushed to the end with `ms-auto` (RTL-safe
+  logical property). It calls `onHide`, passed as a prop from `ChatInterface`
+  (the `onCollapseSidebar` pattern — the bar component stays pure).
+- Show: when hidden, `SessionParticipantsBar` is no longer mounted at all (no
+  hook, no polling). Instead a persistent restore handle is shown — a very thin
+  strip (`flex justify-end px-3 py-1 border-b`) with a small `Eye` button that
+  restores the bar, the analogue of `SidebarCollapsed`, so the bar can never be
+  lost without a way back.
+- `ParticipantsBarContext` and its localStorage persistence (`showParticipantsBar`)
+  are unchanged; only the trigger moved.
+- Removed the participants `SettingsRow`/`SettingsToggle` from
+  `AppearanceSettingsTab` and cleaned up the now-unused import and hook.
+- Added i18n keys `participants.hide` / `participants.show` to the chat namespace
+  (`chat.json`) for all nine languages for the button labels/aria. No hardcoded
+  text. The dormant `settings:appearanceSettings.participantsBar.*` keys are left
+  in place (not deleted).
+
 ## 2026-06-05 — Fix: bump service-worker cache to force clients to load new builds
 
 **الملخص (AR):** كانت تحديثات الواجهة لا تظهر لبعض المستخدمين بعد النشر لأن نُسخ Service Worker قديمة في متصفّحاتهم كانت تحتفظ بكاش الأصول تحت اسم الكاش نفسه (`claude-ui-v2`) وتقدّمه بدل البناء الجديد. الإصلاح الجذري: ترقية اسم الكاش في ملف المصدر `public/sw.js` من `claude-ui-v2` إلى `claude-ui-v3`، ما يجعل حدث `activate` (الذي يحذف كل كاش لا يطابق `CACHE_NAME` الحالي) يُخلي الكاش القديم تلقائياً عند تفعيل الـSW الجديد. للتفعيل الفوري دون انتظار إغلاق كل التبويبات، الـSW يستخدم `self.skipWaiting()` في `install` و`self.clients.claim()` في `activate` (كلاهما كان موجوداً مسبقاً)، فتسري الترقية فوراً. لم نمسّ منطق الـfetch/التخزين (network-first للـHTML، cache-first للأصول المُجزّأة تحت `/assets/`) — التغيير اقتصر على اسم الكاش لإجبار إخلاء الكاش القديم.

@@ -253,5 +253,9 @@
   },
   "tasks": {
     "nextTaskPrompt": "다음 작업 시작"
+  },
+  "participants": {
+    "hide": "참가자 표시줄 숨기기",
+    "show": "참가자 표시줄 보기"
   }
 }
