@@ -1,5 +1,26 @@
 # nassaj-dev — Change Log
 
+## 2026-06-05 — Security: Harden branding logo upload (post-review fixes)
+
+**الملخص (AR):** تحصين أمني لميزة العلامة بعد مراجعة (فيتو). (1) **إزالة دعم SVG نهائياً** من الخادم (`BRANDING_MIME_TO_EXT`/`BRANDING_EXT_TO_MIME`) والواجهة (`ACCEPTED_MIME`) — يقتل ثغرة stored-XSS عبر SVG؛ صار المقبول `png`/`jpeg`/`webp` فقط. (2) **تحقّق نوع الصورة عبر البايتات الفعلية (magic bytes)** لا عبر `Content-Type` العميل: دالة `detectImageExt` تفحص توقيع PNG (`89 50 4E 47 0D 0A 1A 0A`) وJPEG (`FF D8 FF`) وWEBP (`RIFF…WEBP`)، والامتداد على القرص يُشتق من النوع المكتشَف؛ أي تزوير → 400 (فحص يدوي، بلا تبعية جديدة). (3) **توحيد التفويض على owner فقط** في الواجهة (`SettingsSidebar.tsx`, `Settings.tsx`) ليطابق الخادم (كان يُظهر التبويب لـadmin فيفشل). (4) **`X-Content-Type-Options: nosniff`** على مسارَي خدمة `/branding/logo.:ext` و`/avatars/:userId.:ext`. (5) **منع خدمة الملفات اليتيمة**: مسار الشعار الساكن يطابق `ext` المطلوب مع المخزَّن في `app_config` قبل `sendFile`، وإلا 404. كما صُحّح خطأ منطقي سابق في `getBrandingLogoUrl` (كان يقارن الامتداد بمفاتيح MIME فيُرجِع null دائماً). اختبارات `node:test` جديدة في `server/routes/tests/branding-logo.test.ts` (فحص التواقيع كوحدة + رفض PNG مزوّر/SVG/تجاوز 2MB عبر المسار).
+
+**Security (review fixes):**
+- Dropped SVG support entirely (server MIME maps + client `ACCEPTED_MIME`),
+  closing the stored-XSS vector. Only `png`/`jpeg`/`webp` are accepted.
+- Image type is now validated by **magic bytes** (`detectImageExt`), never the
+  client-supplied `Content-Type`; the on-disk extension is derived from the
+  detected signature. Mismatch → 400. Manual signature check, no new dependency.
+- Branding settings tab is now **owner-only** in the UI to match the owner-only
+  server endpoints (admins no longer see a tab whose actions fail).
+- Added `X-Content-Type-Options: nosniff` to the `/branding/logo.:ext` and
+  `/avatars/:userId.:ext` serving routes.
+- The static logo route now serves a file only if its `ext` matches the active
+  `branding.logo_path` in `app_config`; orphaned files are never served (404).
+- Fixed a pre-existing logic bug in `getBrandingLogoUrl` (compared an extension
+  against a MIME-keyed map, so the logo URL never resolved).
+- Tests: `server/routes/tests/branding-logo.test.ts` (magic-byte unit checks +
+  end-to-end rejection of spoofed PNG / SVG / >2MB upload).
+
 ## 2026-06-05 — Feature: Branding settings tab (custom logo upload + app title) and hide GitHub star count
 
 **الملخص (AR):** أُضيف تبويب إعدادات «العلامة» (Branding) لتخصيص **الشعار والعنوان الرئيسي** على مستوى التطبيق بالكامل (app-wide)، مع إخفاء عدّاد نجوم GitHub مع إبقاء الرابط. التخزين عام في جدول `app_config` (مفاتيح `branding.title` و`branding.logo_path`) عبر `appConfigDb`. **Backend** في `server/routes/settings.js`: `GET /api/settings/branding` (أي مستخدم مصادَق، يُرجِع `{title, logoUrl}`)؛ و`PUT /api/settings/branding` + `POST /api/settings/branding/logo` + `DELETE /api/settings/branding/logo` (جميعها **owner-only** عبر `requireRole('owner')`). رفع الشعار بـmulter في الذاكرة مع حدّ **2MB**، **قائمة بيضاء صارمة** للأنواع (`image/png`,`image/jpeg`,`image/webp`,`image/svg+xml`)، و**اسم ملف ثابت `logo.<ext>` مشتقّ من MIME** (لا من اسم العميل) لمنع path traversal. يُخزَّن الملف في دليل **runtime** خارج `dist/` (`~/.nassaj-users/.branding/logo.<ext>`) فيبقى عبر `npm run build` وعمليات النشر، ويُخدَّم على رابط ثابت `/branding/logo.<ext>` عبر مسار مخصّص في `server/index.js` (نظير مسار الأفاتار)، دون تسريب أي مسار نظام ملفات في الردود. **Frontend**: تبويب `BrandingSettingsTab.tsx` (حقل عنوان + زر حفظ، رفع شعار من الجهاز فقط + معاينة + إزالة/استعادة الافتراضي، حالات loading/error/success، تحقّق الحجم/النوع في الواجهة، RTL وaria)؛ و`BrandingContext` يجلب `GET /branding` عند الإقلاع ويوفّره عالمياً، مُركَّب في `App.tsx`؛ وربط `LogoBlock` في `SidebarHeader.tsx` لعرض الشعار/العنوان المخصّص مع fallback نظيف للـSVG و`app.title`. أُزيل عدّاد النجوم واستدعاء `useGitHubStars` من `GitHubStarBadge.tsx` مع إبقاء رابط المستودع. i18n لكل النصوص الجديدة في `settings.json` لكل اللغات التسع (`mainTabs.branding` + كتلة `brandingSettings`). التبويب مرئي لأدوار owner/admin.

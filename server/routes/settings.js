@@ -32,17 +32,67 @@ const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
 const BRANDING_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
 
 // Allowed image MIME types → canonical extension used on disk and in the URL.
-// The extension is always derived from the validated MIME type, never from the
-// client-supplied filename, which removes path-traversal risk.
+// SVG is intentionally excluded: it is an XML document that can carry inline
+// scripts/event handlers (stored-XSS vector when served same-origin), and it
+// cannot be validated by a fixed binary signature. Only raster formats with a
+// stable magic-byte prefix are accepted.
+//
+// The extension is ALWAYS derived from the magic bytes of the file content
+// (see detectImageExt) — never from file.mimetype (client-controlled) nor the
+// client-supplied filename — which removes both the spoofing and the
+// path-traversal risk.
 const BRANDING_MIME_TO_EXT = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
-  'image/svg+xml': 'svg',
 };
 
+// Inspect the real leading bytes of the buffer and return the canonical
+// extension for the detected format, or null if it matches no allowed
+// signature. This is the single source of truth for "what kind of image is
+// this" — the client-declared Content-Type is never trusted.
+export function detectImageExt(buffer) {
+  if (!buffer || buffer.length < 12) {
+    return null;
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return 'png';
+  }
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'jpg';
+  }
+  // WEBP: "RIFF" (52 49 46 46) at 0..3 and "WEBP" (57 45 42 50) at 8..11.
+  if (
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return 'webp';
+  }
+  return null;
+}
+
 // In-memory storage so the buffer is validated before any disk write; the
-// on-disk filename is derived from the (trusted) MIME type only.
+// on-disk filename is derived from the detected magic bytes only. We deliberately
+// keep the multer fileFilter lenient (the real check is detectImageExt after the
+// full buffer is available) but still bound the candidate set by declared type to
+// reject obvious non-images early without reading them.
 const logoUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: BRANDING_MAX_BYTES, files: 1 },
@@ -54,11 +104,17 @@ const logoUpload = multer({
   },
 }).single('logo');
 
+// Canonical set of extensions that may appear on disk / in app_config. Derived
+// from the MIME whitelist so the two can never drift apart.
+const BRANDING_ALLOWED_EXTS = new Set(Object.values(BRANDING_MIME_TO_EXT));
+
 // Resolve the public, server-relative URL for the stored logo, or null. We never
-// return the absolute filesystem path to the client.
+// return the absolute filesystem path to the client. The stored value is an
+// EXTENSION (e.g. "png"), so it is validated against the allowed-extension set —
+// not the MIME-keyed map.
 function getBrandingLogoUrl() {
   const ext = appConfigDb.get(BRANDING_LOGO_PATH_KEY);
-  if (!ext || !Object.prototype.hasOwnProperty.call(BRANDING_MIME_TO_EXT, ext)) {
+  if (!ext || !BRANDING_ALLOWED_EXTS.has(ext)) {
     return null;
   }
   return `/branding/logo.${ext}`;
@@ -119,13 +175,17 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
 
       const file = req.file;
       if (!file) {
-        // Missing field or rejected by fileFilter (unsupported type).
+        // Missing field or rejected by fileFilter (unsupported declared type).
         return res
           .status(400)
-          .json({ error: 'A valid image file (png, jpeg, webp, svg) is required' });
+          .json({ error: 'A valid image file (png, jpeg, webp) is required' });
       }
 
-      const ext = BRANDING_MIME_TO_EXT[file.mimetype];
+      // Authoritative type check: derive the extension from the actual file
+      // content (magic bytes), NOT from file.mimetype. A request that claims
+      // image/png but whose bytes are not a real PNG/JPEG/WEBP is rejected here,
+      // closing the content-type-spoofing / SVG-XSS hole.
+      const ext = detectImageExt(file.buffer);
       if (!ext) {
         return res.status(400).json({ error: 'Unsupported image type' });
       }

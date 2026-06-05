@@ -11,7 +11,9 @@ import SettingsSection from '../SettingsSection';
 
 const TITLE_MAX_LENGTH = 60;
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — must match the server limit.
-const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+// SVG is intentionally excluded (XSS vector); the server validates real magic
+// bytes and only accepts these raster formats.
+const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp'];
 
 type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 

@@ -128,7 +128,8 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                 />
               )}
 
-              {activeTab === 'branding' && canManageUsers && <BrandingSettingsTab />}
+              {/* Owner-only: branding write endpoints are owner-only on the server. */}
+              {activeTab === 'branding' && user?.role === 'owner' && <BrandingSettingsTab />}
 
               {activeTab === 'git' && <GitSettingsTab />}
 

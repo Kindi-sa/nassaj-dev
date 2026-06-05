@@ -83,7 +83,7 @@ import githubRoutes from './routes/github.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
+import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
@@ -286,6 +286,9 @@ app.get('/avatars/:userId.:ext', (req, res) => {
     const filePath = path.join(AVATARS_ROOT, userId, `avatar.${ext}`);
     res.type(AVATAR_EXT_TO_MIME[ext]);
     res.setHeader('Cache-Control', 'private, no-cache');
+    // Defense in depth: forbid MIME sniffing so a stored file can never be
+    // re-interpreted as HTML/script by the browser regardless of its bytes.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(filePath, (err) => {
         if (err && !res.headersSent) {
             res.status(404).end();
@@ -300,20 +303,33 @@ app.get('/avatars/:userId.:ext', (req, res) => {
 // part only, so no portion of the request URL is interpolated into a filesystem
 // path (no traversal). The on-disk filename is always logo.<ext> derived from the
 // uploaded file's MIME type, never from any client-supplied name.
+// SVG is intentionally excluded here too: the upload path no longer accepts it,
+// and serving SVG same-origin is an XSS vector.
 const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
+const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
 const BRANDING_EXT_TO_MIME = {
     png: 'image/png',
     jpg: 'image/jpeg',
     webp: 'image/webp',
-    svg: 'image/svg+xml',
 };
 app.get('/branding/logo.:ext', (req, res) => {
     const { ext } = req.params;
     if (!Object.prototype.hasOwnProperty.call(BRANDING_EXT_TO_MIME, ext)) {
         return res.status(404).end();
     }
+    // Only serve the extension that is currently recorded as the active logo in
+    // app_config. This means a stale/orphaned file left under a different
+    // extension (e.g. after a failed cleanup) is never served, even if it exists
+    // on disk.
+    const activeExt = appConfigDb.get(BRANDING_LOGO_PATH_KEY);
+    if (!activeExt || activeExt !== ext) {
+        return res.status(404).end();
+    }
     const filePath = path.join(BRANDING_ROOT, `logo.${ext}`);
     res.type(BRANDING_EXT_TO_MIME[ext]);
+    // Defense in depth: forbid MIME sniffing so the file can never be
+    // re-interpreted as HTML/script by the browser regardless of its bytes.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     // The logo is public-facing chrome shown to every authenticated user; a short
     // cache keeps the header snappy while still picking up changes within a minute.
     res.setHeader('Cache-Control', 'public, max-age=60');
