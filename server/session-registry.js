@@ -22,6 +22,14 @@
 
 const DEFAULT_RING_CAPACITY = 2000;
 
+// Upper bound on the number of live entries the registry retains at once
+// (B-N-EVICT). When an insertion would exceed this, the least-recently-used
+// INACTIVE entry is evicted first; an all-active registry is never trimmed
+// (evicting a live session would break a concurrent attach / drain). The cap is
+// a backstop against unbounded growth across long uptimes — the per-entry
+// RingBuffer already bounds memory per session; this bounds the session count.
+const MAX_LIVE_SESSIONS = 200;
+
 // Truthy-string flag parse: "1", "true", "yes", "on" (case-insensitive) enable.
 function flagEnabled(name) {
     const raw = process.env[name];
@@ -72,16 +80,57 @@ class SessionEntry {
         // B-N7 single source of truth for "processing". Set true on spawn,
         // false when the run reaches a terminal state (complete/error/exit).
         this.active = false;
+        // B-N-EVICT recency stamp: a monotonic tick bumped on every open/record
+        // touch, used to pick the least-recently-used inactive entry to evict
+        // when the live-session cap is exceeded.
+        this.touch = 0;
     }
 }
 
 // A per-provider registry. One instance per provider keeps flags and buffers
 // isolated so agy can ship before codex without cross-talk.
 class SessionRegistry {
-    constructor(flagName, { capacity = DEFAULT_RING_CAPACITY } = {}) {
+    constructor(flagName, { capacity = DEFAULT_RING_CAPACITY, maxEntries = MAX_LIVE_SESSIONS } = {}) {
         this.flagName = flagName;
         this.capacity = capacity;
+        this.maxEntries = Math.max(1, maxEntries | 0);
         this.entries = new Map(); // key (connectionId | sessionId) -> SessionEntry
+        // Monotonic recency counter for LRU eviction (B-N-EVICT). Never resets.
+        this._tick = 0;
+    }
+
+    // Bump and return the next recency tick. Used to stamp an entry on touch so
+    // eviction can pick the oldest-touched inactive entry.
+    _nextTick() {
+        this._tick += 1;
+        return this._tick;
+    }
+
+    // B-N-EVICT: enforce the live-session cap. Called right before inserting a
+    // NEW key. Evicts the least-recently-used INACTIVE entry when the map is at
+    // capacity; if every entry is active it logs a warning and trims nothing —
+    // dropping a live session would break a concurrent attach / drain.
+    _enforceCap() {
+        if (this.entries.size < this.maxEntries) return;
+
+        let victimKey = null;
+        let victimTouch = Infinity;
+        for (const [key, entry] of this.entries) {
+            if (entry.active) continue;
+            if (entry.touch < victimTouch) {
+                victimTouch = entry.touch;
+                victimKey = key;
+            }
+        }
+
+        if (victimKey === null) {
+            // All retained sessions are still active — never evict a live one.
+            console.warn(
+                `[session-registry:${this.flagName}] live-session cap (${this.maxEntries}) reached with all entries active; not evicting.`,
+            );
+            return;
+        }
+        this.entries.delete(victimKey);
     }
 
     // Live read of the gating flag so tests/ops can toggle it without re-import.
@@ -95,10 +144,12 @@ class SessionRegistry {
         if (!this.enabled || !key) return null;
         let entry = this.entries.get(key);
         if (!entry) {
+            this._enforceCap();
             entry = new SessionEntry(this.capacity);
             this.entries.set(key, entry);
         }
         entry.active = true;
+        entry.touch = this._nextTick();
         return entry;
     }
 
@@ -109,10 +160,12 @@ class SessionRegistry {
         if (!this.enabled || !key) return null;
         let entry = this.entries.get(key);
         if (!entry) {
+            this._enforceCap();
             entry = new SessionEntry(this.capacity);
             entry.active = true;
             this.entries.set(key, entry);
         }
+        entry.touch = this._nextTick();
         return entry.buffer.push(payload);
     }
 
@@ -121,11 +174,13 @@ class SessionRegistry {
     //
     //   * oldKey absent           -> nothing buffered yet; create the target.
     //   * newKey free             -> plain move (seq counter preserved).
-    //   * newKey already present  -> APPEND oldKey's payloads onto the existing
-    //                                target buffer (re-sequenced onto its monotonic
-    //                                counter) so two runs are never silently merged
-    //                                into a corrupt interleaving; order is preserved
-    //                                and no payload is dropped or duplicated.
+    //   * newKey already present  -> a collision: the production caller always
+    //                                clears a prior same-sessionId entry (drop +
+    //                                open) BEFORE rekeying a fresh connectionId
+    //                                onto it (B-N-RESUME clean buffer), so a live
+    //                                target here means two distinct runs are
+    //                                racing the same sessionId. Throw rather than
+    //                                silently merge them into a corrupt stream.
     rekey(oldKey, newKey) {
         if (!this.enabled || !oldKey || !newKey || oldKey === newKey) return;
 
@@ -138,20 +193,15 @@ class SessionRegistry {
             return;
         }
 
-        if (!target) {
-            // Fast path: hand the whole entry over, seq counter intact.
-            this.entries.set(newKey, source);
-            this.entries.delete(oldKey);
-            return;
+        if (target) {
+            // Unexpected collision (see contract above): refuse to merge.
+            throw new Error(
+                `[session-registry:${this.flagName}] rekey collision: target key "${newKey}" already exists; refusing to merge two runs.`,
+            );
         }
 
-        // Target already exists (sessionId reused / resume): append the buffered
-        // preamble onto the target's own monotonic seq so the target's consumers
-        // see a single, gap-free, duplicate-free stream.
-        for (const { payload } of source.buffer.since(0)) {
-            target.buffer.push(payload);
-        }
-        target.active = target.active || source.active;
+        // Fast path: hand the whole entry over, seq counter intact.
+        this.entries.set(newKey, source);
         this.entries.delete(oldKey);
     }
 
@@ -200,4 +250,4 @@ class SessionRegistry {
     }
 }
 
-export { SessionRegistry, RingBuffer, flagEnabled, DEFAULT_RING_CAPACITY };
+export { SessionRegistry, RingBuffer, flagEnabled, DEFAULT_RING_CAPACITY, MAX_LIVE_SESSIONS };

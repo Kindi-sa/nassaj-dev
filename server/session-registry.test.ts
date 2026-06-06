@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SessionRegistry, RingBuffer } from './session-registry.js';
+import { SessionRegistry, RingBuffer, MAX_LIVE_SESSIONS } from './session-registry.js';
 
 const FLAG = 'SESSION_REGISTRY_test';
 
@@ -55,28 +55,28 @@ test('B-N5 rekey: payload buffered under connectionId moves to sessionId without
   });
 });
 
-test('B-N5 rekey: onto an existing sessionId appends without dropping or duplicating', () => {
+test('B-N5 rekey: onto an existing populated key throws (no silent merge of two runs)', () => {
   withFlag(true, () => {
     const reg = new SessionRegistry(FLAG);
     const conn = 'conn-2';
     const sid = 'session-2';
 
-    // Target session already has buffered output.
+    // The production caller always clears a prior same-sessionId entry (drop +
+    // open) BEFORE rekeying a fresh connectionId onto it (B-N-RESUME clean
+    // buffer). A live target here means two distinct runs are racing one
+    // sessionId, so rekey must REFUSE rather than corrupt the stream by merging.
     reg.record(sid, { kind: 'stream_delta', content: 'existing-1' });
-    // A late temporary buffer for the same logical session.
     reg.record(conn, { kind: 'stream_delta', content: 'temp-1' });
-    reg.record(conn, { kind: 'stream_delta', content: 'temp-2' });
 
-    reg.rekey(conn, sid);
+    assert.throws(() => reg.rekey(conn, sid), /rekey collision/);
 
-    const replayed: string[] = [];
-    reg.attach(sid, 0, (p: any) => replayed.push(p.content));
-
-    // Every payload present exactly once; existing target output preserved.
-    assert.deepEqual(replayed, ['existing-1', 'temp-1', 'temp-2']);
-    // No duplication: count check.
-    assert.equal(replayed.length, 3);
-    assert.equal(reg.attach(conn, 0, () => {}), null);
+    // Neither side was mutated by the refused rekey: both keys intact.
+    const target: string[] = [];
+    reg.attach(sid, 0, (p: any) => target.push(p.content));
+    assert.deepEqual(target, ['existing-1']);
+    const temp: string[] = [];
+    reg.attach(conn, 0, (p: any) => temp.push(p.content));
+    assert.deepEqual(temp, ['temp-1']);
   });
 });
 
@@ -194,4 +194,157 @@ test('RingBuffer: monotonic seq survives eviction; since() never replays evicted
   assert.deepEqual(rb.since(0).map((it) => it.seq), [3, 4, 5]);
   assert.deepEqual(rb.since(4).map((it) => it.seq), [5]);
   assert.deepEqual(rb.since(5), []);
+});
+
+// ---------------------------------------------------------------------------
+// B-N-DROP — drop() removes an entry; a subsequent open() re-initialises a fresh
+// empty entry (the registry primitive the agy-cli post-close TTL drop builds on).
+// ---------------------------------------------------------------------------
+
+test('B-N-DROP: drop removes the entry; open after drop starts a fresh seq line', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG);
+    const sid = 'session-drop';
+
+    reg.open(sid);
+    reg.record(sid, { kind: 'stream_delta', content: 'old-1' });
+    reg.record(sid, { kind: 'stream_delta', content: 'old-2' });
+    assert.equal(reg.lastSeq(sid), 2);
+
+    reg.drop(sid);
+    // After drop the session is unknown: no replay, inactive, seq reset.
+    assert.equal(reg.attach(sid, 0, () => assert.fail('dropped entry must not replay')), null);
+    assert.equal(reg.isActive(sid), false);
+    assert.equal(reg.lastSeq(sid), 0);
+
+    // A fresh run reopens a clean entry whose seq starts at 0 again.
+    reg.open(sid);
+    const seq = reg.record(sid, { kind: 'stream_delta', content: 'new-1' });
+    assert.equal(seq, 1, 'seq line restarts after drop+open');
+    const replayed: string[] = [];
+    reg.attach(sid, 0, (p: any) => replayed.push(p.content));
+    assert.deepEqual(replayed, ['new-1'], 'no old payload survives drop');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-N-RESUME (registry contract): drop + open is exactly the clean-buffer reset
+// the agy-cli resume path performs, and a fresh entry never carries a prior run's
+// transcript even when replayed with lastSeq absent/0.
+// ---------------------------------------------------------------------------
+
+test('B-N-RESUME: a clean (drop+open) entry replays only the current run from 0', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG);
+    const sid = 'session-resume';
+
+    // Run 1 terminates (active=false) with a buffered transcript.
+    reg.open(sid);
+    reg.record(sid, { kind: 'stream_delta', content: 'run1-a' });
+    reg.record(sid, { kind: 'stream_delta', content: 'run1-b' });
+    reg.setActive(sid, false);
+
+    // Resume: the caller clears the stale inactive entry then reopens.
+    assert.equal(reg.isActive(sid), false);
+    reg.drop(sid);
+    reg.open(sid);
+    reg.record(sid, { kind: 'stream_delta', content: 'run2-a' });
+
+    // lastSeq absent/0 = "replay current run from its start" — bounded to run 2,
+    // never run 1's transcript (clean buffer does not cross the run boundary).
+    const replayed: string[] = [];
+    reg.attach(sid, 0, (p: any) => replayed.push(p.content));
+    assert.deepEqual(replayed, ['run2-a']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-N-EVICT — live-session cap: the LRU INACTIVE entry is evicted first; an
+// all-active registry is never trimmed (evicting a live session breaks attach).
+// ---------------------------------------------------------------------------
+
+test('B-N-EVICT: exceeding the cap evicts the least-recently-used INACTIVE entry', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG, { maxEntries: 3 });
+
+    // Fill to cap: s0 (inactive, oldest), s1 (inactive), s2 (active).
+    reg.open('s0'); reg.setActive('s0', false);
+    reg.open('s1'); reg.setActive('s1', false);
+    reg.open('s2'); // stays active
+    assert.equal(reg.entries.size, 3);
+
+    // Inserting s3 must evict the LRU inactive entry = s0 (touched first).
+    reg.open('s3');
+    assert.equal(reg.entries.size, 3);
+    assert.equal(reg.entries.has('s0'), false, 'LRU inactive s0 evicted');
+    assert.equal(reg.entries.has('s1'), true);
+    assert.equal(reg.entries.has('s2'), true, 'active session never evicted');
+    assert.equal(reg.entries.has('s3'), true);
+  });
+});
+
+test('B-N-EVICT: recency is bumped on touch — a re-recorded inactive entry survives over an older one', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG, { maxEntries: 2 });
+
+    reg.open('a'); reg.setActive('a', false); // oldest touch
+    reg.open('b'); reg.setActive('b', false);
+    // Touch 'a' again so 'b' becomes the least-recently-used inactive entry.
+    reg.record('a', { kind: 'stream_delta', content: 'x' });
+
+    reg.open('c'); // forces an eviction
+    assert.equal(reg.entries.has('b'), false, 'now-LRU b evicted');
+    assert.equal(reg.entries.has('a'), true, 'recently-touched a survives');
+    assert.equal(reg.entries.has('c'), true);
+  });
+});
+
+test('B-N-EVICT: an all-active registry at cap evicts nothing (live sessions protected)', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG, { maxEntries: 2 });
+    reg.open('live-1'); // active
+    reg.open('live-2'); // active
+    // Cap reached, both active: insertion must NOT evict a live session. The map
+    // is allowed to exceed the cap rather than break a concurrent attach/drain.
+    reg.open('live-3');
+    assert.equal(reg.entries.has('live-1'), true);
+    assert.equal(reg.entries.has('live-2'), true);
+    assert.equal(reg.entries.has('live-3'), true);
+    assert.equal(reg.entries.size, 3, 'no live session dropped; cap exceeded instead');
+  });
+});
+
+test('B-N-EVICT: default cap constant is exported and applied', () => {
+  withFlag(true, () => {
+    assert.equal(typeof MAX_LIVE_SESSIONS, 'number');
+    const reg = new SessionRegistry(FLAG);
+    assert.equal(reg.maxEntries, MAX_LIVE_SESSIONS);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-N7 single source (flag on/off): isActive is the lone authority. There is no
+// second active surface inside the registry to diverge from.
+// ---------------------------------------------------------------------------
+
+test('B-N7 single source: isActive reflects open/setActive when the flag is ON', () => {
+  withFlag(true, () => {
+    const reg = new SessionRegistry(FLAG);
+    const sid = 'session-bn7-on';
+    assert.equal(reg.isActive(sid), false);
+    reg.open(sid);
+    assert.equal(reg.isActive(sid), true, 'one flag flips active on open');
+    reg.setActive(sid, false);
+    assert.equal(reg.isActive(sid), false, 'same flag flips inactive on terminal');
+  });
+});
+
+test('B-N7 single source: with the flag OFF the registry is inert (legacy map is the only authority)', () => {
+  withFlag(false, () => {
+    const reg = new SessionRegistry(FLAG);
+    // Disabled: the registry never reports active, so the agy-cli caller falls
+    // through to its legacy activeSessions map — byte-for-byte the old behavior.
+    reg.open('k');
+    assert.equal(reg.isActive('k'), false, 'disabled registry is never the authority');
+  });
 });

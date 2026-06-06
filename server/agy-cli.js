@@ -37,6 +37,44 @@ const AGY_PATH = process.env.AGY_PATH || path.join(os.homedir(), '.local', 'bin'
 // source of truth for both the replay buffer and the active flag.
 const agySessionRegistry = new SessionRegistry('SESSION_REGISTRY_agy');
 
+// B-N-DROP: how long a session's replay buffer is retained AFTER the run reaches
+// a terminal state (close/error) before it is dropped. This is the post-close
+// replay window: a socket that reconnects within this grace period can still
+// receive the final payloads via differential attach. After it elapses the entry
+// is dropped so the registry never grows unbounded across uptime. The timer is
+// cancelled if the same key is reopened/reused before it fires.
+const BUFFER_RETENTION_MS = 120000;
+
+// Pending post-close drop timers keyed by registryKey, so a reopen/reuse of the
+// key (resume, attach-driven touch) can cancel the scheduled drop and keep the
+// buffer alive for the new run.
+const pendingDropTimers = new Map();
+
+// Cancel any scheduled post-close drop for `key`. Called whenever the key is
+// reopened or reused before its retention window elapses.
+function cancelPendingDrop(key) {
+    if (!key) return;
+    const timer = pendingDropTimers.get(key);
+    if (timer) {
+        clearTimeout(timer);
+        pendingDropTimers.delete(key);
+    }
+}
+
+// B-N-DROP: schedule a deferred drop of `key` after BUFFER_RETENTION_MS. Replaces
+// any previously scheduled drop for the same key. `.unref()` so a pending drop
+// never holds the event loop open at shutdown.
+function scheduleBufferDrop(key) {
+    if (!key) return;
+    cancelPendingDrop(key);
+    const timer = setTimeout(() => {
+        pendingDropTimers.delete(key);
+        agySessionRegistry.drop(key);
+    }, BUFFER_RETENTION_MS);
+    timer.unref?.();
+    pendingDropTimers.set(key, timer);
+}
+
 // Stable per-connection id minted lazily on the raw socket. Used as the
 // temporary registry key while a fresh run has no sessionId yet (B-N5). We key
 // off the underlying ws of the WebSocketWriter so the id survives writer reuse.
@@ -371,6 +409,16 @@ async function spawnAntigravity(command, options = {}, ws) {
     const connectionId = connectionIdFor(ws);
     let registryKey = connectionId;
     if (connectionId) {
+        // A connectionId is per-socket and may be reused across runs on the same
+        // long-lived socket. Cancel any pending post-close drop and clear a stale,
+        // already-terminated buffer under it so this run's preamble never inherits
+        // a prior run's payloads (B-N-RESUME clean buffer at the temporary key).
+        cancelPendingDrop(connectionId);
+        if (agySessionRegistry.enabled
+            && agySessionRegistry.entries.has(connectionId)
+            && !agySessionRegistry.isActive(connectionId)) {
+            agySessionRegistry.drop(connectionId);
+        }
         agySessionRegistry.open(connectionId);
     }
 
@@ -384,6 +432,28 @@ async function spawnAntigravity(command, options = {}, ws) {
         sessionManager.createSession(finalSessionId, cwd || projectPath || process.cwd());
     }
 
+    // B-N-RESUME (clean buffer): a new run for a sessionId that carries a prior,
+    // already-terminated entry must NOT inherit the previous run's transcript.
+    // Drop the stale entry (and cancel its pending post-close drop) before the
+    // rekey so the buffer never crosses a run boundary. The fresh open() below
+    // re-initialises an empty entry whose seq line starts at 0 — so a client that
+    // reconnects with lastSeq absent/0 replays only THIS run from its start,
+    // bounded by the current run (<= ring capacity), never a previous transcript.
+    // We only reset an INACTIVE prior entry: a still-active entry under the same
+    // sessionId means a live run we must not disturb (and the rekey below would
+    // legitimately throw on that collision).
+    if (finalSessionId) {
+        cancelPendingDrop(finalSessionId);
+        if (
+            agySessionRegistry.enabled
+            && finalSessionId !== connectionId
+            && agySessionRegistry.entries.has(finalSessionId)
+            && !agySessionRegistry.isActive(finalSessionId)
+        ) {
+            agySessionRegistry.drop(finalSessionId);
+        }
+    }
+
     // B-N5 rekey: hand the temporary connectionId buffer over to the real
     // sessionId. After this, registryKey is the sessionId and all subsequent
     // live payloads (and attach/isActive lookups) address the session directly.
@@ -391,7 +461,9 @@ async function spawnAntigravity(command, options = {}, ws) {
         agySessionRegistry.rekey(connectionId, finalSessionId);
         registryKey = finalSessionId;
     }
-    // Mark the session active in the single source of truth (B-N7).
+    // Mark the session active in the single source of truth (B-N7). open() also
+    // re-initialises a fresh empty entry after a clean-buffer drop above, so the
+    // new run's seq line starts at 0 with no carried-over payloads.
     agySessionRegistry.open(registryKey);
 
     if (command) {
@@ -521,9 +593,11 @@ async function spawnAntigravity(command, options = {}, ws) {
         agProcess.on('close', async (code) => {
             activeSessions.delete(finalSessionId);
             // B-N7: the run is terminal — flip the single source of truth to
-            // inactive. The buffer is retained so a socket that reconnects right
-            // after close can still replay the final payloads (attach is read-only
-            // and bounded by the run's last seq); it is reclaimed on the next run.
+            // inactive. The buffer is retained for a bounded post-close replay
+            // window so a socket that reconnects right after close can still
+            // replay the final payloads (attach is read-only and bounded by the
+            // run's last seq); it is then dropped by scheduleBufferDrop below
+            // (B-N-DROP), not "on the next run".
             agySessionRegistry.setActive(registryKey, false);
 
             // Safety net: a run that produced no stdout (or whose brain folder
@@ -573,6 +647,10 @@ async function spawnAntigravity(command, options = {}, ws) {
                     sessionId: finalSessionId,
                 });
                 notifyTerminal({ code });
+                // B-N-DROP: schedule the buffer drop AFTER the terminal error is
+                // emitted, so a socket reconnecting inside the retention window can
+                // still replay the final payloads.
+                scheduleBufferDrop(registryKey);
                 // Resolve rather than reject so the WS dispatcher does not turn
                 // a non-zero exit into a generic "websocket error" toast — the
                 // structured error message above already informs the user.
@@ -581,6 +659,9 @@ async function spawnAntigravity(command, options = {}, ws) {
             }
 
             notifyTerminal({ code });
+            // B-N-DROP: schedule the deferred buffer drop AFTER `complete` is
+            // emitted — a post-close replay window, not an immediate drop.
+            scheduleBufferDrop(registryKey);
             resolve({ code, sessionId: finalSessionId });
         });
 
@@ -590,6 +671,9 @@ async function spawnAntigravity(command, options = {}, ws) {
             freeDiscoveryLock();
             safeSend({ kind: 'error', content: err.message, sessionId: finalSessionId });
             notifyTerminal({ error: err });
+            // B-N-DROP: schedule the deferred buffer drop AFTER the terminal error
+            // is emitted (post-close replay window), mirroring the close handler.
+            scheduleBufferDrop(registryKey);
             reject(err);
         });
     });
@@ -620,13 +704,13 @@ function abortAntigravitySession(sessionId) {
 }
 
 function isAntigravitySessionActive(sessionId) {
-    // B-N7: when the flag is on, the registry's `active` flag is the single
-    // source of truth consumed by both check-session-status and the future
-    // drain path. The legacy activeSessions map is kept as a fallback during the
-    // brief temporary-connectionId window (and is exactly the old behavior when
-    // the flag is off).
-    if (agySessionRegistry.enabled && agySessionRegistry.isActive(sessionId)) {
-        return true;
+    // B-N7 single source of truth: when the flag is ON, the registry's `active`
+    // flag is the ONE authority consumed by both check-session-status (attach)
+    // and the drain path — no OR with the legacy map, so the two never diverge.
+    // When the flag is OFF this is byte-for-byte the pre-slice behavior: the
+    // legacy activeSessions map.
+    if (agySessionRegistry.enabled) {
+        return agySessionRegistry.isActive(sessionId);
     }
     return activeSessions.has(sessionId);
 }
