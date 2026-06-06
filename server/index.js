@@ -52,6 +52,7 @@ import {
     abortAntigravitySession,
     isAntigravitySessionActive,
     getActiveAntigravitySessions,
+    attachAntigravitySession,
 } from './agy-cli.js';
 import {
     spawnOpenCode,
@@ -143,6 +144,7 @@ const wss = createWebSocketServer(server, {
         isAntigravitySessionActive,
         isOpenCodeSessionActive,
         reconnectSessionWriter,
+        attachAntigravitySession,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
         getActiveCursorSessions,

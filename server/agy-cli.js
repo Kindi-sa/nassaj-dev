@@ -26,8 +26,30 @@ import { createNormalizedMessage } from './shared/utils.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { userConfigDir } from './services/isolation/provision-user-dirs.js';
 import { isProviderIsolated } from './services/provider-sharing.js';
+import { SessionRegistry } from './session-registry.js';
 
 const AGY_PATH = process.env.AGY_PATH || path.join(os.homedir(), '.local', 'bin', 'agy');
+
+// Per-session replay registry for agy (ADR-021 / PHASE-SR-0). Gated behind
+// SESSION_REGISTRY_agy: when the flag is off every call is a no-op and the
+// legacy stream path is byte-for-byte unchanged. Exported so the websocket
+// layer (check-session-status / attach) reads the SAME instance — there is one
+// source of truth for both the replay buffer and the active flag.
+const agySessionRegistry = new SessionRegistry('SESSION_REGISTRY_agy');
+
+// Stable per-connection id minted lazily on the raw socket. Used as the
+// temporary registry key while a fresh run has no sessionId yet (B-N5). We key
+// off the underlying ws of the WebSocketWriter so the id survives writer reuse.
+let connectionIdCounter = 0;
+function connectionIdFor(ws) {
+    if (!ws) return null;
+    const raw = ws.ws ?? ws; // WebSocketWriter wraps the raw socket on `.ws`
+    if (!raw.__agyConnectionId) {
+        connectionIdCounter += 1;
+        raw.__agyConnectionId = `agy-conn-${connectionIdCounter}`;
+    }
+    return raw.__agyConnectionId;
+}
 
 // Brain store location. When agy is isolated for this user (admin policy) the
 // spawn env sets HOME to the per-user root, so agy materializes its brain under
@@ -343,6 +365,15 @@ async function spawnAntigravity(command, options = {}, ws) {
         args.push('--conversation', existingBrainUUID);
     }
 
+    // B-N5: open the registry under a temporary connectionId so any payload
+    // buffered before the real sessionId is known is retained, then rekey to the
+    // sessionId below without loss/duplication. No-op when the flag is off.
+    const connectionId = connectionIdFor(ws);
+    let registryKey = connectionId;
+    if (connectionId) {
+        agySessionRegistry.open(connectionId);
+    }
+
     // Establish (or reuse) the nassaj-side session id and persist it so the
     // chat history layer can correlate streamed messages with their session.
     let finalSessionId = sessionId;
@@ -353,6 +384,16 @@ async function spawnAntigravity(command, options = {}, ws) {
         sessionManager.createSession(finalSessionId, cwd || projectPath || process.cwd());
     }
 
+    // B-N5 rekey: hand the temporary connectionId buffer over to the real
+    // sessionId. After this, registryKey is the sessionId and all subsequent
+    // live payloads (and attach/isActive lookups) address the session directly.
+    if (connectionId && finalSessionId && connectionId !== finalSessionId) {
+        agySessionRegistry.rekey(connectionId, finalSessionId);
+        registryKey = finalSessionId;
+    }
+    // Mark the session active in the single source of truth (B-N7).
+    agySessionRegistry.open(registryKey);
+
     if (command) {
         sessionManager.addMessage(finalSessionId, 'user', command);
     }
@@ -362,9 +403,16 @@ async function spawnAntigravity(command, options = {}, ws) {
     let terminalNotified = false;
 
     const safeSend = (payload) => {
+        const normalized = createNormalizedMessage({ ...payload, provider: 'antigravity' });
+        // RingBuffer injection point (ADR-021): buffer the live payload under the
+        // current registry key BEFORE forwarding, so a reconnecting socket can be
+        // brought up to date via differential replay even if the original ws has
+        // gone away. No-op when SESSION_REGISTRY_agy is off; buffering does not
+        // depend on `ws` being present (the live stream may outlive the socket).
+        agySessionRegistry.record(registryKey, normalized);
         if (!ws) return;
         try {
-            ws.send(createNormalizedMessage({ ...payload, provider: 'antigravity' }));
+            ws.send(normalized);
         } catch (err) {
             // ws may close mid-stream; avoid crashing the spawn pipeline.
             console.error('[agy] failed to forward ws payload:', err?.message || err);
@@ -472,6 +520,11 @@ async function spawnAntigravity(command, options = {}, ws) {
 
         agProcess.on('close', async (code) => {
             activeSessions.delete(finalSessionId);
+            // B-N7: the run is terminal — flip the single source of truth to
+            // inactive. The buffer is retained so a socket that reconnects right
+            // after close can still replay the final payloads (attach is read-only
+            // and bounded by the run's last seq); it is reclaimed on the next run.
+            agySessionRegistry.setActive(registryKey, false);
 
             // Safety net: a run that produced no stdout (or whose brain folder
             // appeared only at exit) skips the early discovery hook, so retry here.
@@ -533,6 +586,7 @@ async function spawnAntigravity(command, options = {}, ws) {
 
         agProcess.on('error', (err) => {
             activeSessions.delete(finalSessionId);
+            agySessionRegistry.setActive(registryKey, false);
             freeDiscoveryLock();
             safeSend({ kind: 'error', content: err.message, sessionId: finalSessionId });
             notifyTerminal({ error: err });
@@ -566,6 +620,14 @@ function abortAntigravitySession(sessionId) {
 }
 
 function isAntigravitySessionActive(sessionId) {
+    // B-N7: when the flag is on, the registry's `active` flag is the single
+    // source of truth consumed by both check-session-status and the future
+    // drain path. The legacy activeSessions map is kept as a fallback during the
+    // brief temporary-connectionId window (and is exactly the old behavior when
+    // the flag is off).
+    if (agySessionRegistry.enabled && agySessionRegistry.isActive(sessionId)) {
+        return true;
+    }
     return activeSessions.has(sessionId);
 }
 
@@ -575,9 +637,21 @@ function getActiveAntigravitySessions() {
     return Array.from(activeSessions.keys());
 }
 
+// B-N-ATTACH: read-only differential replay for a reconnecting socket. Re-emits
+// only buffered payloads with `seq > lastSeq` to `send`, oldest-first. Performs
+// NO writer swap and NO abort of the running session — it strictly reads the
+// per-session RingBuffer. Returns the highest seq replayed (or the supplied
+// lastSeq when nothing newer / disabled / unknown session).
+function attachAntigravitySession(sessionId, lastSeq, send) {
+    const result = agySessionRegistry.attach(sessionId, lastSeq, send);
+    return result === null ? (Number.isFinite(lastSeq) ? lastSeq : 0) : result;
+}
+
 export {
     spawnAntigravity,
     abortAntigravitySession,
     isAntigravitySessionActive,
     getActiveAntigravitySessions,
+    attachAntigravitySession,
+    agySessionRegistry,
 };

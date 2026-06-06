@@ -20,6 +20,7 @@ type ChatIncomingMessage = AnyRecord & {
   updatedInput?: unknown;
   message?: unknown;
   rememberEntry?: unknown;
+  lastSeq?: unknown;
 };
 
 const DEFAULT_PROVIDER: LLMProvider = 'claude';
@@ -59,6 +60,18 @@ type ChatWebSocketDependencies = {
   isAntigravitySessionActive: (sessionId: string) => boolean;
   isOpenCodeSessionActive: (sessionId: string) => boolean;
   reconnectSessionWriter: (sessionId: string, ws: WebSocket) => boolean;
+  /**
+   * B-N-ATTACH (PHASE-SR-0): read-only differential replay for agy. Re-emits the
+   * buffered payloads with `seq > lastSeq` via `send`, oldest-first, and returns
+   * the highest seq replayed. It performs NO writer swap and NO session abort —
+   * it strictly reads the per-session RingBuffer. No-op (returns lastSeq) when the
+   * SESSION_REGISTRY_agy flag is off.
+   */
+  attachAntigravitySession: (
+    sessionId: string,
+    lastSeq: number,
+    send: (payload: unknown) => void
+  ) => number;
   getPendingApprovalsForSession: (sessionId: string) => unknown[];
   getActiveClaudeSDKSessions: () => unknown;
   getActiveCursorSessions: () => unknown;
@@ -313,6 +326,17 @@ export function handleChatConnection(
           isActive = dependencies.isGeminiSessionActive(sessionId);
         } else if (provider === 'antigravity') {
           isActive = dependencies.isAntigravitySessionActive(sessionId);
+          // B-N-ATTACH: read-only differential replay. A reconnecting socket gets
+          // only the buffered payloads it has not seen (seq > lastSeq) re-emitted
+          // to ITS writer. This deliberately does NOT call reconnectSessionWriter
+          // and never aborts the run — the active writer of the live session is
+          // left untouched, honouring the documented `if(!isActive)` veto. No-op
+          // when SESSION_REGISTRY_agy is off.
+          const rawLastSeq = typeof data.lastSeq === 'number' ? data.lastSeq : Number(data.lastSeq);
+          const lastSeq = Number.isFinite(rawLastSeq) ? rawLastSeq : 0;
+          dependencies.attachAntigravitySession(sessionId, lastSeq, (payload) => {
+            writer.send(payload);
+          });
         } else if (provider === 'opencode') {
           isActive = dependencies.isOpenCodeSessionActive(sessionId);
         } else {
