@@ -89,7 +89,17 @@ function resolveRouteErrorMessage(error: unknown): string {
 router.get(
   '/',
   asyncHandler(async (req, res) => {
+    const skipSynchronization =
+      readQueryStringValue(req.query.skipSynchronization).trim() === '1' ||
+      readQueryStringValue(req.query.skipSync).trim() === '1';
+    const sessionsLimit = readOptionalNumericQueryValue(req.query.sessionsLimit) ?? undefined;
+    const sessionsOffset = readOptionalNumericQueryValue(req.query.sessionsOffset) ?? undefined;
     const projects = await getProjectsWithSessions({
+      skipSynchronization,
+      sessionsLimit,
+      sessionsOffset,
+      // isMember flagging (c98aeb7) must survive the lightweight query path:
+      // the "my projects" sidebar filter depends on it in every response shape.
       currentUserId: readAuthenticatedUserId(req),
     });
     res.json(projects);
