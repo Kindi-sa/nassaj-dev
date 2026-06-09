@@ -12,8 +12,37 @@
  */
 
 import { getConnection } from '@/modules/database/connection.js';
+import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
 export type ParticipantRole = 'owner' | 'participant';
+
+/**
+ * Spawn-site context used to self-heal a missing parent sessions row. The run
+ * path can outrace the session synchronizer: on the FIRST spawn of a fresh
+ * conversation the sessions row (created later from the transcript file) does
+ * not exist yet, so the participant insert fails its FOREIGN KEY. With this
+ * context we create the parent row ourselves (the synchronizer's later upsert
+ * fills in the real jsonl_path / timestamps) and retry once.
+ */
+export type SpawnContext = {
+  provider: string;
+  projectPath: string;
+};
+
+const RECORD_SPAWN_SQL = `INSERT INTO session_participants (session_id, user_id, role, message_count)
+   VALUES (
+     ?,
+     ?,
+     CASE
+       WHEN NOT EXISTS (SELECT 1 FROM session_participants WHERE session_id = ?)
+       THEN 'owner'
+       ELSE 'participant'
+     END,
+     1
+   )
+   ON CONFLICT(session_id, user_id) DO UPDATE SET
+     last_seen = CURRENT_TIMESTAMP,
+     message_count = message_count + 1`;
 
 export type SessionParticipantRow = {
   userId: number;
@@ -38,31 +67,36 @@ export const participantsDb = {
    * downgraded. Never throws: participation tracking must not break the run
    * path, so failures are logged and swallowed.
    */
-  recordSpawn(sessionId: string, userId: number): void {
+  recordSpawn(sessionId: string, userId: number, context?: SpawnContext): void {
     if (!sessionId || !Number.isInteger(userId)) {
       return;
     }
 
     try {
       const db = getConnection();
-      db.prepare(
-        `INSERT INTO session_participants (session_id, user_id, role, message_count)
-         VALUES (
-           ?,
-           ?,
-           CASE
-             WHEN NOT EXISTS (SELECT 1 FROM session_participants WHERE session_id = ?)
-             THEN 'owner'
-             ELSE 'participant'
-           END,
-           1
-         )
-         ON CONFLICT(session_id, user_id) DO UPDATE SET
-           last_seen = CURRENT_TIMESTAMP,
-           message_count = message_count + 1`
-      ).run(sessionId, userId, sessionId);
+      db.prepare(RECORD_SPAWN_SQL).run(sessionId, userId, sessionId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+
+      // FK failure = the parent sessions row does not exist yet (run path beat
+      // the synchronizer). Create it from the spawn context and retry once; the
+      // synchronizer's upsert later replaces the stub fields with real values.
+      if (context && /FOREIGN KEY/i.test(message)) {
+        try {
+          sessionsDb.createSession(sessionId, context.provider, context.projectPath);
+          getConnection().prepare(RECORD_SPAWN_SQL).run(sessionId, userId, sessionId);
+          return;
+        } catch (retryErr) {
+          const retryMessage = retryErr instanceof Error ? retryErr.message : String(retryErr);
+          console.error('Failed to record session participant after creating session row', {
+            sessionId,
+            userId,
+            error: retryMessage,
+          });
+          return;
+        }
+      }
+
       console.error('Failed to record session participant', { sessionId, userId, error: message });
     }
   },

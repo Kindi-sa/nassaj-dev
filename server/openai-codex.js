@@ -256,7 +256,10 @@ export async function queryCodex(command, options = {}, ws) {
       return;
     }
     participantRecorded = true;
-    participantsDb.recordSpawn(sid, ws.userId);
+    participantsDb.recordSpawn(sid, ws.userId, {
+      provider: 'codex',
+      projectPath: workingDirectory,
+    });
   };
 
   try {

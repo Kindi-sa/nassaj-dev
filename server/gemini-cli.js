@@ -140,7 +140,10 @@ async function spawnGemini(command, options = {}, ws) {
             return;
         }
         participantRecorded = true;
-        participantsDb.recordSpawn(sid, ws.userId);
+        participantsDb.recordSpawn(sid, ws.userId, {
+            provider: 'gemini',
+            projectPath: cwd || projectPath || process.cwd(),
+        });
     };
 
     // Use tools settings passed from frontend, or defaults

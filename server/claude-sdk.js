@@ -822,7 +822,10 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       return;
     }
     participantRecorded = true;
-    participantsDb.recordSpawn(sid, ws.userId);
+    participantsDb.recordSpawn(sid, ws.userId, {
+      provider: 'claude',
+      projectPath: options.cwd || options.projectPath || process.cwd(),
+    });
   };
 
   const emitNotification = (event) => {

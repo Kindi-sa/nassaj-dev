@@ -724,7 +724,10 @@ async function spawnAntigravity(command, options = {}, ws) {
     // Record the authenticated human who spawned this agy run. Idempotent at the
     // DB layer; skipped for unauthenticated (single-user) runs with no userId.
     if (ws?.userId) {
-        participantsDb.recordSpawn(finalSessionId, ws.userId);
+        participantsDb.recordSpawn(finalSessionId, ws.userId, {
+            provider: 'antigravity',
+            projectPath: cleanCwd,
+        });
     }
 
     // Shared discovery state so the early stdout hook and the close-time safety

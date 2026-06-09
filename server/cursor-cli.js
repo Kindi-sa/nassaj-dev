@@ -44,7 +44,10 @@ async function spawnCursor(command, options = {}, ws) {
         return;
       }
       participantRecorded = true;
-      participantsDb.recordSpawn(sid, ws.userId);
+      participantsDb.recordSpawn(sid, ws.userId, {
+        provider: 'cursor',
+        projectPath: cwd || projectPath || process.cwd(),
+      });
     };
 
     // Resumed sessions carry their id at spawn time.
