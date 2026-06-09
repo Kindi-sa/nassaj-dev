@@ -1,5 +1,25 @@
 # nassaj-dev — Change Log
 
+## 2026-06-09 — Realtime session mirrors + B-N-DRAIN live + agy resume-replay fix + provider auth emails + smaller fixes
+
+**الملخص (AR):** حزمة جلسة 2026-06-09 (commits `10bb55e` → `e9d0776`):
+
+- **مرايا الجلسة اللحظية (`e9d0776`):** كل البث يمر بـ`WebSocketWriter.send` الذي صار يوزّع نسخة قراءة-فقط لكل «مرآة» مسجَّلة على الجلسة (سقف 20، تنظيف ذاتي للسوكتات الميتة، تخطّي الكاتب الأساسي). التسجيل عند `check-session-status` لكل المزوّدين. النتيجة: تحديث الصفحة وسط دور جارٍ لا يقطع البث، أكثر من مستخدم يشاهدون نفس الجلسة لحظياً، وطلبات الأذونات تصل كل المشاهدين فلا تتوقّت بلا موافِق. فيتو «لا swap للكاتب وسط دور» محترم بالكامل — المرايا لا تصبح كاتباً أبداً. (سطرا الدمج في `chat-websocket.service.ts` غير مرحَّلين بعد — الملف يحمل تعديلات جلسة موازية.)
+- **B-N-DRAIN حيّ (`860dfce` + `a9b161b`):** استبدال `process.exit(0)` الفوري عند الإيقاف بـdrain ينتظر الأدوار الجارية عبر `getActive*Sessions` للمزوّدين الستة، **بلا سقف زمني افتراضياً** (`DRAIN_TIMEOUT_MS=0`؛ قرار المستخدم: الأدوار قد تمتد ساعات)، إشارة ثانية = خروج فوري. مراجعة qa-critic كشفت الشرط الحاجب الغائب عن ADR-022: `treekill: false` (افتراضي PM2 يقتل الأبناء أولاً) — أُضيف مع `kill_timeout: 86400000` في `ecosystem.config.cjs` وتأكد تفعيلهما في PM2. قرار معتمد: «الفصل الكامل» (خدمتان منفصلتان) مُغلق نهائياً — ممكن نظرياً لكنه إعادة هندسة لا تبرَّر.
+- **إصلاح replay استئناف agy (`e7cf074`):** agy في `-p --conversation` يعيد طباعة ردّ الدور السابق على stdout؛ صارت الردود المستأنفة تُشتق من خطوات `PLANNER_RESPONSE` الجديدة في `transcript.jsonl` (مع retry لتأخر الكتابة)، وstdout يُكبح بثّه ويبقى fallback. وحقن تعليمات NASSAJ.md يحدث مرة واحدة عند أول استئناف لمحادثة وُلدت خارج الواجهة (IDE/طرفية). اختبارا انحدار في `agy-cli.utf8-chunk.test.ts`.
+- **بريد الحساب المعتمد (`52aaeb9`):** صفحة الوكلاء تعرض البريد الفعلي: claude من `oauthAccount.emailAddress` في `.claude.json` (بوعي العزل: `CLAUDE_CONFIG_DIR` للمعزول)، وantigravity من سجلّ agy (`applyAuthResult: email=`) عند غياب ملفات Google.
+- **إصلاح FK تسجيل المشارك (`c24b10b`):** `recordSpawn` كان يسبق إنشاء صف `sessions` فيفشل بقيد FK ويضيع المشارك الأول ودور owner؛ صار ينشئ الصف من سياق الإقلاع ويعيد المحاولة مرة، عبر المزوّدات الخمس.
+- **نافذة Fable 5 (`10bb55e`):** `resolveContextWindow` يعرف fable → 1M بدل السقوط على 200K.
+- ذو صلة من الجلسة الموازية (يوثَّق في بنده): عزل استهلاك Claude لكل مستخدم (`getUsage(userId)` + كاش لكل credential) وكتالوج النماذج الديناميكي.
+
+**Summary (EN):**
+- **Realtime session mirrors (`e9d0776`):** `WebSocketWriter.send` now fans every payload out to per-session read-only mirror sockets (cap 20, self-pruning, primary skipped). Registered on `check-session-status` for all providers. Refreshing mid-run keeps streaming, multiple users view the same session live, and permission prompts reach every viewer (no more unanswered timeouts). The no-writer-swap veto stays fully intact. (The 2-line integration in `chat-websocket.service.ts` is intentionally uncommitted — the file carries a parallel session's pending changes.)
+- **B-N-DRAIN live (`860dfce` + `a9b161b`):** stop signals now trigger a drain that waits for in-flight runs across all six providers, **unbounded by default** (`DRAIN_TIMEOUT_MS=0`; runs can take hours); a second signal forces immediate exit. qa-critic review surfaced the blocking gap missing from ADR-022 — PM2's default `treekill` signals children first — fixed via `treekill: false` + `kill_timeout: 86400000` in `ecosystem.config.cjs` (verified live in PM2). Full two-service separation formally closed as not worth the re-architecture.
+- **agy resume-replay fix (`e7cf074`):** resumed `-p --conversation` runs derive the reply from new `PLANNER_RESPONSE` transcript steps instead of stdout (which replays previous turns); NASSAJ.md instructions are injected once on first UI resume of IDE-born conversations. Regression tests added.
+- **Provider auth emails (`52aaeb9`):** agents settings shows the real account email (claude: `oauthAccount.emailAddress` from the isolation-aware config dir; antigravity: agy CLI log fallback).
+- **Participant FK self-heal (`c24b10b`):** `recordSpawn` no longer loses the first participant/owner when it races the session synchronizer.
+- **Fable context window (`10bb55e`):** `resolveContextWindow` recognizes fable models as 1M.
+
 ## 2026-06-05 — Feature: source Claude built-in slash commands dynamically (SDK supportedCommands) with static fallback
 
 **الملخص (AR):** أوامر السلاش المدمجة لمزوّد Claude تُشتق الآن ديناميكياً من الـSDK
