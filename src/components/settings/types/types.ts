@@ -30,6 +30,7 @@ export type NotificationPreferencesState = {
   channels: {
     inApp: boolean;
     webPush: boolean;
+    sound: boolean;
   };
   events: {
     actionRequired: boolean;
