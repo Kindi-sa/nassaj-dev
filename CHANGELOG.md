@@ -3,6 +3,31 @@
 All notable changes to CloudCLI UI will be documented in this file.
 
 
+## [1.33.0] — Model Selection Overhaul (2026-06-09)
+
+> إصلاح وتحديث منظومة اختيار النماذج (Claude SDK + Antigravity). التفاصيل المعمارية في `docs/decisions/025-model-selection-overhaul.md`.
+> Model selection overhaul (Claude SDK + Antigravity). Architectural detail in `docs/decisions/025-model-selection-overhaul.md`. Reviewed & approved by qa-critic.
+
+### New Features
+
+* **claude:** discover supported models dynamically via Claude Code SDK `query(...).supportedModels()` — replaces the hardcoded list. Isolated, side-effect-free probe (zero-turn async-generator prompt → no ghost jsonl session; temp cwd cleaned up; `close()` teardown) with circuit breaker, single-flight, and degraded fallback. Default is now **Opus 4.8**, and the newest model the subscription exposes (e.g. **Fable 5**) appears automatically. Adds stale-while-revalidate caching. (`server/modules/providers/list/claude/claude-catalog.client.ts`, `claude-models.provider.ts`, `provider-models.service.ts`)
+* **agy:** dynamic Antigravity model selection — UI now lists the full catalog instead of a single `auto` option, and the server forwards the chosen model as `--model <label>` (translating UI `modelId` → display `label` from the cached catalog; no `--model` on `auto`/empty). (`src/components/chat/ProviderSelectionEmptyState.tsx`, `server/agy-cli.js`)
+
+### Bug Fixes
+
+* **chat:** fix `There's an issue with the selected model (auto)` crash on every send. Root cause: a stale `localStorage["claude-model"]="auto"` (leaked from Cursor models) passed unvalidated to the SDK, plus client-side sanitization that only ran on a successful catalog load. Adds server-side model validation in `mapCliOptionsToSDK` with an explicit `console.warn` fallback (no silent swap), a client mirror with `sanitizeStoredModel`/`sanitizeStoredProvider`, initial-read sanitization of localStorage, single-provider failure isolation, fallback-catalog use on load failure, and a status banner. Corrects `FALLBACK_DEFAULT_MODEL.claude` from `'opus'` to `'default'`. (`server/claude-sdk.js`, `src/constants/providerModelFallbacks.ts`, `src/components/chat/hooks/normalizeProviderModel.ts`, `src/components/chat/hooks/useChatProviderState.ts`, `src/components/CommandResultModal.tsx`)
+* **chat:** fix Fable 5 being silently downgraded to Opus 4.8. Send-time validation now checks the **union** of the dynamic catalog (from `getProviderModels` cache) and the static list (`buildValidClaudeModelValues`), so models discovered dynamically are no longer rejected — while keeping the auto/corrupted-value guard. (`server/claude-sdk.js`)
+* **chat:** fix the provider switcher disappearing when the active provider is antigravity — the `isAntigravity` branch in `ProviderSelectionEmptyState.tsx` rendered a read-only card with no way to reopen the picker. The clickable picker is now always shown. (`src/components/chat/ProviderSelectionEmptyState.tsx`)
+
+### Tests
+
+* add `server/claude-sdk.model.test.js`, `server/modules/providers/list/claude/__tests__/claude-catalog.test.ts`, `server/modules/providers/services/provider-models.service.test.ts`, `server/agy-cli.model.test.ts`, `src/components/chat/hooks/normalizeProviderModel.test.ts`.
+
+### Notes
+
+* Verification is done via the **nassaj-dev log** (absence of `model "<x>" not in CLAUDE OPTIONS; falling back` for valid models; for agy, presence of `Propagating selected model override to backend: label="..."`), **not** by asking the model its identity (unreliable). Deployment: UI (`dist/`) on browser refresh; server (`dist-server/`) requires `pm2 restart nassaj-dev`. Model cache: `~/.cloudcli/provider-models-cache.json` (TTL 3 days). Open follow-ups (non-critical) are tracked in ADR-025.
+
+
 ## [](https://github.com/siteboon/claudecodeui/compare/v1.32.0...vnull) (2026-06-01)
 
 ### New Features

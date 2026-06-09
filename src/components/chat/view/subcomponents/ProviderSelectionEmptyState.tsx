@@ -130,10 +130,11 @@ export default function ProviderSelectionEmptyState({
   const { t } = useTranslation("chat");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  // agy ignores UI model selection: it picks the model from its own settings.
-  // So for antigravity we hide the selectable picker and show a read-only label
-  // sourced from the active-model hook (degrades gracefully when agy reports
-  // nothing). The backend now serves the live agy catalog with a fallback.
+  // agy supports model selection (CLI `--model`), so antigravity is a fully
+  // selectable provider like the others: the chosen catalog model is stored in
+  // `antigravity-model` and sent to the backend. We additionally surface agy's
+  // currently-active model (from the active-model hook) as an informational
+  // banner. The backend serves the live agy catalog with a fallback.
   const isAntigravity = provider === "antigravity";
   const {
     label: antigravityActiveLabel,
@@ -232,38 +233,6 @@ export default function ProviderSelectionEmptyState({
             </p>
           </div>
 
-          {isAntigravity ? (
-            <Card
-              className="mx-auto max-w-xs border-border/60"
-              role="group"
-              aria-label={t("providerSelection.antigravity.activeModel", {
-                defaultValue: "Active model",
-              })}
-            >
-              <div className="flex items-center gap-2 p-3">
-                <SessionProviderLogo provider={provider} className="h-5 w-5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-foreground">
-                      {getProviderDisplayName(provider)}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {t("providerSelection.antigravity.activeModelLabel", {
-                      defaultValue: "Active model",
-                    })}
-                    {": "}
-                    <span
-                      className="font-medium text-foreground"
-                      aria-live="polite"
-                    >
-                      {antigravityModelDisplay}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </Card>
-          ) : (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Card
@@ -283,6 +252,8 @@ export default function ProviderSelectionEmptyState({
                       </span>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="truncate text-xs text-foreground">
+                        {/* Show the selected catalog model for every provider,
+                            including agy (now fully selectable). */}
                         {currentModelLabel}
                       </span>
                     </div>
@@ -291,6 +262,17 @@ export default function ProviderSelectionEmptyState({
                         defaultValue: "Click to change model",
                       })}
                     </p>
+                    {isAntigravity && (
+                      <p
+                        className="mt-0.5 truncate text-[11px] text-muted-foreground/70"
+                        aria-live="polite"
+                      >
+                        {t("providerSelection.antigravity.activeModel", {
+                          defaultValue: "agy active model: {{model}}",
+                          model: antigravityModelDisplay,
+                        })}
+                      </p>
+                    )}
                   </div>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-y-0.5" />
                 </div>
@@ -314,13 +296,7 @@ export default function ProviderSelectionEmptyState({
                       defaultValue: "No models found.",
                     })}
                   </CommandEmpty>
-                  {visibleProviderGroups
-                    .map((group) =>
-                      group.id === "antigravity"
-                        ? { ...group, models: group.models.slice(0, 1) }
-                        : group,
-                    )
-                    .map((group, idx) => (
+                  {visibleProviderGroups.map((group, idx) => (
                     <CommandGroup
                       key={group.id}
                       className={
@@ -369,7 +345,6 @@ export default function ProviderSelectionEmptyState({
               </Command>
             </DialogContent>
           </Dialog>
-          )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
             {
@@ -387,8 +362,8 @@ export default function ProviderSelectionEmptyState({
                   model: geminiModel,
                 }),
                 antigravity: t("providerSelection.readyPrompt.antigravity", {
-                  defaultValue:
-                    "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
+                  model: antigravityModel,
+                  defaultValue: "Ready with Antigravity (agy) {{model}}",
                 }),
                 opencode: t("providerSelection.readyPrompt.opencode", {
                   model: opencodeModel,

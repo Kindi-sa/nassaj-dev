@@ -8,17 +8,12 @@ import type {
   ProviderModelsCacheInfo,
   ProviderModelsDefinition,
 } from '../../../types/app';
-
-const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
-  claude: 'opus',
-  cursor: 'gpt-5.3-codex',
-  codex: 'gpt-5.4',
-  gemini: 'gemini-3.1-pro-preview',
-  // Antigravity (agy) default preserved from the fork's former
-  // ANTIGRAVITY_MODELS.DEFAULT; see antigravity-models.provider.ts (backend).
-  antigravity: 'auto',
-  opencode: 'anthropic/claude-sonnet-4-5',
-};
+import {
+  PROVIDER_FALLBACK_MODELS,
+  sanitizeStoredModel,
+  sanitizeStoredProvider,
+} from '../../../constants/providerModelFallbacks';
+import { pickStoredOrCurrent } from './normalizeProviderModel';
 
 const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
   if (provider === 'codex') {
@@ -61,28 +56,28 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   const [permissionMode, setPermissionMode] = useState<PermissionMode>('default');
   const [pendingPermissionRequests, setPendingPermissionRequests] = useState<PendingPermissionRequest[]>([]);
   const [provider, setProvider] = useState<LLMProvider>(() => {
-    return (localStorage.getItem('selected-provider') as LLMProvider) || 'claude';
+    return sanitizeStoredProvider(localStorage.getItem('selected-provider'));
   });
   const [cursorModel, setCursorModel] = useState<string>(() => {
-    return localStorage.getItem('cursor-model') || FALLBACK_DEFAULT_MODEL.cursor;
+    return sanitizeStoredModel('cursor', localStorage.getItem('cursor-model'));
   });
   const [claudeModel, setClaudeModel] = useState<string>(() => {
-    return localStorage.getItem('claude-model') || FALLBACK_DEFAULT_MODEL.claude;
+    return sanitizeStoredModel('claude', localStorage.getItem('claude-model'));
   });
   const [codexModel, setCodexModel] = useState<string>(() => {
-    return localStorage.getItem('codex-model') || FALLBACK_DEFAULT_MODEL.codex;
+    return sanitizeStoredModel('codex', localStorage.getItem('codex-model'));
   });
   const [geminiModel, setGeminiModel] = useState<string>(() => {
-    return localStorage.getItem('gemini-model') || FALLBACK_DEFAULT_MODEL.gemini;
+    return sanitizeStoredModel('gemini', localStorage.getItem('gemini-model'));
   });
   const [opencodeModel, setOpenCodeModel] = useState<string>(() => {
-    return localStorage.getItem('opencode-model') || FALLBACK_DEFAULT_MODEL.opencode;
+    return sanitizeStoredModel('opencode', localStorage.getItem('opencode-model'));
   });
   // Antigravity (agy) does not expose model selection from the UI; the real
   // model is chosen inside agy's own settings. We still carry a tiny piece of
   // state so the provider plugs into existing model-aware helpers uniformly.
   const [antigravityModel, setAntigravityModel] = useState<string>(() => {
-    return localStorage.getItem('antigravity-model') || FALLBACK_DEFAULT_MODEL.antigravity;
+    return sanitizeStoredModel('antigravity', localStorage.getItem('antigravity-model'));
   });
 
   const [providerModelCatalog, setProviderModelCatalog] = useState<
@@ -93,6 +88,11 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   >({});
   const [providerModelsLoading, setProviderModelsLoading] = useState(true);
   const [providerModelsRefreshing, setProviderModelsRefreshing] = useState(false);
+  // Set of providers whose live catalog failed to load and are currently
+  // serving the embedded fallback catalog. Empty when everything loaded live.
+  const [providerModelsFallbackProviders, setProviderModelsFallbackProviders] = useState<
+    LLMProvider[]
+  >([]);
 
   const lastProviderRef = useRef(provider);
   const providerModelsRequestIdRef = useRef(0);
@@ -127,7 +127,7 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   }, []);
 
   const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
-    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'opencode'];
+    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
     const isHardRefresh = options.bypassCache === true;
@@ -138,51 +138,71 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       setProviderModelsLoading(true);
     }
 
-    try {
-      const results = await Promise.all(
-        providers.map(async (p) => {
+    // A single provider that errors out (HTTP failure, malformed body, or a
+    // thrown fetch) must not blank the catalog for the others, and must never
+    // leave a catalog entry undefined — an undefined entry disables the
+    // self-sanitizer and lets stale values like "auto" leak to the server.
+    // Each provider therefore resolves independently and falls back to the
+    // embedded catalog on any failure.
+    const results = await Promise.all(
+      providers.map(async (p) => {
+        try {
           const params = new URLSearchParams();
           if (options.bypassCache) {
             params.set('bypassCache', 'true');
           }
 
           const queryString = params.toString();
-          const response = await authenticatedFetch(`/api/providers/${p}/models${queryString ? `?${queryString}` : ''}`);
+          const response = await authenticatedFetch(
+            `/api/providers/${p}/models${queryString ? `?${queryString}` : ''}`,
+          );
           const body = (await response.json()) as ProviderModelsApiResponse;
-          if (!body.success || !body.data?.models || !body.data?.cache) {
-            return null;
+          if (!response.ok || !body.success || !body.data?.models || !body.data?.cache) {
+            return { provider: p, data: null as ProviderModelsApiResponse['data'] | null };
           }
 
-          return body.data;
-        }),
-      );
+          return { provider: p, data: body.data };
+        } catch (error) {
+          console.warn(`Failed to load live models for provider "${p}"; using fallback catalog.`, error);
+          return { provider: p, data: null as ProviderModelsApiResponse['data'] | null };
+        }
+      }),
+    );
 
-      if (providerModelsRequestIdRef.current !== requestId) {
+    if (providerModelsRequestIdRef.current !== requestId) {
+      return;
+    }
+
+    const nextCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>> = {};
+    const nextCacheCatalog: Partial<Record<LLMProvider, ProviderModelsCacheInfo>> = {};
+    const fallbackProviders: LLMProvider[] = [];
+
+    results.forEach(({ provider: p, data }) => {
+      if (data?.models && data?.cache) {
+        nextCatalog[p] = data.models;
+        nextCacheCatalog[p] = data.cache;
         return;
       }
 
-      const nextCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>> = {};
-      const nextCacheCatalog: Partial<Record<LLMProvider, ProviderModelsCacheInfo>> = {};
+      // Failed provider: keep the catalog populated with the embedded fallback
+      // so the sanitizer always has a valid option list to work against.
+      nextCatalog[p] = PROVIDER_FALLBACK_MODELS[p];
+      fallbackProviders.push(p);
+    });
 
-      providers.forEach((p, i) => {
-        const entry = results[i];
-        if (!entry) {
-          return;
-        }
+    if (fallbackProviders.length > 0) {
+      console.warn(
+        `Provider model catalog using embedded fallback for: ${fallbackProviders.join(', ')}.`,
+      );
+    }
 
-        nextCatalog[p] = entry.models;
-        nextCacheCatalog[p] = entry.cache;
-      });
+    setProviderModelCatalog(nextCatalog);
+    setProviderModelCacheCatalog(nextCacheCatalog);
+    setProviderModelsFallbackProviders(fallbackProviders);
 
-      setProviderModelCatalog(nextCatalog);
-      setProviderModelCacheCatalog(nextCacheCatalog);
-    } catch (error) {
-      console.error('Error loading provider models:', error);
-    } finally {
-      if (providerModelsRequestIdRef.current === requestId) {
-        setProviderModelsLoading(false);
-        setProviderModelsRefreshing(false);
-      }
+    if (providerModelsRequestIdRef.current === requestId) {
+      setProviderModelsLoading(false);
+      setProviderModelsRefreshing(false);
     }
   }, []);
 
@@ -190,85 +210,55 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     void loadProviderModels();
   }, [loadProviderModels]);
 
-  const pickStoredOrCurrent = (
-    storageKey: string,
-    current: string,
-    def: ProviderModelsDefinition,
-  ): string => {
-    const stored = localStorage.getItem(storageKey);
-    if (stored && def.OPTIONS.some((o) => o.value === stored)) {
-      return stored;
-    }
-    if (current && def.OPTIONS.some((o) => o.value === current)) {
-      return current;
-    }
-    return def.DEFAULT;
-  };
+  // Normalize a stored/current model against the authoritative catalog entry
+  // and persist the result. The catalog is always populated (live or fallback),
+  // so this runs even when the live API fails — which is what prevents a stuck
+  // "auto" value from ever reaching the server.
+  const reconcileProviderModel = useCallback(
+    (
+      storageKey: string,
+      def: ProviderModelsDefinition | undefined,
+      current: string,
+      setter: (value: string) => void,
+    ) => {
+      if (!def) {
+        return;
+      }
+      const next = pickStoredOrCurrent(localStorage.getItem(storageKey), current, def);
+      if (next !== current) {
+        setter(next);
+      }
+      if (localStorage.getItem(storageKey) !== next) {
+        localStorage.setItem(storageKey, next);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
-    const claude = providerModelCatalog.claude;
-    if (claude) {
-      const next = pickStoredOrCurrent('claude-model', claudeModel, claude);
-      if (next !== claudeModel) {
-        setClaudeModel(next);
-      }
-      if (localStorage.getItem('claude-model') !== next) {
-        localStorage.setItem('claude-model', next);
-      }
-    }
-  }, [providerModelCatalog.claude, claudeModel]);
+    reconcileProviderModel('claude-model', providerModelCatalog.claude, claudeModel, setClaudeModel);
+  }, [providerModelCatalog.claude, claudeModel, reconcileProviderModel]);
 
   useEffect(() => {
-    const cursor = providerModelCatalog.cursor;
-    if (cursor) {
-      const next = pickStoredOrCurrent('cursor-model', cursorModel, cursor);
-      if (next !== cursorModel) {
-        setCursorModel(next);
-      }
-      if (localStorage.getItem('cursor-model') !== next) {
-        localStorage.setItem('cursor-model', next);
-      }
-    }
-  }, [providerModelCatalog.cursor, cursorModel]);
+    reconcileProviderModel('cursor-model', providerModelCatalog.cursor, cursorModel, setCursorModel);
+  }, [providerModelCatalog.cursor, cursorModel, reconcileProviderModel]);
 
   useEffect(() => {
-    const codex = providerModelCatalog.codex;
-    if (codex) {
-      const next = pickStoredOrCurrent('codex-model', codexModel, codex);
-      if (next !== codexModel) {
-        setCodexModel(next);
-      }
-      if (localStorage.getItem('codex-model') !== next) {
-        localStorage.setItem('codex-model', next);
-      }
-    }
-  }, [providerModelCatalog.codex, codexModel]);
+    reconcileProviderModel('codex-model', providerModelCatalog.codex, codexModel, setCodexModel);
+  }, [providerModelCatalog.codex, codexModel, reconcileProviderModel]);
 
   useEffect(() => {
-    const gemini = providerModelCatalog.gemini;
-    if (gemini) {
-      const next = pickStoredOrCurrent('gemini-model', geminiModel, gemini);
-      if (next !== geminiModel) {
-        setGeminiModel(next);
-      }
-      if (localStorage.getItem('gemini-model') !== next) {
-        localStorage.setItem('gemini-model', next);
-      }
-    }
-  }, [providerModelCatalog.gemini, geminiModel]);
+    reconcileProviderModel('gemini-model', providerModelCatalog.gemini, geminiModel, setGeminiModel);
+  }, [providerModelCatalog.gemini, geminiModel, reconcileProviderModel]);
 
   useEffect(() => {
-    const opencode = providerModelCatalog.opencode;
-    if (opencode) {
-      const next = pickStoredOrCurrent('opencode-model', opencodeModel, opencode);
-      if (next !== opencodeModel) {
-        setOpenCodeModel(next);
-      }
-      if (localStorage.getItem('opencode-model') !== next) {
-        localStorage.setItem('opencode-model', next);
-      }
-    }
-  }, [providerModelCatalog.opencode, opencodeModel]);
+    reconcileProviderModel(
+      'opencode-model',
+      providerModelCatalog.opencode,
+      opencodeModel,
+      setOpenCodeModel,
+    );
+  }, [providerModelCatalog.opencode, opencodeModel, reconcileProviderModel]);
 
   useEffect(() => {
     if (!selectedSession?.id) {
@@ -392,6 +382,8 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     providerModelCacheCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
+    providerModelsFallbackProviders,
+    providerModelsHasError: providerModelsFallbackProviders.length > 0,
     hardRefreshProviderModels: () => loadProviderModels({ bypassCache: true }),
     selectProviderModel,
   };

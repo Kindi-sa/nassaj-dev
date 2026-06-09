@@ -15,6 +15,7 @@ import {
   TerminalSquare,
   Timer,
   RefreshCw,
+  TriangleAlert,
   X,
 } from 'lucide-react';
 
@@ -34,6 +35,7 @@ type CommandResultModalProps = {
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelCacheCatalog: Partial<Record<LLMProvider, ProviderModelsCacheInfo>>;
   providerModelsRefreshing: boolean;
+  providerModelsFallbackProviders: LLMProvider[];
   onHardRefreshProviderModels: () => void;
   currentSessionId: string | null;
   onSelectProviderModel: (
@@ -248,6 +250,7 @@ function ModelsContent({
   providerModelCatalog,
   providerModelCacheCatalog,
   providerModelsRefreshing,
+  providerModelsFallbackProviders,
   onHardRefreshProviderModels,
   currentSessionId,
   onSelectProviderModel,
@@ -256,6 +259,7 @@ function ModelsContent({
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelCacheCatalog: Partial<Record<LLMProvider, ProviderModelsCacheInfo>>;
   providerModelsRefreshing: boolean;
+  providerModelsFallbackProviders: LLMProvider[];
   onHardRefreshProviderModels: () => void;
   currentSessionId: string | null;
   onSelectProviderModel: CommandResultModalProps['onSelectProviderModel'];
@@ -266,6 +270,7 @@ function ModelsContent({
   const [pendingSessionModel, setPendingSessionModel] = useState<string | null>(null);
   const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
   const currentProvider = (data?.current?.provider || 'claude') as LLMProvider;
+  const isUsingFallbackCatalog = providerModelsFallbackProviders.includes(currentProvider);
   const currentModel = data?.current?.model || 'Unknown';
   const providerLabel = data?.current?.providerLabel || getProviderLabel(currentProvider);
   const liveDefinition = providerModelCatalog[currentProvider];
@@ -331,6 +336,18 @@ function ModelsContent({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-2.5">
+      {isUsingFallbackCatalog && (
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] leading-4 text-amber-700 dark:text-amber-300"
+        >
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            Could not load the live model list for {providerLabel}. Showing a built-in fallback
+            list; selecting a model still works. Try “Refresh from providers”.
+          </span>
+        </div>
+      )}
       <div className="rounded-2xl border border-border/70 bg-muted/20 p-2.5">
         <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1.55fr)_minmax(12rem,0.7fr)_minmax(15rem,0.9fr)] lg:items-start">
           <div className="min-w-0">
@@ -608,6 +625,7 @@ export default function CommandResultModal({
   providerModelCatalog,
   providerModelCacheCatalog,
   providerModelsRefreshing,
+  providerModelsFallbackProviders,
   onHardRefreshProviderModels,
   currentSessionId,
   onSelectProviderModel,
@@ -702,6 +720,7 @@ export default function CommandResultModal({
               providerModelCatalog={providerModelCatalog}
               providerModelCacheCatalog={providerModelCacheCatalog}
               providerModelsRefreshing={providerModelsRefreshing}
+              providerModelsFallbackProviders={providerModelsFallbackProviders}
               onHardRefreshProviderModels={onHardRefreshProviderModels}
               currentSessionId={currentSessionId}
               onSelectProviderModel={onSelectProviderModel}

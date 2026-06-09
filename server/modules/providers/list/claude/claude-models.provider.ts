@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 
+import { getClaudeModelCatalog } from '@/modules/providers/list/claude/claude-catalog.client.js';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
@@ -13,12 +14,28 @@ import {
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
+/**
+ * Graceful-degradation safety net for the Claude model picker.
+ *
+ * The authoritative source is now the LIVE catalog fetched from the installed
+ * Claude Code via {@link getClaudeModelCatalog} (see claude-catalog.client.ts),
+ * which reflects the operator's actual subscription and automatically surfaces
+ * the newest model the account can use. This array is served ONLY when that live
+ * probe is unavailable (Claude not installed, spawn/timeout failure, circuit
+ * breaker open), and is flagged `degraded` by the catalog client so the cache
+ * layer re-probes within minutes.
+ *
+ * Values/descriptions mirror what `supportedModels()` returns today (verified
+ * against the live SDK output) so the degraded picker stays plausible. Keep
+ * `sonnet[1m]` — it is a real selectable value but consumes 1M-context usage
+ * credits, hence the explicit note.
+ */
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the default model (currently Opus 4.7 (1M context)) · $5/$25 per Mtok',
+      description: 'Use the default model (currently Opus 4.7 (1M context)) · Most capable for complex work',
     },
     {
       value: 'sonnet',
@@ -28,12 +45,17 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'sonnet[1m]',
       label: 'Sonnet (1M context)',
-      description: 'Sonnet 4.6 for long sessions · $3/$15 per Mtok',
+      description: 'Sonnet 4.6 with 1M context · Requires 1M-context access · draws from usage credits · $3/$15 per Mtok',
     },
     {
       value: 'haiku',
       label: 'Haiku',
       description: 'Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok',
+    },
+    {
+      value: 'claude-opus-4-8',
+      label: 'Opus 4.8',
+      description: 'Opus 4.8 · Latest, most capable Opus for complex work',
     },
   ],
   DEFAULT: 'default',
@@ -148,19 +170,20 @@ const readClaudeSessionModelFromJsonl = async (
 };
 
 export class ClaudeProviderModels implements IProviderModels {
+  /**
+   * Returns the live Claude model catalog when the SDK probe succeeds, otherwise
+   * {@link CLAUDE_FALLBACK_MODELS} flagged as degraded. The catalog client owns
+   * the side-effect-free probe (zero-turn streaming prompt in an isolated temp
+   * cwd — no jsonl session, no workspace listing), the abort timeout, the
+   * circuit breaker, the single-flight lock, and the graceful fallback.
+   *
+   * The provider-models service caches a live catalog for the normal multi-day
+   * TTL and a degraded fallback only briefly, and serves a stale entry instantly
+   * while refreshing in the background, so this probe never blocks the request
+   * path.
+   */
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    // claude creates a new jsonl file as a separate session for this request.
-    // As a result, it lists the workspace where this is invoked when it shouldn't.
-    //
-    // Disabled for now:
-    // const queryInstance = query({
-    //   prompt: 'Get supported models',
-    //   options: buildClaudeQueryOptions(),
-    // });
-    // const supportedModels = await queryInstance.supportedModels();
-    // queryInstance.close();
-    // return buildClaudeModelsDefinition(supportedModels);
-    return CLAUDE_FALLBACK_MODELS;
+    return getClaudeModelCatalog();
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {

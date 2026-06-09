@@ -165,11 +165,53 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 /**
+ * Builds the set of model values the send path will accept.
+ *
+ * Union of the LIVE/cached dynamic Claude catalog (same source the picker reads)
+ * and the static {@link CLAUDE_FALLBACK_MODELS} OPTIONS as a safety net. The
+ * static list alone does NOT contain dynamically-discovered models (e.g.
+ * `claude-fable-5`), so validating against it rejected real picker selections
+ * and coerced them to default. Including the dynamic catalog fixes that while
+ * keeping the static list as a floor for when the catalog is unavailable.
+ *
+ * Pure/synchronous: it accepts an already-resolved catalog definition (the
+ * caller pulls it from the cached, non-blocking SWR layer) so the hot send path
+ * never awaits a live probe here.
+ *
+ * @param {ProviderModelsDefinition|null|undefined} catalog - Dynamic catalog
+ *   (e.g. from providerModelsService.getProviderModels('claude')). May be null
+ *   when the catalog is unavailable; only the static list is used then.
+ * @returns {Set<string>} Valid model values.
+ */
+function buildValidClaudeModelValues(catalog) {
+  const values = new Set();
+  // Static safety net first — always valid even if the catalog is empty/broken.
+  for (const option of CLAUDE_FALLBACK_MODELS.OPTIONS) {
+    if (option && typeof option.value === 'string') {
+      values.add(option.value);
+    }
+  }
+  // Dynamic catalog (the live/stored source the picker uses), if available.
+  const dynamicOptions = Array.isArray(catalog?.OPTIONS) ? catalog.OPTIONS : [];
+  for (const option of dynamicOptions) {
+    if (option && typeof option.value === 'string') {
+      values.add(option.value);
+    }
+  }
+  return values;
+}
+
+/**
  * Maps CLI options to SDK-compatible options format
  * @param {Object} options - CLI options
+ * @param {Set<string>} [validModelValues] - Set of accepted model values. When
+ *   provided (by queryClaudeSDK), it is the union of the dynamic Claude catalog
+ *   and the static fallback list. When omitted, validation falls back to the
+ *   static CLAUDE_FALLBACK_MODELS.OPTIONS only (preserves prior behavior and
+ *   keeps the function usable standalone, e.g. in unit tests).
  * @returns {Object} SDK-compatible options
  */
-function mapCliOptionsToSDK(options = {}) {
+function mapCliOptionsToSDK(options = {}, validModelValues) {
   const { sessionId, cwd, toolsSettings, permissionMode } = options;
 
   const sdkOptions = {};
@@ -226,9 +268,31 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  // Map model (default to sonnet)
-  // Valid models: sonnet, opus, haiku, opusplan, sonnet[1m]
-  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
+  // Map model with validation against the accepted-model set.
+  // The set is the union of the LIVE/cached dynamic Claude catalog (same source
+  // the picker reads, e.g. claude-fable-5) and the static CLAUDE_FALLBACK_MODELS
+  // safety net. queryClaudeSDK passes it in from the cached SWR layer; when it is
+  // omitted (e.g. standalone/unit callers) we fall back to the static list only.
+  // Any value not in the set (the UI's "auto" sentinel, empty, whitespace, a
+  // truly unknown string) is rejected by the SDK, so we coerce it to the provider
+  // default here and emit a non-silent warning (no silent substitution).
+  const acceptedModels = validModelValues instanceof Set && validModelValues.size > 0
+    ? validModelValues
+    : buildValidClaudeModelValues(null);
+  const requested = typeof options.model === 'string' ? options.model.trim() : '';
+  const isKnownModel = requested !== '' && acceptedModels.has(requested);
+  if (isKnownModel) {
+    sdkOptions.model = requested;
+  } else {
+    sdkOptions.model = CLAUDE_FALLBACK_MODELS.DEFAULT;
+    if (requested) {
+      const sessionTag = sessionId ? ` [session=${sessionId}]` : '';
+      const userTag = options.userId ? ` [user=${options.userId}]` : '';
+      console.warn(
+        `model "${requested}" not in CLAUDE OPTIONS; falling back to "${CLAUDE_FALLBACK_MODELS.DEFAULT}"${sessionTag}${userTag}`
+      );
+    }
+  }
   // Model logged at query start below
 
   // Map system prompt configuration
@@ -771,11 +835,25 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       options.model,
     );
 
+    // Build the accepted-model set from the dynamic Claude catalog so any model
+    // the picker offers (e.g. claude-fable-5) passes validation. This reads the
+    // existing cached SWR layer (fast, in-memory; refresh runs in the background),
+    // so it never blocks or slows the send hot path. On any failure we leave the
+    // set undefined, and mapCliOptionsToSDK falls back to the static list — the
+    // send path is never broken by catalog issues.
+    let validModelValues;
+    try {
+      const { models: catalog } = await providerModelsService.getProviderModels('claude');
+      validModelValues = buildValidClaudeModelValues(catalog);
+    } catch {
+      validModelValues = undefined;
+    }
+
     // Map CLI options to SDK format
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
       model: resolvedModel || options.model,
-    });
+    }, validModelValues);
 
     // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
     // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR
@@ -1202,5 +1280,7 @@ export {
   getPendingApprovalsForSession,
   reconnectSessionWriter,
   resolveContextWindow,
-  getClaudeBuiltInCommands
+  getClaudeBuiltInCommands,
+  mapCliOptionsToSDK,
+  buildValidClaudeModelValues
 };

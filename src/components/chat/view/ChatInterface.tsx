@@ -130,6 +130,7 @@ function ChatInterface({
     providerModelCacheCatalog,
     providerModelsLoading,
     providerModelsRefreshing,
+    providerModelsFallbackProviders,
     hardRefreshProviderModels,
     selectProviderModel,
   } = useChatProviderState({
@@ -515,6 +516,7 @@ function ChatInterface({
         providerModelCatalog={providerModelCatalog}
         providerModelCacheCatalog={providerModelCacheCatalog}
         providerModelsRefreshing={providerModelsRefreshing}
+        providerModelsFallbackProviders={providerModelsFallbackProviders}
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}

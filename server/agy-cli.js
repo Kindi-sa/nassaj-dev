@@ -14,6 +14,7 @@ import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import os from 'os';
 import path from 'path';
+import { StringDecoder } from 'string_decoder';
 
 import sessionManager from './sessionManager.js';
 import { participantsDb, sessionsDb } from './modules/database/index.js';
@@ -311,9 +312,92 @@ async function discoverAndRegisterBrainSession(state, priorBrainIds, cleanCwd, f
     }
 }
 
+// agy's `--model` flag expects the model's DISPLAY LABEL, not the catalog
+// modelId. Verified against agy 1.x: `agy models` prints labels like
+// "Gemini 3.5 Flash (Low)", and `agy --model "<label>" --log-file ...` logs
+// `model_config_manager.go: Propagating selected model override to backend:
+// label="<label>"` while an unknown id logs `resolver.go: Model ID <X> not in
+// local config, defaulting to CCPA` (silent default, no error). The dynamic
+// catalog (antigravity-catalog.client.ts) carries each model's `value` (the
+// modelId the UI sends) and its `label` (the displayName agy wants), so we map
+// value -> label here.
+//
+// Pure, synchronous core so it is unit-testable without the network or a spawn.
+// Rules:
+//   * falsy / 'auto' (case-insensitive) / empty  -> null  (no --model; agy default)
+//   * exact match on a catalog OPTION value       -> that option's label
+//   * value already equals a catalog OPTION label -> that label (UI sent a label)
+//   * no catalog match                            -> the raw value (best-effort;
+//                                                    caller warns) so a brand-new
+//                                                    model not yet in the cached
+//                                                    catalog still reaches agy
+//                                                    rather than silently dropping.
+// Returns { label, matched } so the async wrapper can decide whether to warn.
+function pickAgyModelLabel(model, catalogOptions) {
+    if (typeof model !== 'string') {
+        return { label: null, matched: false };
+    }
+    const trimmed = model.trim();
+    if (!trimmed || trimmed.toLowerCase() === 'auto') {
+        return { label: null, matched: false };
+    }
+
+    const options = Array.isArray(catalogOptions) ? catalogOptions : [];
+
+    // Prefer an exact value (modelId) match — this is what the UI sends.
+    const byValue = options.find((opt) => opt && opt.value === trimmed);
+    if (byValue && typeof byValue.label === 'string' && byValue.label.trim()) {
+        return { label: byValue.label.trim(), matched: true };
+    }
+
+    // The UI might already be sending a label (or value === label in fallback
+    // catalogs); accept that too so we still pass a known-good label.
+    const byLabel = options.find((opt) => opt && opt.label === trimmed);
+    if (byLabel && typeof byLabel.label === 'string' && byLabel.label.trim()) {
+        return { label: byLabel.label.trim(), matched: true };
+    }
+
+    // Unknown to the cached catalog: pass through as best-effort.
+    return { label: trimmed, matched: false };
+}
+
+// Async wrapper: resolves the agy `--model` label for the UI-supplied model
+// using the CACHED provider-models catalog (memory -> disk -> stale-while-
+// revalidate). It never forces a blocking live fetch on this spawn hot path,
+// and any failure (no catalog, lookup error) degrades to a best-effort
+// pass-through of the raw value instead of breaking the run. Returns the label
+// string to pass to `--model`, or null to omit the flag entirely (agy default).
+async function resolveAgyModelLabel(model) {
+    if (typeof model !== 'string' || !model.trim() || model.trim().toLowerCase() === 'auto') {
+        return null;
+    }
+
+    let options = [];
+    try {
+        // Lazy import so loading agy-cli.js does not eagerly pull in the whole
+        // provider-models / provider-registry module graph at module-eval time.
+        // We only need the catalog when a concrete (non-auto) model is selected.
+        const { providerModelsService } = await import(
+            './modules/providers/services/provider-models.service.js'
+        );
+        const result = await providerModelsService.getProviderModels('antigravity');
+        options = result?.models?.OPTIONS ?? [];
+    } catch (err) {
+        // Catalog unavailable: fall through with an empty option list so
+        // pickAgyModelLabel best-effort passes the raw value.
+        console.warn('[agy] model catalog lookup failed; passing model as-is:', err?.message || err);
+    }
+
+    const { label, matched } = pickAgyModelLabel(model, options);
+    if (label && !matched) {
+        console.warn(`[agy] model "${model.trim()}" not found in catalog; passing it to --model as-is.`);
+    }
+    return label;
+}
+
 async function spawnAntigravity(command, options = {}, ws) {
     const opts = options && typeof options === 'object' ? options : {};
-    const { sessionId, projectPath, cwd, sessionSummary } = opts;
+    const { sessionId, projectPath, cwd, sessionSummary, model } = opts;
 
     // The authenticated user driving this run. Drives both the spawn env
     // (resolveProviderEnv) and which brain dir we read for UUID discovery, so
@@ -399,6 +483,14 @@ async function spawnAntigravity(command, options = {}, ws) {
     if (cleanCwd) {
         args.push('--add-dir', cleanCwd);
     }
+    // Pass the user-selected model through to agy. The UI sends the catalog
+    // `value` (modelId); agy's --model wants the display label, so resolve it
+    // here. Returns null for 'auto'/empty/unknown-handled-as-default, in which
+    // case we omit --model entirely and let agy use its own default model.
+    const agyModelLabel = await resolveAgyModelLabel(model);
+    if (agyModelLabel) {
+        args.push('--model', agyModelLabel);
+    }
     if (existingBrainUUID) {
         args.push('--conversation', existingBrainUUID);
     }
@@ -473,6 +565,13 @@ async function spawnAntigravity(command, options = {}, ws) {
     let sessionCreatedSent = false;
     let assistantText = '';
     let terminalNotified = false;
+
+    // UTF-8 streaming decoder for agy's plain-text stdout. A multibyte char (e.g.
+    // an Arabic letter = 2 bytes in UTF-8) can straddle a chunk boundary; decoding
+    // each Buffer chunk independently with .toString() would split the sequence and
+    // emit U+FFFD (�) mid-word. StringDecoder holds the incomplete trailing bytes
+    // and prepends them to the next chunk, so characters are only emitted once whole.
+    const stdoutDecoder = new StringDecoder('utf8');
 
     const safeSend = (payload) => {
         const normalized = createNormalizedMessage({ ...payload, provider: 'antigravity' });
@@ -549,7 +648,9 @@ async function spawnAntigravity(command, options = {}, ws) {
         // Emit session_created on the first stdout chunk for new sessions so the
         // frontend can pin the conversation id before the stream finishes.
         agProcess.stdout.on('data', (chunk) => {
-            const text = chunk.toString();
+            // Decode through the streaming decoder so a multibyte char split across
+            // this and the previous/next chunk is reassembled instead of producing �.
+            const text = stdoutDecoder.write(chunk);
             if (!text) return;
 
             if (!sessionCreatedSent && isNewSession) {
@@ -592,6 +693,17 @@ async function spawnAntigravity(command, options = {}, ws) {
 
         agProcess.on('close', async (code) => {
             activeSessions.delete(finalSessionId);
+
+            // Flush any bytes the decoder is still holding. With well-formed UTF-8
+            // this is empty (every char was completed by its following chunk); it
+            // only yields content if agy emitted a truncated final sequence, in
+            // which case StringDecoder substitutes � at the very end (correct: the
+            // input itself was malformed) rather than mid-stream.
+            const tail = stdoutDecoder.end();
+            if (tail) {
+                assistantText += tail;
+                safeSend({ kind: 'stream_delta', content: tail, sessionId: finalSessionId });
+            }
             // B-N7: the run is terminal — flip the single source of truth to
             // inactive. The buffer is retained for a bounded post-close replay
             // window so a socket that reconnects right after close can still
@@ -738,4 +850,6 @@ export {
     getActiveAntigravitySessions,
     attachAntigravitySession,
     agySessionRegistry,
+    pickAgyModelLabel,
+    resolveAgyModelLabel,
 };
