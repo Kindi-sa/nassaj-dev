@@ -1787,13 +1787,83 @@ async function startServer() {
         });
 
         await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
-        const shutdownPlugins = async () => {
-            await stopAllPlugins();
-            process.exit(0);
+
+        // B-N-DRAIN (ADR-021 / ADR-022): a stop signal triggers a TIMED DRAIN
+        // instead of the previous immediate process.exit(0). In-flight provider
+        // runs (claude/agy/codex/...) are child processes that die with this
+        // process, so we wait — bounded by DRAIN_TIMEOUT_MS — for active
+        // sessions to finish before exiting. PM2's kill_timeout MUST exceed
+        // this budget, otherwise PM2's SIGKILL fires mid-drain (ADR-022; set in
+        // ecosystem.config.cjs as part of this work item).
+        //
+        // Both SIGTERM and SIGINT drain (PM2's default stop signal is SIGINT in
+        // fork mode); a SECOND signal of either kind forces an immediate exit
+        // so an operator is never locked out of a fast stop.
+        const DRAIN_TIMEOUT_MS = (() => {
+            const parsed = parseInt(process.env.DRAIN_TIMEOUT_MS, 10);
+            return Number.isFinite(parsed) && parsed >= 0 ? parsed : 300000;
+        })();
+        const DRAIN_POLL_MS = 2000;
+
+        const countActiveSessionsByProvider = () => ({
+            claude: getActiveClaudeSDKSessions().length,
+            cursor: getActiveCursorSessions().length,
+            codex: getActiveCodexSessions().length,
+            gemini: getActiveGeminiSessions().length,
+            antigravity: getActiveAntigravitySessions().length,
+            opencode: getActiveOpenCodeSessions().length,
+        });
+        const totalActiveSessions = (counts) =>
+            Object.values(counts).reduce((sum, n) => sum + n, 0);
+
+        const shutdownNow = async () => {
+            try {
+                await stopAllPlugins();
+            } finally {
+                process.exit(0);
+            }
         };
-        process.on('SIGTERM', () => void shutdownPlugins());
-        process.on('SIGINT', () => void shutdownPlugins());
+
+        let drainStarted = false;
+        const drainThenShutdown = async (signal) => {
+            if (drainStarted) {
+                console.warn(`[DRAIN] second ${signal} received — exiting immediately`);
+                process.exit(0);
+            }
+            drainStarted = true;
+
+            let counts = countActiveSessionsByProvider();
+            let total = totalActiveSessions(counts);
+            if (total === 0) {
+                await shutdownNow();
+                return;
+            }
+
+            const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+            console.log(
+                `[DRAIN] ${signal} received with ${total} active session(s); ` +
+                `waiting up to ${Math.round(DRAIN_TIMEOUT_MS / 1000)}s`,
+                counts,
+            );
+            while (total > 0 && Date.now() < deadline) {
+                await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
+                counts = countActiveSessionsByProvider();
+                total = totalActiveSessions(counts);
+            }
+
+            if (total > 0) {
+                console.warn(
+                    `[DRAIN] timeout elapsed with ${total} session(s) still active; exiting anyway`,
+                    counts,
+                );
+            } else {
+                console.log('[DRAIN] all sessions finished; shutting down');
+            }
+            await shutdownNow();
+        };
+
+        process.on('SIGTERM', () => void drainThenShutdown('SIGTERM'));
+        process.on('SIGINT', () => void drainThenShutdown('SIGINT'));
     } catch (error) {
         console.error('[ERROR] Failed to start server:', error);
         process.exit(1);
