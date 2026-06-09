@@ -218,6 +218,81 @@ function buildTranscriptPath(brainUUID, userId = null) {
     return path.join(getBrainDir(userId), brainUUID, '.system_generated', 'logs', 'transcript.jsonl');
 }
 
+// Snapshot of a brain transcript taken before a resumed spawn:
+//   * lastStepIndex — highest step_index present (-1 when missing/empty), used
+//     to fence off pre-existing steps so only THIS turn's planner output is
+//     surfaced to the client (agy's print mode replays prior output on stdout).
+//   * hasInstructions — whether any USER_INPUT step already carries our
+//     <instructions> prefix. Conversations born outside the UI (Antigravity
+//     IDE, raw terminal) never received it.
+async function readTranscriptState(brainUUID, userId = null) {
+    const state = { lastStepIndex: -1, hasInstructions: false };
+    let content;
+    try {
+        content = await fs.readFile(buildTranscriptPath(brainUUID, userId), 'utf8');
+    } catch {
+        return state;
+    }
+    for (const line of content.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+            const entry = JSON.parse(line);
+            if (typeof entry.step_index === 'number' && entry.step_index > state.lastStepIndex) {
+                state.lastStepIndex = entry.step_index;
+            }
+            if (!state.hasInstructions
+                && entry.type === 'USER_INPUT'
+                && typeof entry.content === 'string'
+                && entry.content.includes('<instructions>')) {
+                state.hasInstructions = true;
+            }
+        } catch {
+            // Skip malformed lines; the transcript is append-only jsonl.
+        }
+    }
+    return state;
+}
+
+// Collects the PLANNER_RESPONSE text agy appended to the transcript AFTER the
+// given step index — i.e. the model's actual reply for the current turn.
+async function readNewPlannerText(brainUUID, userId, afterStepIndex) {
+    let content;
+    try {
+        content = await fs.readFile(buildTranscriptPath(brainUUID, userId), 'utf8');
+    } catch {
+        return '';
+    }
+    const parts = [];
+    for (const line of content.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+            const entry = JSON.parse(line);
+            if (entry.type === 'PLANNER_RESPONSE'
+                && entry.source === 'MODEL'
+                && typeof entry.step_index === 'number'
+                && entry.step_index > afterStepIndex
+                && typeof entry.content === 'string') {
+                const text = entry.content.trim();
+                if (text) parts.push(text);
+            }
+        } catch {
+            // Skip malformed lines.
+        }
+    }
+    return parts.join('\n\n');
+}
+
+// The transcript write can lag the process exit by a beat; retry briefly so a
+// just-finished turn is not misread as "no new output".
+async function readNewPlannerTextWithRetry(brainUUID, userId, afterStepIndex, attempts = 5, delayMs = 400) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+        const text = await readNewPlannerText(brainUUID, userId, afterStepIndex);
+        if (text) return text;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    return '';
+}
+
 // Extract the brain UUID embedded in a transcript jsonl_path, i.e. the path
 // segment immediately under the brain root: .../brain/<UUID>/.system_generated/...
 // Returns null when the path does not match the expected antigravity layout.
@@ -454,13 +529,25 @@ async function spawnAntigravity(command, options = {}, ws) {
     // Snapshot brain UUIDs *before* spawn so we can detect the new one after close.
     const priorBrainIds = await listBrainIds(userId);
 
-    // Inject project + global instructions only on a fresh conversation (no brain
-    // to resume). Resumed conversations already carry their context, so re-sending
-    // the prefix would duplicate it on every turn. The injected prefix is sent to
-    // agy only — sessionManager records the original user message below — so the
-    // chat history surface stays free of instruction boilerplate.
+    // Resumed runs: agy's print mode REPLAYS the conversation's previous planner
+    // output on stdout before (or instead of) the new turn's response — observed
+    // on agy 1.x, where a resumed turn's stored reply began with the prior
+    // turn's full text. The brain transcript, not stdout, is the reliable source
+    // for this turn's reply, so snapshot its last step_index before spawn; the
+    // close handler reads only steps appended after it.
+    const preSpawnTranscript = existingBrainUUID
+        ? await readTranscriptState(existingBrainUUID, userId)
+        : { lastStepIndex: -1, hasInstructions: false };
+
+    // Inject project + global instructions on a fresh conversation (no brain to
+    // resume) — and, once, on a resumed conversation whose transcript never
+    // received the prefix (born outside the UI: Antigravity IDE, raw terminal).
+    // Re-sending on every turn would duplicate it, so resumed conversations that
+    // already carry an <instructions> USER_INPUT are left untouched. The
+    // injected prefix is sent to agy only — sessionManager records the original
+    // user message below — so the chat history stays free of boilerplate.
     let commandToSend = command || '';
-    if (!existingBrainUUID) {
+    if (!existingBrainUUID || !preSpawnTranscript.hasInstructions) {
         const instructionsPrefix = await buildInstructionsPrefix(projectPath || cwd);
         if (instructionsPrefix) {
             commandToSend = `${instructionsPrefix}\n\n${commandToSend}`;
@@ -679,7 +766,13 @@ async function spawnAntigravity(command, options = {}, ws) {
             }
 
             assistantText += text;
-            safeSend({ kind: 'stream_delta', content: text, sessionId: finalSessionId });
+            // Resumed runs: raw stdout contains agy's replay of PREVIOUS turns,
+            // so forwarding it live would re-show the old reply. Suppress the
+            // live deltas and emit the transcript-derived reply at close;
+            // assistantText is kept as a fallback only.
+            if (!existingBrainUUID) {
+                safeSend({ kind: 'stream_delta', content: text, sessionId: finalSessionId });
+            }
         });
 
         agProcess.stderr.on('data', (data) => {
@@ -702,7 +795,26 @@ async function spawnAntigravity(command, options = {}, ws) {
             const tail = stdoutDecoder.end();
             if (tail) {
                 assistantText += tail;
-                safeSend({ kind: 'stream_delta', content: tail, sessionId: finalSessionId });
+                if (!existingBrainUUID) {
+                    safeSend({ kind: 'stream_delta', content: tail, sessionId: finalSessionId });
+                }
+            }
+
+            // Resumed run: surface the reply from the transcript steps appended
+            // by THIS run, replacing the stdout text (which carries the replay
+            // of previous turns). Falls back to the raw stdout text when the
+            // transcript yields nothing new (write lag, layout change) so the
+            // user never receives an empty reply.
+            if (existingBrainUUID) {
+                const newPlannerText = await readNewPlannerTextWithRetry(
+                    existingBrainUUID,
+                    userId,
+                    preSpawnTranscript.lastStepIndex,
+                );
+                assistantText = newPlannerText || assistantText;
+                if (assistantText) {
+                    safeSend({ kind: 'stream_delta', content: assistantText, sessionId: finalSessionId });
+                }
             }
             // B-N7: the run is terminal — flip the single source of truth to
             // inactive. The buffer is retained for a bounded post-close replay
