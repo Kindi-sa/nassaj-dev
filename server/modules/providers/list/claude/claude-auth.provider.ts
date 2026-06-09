@@ -100,6 +100,29 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
+   * Reads the login email from the CLI's .claude.json (`oauthAccount.emailAddress`).
+   * `.credentials.json` only stores tokens, so this is the sole offline source of
+   * the account identity. With CLAUDE_CONFIG_DIR set the CLI keeps .claude.json
+   * inside that dir; otherwise it lives at the home-directory ROOT (~/.claude.json),
+   * not inside ~/.claude.
+   */
+  private async readOauthAccountEmail(env: NodeJS.ProcessEnv): Promise<string | null> {
+    const configDir = readOptionalString(env.CLAUDE_CONFIG_DIR);
+    const configFile = configDir
+      ? path.join(configDir, '.claude.json')
+      : path.join(os.homedir(), '.claude.json');
+
+    try {
+      const content = await readFile(configFile, 'utf8');
+      const config = readObjectRecord(JSON.parse(content));
+      const account = readObjectRecord(config?.oauthAccount);
+      return readOptionalString(account?.emailAddress) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Checks Claude credentials in the same priority order used by Claude Code,
    * against the resolved environment for the user being checked.
    */
@@ -134,7 +157,9 @@ export class ClaudeProviderAuth implements IProviderAuth {
 
       if (accessToken) {
         const expiresAt = typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : undefined;
-        const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
+        const email = readOptionalString(creds.email)
+          ?? readOptionalString(creds.user)
+          ?? await this.readOauthAccountEmail(env);
         if (!expiresAt || Date.now() < expiresAt) {
           return {
             authenticated: true,

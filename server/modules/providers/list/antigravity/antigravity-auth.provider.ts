@@ -19,6 +19,7 @@ import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 export class AntigravityProviderAuth implements IProviderAuth {
   private readonly agyCliPath = path.join(os.homedir(), '.local', 'bin', 'agy');
   private readonly brainDir = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'brain');
+  private readonly logDir = path.join(os.homedir(), '.gemini', 'antigravity-cli', 'log');
 
   async getStatus(): Promise<ProviderAuthStatus> {
     const installed = existsSync(this.agyCliPath);
@@ -35,7 +36,7 @@ export class AntigravityProviderAuth implements IProviderAuth {
     }
 
     const hasSession = this.hasBrainSession();
-    const email = this.readGoogleEmail();
+    const email = this.readGoogleEmail() ?? this.readEmailFromCliLogs();
 
     return {
       installed: true,
@@ -91,6 +92,46 @@ export class AntigravityProviderAuth implements IProviderAuth {
           ?? null;
       } catch {
         return null;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Falls back to the agy CLI's own logs for the OAuth identity.
+   *
+   * The Go server inside agy logs `applyAuthResult: email=<addr>, ...` on every
+   * successful Google OAuth (server_oauth.go). Logs are small (a few KB each),
+   * so scanning the newest few files is cheap. Newest match wins so a re-login
+   * with a different account is reflected.
+   */
+  private readEmailFromCliLogs(): string | null {
+    const emailPattern = /applyAuthResult: email=([^,\s]+@[^,\s]+)/g;
+
+    let logFiles: string[];
+    try {
+      logFiles = readdirSync(this.logDir)
+        .filter((name) => name.startsWith('cli-') && name.endsWith('.log'))
+        .sort()
+        .reverse()
+        .slice(0, 5);
+    } catch {
+      return null;
+    }
+
+    for (const logFile of logFiles) {
+      try {
+        const content = readFileSync(path.join(this.logDir, logFile), 'utf-8');
+        let lastMatch: string | null = null;
+        for (const match of content.matchAll(emailPattern)) {
+          lastMatch = match[1];
+        }
+        if (lastMatch) {
+          return lastMatch;
+        }
+      } catch {
+        // Unreadable log file: try the next-newest one.
       }
     }
 

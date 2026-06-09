@@ -147,6 +147,40 @@ test('getStatus falls back to .gemini/oauth_creds.json when ADC is missing', asy
   );
 });
 
+test('getStatus falls back to the agy CLI log when no credential files exist', async () => {
+  await withFakeHome(
+    async (homeDir) => {
+      const binDir = path.join(homeDir, '.local', 'bin');
+      await mkdir(binDir, { recursive: true });
+      await writeFile(path.join(binDir, 'agy'), '#!/usr/bin/env node\n', 'utf8');
+
+      const brainDir = path.join(homeDir, '.gemini', 'antigravity-cli', 'brain');
+      await mkdir(path.join(brainDir, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'), {
+        recursive: true,
+      });
+
+      const logDir = path.join(homeDir, '.gemini', 'antigravity-cli', 'log');
+      await mkdir(logDir, { recursive: true });
+      // Older log has a stale identity; the newest file must win.
+      await writeFile(
+        path.join(logDir, 'cli-20260101_000000.log'),
+        'I0101 server_oauth.go:212] applyAuthResult: email=old@example.com, authMethod=consumer, quotaProject=\n',
+        'utf8',
+      );
+      await writeFile(
+        path.join(logDir, 'cli-20260609_213435.log'),
+        'I0609 server_oauth.go:212] applyAuthResult: email=agy-user@example.com, authMethod=consumer, quotaProject=\n',
+        'utf8',
+      );
+    },
+    async (auth) => {
+      const status = await auth.getStatus();
+      assert.equal(status.email, 'agy-user@example.com');
+      assert.equal(status.authenticated, true);
+    },
+  );
+});
+
 test('getStatus returns null email when credential files contain unparseable JSON', async () => {
   await withFakeHome(
     async (homeDir) => {
