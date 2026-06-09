@@ -1799,9 +1799,15 @@ async function startServer() {
         // Both SIGTERM and SIGINT drain (PM2's default stop signal is SIGINT in
         // fork mode); a SECOND signal of either kind forces an immediate exit
         // so an operator is never locked out of a fast stop.
+        //
+        // DRAIN_TIMEOUT_MS = 0 (the default) waits WITHOUT a deadline — agent
+        // runs can legitimately take an hour or more, and cutting them at an
+        // arbitrary cap is exactly what drain exists to prevent. The escape
+        // hatches for a wedged drain are the second stop signal (immediate
+        // exit) and PM2's kill_timeout, which must be sized accordingly.
         const DRAIN_TIMEOUT_MS = (() => {
             const parsed = parseInt(process.env.DRAIN_TIMEOUT_MS, 10);
-            return Number.isFinite(parsed) && parsed >= 0 ? parsed : 300000;
+            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
         })();
         const DRAIN_POLL_MS = 2000;
 
@@ -1839,16 +1845,23 @@ async function startServer() {
                 return;
             }
 
-            const deadline = Date.now() + DRAIN_TIMEOUT_MS;
+            const deadline = DRAIN_TIMEOUT_MS > 0 ? Date.now() + DRAIN_TIMEOUT_MS : Infinity;
             console.log(
                 `[DRAIN] ${signal} received with ${total} active session(s); ` +
-                `waiting up to ${Math.round(DRAIN_TIMEOUT_MS / 1000)}s`,
+                (DRAIN_TIMEOUT_MS > 0
+                    ? `waiting up to ${Math.round(DRAIN_TIMEOUT_MS / 1000)}s`
+                    : 'waiting with no deadline (send a second signal to force exit)'),
                 counts,
             );
+            let lastLoggedTotal = total;
             while (total > 0 && Date.now() < deadline) {
                 await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
                 counts = countActiveSessionsByProvider();
                 total = totalActiveSessions(counts);
+                if (total !== lastLoggedTotal) {
+                    lastLoggedTotal = total;
+                    console.log(`[DRAIN] ${total} active session(s) remaining`, counts);
+                }
             }
 
             if (total > 0) {
