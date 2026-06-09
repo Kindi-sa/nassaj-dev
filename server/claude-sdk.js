@@ -506,8 +506,8 @@ function readNumber(value) {
  *
  * Priority:
  *  1. `CONTEXT_WINDOW` env var when explicitly set (respects user override).
- *  2. Inferred from the model name: Opus and Sonnet 4.6+ ship a 1M window;
- *     other known models default to 200000.
+ *  2. Inferred from the model name: Opus, Fable, and Sonnet 4.6+ ship a 1M
+ *     window; other known models default to 200000.
  *  3. When the model name is unavailable, defaults to 1000000 (the modern
  *     Opus/Sonnet long-context default) instead of the stale 160000 value.
  *
@@ -526,6 +526,11 @@ function resolveContextWindow(modelName) {
 
   // Opus (all current generations) ships a 1M context window.
   if (name.includes('opus')) {
+    return 1000000;
+  }
+
+  // Fable (5 and later) ships a 1M context window with 128K max output.
+  if (name.includes('fable')) {
     return 1000000;
   }
 
