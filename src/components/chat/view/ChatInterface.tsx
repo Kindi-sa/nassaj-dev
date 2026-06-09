@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -379,6 +380,20 @@ function ChatInterface({
               sessionId={currentSessionId ?? selectedSession?.id ?? null}
               onHide={() => setShowParticipantsBar(false)}
             />
+          </div>
+        )}
+        {/* Collapsed state: a tiny floating chevron (inline-end, RTL-aware) re-expands the bar. */}
+        {!participantsBar.mounted && (currentSessionId ?? selectedSession?.id) && (
+          <div className="relative z-10 h-0">
+            <button
+              type="button"
+              onClick={() => setShowParticipantsBar(true)}
+              className="absolute end-2 top-1 flex h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent/80 hover:text-foreground"
+              aria-label={t('participants.show', { defaultValue: 'Show participants bar' })}
+              title={t('participants.show', { defaultValue: 'Show participants bar' })}
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
         <ChatMessagesPane

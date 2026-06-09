@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EyeOff } from 'lucide-react';
+import { ChevronUp } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { Button } from '../../shared/view/ui';
@@ -14,7 +14,7 @@ import { isOwnerRole } from './utils';
 type SessionParticipantsBarProps = {
   sessionId: string | null | undefined;
   className?: string;
-  /** Quick-hide the bar (inline control), mirroring the sidebar collapse pattern. */
+  /** Collapse the bar (inline chevron control); the host renders a matching expand chevron. */
   onHide?: () => void;
 };
 
@@ -139,7 +139,7 @@ export default function SessionParticipantsBar({
           aria-label={t('participants.hide', { defaultValue: 'Hide participants bar' })}
           title={t('participants.hide', { defaultValue: 'Hide participants bar' })}
         >
-          <EyeOff className="h-3.5 w-3.5" />
+          <ChevronUp className="h-3.5 w-3.5" />
         </Button>
       )}
     </div>
