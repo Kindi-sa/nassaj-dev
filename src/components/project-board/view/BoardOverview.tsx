@@ -50,6 +50,39 @@ function issueAnchorId(issueId: string): string {
   return `board-issue-${issueId}`;
 }
 
+/**
+ * Project-wide completion percentage (spec: ~/.claude/wiki/project-board.md) —
+ * computed in the UI, never read from the file. Average of the non-cancelled
+ * phases' progress, weighted by each phase's task count when the project has
+ * tasks (a phase without tasks weighs 1 so it is not zeroed out), simple
+ * average otherwise. Done phases count as 100, matching the phase bars.
+ * Returns null when there is nothing to average (no phases / all cancelled).
+ */
+function overallProgress(state: ProjectBoardState): number | null {
+  const phases = (state.phases ?? []).filter((phase) => phase.status !== 'cancelled');
+  if (!phases.length) {
+    return null;
+  }
+
+  const tasks = state.tasks ?? [];
+  const taskCounts = new Map<string, number>();
+  for (const task of tasks) {
+    taskCounts.set(task.phase, (taskCounts.get(task.phase) ?? 0) + 1);
+  }
+
+  let weightSum = 0;
+  let progressSum = 0;
+  for (const phase of phases) {
+    const progress =
+      phase.status === 'done' ? 100 : Math.max(0, Math.min(100, Number(phase.progress) || 0));
+    const weight = tasks.length ? Math.max(1, taskCounts.get(phase.id) ?? 0) : 1;
+    weightSum += weight;
+    progressSum += progress * weight;
+  }
+
+  return Math.round(Math.max(0, Math.min(100, progressSum / weightSum)));
+}
+
 /** Completion stats of the tasks assigned to one sprint. */
 function sprintTaskStats(state: ProjectBoardState, sprintId: string) {
   const sprintTasks = (state.tasks ?? []).filter((task) => task.sprint === sprintId);
@@ -508,6 +541,7 @@ function DecisionsList({
 
 export default function BoardOverview({ state, onFileOpen }: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
+  const overall = overallProgress(state);
   const [highlightedIssue, setHighlightedIssue] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -535,14 +569,42 @@ export default function BoardOverview({ state, onFileOpen }: BoardOverviewProps)
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 sm:px-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-semibold text-foreground">{state.project}</h2>
-          {state.updated && (
-            <span className="text-xs text-muted-foreground">
-              {t('updated', { date: state.updated })}
-            </span>
+        <header>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-semibold text-foreground">{state.project}</h2>
+            {state.updated && (
+              <span className="text-xs text-muted-foreground">
+                {t('updated', { date: state.updated })}
+              </span>
+            )}
+          </div>
+          {overall !== null && (
+            <div className="mt-3 flex items-center gap-3">
+              <span className="text-xs font-medium text-muted-foreground">
+                {t('overallProgress')}
+              </span>
+              <div
+                role="progressbar"
+                aria-label={t('overallProgress')}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={overall}
+                className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
+              >
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    overall === 100 ? 'bg-green-500' : 'bg-primary',
+                  )}
+                  style={{ width: `${overall}%` }}
+                />
+              </div>
+              <span className="text-sm font-semibold tabular-nums text-foreground">
+                {overall}%
+              </span>
+            </div>
           )}
-        </div>
+        </header>
 
         <PhaseTimeline state={state} />
         <SprintsSection state={state} />

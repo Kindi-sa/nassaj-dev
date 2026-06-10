@@ -6,6 +6,7 @@
     "architecture": "الهيكلة"
   },
   "updated": "آخر تحديث {{date}}",
+  "overallProgress": "الإنجاز الكلي",
   "error": "تعذّر تحميل لوحة المشروع.",
   "stateError": "ملف project-state.json غير صالح — تُعرض آخر نسخة سليمة.",
   "empty": {

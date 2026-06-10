@@ -6,6 +6,7 @@
     "architecture": "Architecture"
   },
   "updated": "Updated {{date}}",
+  "overallProgress": "Overall progress",
   "error": "Failed to load the project board.",
   "stateError": "project-state.json is invalid — showing the last valid version.",
   "empty": {
