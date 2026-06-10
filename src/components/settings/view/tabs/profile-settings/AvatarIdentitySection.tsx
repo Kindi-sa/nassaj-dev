@@ -14,6 +14,7 @@ import {
   avatarColorValue,
   colorClassFromAvatarUrl,
   isAvatarColorValue,
+  isGalleryAvatarValue,
 } from '../../../../participants/avatarChoice';
 import { initialForName } from '../../../../participants/utils';
 import SettingsSection from '../../SettingsSection';
@@ -33,7 +34,7 @@ type Props = {
  * Three ways to set your avatar, all persisted into the single `avatar_url`
  * field so the choice propagates to every avatar surface unchanged:
  *  - Upload: a profile photo (existing behaviour, multipart upload).
- *  - Gallery: a generated SVG avatar (stored as a data: URI).
+ *  - Gallery: a curated static avatar (stored as `/avatars-gallery/<id>.svg`).
  *  - Colour: a palette colour for the lettered avatar (stored as `color:<id>`).
  */
 export default function AvatarIdentitySection({ t }: Props) {
@@ -46,7 +47,7 @@ export default function AvatarIdentitySection({ t }: Props) {
   // opens on the path the user last used.
   const initialMode: IdentityMode = isAvatarColorValue(currentAvatarUrl)
     ? 'color'
-    : currentAvatarUrl.startsWith('data:')
+    : isGalleryAvatarValue(currentAvatarUrl)
       ? 'gallery'
       : 'upload';
   const [mode, setMode] = useState<IdentityMode>(initialMode);
@@ -235,7 +236,7 @@ export default function AvatarIdentitySection({ t }: Props) {
               <div
                 role="radiogroup"
                 aria-label={t('profile.identity.gallery.heading')}
-                className="grid grid-cols-6 gap-2 sm:grid-cols-8"
+                className="grid max-w-md grid-cols-4 gap-3 sm:grid-cols-6"
               >
                 {GALLERY_AVATARS.map((avatar) => {
                   const selected = currentAvatarUrl === avatar.url;
@@ -249,14 +250,16 @@ export default function AvatarIdentitySection({ t }: Props) {
                       disabled={isSaving}
                       onClick={() => saveChoice({ avatar: avatar.url })}
                       className={cn(
-                        'relative aspect-square overflow-hidden rounded-full ring-2 transition focus:outline-none focus:ring-blue-500 disabled:opacity-60',
-                        selected ? 'ring-blue-500' : 'ring-transparent hover:ring-border',
+                        'relative aspect-square overflow-hidden rounded-full ring-2 ring-offset-2 ring-offset-background transition focus:outline-none focus:ring-blue-500 disabled:opacity-60',
+                        selected
+                          ? 'ring-blue-500'
+                          : 'ring-transparent hover:ring-border hover:scale-105',
                       )}
                     >
-                      <img src={avatar.url} alt="" className="h-full w-full" />
+                      <img src={avatar.url} alt="" className="h-full w-full object-cover" />
                       {selected && (
                         <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-                          <Check className="h-4 w-4 text-white" aria-hidden />
+                          <Check className="h-5 w-5 text-white" aria-hidden />
                         </span>
                       )}
                     </button>
