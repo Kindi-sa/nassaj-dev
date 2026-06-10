@@ -104,14 +104,14 @@ export function SystemStatsFooter({ t }: { t: TFunction }) {
             title={t('systemStats.cpuUsage')}
           >
             <Cpu className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm tabular-nums">CPU {cpuText}</span>
+            <span className="text-base tabular-nums">CPU {cpuText}</span>
           </div>
           <div
             className="flex items-center gap-2 text-muted-foreground"
             title={t('systemStats.memoryUsage')}
           >
             <MemoryStick className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm tabular-nums">RAM {ramText}</span>
+            <span className="text-base tabular-nums">RAM {ramText}</span>
           </div>
         </div>
       </div>
