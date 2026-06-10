@@ -4,12 +4,14 @@
   "project": "nassaj-dev",
   "updated": "2026-06-10",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
+  "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
     { "id": "P0", "title": "تأسيس الفرع: AntigravityProvider (agy) + عربية/RTL", "status": "done", "progress": 100 },
     { "id": "P1", "title": "موثوقية الجلسات والاستئناف (PHASE-SR-0)", "status": "done", "progress": 100 },
     { "id": "P2", "title": "مزامنة upstream v1.32.0 → v1.33.0", "status": "current", "progress": 0 },
     { "id": "P3", "title": "لوحة المشروع + إخفاء TaskMaster", "status": "done", "progress": 100 },
-    { "id": "P4", "title": "تعدد المستخدمين بعزل الاشتراكات (Phase-MU)", "status": "pending", "progress": 0 }
+    { "id": "P4", "title": "تعدد المستخدمين بعزل الاشتراكات (Phase-MU)", "status": "pending", "progress": 79 },
+    { "id": "P5", "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)", "status": "done", "progress": 100 }
   ],
   "tasks": [
     { "id": "T-1", "phase": "P1", "title": "إصلاح replay عند استئناف agy: الردّ من transcript.jsonl لا stdout", "status": "done", "owner": "backend-dev", "closed": "2026-06-09" },
@@ -32,7 +34,17 @@
     { "id": "T-18", "phase": "P4", "title": "B-MU-UX-GIT-ID: هويّة git per-user (مؤلِّف commit + دفع بتوكن المستخدم مع تراجع للحساب المشترك)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
     { "id": "T-19", "phase": "P4", "title": "B-MU-UX-FIX-MIRROR: تقييد معالِجات المرآة اللحظية بالجلسة النشطة", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
     { "id": "T-20", "phase": "P4", "title": "B-MU-UX-FIX-WSROTATE: إصلاح موت WebSocket اللحظي بعد تدوير التوكن", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
-    { "id": "T-21", "phase": "P4", "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" }
+    { "id": "T-21", "phase": "P4", "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-22", "phase": "P4", "title": "B-MU-UX-FIX-MSG-AUTHOR: عزو رسائل المستخدم لمُرسِلها الحقيقي (sidecar message_authors + ختم WS/التاريخ + أفاتار المؤلّف)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-23", "phase": "P4", "title": "C-MU-UX-AGENT-CREDS: نقل قسمي اشتراك Claude/Antigravity من Profile إلى صفحة Agents (فئة Account)", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-24", "phase": "P4", "title": "C-MU-UX-SIDEBAR-TABS: فلتر «مشاريعي/الكل» بدل تبويبي Projects/Conversations وحذف البحث العابر للمشاريع من الشريط", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-25", "phase": "P4", "title": "C-MU-UX-PRESENCE-COMPACT: لوحة «المتصلون الآن» صف أفاتارات متراكب مُحكم (tooltip + ‏+N + a11y)", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-26", "phase": "P4", "title": "C-MU-UX-AVATAR-URL: تمرير avatarUrl إلى owner/presence وكل أماكن ParticipantAvatar", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-27", "phase": "P4", "title": "C-MU-UX-PARTBAR-DEFAULT: شريط المشاركين ظاهر افتراضياً وحذف مفتاح Appearance (زر الطي باقٍ)", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-28", "phase": "P4", "title": "C-MU-UX-BOARD-FIX: تشخيص «no project state file» (ليس باگ) + حالة فراغ إرشادية وزر نسخ skeleton ‏schema v1", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-29", "phase": "P5", "title": "B-PK-1..4: ‏webauthn_credentials + repository، env/challenge store، خدمة ومسارات /api/auth/webauthn (تسجيل مصادَق + دخول discoverable بعقد /login)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-30", "phase": "P5", "title": "C-PK-1..3: زر «الدخول بمفتاح مرور» في LoginForm + طبقة @simplewebauthn/browser + إدارة المفاتيح في Profile", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-31", "phase": "P4", "title": "الثيمات في Appearance (قيد التنفيذ بالتوازي)", "status": "in_progress", "owner": "frontend-dev", "closed": null }
   ],
   "issues": [
     { "id": "B-1", "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف", "severity": "high", "status": "fixed", "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)", "found": "2026-06-08" },
@@ -40,13 +52,16 @@
     { "id": "B-3", "title": "مؤشر تعفّن السياق لا يحتسب توكنز الـcache", "severity": "medium", "status": "fixed", "fix": "تصحيح حساب التوكنز في TokenUsageSummary ليشمل cache مع شريط ملوّن بعتبات محافظة", "found": "2026-06-05" },
     { "id": "B-4", "title": "نموذج Fable لا يُتعرّف عليه كسياق 1M في resolveContextWindow", "severity": "low", "status": "fixed", "fix": "إضافة أنماط Fable إلى كتالوج النماذج الديناميكي (10bb55e)", "found": "2026-06-09" },
     { "id": "B-5", "title": "أحداث المرآة اللحظية تُفسد واجهة الجلسة المعروضة (معالِجات complete/error/status/permission_request لا تقارن msg.sessionId بالنشطة)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-MIRROR: تقييد كل معالِج بالـsessionId النشط في useChatRealtimeHandlers.ts (638d022)", "found": "2026-06-10" },
-    { "id": "B-6", "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx (fe3fbe2)", "found": "2026-06-10" }
+    { "id": "B-6", "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx (fe3fbe2)", "found": "2026-06-10" },
+    { "id": "B-7", "title": "رسائل المستخدم تُعرض لكل مشاهد بأفاتاره هو لا بأفاتار المُرسِل الحقيقي (لا هوية في WS ولا التاريخ)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-MSG-AUTHOR: جدول sidecar ‏message_authors بمطابقة hash (transcript الـCLI لا يُمَس)؛ الخادم يختم userId على كل رسالة مستخدم ويبثّها في WS والتاريخ؛ الواجهة تعرض أفاتار المؤلّف الحقيقي وتفصل تجميع الفقاعات عند اختلاف المؤلف؛ مؤلف مجهول = أفاتار محايد (437a8f3 خادم، 5b84e8d واجهة)", "found": "2026-06-10" },
+    { "id": "B-8", "title": "لوحة المشروع تعرض «no project state file» (بلاغ AlNuman)", "severity": "low", "status": "fixed", "fix": "C-MU-UX-BOARD-FIX: ليس باگ — حلّ المسار سليم والميزة تعمل (تحقق curl على nassaj-dev)؛ AlNuman بلا docs/project-state.json فعلاً. أُضيفت حالة فراغ إرشادية موحّدة + زر نسخ skeleton صالح وفق schema v1 ‏(e75af2b)", "found": "2026-06-10" }
   ],
   "decisions": [
     { "id": "ADR-021", "title": "بقاء الجلسات وإعادة البث (session survival & replay)", "link": "docs/decisions/021-session-survival-and-replay.md" },
     { "id": "ADR-022", "title": "PM2 كمشرف عمليات مع drain على SIGTERM", "link": "docs/decisions/022-process-supervisor-pm2-sigterm-drain.md" },
     { "id": "ADR-023", "title": "تعدد المستخدمين بعزل اشتراك Claude", "link": "docs/decisions/023-multiuser-claude-subscription-isolation.md" },
     { "id": "ADR-024", "title": "تعدد المستخدمين بعزل اشتراك agy", "link": "docs/decisions/024-multiuser-agy-subscription-isolation.md" },
-    { "id": "ADR-025", "title": "إصلاح شامل لاختيار النماذج", "link": "docs/decisions/025-model-selection-overhaul.md" }
+    { "id": "ADR-025", "title": "إصلاح شامل لاختيار النماذج", "link": "docs/decisions/025-model-selection-overhaul.md" },
+    { "id": "ADR-026", "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)", "link": "docs/decisions/026-passkey-webauthn.md" }
   ]
 }
