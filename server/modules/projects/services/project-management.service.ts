@@ -12,12 +12,19 @@ import { AppError, normalizeProjectPath, validateWorkspacePath } from '@/shared/
 type CreateProjectInput = {
   projectPath: string;
   customName?: string | null;
+  // Authenticated creator id (from req.user.id). Recorded as projects.created_by
+  // so the private-project authorization layer (B-PRIV) can identify the owner.
+  createdBy?: number | null;
 };
 
 type CreateProjectDependencies = {
   validatePath: (projectPath: string) => Promise<WorkspacePathValidationResult>;
   ensureWorkspaceDirectory: (projectPath: string) => Promise<void>;
-  persistProjectPath: (projectPath: string, customName: string | null) => CreateProjectPathResult;
+  persistProjectPath: (
+    projectPath: string,
+    customName: string | null,
+    createdBy: number | null,
+  ) => CreateProjectPathResult;
   getProjectByPath: (projectPath: string) => ProjectRepositoryRow | null;
 };
 
@@ -58,8 +65,11 @@ const defaultDependencies: CreateProjectDependencies = {
       });
     }
   },
-  persistProjectPath: (projectPath: string, customName: string | null): CreateProjectPathResult =>
-    projectsDb.createProjectPath(projectPath, customName),
+  persistProjectPath: (
+    projectPath: string,
+    customName: string | null,
+    createdBy: number | null,
+  ): CreateProjectPathResult => projectsDb.createProjectPath(projectPath, customName, createdBy),
   getProjectByPath: (projectPath: string): ProjectRepositoryRow | null =>
     projectsDb.getProjectPath(projectPath),
 };
@@ -120,7 +130,12 @@ export async function createProject(
   await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
 
   const normalizedCustomName = resolveDisplayName(input.customName ?? null, resolvedProjectPath);
-  const persistedProject = dependencies.persistProjectPath(resolvedProjectPath, normalizedCustomName);
+  const createdBy = Number.isInteger(input.createdBy) ? (input.createdBy as number) : null;
+  const persistedProject = dependencies.persistProjectPath(
+    resolvedProjectPath,
+    normalizedCustomName,
+    createdBy,
+  );
 
   if (persistedProject.outcome === 'active_conflict') {
     throw new AppError('Project path already exists and is active', {

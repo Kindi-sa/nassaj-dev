@@ -150,6 +150,7 @@ router.post(
     const projectCreationResult = await createProject({
       projectPath,
       customName,
+      createdBy: readAuthenticatedUserId(req),
     });
 
     res.json({

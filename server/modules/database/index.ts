@@ -11,6 +11,8 @@ export type { MessageAuthorRow } from '@/modules/database/repositories/message-a
 export { notificationPreferencesDb } from '@/modules/database/repositories/notification-preferences.js';
 export { participantsDb } from '@/modules/database/repositories/participants.db.js';
 export type { ParticipantRole, SessionParticipantRow } from '@/modules/database/repositories/participants.db.js';
+export { projectMembersDb } from '@/modules/database/repositories/project-members.db.js';
+export type { ProjectMemberRole, ProjectMemberRow } from '@/modules/database/repositories/project-members.db.js';
 export { projectsDb } from '@/modules/database/repositories/projects.db.js';
 export { sessionAgentsDb } from '@/modules/database/repositories/session-agents.db.js';
 export type { AgentKind, SessionAgentRow } from '@/modules/database/repositories/session-agents.db.js';

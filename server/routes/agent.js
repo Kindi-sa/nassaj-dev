@@ -904,8 +904,11 @@ router.post('/', validateExternalApiKey, async (req, res) => {
 
     finalProjectPath = normalizeProjectPath(finalProjectPath);
 
-    // Register project path in DB (or reuse existing active registration)
-    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null);
+    // Register project path in DB (or reuse existing active registration).
+    // Attribute the creator so the private-project authorization layer (B-PRIV)
+    // can identify the owner. Re-used active rows keep their original created_by.
+    const creatorUserId = Number.isInteger(req.user?.id) ? req.user.id : null;
+    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null, creatorUserId);
     if (registrationResult.outcome === 'active_conflict') {
       console.log('Project registration already exists for:', finalProjectPath);
     } else {
