@@ -180,6 +180,12 @@ export function useChatRealtimeHandlers({
     /* ---------------------------------------------------------------- */
 
     const sid = msg.sessionId || activeViewSessionId;
+    // True only when the event belongs to the session currently on screen.
+    // Mirror events for background sessions must NOT mutate the active view
+    // (spinner, status text, pending permission prompts). When a payload has no
+    // sessionId we fall back to the active id (sid === activeViewSessionId), so
+    // such legacy/global events apply to the current view — the safe default.
+    const isActiveViewSession = !sid || sid === activeViewSessionId;
 
     // --- Streaming: buffer for performance ---
     if (msg.kind === 'stream_delta') {
@@ -287,13 +293,20 @@ export function useChatRealtimeHandlers({
         }
         accumulatedStreamRef.current = '';
 
-        setIsLoading(false);
-        setCanAbortSession(false);
-        setClaudeStatus(null);
-        setPendingPermissionRequests([]);
+        // Session-list / global concerns: keyed by sid, safe for any session.
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
-        pendingViewSessionRef.current = null;
+
+        // View mutations: only when this event is for the session on screen.
+        // A background session completing must not clear the active view's
+        // spinner, status, or pending permission prompts.
+        if (isActiveViewSession) {
+          setIsLoading(false);
+          setCanAbortSession(false);
+          setClaudeStatus(null);
+          setPendingPermissionRequests([]);
+          pendingViewSessionRef.current = null;
+        }
 
         // Handle aborted case
         if (msg.aborted) {
@@ -331,17 +344,25 @@ export function useChatRealtimeHandlers({
       }
 
       case 'error': {
-        setIsLoading(false);
-        setCanAbortSession(false);
-        setClaudeStatus(null);
+        // Session-list / global concerns: keyed by sid, safe for any session.
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
-        pendingViewSessionRef.current = null;
+
+        // View mutations only for the session on screen.
+        if (isActiveViewSession) {
+          setIsLoading(false);
+          setCanAbortSession(false);
+          setClaudeStatus(null);
+          pendingViewSessionRef.current = null;
+        }
         break;
       }
 
       case 'permission_request': {
         if (!msg.requestId) break;
+        // A permission request for a background session must not pop into the
+        // active view or hijack its spinner/status.
+        if (!isActiveViewSession) break;
         setPendingPermissionRequests((prev) => {
           if (prev.some((r: PendingPermissionRequest) => r.requestId === msg.requestId)) return prev;
           return [...prev, {
@@ -360,7 +381,9 @@ export function useChatRealtimeHandlers({
       }
 
       case 'permission_cancelled': {
-        if (msg.requestId) {
+        // Pending prompts only ever belong to the active view, but gate anyway
+        // so a background cancellation can never touch the on-screen list.
+        if (isActiveViewSession && msg.requestId) {
           setPendingPermissionRequests((prev) => prev.filter((r: PendingPermissionRequest) => r.requestId !== msg.requestId));
         }
         break;
@@ -372,6 +395,9 @@ export function useChatRealtimeHandlers({
           // sessionProcessStateStore). Never treat it as a spinner status.
           break;
         }
+        // Status text / token budget are active-view concerns: a background
+        // session's status must not overwrite the on-screen status line.
+        if (!isActiveViewSession) break;
         if (msg.text === 'token_budget' && msg.tokenBudget) {
           setTokenBudget(msg.tokenBudget as Record<string, unknown>);
         } else if (msg.text) {
