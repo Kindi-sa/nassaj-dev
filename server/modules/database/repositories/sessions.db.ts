@@ -222,4 +222,39 @@ export const sessionsDb = {
     const db = getConnection();
     return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
   },
+
+  /**
+   * Ghost-session cleanup reads every row for one provider (archived included)
+   * with a stored transcript path, so the synchronizer can prune entries whose
+   * file vanished from disk (e.g. Claude's ~30-day retention sweep).
+   */
+  getSessionFilePathsByProvider(provider: string): Array<{ session_id: string; jsonl_path: string }> {
+    const db = getConnection();
+    return db
+      .prepare(
+        `SELECT session_id, jsonl_path
+         FROM sessions
+         WHERE provider = ?
+           AND jsonl_path IS NOT NULL`
+      )
+      .all(provider) as Array<{ session_id: string; jsonl_path: string }>;
+  },
+
+  /**
+   * Removes every row indexed from one transcript file and returns the deleted
+   * session ids, so watcher `unlink` events can drop ghost sessions immediately.
+   */
+  deleteSessionsByJsonlPath(jsonlPath: string): string[] {
+    const db = getConnection();
+    const rows = db
+      .prepare(`SELECT session_id FROM sessions WHERE jsonl_path = ?`)
+      .all(jsonlPath) as Array<{ session_id: string }>;
+
+    if (rows.length === 0) {
+      return [];
+    }
+
+    db.prepare(`DELETE FROM sessions WHERE jsonl_path = ?`).run(jsonlPath);
+    return rows.map((row) => row.session_id);
+  },
 };

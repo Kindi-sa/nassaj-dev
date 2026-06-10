@@ -52,6 +52,39 @@ test('session archive queries hide archived rows from active project views', asy
   });
 });
 
+test('deleteSessionsByJsonlPath removes only the rows indexed from that transcript file', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession(
+      'session-ghost',
+      'claude',
+      '/workspace/demo-project',
+      'Ghost Session',
+      undefined,
+      undefined,
+      '/home/user/.claude/projects/demo/session-ghost.jsonl'
+    );
+    sessionsDb.createSession(
+      'session-kept',
+      'claude',
+      '/workspace/demo-project',
+      'Kept Session',
+      undefined,
+      undefined,
+      '/home/user/.claude/projects/demo/session-kept.jsonl'
+    );
+    sessionsDb.createSession('session-no-path', 'opencode', '/workspace/demo-project', 'No Path Session');
+
+    const removed = sessionsDb.deleteSessionsByJsonlPath('/home/user/.claude/projects/demo/session-ghost.jsonl');
+    const removedForUnknownPath = sessionsDb.deleteSessionsByJsonlPath('/home/user/.claude/projects/demo/unknown.jsonl');
+
+    assert.deepEqual(removed, ['session-ghost']);
+    assert.deepEqual(removedForUnknownPath, []);
+    assert.equal(sessionsDb.getSessionById('session-ghost'), null);
+    assert.ok(sessionsDb.getSessionById('session-kept'));
+    assert.ok(sessionsDb.getSessionById('session-no-path'));
+  });
+});
+
 test('createSession reactivates archived rows when the session becomes active again', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'First Name');

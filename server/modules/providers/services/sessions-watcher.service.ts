@@ -4,13 +4,13 @@ import { promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
-import { participantsDb, projectsDb } from '@/modules/database/index.js';
+import { participantsDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
 import { getProjectsWithSessions } from '@/modules/projects/index.js';
 
-type WatcherEventType = 'add' | 'change';
+type WatcherEventType = 'add' | 'change' | 'unlink';
 
 const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> = [
   {
@@ -278,6 +278,37 @@ async function onUpdate(
 }
 
 /**
+ * Handles transcript deletions (e.g. Claude's ~30-day retention sweep) by
+ * dropping the ghost DB rows indexed from the removed file.
+ */
+function onUnlink(filePath: string, provider: LLMProvider): void {
+  if (!isWatcherTargetFile(provider, filePath)) {
+    return;
+  }
+
+  try {
+    const removedSessionIds = sessionsDb.deleteSessionsByJsonlPath(filePath);
+    if (removedSessionIds.length === 0) {
+      return;
+    }
+
+    console.log(`Session cleanup triggered by unlink event for provider "${provider}"`, {
+      filePath,
+      sessionIds: removedSessionIds,
+    });
+    for (const sessionId of removedSessionIds) {
+      queuePendingWatcherUpdate('unlink', provider, sessionId);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Session watcher cleanup failed for provider "${provider}"`, {
+      filePath,
+      error: message,
+    });
+  }
+}
+
+/**
  * Starts provider filesystem watchers and performs initial DB synchronization.
  */
 export async function initializeSessionsWatcher(): Promise<void> {
@@ -310,6 +341,9 @@ export async function initializeSessionsWatcher(): Promise<void> {
         })
         .on('change', (filePath: string) => {
           void onUpdate('change', filePath, provider);
+        })
+        .on('unlink', (filePath: string) => {
+          onUnlink(filePath, provider);
         })
         .on('error', (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);
