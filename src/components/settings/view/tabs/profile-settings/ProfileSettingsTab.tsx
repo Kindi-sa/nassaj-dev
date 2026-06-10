@@ -1,15 +1,14 @@
-import { useCallback, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
-import { Loader2, UserRound } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '../../../../../shared/view/ui';
 import { useAuth } from '../../../../auth';
 import { MIN_PASSWORD_LENGTH } from '../../../../auth/constants';
-import { api } from '../../../../../utils/api';
-import { parseJsonSafely, resolveApiErrorMessage } from '../../../../auth/utils';
 import SettingsSection from '../../SettingsSection';
 
+import AvatarIdentitySection from './AvatarIdentitySection';
 import FeedbackBanner from './FeedbackBanner';
 import type { Feedback } from './FeedbackBanner';
 import PasskeysSection from './PasskeysSection';
@@ -32,18 +31,9 @@ const inputClass =
  */
 export default function ProfileSettingsTab() {
   const { t } = useTranslation('settings');
-  const { user, changeUsername, changePassword, updateAvatar } = useAuth();
+  const { user, changeUsername, changePassword } = useAuth();
 
   const currentUsername = user?.username ?? '';
-  const currentAvatarUrl = typeof user?.avatarUrl === 'string' ? user.avatarUrl : '';
-
-  // Avatar section state.
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [avatarFeedback, setAvatarFeedback] = useState<Feedback>(null);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  // Track image load failure so the preview falls back to the placeholder.
-  const [avatarImageFailed, setAvatarImageFailed] = useState(false);
-  const showAvatarImage = Boolean(currentAvatarUrl) && !avatarImageFailed;
 
   // Username section state.
   const [newUsername, setNewUsername] = useState('');
@@ -56,48 +46,6 @@ export default function ProfileSettingsTab() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-
-  const openAvatarPicker = useCallback(() => {
-    avatarInputRef.current?.click();
-  }, []);
-
-  const handleAvatarChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      // Reset the input so selecting the same file again re-triggers onChange.
-      event.target.value = '';
-      if (!file) {
-        return;
-      }
-
-      setAvatarFeedback(null);
-      setIsUploadingAvatar(true);
-      try {
-        const response = await api.auth.updateAvatar(file);
-        const payload = await parseJsonSafely<{ avatarUrl?: string; error?: string; message?: string }>(
-          response,
-        );
-
-        if (!response.ok || !payload?.avatarUrl) {
-          setAvatarFeedback({
-            kind: 'error',
-            message: resolveApiErrorMessage(payload, t('profile.avatar.errors.uploadFailed')),
-          });
-          return;
-        }
-
-        updateAvatar(payload.avatarUrl);
-        setAvatarImageFailed(false);
-        setAvatarFeedback({ kind: 'success', message: t('profile.avatar.success') });
-      } catch (caughtError) {
-        console.error('Avatar upload error:', caughtError);
-        setAvatarFeedback({ kind: 'error', message: t('profile.avatar.errors.network') });
-      } finally {
-        setIsUploadingAvatar(false);
-      }
-    },
-    [t, updateAvatar],
-  );
 
   const handleUsernameSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -172,57 +120,8 @@ export default function ProfileSettingsTab() {
         <p className="mt-1 text-sm text-muted-foreground">{t('profile.subtitle')}</p>
       </div>
 
-      {/* Profile picture */}
-      <SettingsSection
-        title={t('profile.avatar.title')}
-        description={t('profile.avatar.description')}
-      >
-        <div className="flex items-center gap-4">
-          {showAvatarImage ? (
-            <img
-              src={currentAvatarUrl}
-              alt={t('profile.avatar.currentAlt')}
-              className="h-20 w-20 flex-shrink-0 rounded-full object-cover ring-2 ring-border"
-              onError={() => setAvatarImageFailed(true)}
-            />
-          ) : (
-            <div
-              role="img"
-              aria-label={t('profile.avatar.placeholderAlt')}
-              className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-muted ring-2 ring-border"
-            >
-              <UserRound className="h-9 w-9 text-muted-foreground" aria-hidden />
-            </div>
-          )}
-
-          <div className="space-y-2">
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-              aria-hidden
-              tabIndex={-1}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={openAvatarPicker}
-              disabled={isUploadingAvatar}
-            >
-              {isUploadingAvatar && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span className={isUploadingAvatar ? 'ms-1.5' : undefined}>
-                {isUploadingAvatar ? t('profile.avatar.uploading') : t('profile.avatar.change')}
-              </span>
-            </Button>
-            <p className="text-xs text-muted-foreground">{t('profile.avatar.hint')}</p>
-          </div>
-        </div>
-
-        <FeedbackBanner feedback={avatarFeedback} />
-      </SettingsSection>
+      {/* Avatar identity: upload / gallery / colour (C-MU-UX-AVATAR-PICK) */}
+      <AvatarIdentitySection t={t} />
 
       {/* Change username */}
       <SettingsSection

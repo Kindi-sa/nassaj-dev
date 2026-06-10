@@ -231,6 +231,30 @@
         "deleteFailed": "Could not delete the passkey.",
         "network": "Network error. Please check your connection and try again."
       }
+    },
+    "identity": {
+      "title": "Avatar style",
+      "description": "Pick a ready-made avatar or a colour instead of uploading a photo.",
+      "tabs": {
+        "upload": "Upload",
+        "gallery": "Gallery",
+        "color": "Colour"
+      },
+      "gallery": {
+        "heading": "Choose an avatar",
+        "selected": "Selected avatar"
+      },
+      "color": {
+        "heading": "Choose a colour",
+        "hint": "The colour is used behind your initial.",
+        "selected": "Selected colour"
+      },
+      "saving": "Saving...",
+      "success": "Avatar updated successfully",
+      "errors": {
+        "saveFailed": "Could not save your choice. Please try again.",
+        "network": "Network error. Please check your connection and try again."
+      }
     }
   },
   "claudeConnection": {

@@ -29,6 +29,30 @@ const AVATAR_MIME_TO_EXT = {
   'image/gif': 'gif',
 };
 
+// Allowed colour-choice ids for the lettered avatar (kept in sync with the
+// client palette in src/components/participants/avatarChoice.ts). The stored
+// value is the sentinel `color:<id>`, interpreted by the avatar renderer.
+const AVATAR_COLOR_IDS = new Set([
+  'rose',
+  'orange',
+  'amber',
+  'emerald',
+  'teal',
+  'cyan',
+  'sky',
+  'blue',
+  'indigo',
+  'violet',
+  'fuchsia',
+  'pink',
+]);
+
+// Generated gallery avatars are self-contained SVG data URIs. We accept only
+// the svg+xml flavour and cap the length so a malicious client cannot stuff an
+// arbitrarily large blob (or a non-SVG data URI) into the user row.
+const AVATAR_GALLERY_PREFIX = 'data:image/svg+xml,';
+const AVATAR_GALLERY_MAX_LENGTH = 4096;
+
 // In-memory storage so the buffer is validated before any disk write; the
 // filename is derived from the (trusted, numeric) userId, never from client
 // input, which removes path-traversal risk on the upload side.
@@ -469,6 +493,65 @@ router.patch('/me/avatar', authenticateToken, (req, res) => {
     }
   });
 });
+
+// Pick a generated gallery avatar or a palette colour for the lettered avatar
+// (C-MU-UX-AVATAR-PICK). Accepts JSON with exactly one of:
+//   { color: "<paletteId>" }        -> persists the sentinel `color:<id>`
+//   { avatar: "data:image/svg+xml,…" } -> persists the SVG data URI directly
+// Unlike /me/avatar this writes no file to disk; both forms live entirely in
+// the avatar_url string, so they propagate to every avatar surface unchanged.
+router.patch('/me/avatar-choice', authenticateToken, (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const { color, avatar } = body;
+    const userId = req.user.id;
+
+    let avatarUrl;
+    if (typeof color === 'string') {
+      if (!AVATAR_COLOR_IDS.has(color)) {
+        return res.status(400).json({ error: 'Unknown avatar colour' });
+      }
+      avatarUrl = `color:${color}`;
+    } else if (typeof avatar === 'string') {
+      if (
+        !avatar.startsWith(AVATAR_GALLERY_PREFIX) ||
+        avatar.length > AVATAR_GALLERY_MAX_LENGTH
+      ) {
+        return res.status(400).json({ error: 'Invalid gallery avatar' });
+      }
+      avatarUrl = avatar;
+    } else {
+      return res.status(400).json({ error: 'A colour or gallery avatar is required' });
+    }
+
+    // Any prior uploaded image file is now orphaned; remove it so it does not
+    // linger on disk (best-effort, non-fatal).
+    void removeAvatarFiles(userId);
+
+    userDb.setAvatarUrl(userId, avatarUrl);
+
+    auditLogDb.record('avatar_updated', {
+      userId,
+      metadata: { kind: typeof color === 'string' ? 'color' : 'gallery' },
+      ipAddress: req.ip ?? null,
+    });
+
+    res.json({ success: true, avatarUrl });
+  } catch (error) {
+    console.error('Avatar choice error:', error?.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Removes any uploaded avatar files for a user (all extensions). Best-effort.
+async function removeAvatarFiles(userId) {
+  const userDir = path.join(AVATARS_ROOT, String(userId));
+  await Promise.all(
+    Object.values(AVATAR_MIME_TO_EXT).map((ext) =>
+      fs.promises.rm(path.join(userDir, `avatar.${ext}`), { force: true }).catch(() => {}),
+    ),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Admin password reset (C-4) — owner/admin only

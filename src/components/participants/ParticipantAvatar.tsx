@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { cn } from '../../lib/utils';
 import { Tooltip } from '../../shared/view/ui';
 
+import { colorClassFromAvatarUrl } from './avatarChoice';
 import type { SessionParticipant } from './types';
 import { avatarColorForUser, formatLastSeen, initialForName } from './utils';
 
@@ -50,9 +51,14 @@ export default function ParticipantAvatar({
 }: ParticipantAvatarProps) {
   const lastSeen = formatLastSeen(participant.last_seen, locale);
 
+  // A `color:` sentinel is a chosen palette colour for the lettered avatar, not
+  // an image. When present we paint that colour behind the initial and skip the
+  // <img> path entirely.
+  const chosenColorClass = colorClassFromAvatarUrl(avatarUrl);
+
   // Track image load failure so we can fall back to the coloured initial.
   const [imageFailed, setImageFailed] = useState(false);
-  const showImage = Boolean(avatarUrl) && !imageFailed;
+  const showImage = Boolean(avatarUrl) && !chosenColorClass && !imageFailed;
 
   const defaultTooltipContent = (
     <span className="flex flex-col gap-0.5 text-start">
@@ -74,8 +80,9 @@ export default function ParticipantAvatar({
         className={cn(
           'relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-semibold text-white',
           SIZE_CLASSES[size],
-          // Only paint the deterministic colour when no image is shown.
-          !showImage && avatarColorForUser(participant.userId),
+          // When no image is shown, paint either the user's chosen colour or
+          // the deterministic userId-derived fallback.
+          !showImage && (chosenColorClass ?? avatarColorForUser(participant.userId)),
           stacked && '-ms-1.5 first:ms-0',
         )}
       >

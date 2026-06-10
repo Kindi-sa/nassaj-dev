@@ -73,6 +73,13 @@ export const api = {
         body: formData,
       });
     },
+    // Pick a generated gallery avatar or a palette colour (no file upload).
+    // Pass exactly one of { color } or { avatar } (an svg+xml data URI).
+    updateAvatarChoice: (choice) =>
+      authenticatedFetch('/api/auth/me/avatar-choice', {
+        method: 'PATCH',
+        body: JSON.stringify(choice),
+      }),
 
     // WebAuthn passkeys (B-PK / C-PK). The two login endpoints are public
     // (no token yet); registration and credential management require auth.
