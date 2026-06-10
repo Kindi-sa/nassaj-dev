@@ -351,6 +351,17 @@ export const api = {
       authenticatedFetch('/api/user/complete-onboarding', {
         method: 'POST',
       }),
+    // Per-user Claude subscription link status (Phase-MU, B-MU-ONBOARD).
+    // Returns { connected: boolean, provider: 'claude' }. With per-user
+    // isolation each user links their own Claude credential via the terminal
+    // (`claude setup-token`); the owner is symbolically linked automatically.
+    claudeConnection: () => authenticatedFetch('/api/user/claude-connection'),
+    // Per-user Antigravity (agy) subscription link status. Mirrors
+    // claudeConnection: returns { connected: boolean, provider: 'agy' }. Each
+    // user links their own agy credential by running `agy` interactively in the
+    // terminal (which launches OAuth when no valid token exists); the owner is
+    // symbolically linked automatically and always reports connected: true.
+    agyConnection: () => authenticatedFetch('/api/user/agy-connection'),
   },
 
   // Provider account/usage endpoints.

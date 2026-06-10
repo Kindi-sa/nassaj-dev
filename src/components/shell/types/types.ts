@@ -41,6 +41,12 @@ export type UseShellRuntimeOptions = {
   selectedSession: ProjectSession | null | undefined;
   initialCommand: string | null | undefined;
   isPlainShell: boolean;
+  /**
+   * Explicit provider for the PTY init message (e.g. 'agy'). Overrides default
+   * provider resolution so a command-driven plain shell still declares its
+   * provider, enabling backend per-user credential isolation.
+   */
+  provider?: string | null;
   minimal: boolean;
   autoConnect: boolean;
   isRestarting: boolean;

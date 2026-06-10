@@ -18,6 +18,15 @@ type UseShellConnectionOptions = {
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
+  /**
+   * Optional explicit provider for the PTY init message. When set (e.g. 'agy'),
+   * it overrides the default provider resolution so a command-driven plain
+   * shell still declares its provider to the backend, which uses it to apply
+   * per-user credential isolation (resolveProviderEnv → isolated HOME). Without
+   * this, a plain-shell command would report provider 'plain-shell' and skip
+   * agy isolation entirely.
+   */
+  providerOverrideRef?: MutableRefObject<string | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -43,6 +52,7 @@ export function useShellConnection({
   selectedSessionRef,
   initialCommandRef,
   isPlainShellRef,
+  providerOverrideRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -147,7 +157,17 @@ export function useShellConnection({
               projectPath: currentProject.fullPath || currentProject.path || '',
               sessionId: isPlainShellRef.current ? null : selectedSessionRef.current?.id || null,
               hasSession: isPlainShellRef.current ? false : Boolean(selectedSessionRef.current),
-              provider: isPlainShellRef.current ? 'plain-shell' : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude'),
+              // An explicit override (e.g. 'agy') always wins, even for a
+              // command-driven plain shell: the backend needs the real provider
+              // to apply per-user credential isolation. Otherwise fall back to
+              // the legacy resolution (plain-shell, then session/localStorage).
+              provider:
+                providerOverrideRef?.current ||
+                (isPlainShellRef.current
+                  ? 'plain-shell'
+                  : selectedSessionRef.current?.__provider ||
+                    localStorage.getItem('selected-provider') ||
+                    'claude'),
               cols: currentTerminal.cols,
               rows: currentTerminal.rows,
               initialCommand: initialCommandRef.current,
@@ -187,6 +207,7 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      providerOverrideRef,
       selectedProjectRef,
       selectedSessionRef,
       setAuthUrl,

@@ -26,6 +26,9 @@ type ShellProps = {
   selectedSession?: ProjectSession | null;
   initialCommand?: string | null;
   isPlainShell?: boolean;
+  /** Explicit provider for the PTY init message (e.g. 'agy'), forwarded so the
+   *  backend applies per-user credential isolation for the terminal process. */
+  provider?: string | null;
   onProcessComplete?: ((exitCode: number) => void) | null;
   minimal?: boolean;
   autoConnect?: boolean;
@@ -37,6 +40,7 @@ export default function Shell({
   selectedSession = null,
   initialCommand = null,
   isPlainShell = false,
+  provider = null,
   onProcessComplete = null,
   minimal = false,
   autoConnect = false,
@@ -66,6 +70,7 @@ export default function Shell({
     selectedSession,
     initialCommand,
     isPlainShell,
+    provider,
     minimal,
     autoConnect,
     isRestarting,

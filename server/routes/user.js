@@ -2,6 +2,8 @@ import express from 'express';
 import { userDb } from '../modules/database/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getSystemGitConfig } from '../utils/gitConfig.js';
+import { getClaudeConnectionStatus } from '../services/isolation/claude-onboarding.service.js';
+import { getAgyConnectionStatus } from '../services/isolation/agy-onboarding.service.js';
 import { spawn } from 'child_process';
 
 const router = express.Router();
@@ -117,6 +119,39 @@ router.get('/onboarding-status', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error checking onboarding status:', error);
     res.status(500).json({ error: 'Failed to check onboarding status' });
+  }
+});
+
+// Reports whether the current user has registered their own Claude credential
+// in their isolated config dir (B-MU-ONBOARD). Returns only a boolean — never
+// the token itself — so the onboarding UI can render "connected/not connected".
+//
+//   curl -H "Authorization: Bearer <jwt>" \
+//        https://nassaj-dev.alkindy.tech/api/user/claude-connection
+router.get('/claude-connection', authenticateToken, async (req, res) => {
+  try {
+    const status = await getClaudeConnectionStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Error checking Claude connection status:', error);
+    res.status(500).json({ error: 'Failed to check Claude connection status' });
+  }
+});
+
+// Reports whether the current user has authenticated their own agy (antigravity)
+// credential in their isolated config dir (ADR-023). Returns only a boolean —
+// never the token — so the onboarding UI can render "connected/not connected".
+// userId comes from the JWT, never from input.
+//
+//   curl -H "Authorization: Bearer <jwt>" \
+//        https://nassaj-dev.alkindy.tech/api/user/agy-connection
+router.get('/agy-connection', authenticateToken, async (req, res) => {
+  try {
+    const status = await getAgyConnectionStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Error checking agy connection status:', error);
+    res.status(500).json({ error: 'Failed to check agy connection status' });
   }
 });
 
