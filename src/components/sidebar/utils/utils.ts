@@ -1,7 +1,43 @@
 import type { TFunction } from 'i18next';
 
 import type { Project } from '../../../types/app';
-import type { ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
+import type { ProjectMembershipFilter, ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
+
+// View-only preference: "my projects" vs "all". Stored under its own key so it
+// is safe on a shared browser (no identity, just a display filter). Defaults to
+// 'all' to preserve the pre-multi-user behaviour (every project visible).
+const PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY = 'sidebarProjectMembershipFilter';
+
+export const readProjectMembershipFilter = (): ProjectMembershipFilter => {
+  try {
+    return localStorage.getItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY) === 'mine' ? 'mine' : 'all';
+  } catch {
+    return 'all';
+  }
+};
+
+export const writeProjectMembershipFilter = (filter: ProjectMembershipFilter): void => {
+  try {
+    localStorage.setItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY, filter);
+  } catch {
+    // Keep UI responsive even if storage is unavailable.
+  }
+};
+
+/**
+ * Applies the "my projects" view filter. `all` returns the list untouched;
+ * `mine` keeps only projects the requesting user participates in (isMember).
+ * This is a view filter only — access is never restricted server-side.
+ */
+export const filterProjectsByMembership = (
+  projects: Project[],
+  filter: ProjectMembershipFilter,
+): Project[] => {
+  if (filter !== 'mine') {
+    return projects;
+  }
+  return projects.filter((project) => project.isMember === true);
+};
 
 export const readProjectSortOrder = (): ProjectSortOrder => {
   try {

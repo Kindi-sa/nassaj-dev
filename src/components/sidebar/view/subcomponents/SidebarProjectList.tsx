@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 
+import { cn } from '../../../../lib/utils';
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
+import type { MCPServerStatus, ProjectMembershipFilter, SessionWithProvider } from '../../types/types';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -25,6 +26,8 @@ export type SidebarProjectListProps = {
   tasksEnabled: boolean;
   mcpServerStatus: MCPServerStatus;
   getProjectSessions: (project: Project) => SessionWithProvider[];
+  membershipFilter: ProjectMembershipFilter;
+  onMembershipFilterChange: (filter: ProjectMembershipFilter) => void;
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectName: string) => boolean;
@@ -69,6 +72,8 @@ export default function SidebarProjectList({
   tasksEnabled,
   mcpServerStatus,
   getProjectSessions,
+  membershipFilter,
+  onMembershipFilterChange,
   onLoadMoreSessions,
   loadingMoreProjects,
   isProjectStarred,
@@ -110,8 +115,34 @@ export default function SidebarProjectList({
 
   const showProjects = !isLoading && projects.length > 0 && filteredProjects.length > 0;
 
+  // "My Projects / All" view filter (C-MU-UX-PROJ-FILTER). Default 'all'.
+  const membershipOptions: { value: ProjectMembershipFilter; label: string }[] = [
+    { value: 'mine', label: t('projects.myProjects') },
+    { value: 'all', label: t('projects.all') },
+  ];
+
   return (
     <div className="pb-safe-area-inset-bottom md:space-y-1">
+      {!isLoading && projects.length > 0 && (
+        <div className="mb-1 flex items-center gap-1 rounded-md bg-muted/50 p-0.5 md:mx-1.5">
+          {membershipOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => onMembershipFilterChange(option.value)}
+              aria-pressed={membershipFilter === option.value}
+              className={cn(
+                'flex-1 rounded px-2 py-1 text-xs font-medium transition-colors',
+                membershipFilter === option.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
       {!showProjects
         ? state
         : filteredProjects.map((project) => (

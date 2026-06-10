@@ -8,6 +8,7 @@ import type {
   ArchivedProjectListItem,
   ArchivedSessionListItem,
   DeleteProjectConfirmation,
+  ProjectMembershipFilter,
   ProjectSortOrder,
   SidebarSearchMode,
   SessionDeleteConfirmation,
@@ -16,10 +17,13 @@ import type {
 import {
   clearLegacyStarredProjectIds,
   filterProjects,
+  filterProjectsByMembership,
   getAllSessions,
   readLegacyStarredProjectIds,
+  readProjectMembershipFilter,
   readProjectSortOrder,
   sortProjects,
+  writeProjectMembershipFilter,
 } from '../utils/utils';
 
 type SnippetHighlight = {
@@ -121,6 +125,8 @@ export function useSidebarController({
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
+  // "My Projects / All" view filter (C-MU-UX-PROJ-FILTER), persisted per-browser.
+  const [membershipFilter, setMembershipFilterState] = useState<ProjectMembershipFilter>(readProjectMembershipFilter);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
@@ -583,9 +589,18 @@ export function useSidebarController({
   );
 
   const filteredProjects = useMemo(
-    () => filterProjects(sortedProjects, debouncedSearchQuery),
-    [debouncedSearchQuery, sortedProjects],
+    () => filterProjectsByMembership(
+      filterProjects(sortedProjects, debouncedSearchQuery),
+      membershipFilter,
+    ),
+    [debouncedSearchQuery, membershipFilter, sortedProjects],
   );
+
+  // Persist the view filter so the choice survives reloads on this browser.
+  const setMembershipFilter = useCallback((filter: ProjectMembershipFilter) => {
+    setMembershipFilterState(filter);
+    writeProjectMembershipFilter(filter);
+  }, []);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -914,6 +929,8 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    membershipFilter,
+    setMembershipFilter,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,
     archivedSessionsCount: archivedProjects.length + archivedSessions.length,

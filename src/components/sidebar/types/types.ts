@@ -1,6 +1,9 @@
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../types/app';
 
 export type ProjectSortOrder = 'name' | 'date';
+// "My Projects / All" sidebar view filter (C-MU-UX-PROJ-FILTER). View-only —
+// never restricts access. `all` preserves the legacy behaviour.
+export type ProjectMembershipFilter = 'all' | 'mine';
 export type SidebarSearchMode = 'projects' | 'conversations' | 'archived';
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
