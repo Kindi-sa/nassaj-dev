@@ -3,7 +3,10 @@ import { useTranslation } from 'react-i18next';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import ParticipantAvatar from '../../../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../../../participants/types';
+import { avatarColorForUser } from '../../../participants/utils';
 import { useAuth } from '../../../auth/context/AuthContext';
+import { cn } from '../../../../lib/utils';
+import type { SessionOwner } from '../../../../types/app';
 import type {
   ChatMessage,
   ClaudePermissionSuggestion,
@@ -36,6 +39,10 @@ type MessageComponentProps = {
   showRawParameters?: boolean;
   showThinking?: boolean;
   selectedProject?: Project | null;
+  // Owner of the active session (C-MU-UX-MSG-IDENTITY). Threaded from the chat
+  // view's selectedSession.owner. `null`/undefined for legacy sessions, where
+  // we fall back to the generic provider-logo + "Claude" rendering.
+  owner?: SessionOwner | null;
   provider: Provider | string;
 };
 
@@ -48,7 +55,7 @@ type InteractiveOption = {
 type PermissionGrantState = 'idle' | 'granted' | 'error';
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, owner, provider }: MessageComponentProps) => {
   const { t, i18n } = useTranslation('chat');
   const { user } = useAuth();
   // Build a minimal participant view of the signed-in user so the chat reuses
@@ -66,6 +73,25 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
       avatarUrl: typeof user?.avatarUrl === 'string' ? user.avatarUrl : null,
     };
   }, [user?.id, user?.username, user?.role, user?.avatarUrl]);
+
+  // Session owner identity (C-MU-UX-MSG-IDENTITY). Owner colour = which brother;
+  // shape (owner avatar vs agent pill) = coordinator vs sub-agent. Null owner
+  // (legacy session) falls back to the generic provider-logo rendering.
+  const ownerParticipant = useMemo<SessionParticipant | null>(() => {
+    if (!owner) {
+      return null;
+    }
+    return {
+      userId: owner.userId,
+      username: owner.username,
+      role: 'owner',
+      first_seen: '',
+      last_seen: '',
+      message_count: 0,
+    };
+  }, [owner]);
+  const ownerColorClass = owner ? avatarColorForUser(owner.userId) : null;
+
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
       (prevMessage.type === 'user') ||
@@ -233,8 +259,22 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   🔧
                 </div>
               ) : (
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-white">
-                  <SessionProviderLogo provider={provider} className="h-full w-full" />
+                /* Coordinator (main assistant): provider logo plus, when the
+                 * session owner is known, the owner's coloured avatar so the
+                 * brother behind this session is obvious at a glance (no hover). */
+                <div className="flex flex-shrink-0 items-center gap-1.5">
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-white">
+                    <SessionProviderLogo provider={provider} className="h-full w-full" />
+                  </div>
+                  {ownerParticipant && (
+                    <ParticipantAvatar
+                      participant={ownerParticipant}
+                      size="sm"
+                      locale={i18n.language}
+                      t={t}
+                      stacked={false}
+                    />
+                  )}
                 </div>
               )}
               <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -242,7 +282,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   ? t('messageTypes.error')
                   : message.type === 'tool'
                     ? t('messageTypes.tool')
-                    : (provider === 'cursor'
+                    : ownerParticipant
+                      ? t('coordinator.withName', { username: ownerParticipant.username, defaultValue: 'Coordinator: {{username}}' })
+                      : (provider === 'cursor'
                         ? t('messageTypes.cursor')
                         : provider === 'codex'
                           ? t('messageTypes.codex')
@@ -284,13 +326,30 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                  */}
                 {message.toolName === 'Task' && (
                   <div className="mb-1.5 flex">
-                    <span
-                      className="inline-flex items-center gap-1 rounded-md border border-purple-300/70 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700 dark:border-purple-700/60 dark:bg-purple-900/30 dark:text-purple-200"
-                      aria-label={t('subagent.badgeLabel', { defaultValue: 'Sub-agent task' })}
-                    >
-                      <span className="h-1.5 w-1.5 rounded-full bg-purple-500 dark:bg-purple-400" aria-hidden="true" />
-                      {t('subagent.badge', { defaultValue: 'Sub-agent' })}
-                    </span>
+                    {ownerParticipant && ownerColorClass ? (
+                      /* Sub-agent of a known owner: tint the pill with the owner
+                       * colour (COLOR = which brother) while the pill SHAPE keeps
+                       * it distinct from the coordinator's owner avatar. */
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white',
+                          ownerColorClass,
+                        )}
+                        aria-label={t('subagent.badgeLabel', { defaultValue: 'Sub-agent task' })}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" />
+                        {t('subagent.shortBadge', { defaultValue: 'Sub-agent' })}
+                        <span className="font-normal normal-case opacity-90">· {ownerParticipant.username}</span>
+                      </span>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-md border border-purple-300/70 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-700 dark:border-purple-700/60 dark:bg-purple-900/30 dark:text-purple-200"
+                        aria-label={t('subagent.badgeLabel', { defaultValue: 'Sub-agent task' })}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full bg-purple-500 dark:bg-purple-400" aria-hidden="true" />
+                        {t('subagent.shortBadge', { defaultValue: 'Sub-agent' })}
+                      </span>
+                    )}
                   </div>
                 )}
 

@@ -37,7 +37,12 @@
   },
   "subagent": {
     "badge": "وكيل فرعي",
+    "shortBadge": "وكيل",
     "badgeLabel": "مهمة وكيل فرعي"
+  },
+  "coordinator": {
+    "label": "منسّق",
+    "withName": "منسّق {{username}}"
   },
   "sessionNotResumable": {
     "message": "تعذّر استئناف هذه الجلسة — لم تعد موجودة لدى المزوّد.",

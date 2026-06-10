@@ -289,6 +289,7 @@ export default function ChatMessagesPane({
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
                   selectedProject={selectedProject}
+                  owner={selectedSession?.owner ?? null}
                   provider={displayProvider}
                 />
               </Fragment>

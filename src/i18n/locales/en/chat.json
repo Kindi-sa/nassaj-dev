@@ -38,7 +38,12 @@
   },
   "subagent": {
     "badge": "Sub-agent",
+    "shortBadge": "Sub-agent",
     "badgeLabel": "Sub-agent task"
+  },
+  "coordinator": {
+    "label": "Coordinator",
+    "withName": "Coordinator: {{username}}"
   },
   "sessionNotResumable": {
     "message": "This session could not be resumed — it no longer exists at the provider.",
