@@ -25,6 +25,8 @@ import type {
 
 type BoardOverviewProps = {
   state: ProjectBoardState;
+  /** Opens a project file (root-relative path) in the app's editor sidebar. */
+  onFileOpen?: (filePath: string) => void;
 };
 
 const SEVERITY_STYLES: Record<IssueSeverity, string> = {
@@ -431,26 +433,58 @@ function IssuesList({
   );
 }
 
-function DecisionRow({ decision }: { decision: BoardDecision }) {
+type DecisionRowProps = {
+  decision: BoardDecision;
+  onFileOpen?: (filePath: string) => void;
+};
+
+function DecisionRow({ decision, onFileOpen }: DecisionRowProps) {
+  const { t } = useTranslation('projectBoard');
+  const { link } = decision;
+
   return (
     <div className="rounded-lg border border-border/60 bg-card p-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-[10px] text-muted-foreground">{decision.id}</span>
         <span className="text-sm font-medium text-foreground">{decision.title}</span>
       </div>
-      {decision.link && (
-        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-          <FileText className="mt-0.5 h-3 w-3 flex-shrink-0" />
-          <span dir="ltr" className="break-all font-mono text-[11px]">
-            {decision.link}
-          </span>
-        </p>
-      )}
+      {link &&
+        // No host callback (e.g. standalone embedding) → keep the plain text.
+        (onFileOpen ? (
+          <button
+            type="button"
+            onClick={() => onFileOpen(link)}
+            title={t('decisions.openLink', { id: decision.id })}
+            aria-label={t('decisions.openLink', { id: decision.id })}
+            className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground transition-colors hover:text-primary"
+          >
+            <FileText className="mt-0.5 h-3 w-3 flex-shrink-0" />
+            <span
+              dir="ltr"
+              className="break-all text-start font-mono text-[11px] underline decoration-border underline-offset-2 hover:decoration-current"
+            >
+              {link}
+            </span>
+          </button>
+        ) : (
+          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+            <FileText className="mt-0.5 h-3 w-3 flex-shrink-0" />
+            <span dir="ltr" className="break-all font-mono text-[11px]">
+              {link}
+            </span>
+          </p>
+        ))}
     </div>
   );
 }
 
-function DecisionsList({ state }: { state: ProjectBoardState }) {
+function DecisionsList({
+  state,
+  onFileOpen,
+}: {
+  state: ProjectBoardState;
+  onFileOpen?: (filePath: string) => void;
+}) {
   const { t } = useTranslation('projectBoard');
   const decisions = state.decisions ?? [];
 
@@ -460,7 +494,7 @@ function DecisionsList({ state }: { state: ProjectBoardState }) {
       {decisions.length ? (
         <div className="space-y-2">
           {decisions.map((decision) => (
-            <DecisionRow key={decision.id} decision={decision} />
+            <DecisionRow key={decision.id} decision={decision} onFileOpen={onFileOpen} />
           ))}
         </div>
       ) : (
@@ -472,7 +506,7 @@ function DecisionsList({ state }: { state: ProjectBoardState }) {
   );
 }
 
-export default function BoardOverview({ state }: BoardOverviewProps) {
+export default function BoardOverview({ state, onFileOpen }: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
   const [highlightedIssue, setHighlightedIssue] = useState<string | null>(null);
   const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -514,7 +548,7 @@ export default function BoardOverview({ state }: BoardOverviewProps) {
         <SprintsSection state={state} />
         <TasksBoard state={state} onIssueClick={handleIssueClick} />
         <IssuesList state={state} highlightedIssue={highlightedIssue} />
-        <DecisionsList state={state} />
+        <DecisionsList state={state} onFileOpen={onFileOpen} />
       </div>
     </div>
   );

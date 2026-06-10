@@ -59,7 +59,8 @@
   },
   "decisions": {
     "title": "Decisions",
-    "empty": "No decisions yet"
+    "empty": "No decisions yet",
+    "openLink": "Open decision document {{id}}"
   },
   "architecture": {
     "technical": "Technical",

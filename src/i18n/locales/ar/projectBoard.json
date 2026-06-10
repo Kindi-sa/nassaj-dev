@@ -59,7 +59,8 @@
   },
   "decisions": {
     "title": "القرارات",
-    "empty": "لا قرارات بعد"
+    "empty": "لا قرارات بعد",
+    "openLink": "فتح وثيقة القرار {{id}}"
   },
   "architecture": {
     "technical": "تقني",

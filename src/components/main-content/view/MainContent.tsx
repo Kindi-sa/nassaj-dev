@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 
 import ChatInterface from '../../chat/view/ChatInterface';
 import FileTree from '../../file-tree/view/FileTree';
@@ -93,6 +93,13 @@ function MainContent({
     }
   }, [shouldShowTasksTab, activeTab, setActiveTab]);
 
+  // Project-board links (e.g. decision documents) are read-first: markdown
+  // files open in the editor sidebar already rendered as a preview.
+  const handleBoardFileOpen = useCallback(
+    (filePath: string) => handleFileOpen(filePath, null, { openMarkdownPreview: true }),
+    [handleFileOpen],
+  );
+
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
       setActiveTab('files');
@@ -179,7 +186,7 @@ function MainContent({
           {activeTab === 'board' && (
             <div className="h-full overflow-hidden">
               <ErrorBoundary showDetails>
-                <ProjectBoardPanel selectedProject={selectedProject} />
+                <ProjectBoardPanel selectedProject={selectedProject} onFileOpen={handleBoardFileOpen} />
               </ErrorBoundary>
             </div>
           )}

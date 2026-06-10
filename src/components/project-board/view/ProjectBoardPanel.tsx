@@ -12,6 +12,8 @@ import BoardOverview from './BoardOverview';
 
 type ProjectBoardPanelProps = {
   selectedProject: Project | null;
+  /** Opens a project file (root-relative path) in the app's editor sidebar. */
+  onFileOpen?: (filePath: string) => void;
 };
 
 type BoardSection = 'overview' | 'architecture';
@@ -82,7 +84,7 @@ function BoardEmptyState({ projectName }: { projectName: string }) {
  * "Project Board" tab — a zero-LLM live view of the project's own files
  * (docs/project-state.json + ARCHITECTURE*.md). See ~/.claude/wiki/project-board.md.
  */
-export default function ProjectBoardPanel({ selectedProject }: ProjectBoardPanelProps) {
+export default function ProjectBoardPanel({ selectedProject, onFileOpen }: ProjectBoardPanelProps) {
   const { t } = useTranslation('projectBoard');
   const [section, setSection] = useState<BoardSection>('overview');
   const { board, isLoading, loadError } = useProjectBoard(selectedProject?.projectId);
@@ -144,7 +146,7 @@ export default function ProjectBoardPanel({ selectedProject }: ProjectBoardPanel
       <div className="min-h-0 flex-1">
         {section === 'overview' ? (
           board.state ? (
-            <BoardOverview state={board.state} />
+            <BoardOverview state={board.state} onFileOpen={onFileOpen} />
           ) : (
             <BoardEmptyState projectName={projectName} />
           )
