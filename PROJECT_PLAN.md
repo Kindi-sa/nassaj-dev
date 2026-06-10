@@ -110,6 +110,19 @@
   - Challenge لمرة واحدة مع TTL ≤ 5 دقائق.
   - `signCount` يُتحقق منه ويُحدَّث atomically مع JWT.
 
+### المرحلة SR-0 — Session Recovery (non-claude)
+- **الهدف:** استرداد الجلسات النشطة عبر النشر/إعادة الاتصال + بثّ الحالة **push** بدل pull، للمزوّدين **غير-claude فقط** (agy رائداً ثم codex). يُحلّ بـ **graceful drain** للنشر و**replay buffer** للاسترداد — **لا فصل لعملية worker** (مستحيل تقنياً لـ claude/codex، انظر ADR-021).
+- **المسؤول:** backend-dev (بدعم architect؛ qa-critic بوابة) + devops (drain/PM2)
+- **الحالة:** 🟡 قيد التنفيذ — **بوابة توثيق مكتملة** (اعتماد المستخدم 2026-06-06). لم يبدأ الترميز.
+- **القرار المرجعي:** **ADR-021** (Session Survival & Replay) + **ADR-022** (PM2 + SIGTERM drain).
+- **يستكمل عمل:** المرحلة 0 (Foundation) + Phase 1 (AntigravityProvider). مستقل عن claude.
+- **Work Items:** B-N5, B-N7, B-N-ATTACH, B-N-DRAIN + بوابتا الاختبارات والنشر → `docs/workitems/PHASE-SR-0.md`
+- **الشروط (بوابة qa-critic لرفع الفيتو على non-claude):** B-N5 (connectionId مؤقت ثم rekey) + B-N7 (توحيد مصدر حالة active) + attach للقراءة فقط **دون swap الـ writer** + بوابة اختبارات.
+- **بوابة نشر:** أول `pm2 restart` يحمل الـ slice يقتل جلسات agy النشطة (المعالج الحالي `process.exit(0)` فوري في `server/index.js:1789`) — يلزم B-N-DRAIN (drain موقوت + `kill_timeout`) أو نشر يدوي في نافذة بلا جلسات نشطة من instance منفصل.
+- **خارج النطاق (فيتو باقٍ):** مسار claude (B-N1 قد يُعيد regression `56d67f3` + B-N6) وdrain-lock الكامل (B-N3/B-N4).
+- **العلم:** كل المنطق خلف `SESSION_REGISTRY_<P>` لكل مزوّد (تعايش قديم/جديد).
+- **المخرجات:** `SessionRegistry` + per-session `RingBuffer` (حقن عند `agy-cli.js:461`)، `attachSession()` + replay تفاضلي (`seq > lastSeq`)، drain موقوت في `server/index.js`.
+
 ### المرحلة 4 — Hardening
 - **الهدف:** اختبارات شاملة، regression suite، توثيق نهائي، تجهيز شرط الانتقال.
 - **المسؤول:** qa-tester + backend-dev + frontend-dev
@@ -145,6 +158,27 @@
 - **مسار الترحيل:** بعد التحقق على `:3004`، تُنقل طبقة العزل ومجلد `~/.nassaj-users/` كما هما
   إلى الإنتاج `nassaj.alkindy.tech`.
 
+#### طبقة التفعيل V1 — تعدّد المستخدمين بعزل الاشتراك (ADR-023، معتمد 2026-06-08)
+
+طبقة **تفعيل وتحصين** فوق بنية Phase-MU أعلاه (لا تُلغيها) لتشغيل **BYO اشتراك Claude
+per-user**. الحكم من دراسة الجدوى: البنية مبنية ~80%، **مسار chat/SDK سليم**
+(`claude-sdk.js:784`، عملية `claude` فرعية بـenv خاص لكل `userId` → التزامن محلول)، **العطل
+في مسار PTY فقط**. القرارات الأربعة محسومة في **ADR-023**:
+
+1. **المسار** — BYO OAuth Pro/Max per-user؛ «العزل» = نسبة فوترة لا حدّ أمني؛ ToS مقبول داخلياً، التحقق القانوني **حاجب للإطلاق العلني فقط**.
+2. **تصليب OS** — «وثّق واقبل»: uid واحد + 0600/0700 + audit (لا uid/container منفصل).
+3. **MCP/الأدوات/الملفات** — مشتركة بالكامل؛ فقط اشتراكات النماذج معزولة.
+4. **onboarding** — PTY مُصلَّح لـV1 ← ثم `CLAUDE_CODE_OAUTH_TOKEN` مشفّر في DB كتحصين تالٍ.
+
+**تصحيحان موثّقان:** الافتراضي فعلاً `provider-sharing.js:38 → claude:'isolated'` (يُؤكَّد وقت
+التشغيل في بوابة-0)؛ SDK = `@anthropic-ai/claude-agent-sdk@0.3.152` (يُثبَّت بدقّة).
+
+**المراحل (التفصيل وعناصر العمل في `docs/workitems/PHASE-MU.md` § طبقة التفعيل):**
+بوابة-0 (تأكيد ToS/env/default/SDK) → م1 سدّ ثغرتي PTY → م2 تفعيل العزل (flip + E2E) →
+م3 حوكمة+تصليب (0600/0700، owner واحد، rate limit) ∥ م4 onboarding+تزامن+امتثال.
+**حواجب الإطلاق العلني فقط:** B-MU-LEGAL (إغلاق ToS) + B-MU-PDPL (موافقة مكتوبة).
+**الخطوة التالية:** بوابة-0.
+
 #### معايير القبول لمرحلة MU (Acceptance Criteria)
 1. **عزل اعتماد Claude يعمل:** مستخدمان مختلفان يشغّلان Claude باعتمادين منفصلين
    (`CLAUDE_CONFIG_DIR` مختلف فعلياً لكل userId).
@@ -178,6 +212,9 @@
 - **ADR-018** — Passkey باستخدام `@simplewebauthn/server` v10 (لا WebAuthn API الخام). السبب: يُغلّف CBOR/attestation/assertion تلقائياً، TypeScript native، بدون متطلبات خارجية.
 - **ADR-019** — Passkey طريقة مصادقة إضافية لا بديلة في MVP (Fallback إلى كلمة المرور إلزامي). السبب: تجنّب lockout في غياب جهاز Passkey.
 - **ADR-020** — `pwd_iat` = `null` في JWT الصادر عبر Passkey + `auth_method: 'passkey'` claim. السبب: Passkey لا يرتبط بإصدار كلمة مرور؛ middleware يتجاهل شرط `pwd_iat` عند `auth_method: 'passkey'`.
+- **ADR-021** — [Session Survival & Replay (non-claude)](docs/decisions/021-session-survival-and-replay.md): أُسقطت فكرة فصل الجلسات لعملية worker (مستحيل لـ claude/codex — SDK يملك الابن بلا PID ولا attach حيّ). البديل: graceful drain للنشر + replay buffer للاسترداد، معتمد لـ non-claude فقط (agy→codex) خلف `SESSION_REGISTRY_<P>`. حقن RingBuffer عند `agy-cli.js:461` لا `normalizeMessage`. (Accepted 2026-06-06)
+- **ADR-022** — [Process Supervisor: PM2 + SIGTERM Drain](docs/decisions/022-process-supervisor-pm2-sigterm-drain.md): البقاء على PM2 + drain بـ SIGTERM + `kill_timeout`، لا ترحيل systemd الآن (SIGTERM متطابق → إعادة العمل المستقبلية شبه صفر). (Accepted 2026-06-06)
+- **ADR-023** — [Multi-User with Per-User Claude Subscription Isolation](docs/decisions/023-multiuser-claude-subscription-isolation.md): طبقة تفعيل V1 لتعدّد المستخدمين بعزل اشتراك Claude. القرارات الأربعة المحسومة: (1) BYO OAuth Pro/Max per-user — العزل = فوترة لا حدّ أمني، ToS داخلي مقبول والتحقق القانوني حاجب للإطلاق العلني فقط؛ (2) تصليب OS «وثّق واقبل» (uid واحد + 0600/0700 + audit، لا container)؛ (3) MCP/أدوات/ملفات مشتركة بالكامل، فقط الاشتراكات معزولة؛ (4) onboarding PTY مُصلَّح لـV1 ← توكن مشفّر في DB تالياً. البنية ~80% ومسار chat/SDK سليم (`claude-sdk.js:784`)، العطل في PTY فقط؛ تصحيحان: default=`isolated`، SDK 0.3.152. (Accepted 2026-06-08)
 
 **قرارات مرحلة Multi-User (محفوظة في `~/.claude/alkindy/decisions/`):**
 - **ADR-014** — [نطاق عزل الاعتمادات](~/.claude/alkindy/decisions/014-credential-isolation-scope.md): عزل اعتماد per-user فقط (Claude/Gemini) مع مشاركة حيّة كاملة للمحادثات والملفات والتعليمات.
