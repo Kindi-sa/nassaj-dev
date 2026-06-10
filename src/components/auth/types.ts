@@ -1,3 +1,4 @@
+import type { AuthenticationResponseJSON } from '@simplewebauthn/browser';
 import type { ReactNode } from 'react';
 
 export type UserRole = 'owner' | 'admin' | 'user';
@@ -42,6 +43,24 @@ export type ApiErrorPayload = {
   message?: string;
 };
 
+// Passkey summary as returned by /api/auth/webauthn (register/verify and
+// GET /credentials). Mirrors WebAuthnCredentialSummary on the server —
+// snake_case row fields, never the public key bytes.
+export type PasskeyCredentialSummary = {
+  id: string;
+  user_id: number;
+  counter: number;
+  transports: string | null;
+  // 'singleDevice' (device-bound) or 'multiDevice' (synced) per WebAuthn.
+  device_type: string | null;
+  // SQLite boolean (0/1) — true when the passkey is backed up/synced.
+  backed_up: number | boolean;
+  aaguid: string | null;
+  name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+};
+
 export type AuthContextValue = {
   user: AuthUser | null;
   token: string | null;
@@ -53,6 +72,11 @@ export type AuthContextValue = {
   mustChangePassword: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<AuthActionResult>;
+  // Completes a passkey sign-in: verifies the WebAuthn assertion on the server
+  // and then runs the exact same session steps as `login` (skipNextAuthCheck,
+  // setSession, identity hydration, onboarding check) so the forced
+  // password-change and onboarding gates behave identically.
+  loginWithPasskey: (assertionResponse: AuthenticationResponseJSON) => Promise<AuthActionResult>;
   register: (username: string, password: string) => Promise<AuthActionResult>;
   acceptInvite: (token: string, username: string, password: string) => Promise<AuthActionResult>;
   // Self-service mutations. On password change the fresh token is persisted so

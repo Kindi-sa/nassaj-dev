@@ -74,6 +74,39 @@ export const api = {
       });
     },
 
+    // WebAuthn passkeys (B-PK / C-PK). The two login endpoints are public
+    // (no token yet); registration and credential management require auth.
+    // Options endpoints return raw @simplewebauthn option JSON — pass them
+    // straight to startRegistration/startAuthentication({ optionsJSON }).
+    webauthn: {
+      registerOptions: () =>
+        authenticatedFetch('/api/auth/webauthn/register/options', { method: 'POST' }),
+      // `response` is the RegistrationResponseJSON produced by startRegistration.
+      registerVerify: (response, name) =>
+        authenticatedFetch('/api/auth/webauthn/register/verify', {
+          method: 'POST',
+          body: JSON.stringify(name ? { response, name } : { response }),
+        }),
+      listCredentials: () => authenticatedFetch('/api/auth/webauthn/credentials'),
+      renameCredential: (id, name) =>
+        authenticatedFetch(`/api/auth/webauthn/credentials/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ name }),
+        }),
+      deleteCredential: (id) =>
+        authenticatedFetch(`/api/auth/webauthn/credentials/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        }),
+      // Public login pair — same contract as POST /api/auth/login on verify.
+      loginOptions: () => fetch('/api/auth/webauthn/login/options', { method: 'POST' }),
+      // `response` is the AuthenticationResponseJSON produced by startAuthentication.
+      loginVerify: (response) => fetch('/api/auth/webauthn/login/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response }),
+      }),
+    },
+
     // Invite acceptance (public): creates a `user` account from an invite token.
     acceptInvite: (token, username, password) => fetch('/api/auth/invite/accept', {
       method: 'POST',

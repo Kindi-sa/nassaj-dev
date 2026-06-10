@@ -199,6 +199,40 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [checkOnboardingStatus, hydrateUserIdentity, setSession],
   );
 
+  // Passkey sign-in (C-PK-1). The WebAuthn ceremony itself (options +
+  // startAuthentication) lives in useWebAuthn; this only exchanges the
+  // assertion for a session, then mirrors `login` step for step so the
+  // mustChangePassword and onboarding gates engage identically.
+  const loginWithPasskey = useCallback<AuthContextValue['loginWithPasskey']>(
+    async (assertionResponse) => {
+      try {
+        setError(null);
+        const response = await api.auth.webauthn.loginVerify(assertionResponse);
+        const payload = await parseJsonSafely<AuthSessionPayload>(response);
+
+        if (!response.ok || !payload?.token || !payload.user) {
+          const message = resolveApiErrorMessage(payload, AUTH_ERROR_MESSAGES.loginFailed);
+          setError(message);
+          return { success: false, error: message };
+        }
+
+        // Same guard as `login`: prevent the token-change-driven useEffect from
+        // re-running checkAuthStatus against a half-settled session.
+        skipNextAuthCheck.current = true;
+        setSession(payload.user, payload.token);
+        setNeedsSetup(false);
+        await hydrateUserIdentity();
+        await checkOnboardingStatus();
+        return { success: true };
+      } catch (caughtError) {
+        console.error('Passkey login error:', caughtError);
+        setError(AUTH_ERROR_MESSAGES.networkError);
+        return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
+      }
+    },
+    [checkOnboardingStatus, hydrateUserIdentity, setSession],
+  );
+
   const register = useCallback<AuthContextValue['register']>(
     async (username, password) => {
       try {
@@ -335,6 +369,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       mustChangePassword,
       error,
       login,
+      loginWithPasskey,
       register,
       acceptInvite,
       changePassword,
@@ -352,6 +387,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       hasCompletedOnboarding,
       isLoading,
       login,
+      loginWithPasskey,
       logout,
       mustChangePassword,
       needsSetup,
