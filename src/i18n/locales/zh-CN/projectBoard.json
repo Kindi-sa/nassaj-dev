@@ -9,7 +9,9 @@
   "empty": {
     "title": "No project board yet",
     "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
-    "hint": "The board updates automatically whenever the file changes — no refresh needed."
+    "hint": "The board updates automatically whenever the file changes — no refresh needed.",
+    "copyTemplate": "Copy starter template",
+    "copied": "Copied — paste it into the file"
   },
   "phases": {
     "title": "Phases",

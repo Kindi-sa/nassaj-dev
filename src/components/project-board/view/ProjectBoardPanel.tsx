@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, KanbanSquare, Network } from 'lucide-react';
+import { AlertTriangle, Check, Copy, KanbanSquare, Network } from 'lucide-react';
 
 import { Pill, PillBar } from '../../../shared/view/ui';
 import type { Project } from '../../../types/app';
+import { copyTextToClipboard } from '../../../utils/clipboard';
 import { useProjectBoard } from '../hooks/useProjectBoard';
 
 import ArchitectureView from './ArchitectureView';
@@ -14,6 +15,68 @@ type ProjectBoardPanelProps = {
 };
 
 type BoardSection = 'overview' | 'architecture';
+
+/** Minimal valid docs/project-state.json (schema v1, spec: ~/.claude/wiki/project-board.md). */
+function buildStarterTemplate(projectName: string): string {
+  return `${JSON.stringify(
+    {
+      $version: 1,
+      project: projectName,
+      updated: new Date().toISOString().slice(0, 10),
+      phases: [],
+      tasks: [],
+      issues: [],
+      decisions: [],
+    },
+    null,
+    2
+  )}\n`;
+}
+
+/**
+ * Guidance shown when the project has no docs/project-state.json: explains the
+ * missing file and offers a one-click copy of a valid starter template.
+ */
+function BoardEmptyState({ projectName }: { projectName: string }) {
+  const { t } = useTranslation('projectBoard');
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyTemplate = async () => {
+    const ok = await copyTextToClipboard(buildStarterTemplate(projectName));
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  };
+
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="max-w-md text-center">
+        <KanbanSquare className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" />
+        <h3 className="mb-2 text-sm font-semibold text-foreground">{t('empty.title')}</h3>
+        <p className="mb-3 text-sm text-muted-foreground">{t('empty.description')}</p>
+        <code className="rounded-md border border-border bg-muted px-2 py-1 font-mono text-xs text-foreground" dir="ltr">
+          docs/project-state.json
+        </code>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => void handleCopyTemplate()}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-green-600 dark:text-green-400" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+            <span>{copied ? t('empty.copied') : t('empty.copyTemplate')}</span>
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">{t('empty.hint')}</p>
+      </div>
+    </div>
+  );
+}
 
 /**
  * "Project Board" tab — a zero-LLM live view of the project's own files
@@ -41,22 +104,11 @@ export default function ProjectBoardPanel({ selectedProject }: ProjectBoardPanel
   }
 
   const hasArchitecture = Boolean(board.architecture.technical || board.architecture.simplified);
+  const projectName = selectedProject?.displayName || board.projectId;
 
   // Guidance empty state: the project has no docs/project-state.json (yet).
   if (!board.available && !board.state && !hasArchitecture) {
-    return (
-      <div className="flex h-full items-center justify-center p-6">
-        <div className="max-w-md text-center">
-          <KanbanSquare className="mx-auto mb-3 h-10 w-10 text-muted-foreground/60" />
-          <h3 className="mb-2 text-sm font-semibold text-foreground">{t('empty.title')}</h3>
-          <p className="mb-3 text-sm text-muted-foreground">{t('empty.description')}</p>
-          <code className="rounded-md border border-border bg-muted px-2 py-1 font-mono text-xs text-foreground" dir="ltr">
-            docs/project-state.json
-          </code>
-          <p className="mt-3 text-xs text-muted-foreground">{t('empty.hint')}</p>
-        </div>
-      </div>
-    );
+    return <BoardEmptyState projectName={projectName} />;
   }
 
   return (
@@ -94,9 +146,7 @@ export default function ProjectBoardPanel({ selectedProject }: ProjectBoardPanel
           board.state ? (
             <BoardOverview state={board.state} />
           ) : (
-            <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
-              {t('empty.description')}
-            </div>
+            <BoardEmptyState projectName={projectName} />
           )
         ) : (
           <ArchitectureView
