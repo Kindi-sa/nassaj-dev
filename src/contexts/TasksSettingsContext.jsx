@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+
 import { api } from '../utils/api';
+import { TASKMASTER_ENABLED } from '../constants/features';
 
 const TasksSettingsContext = createContext({
   tasksEnabled: true,
@@ -21,6 +23,10 @@ export const useTasksSettings = () => {
 
 export const TasksSettingsProvider = ({ children }) => {
   const [tasksEnabled, setTasksEnabled] = useState(() => {
+    // Feature flag kill-switch: TaskMaster UI is hidden entirely when disabled.
+    if (!TASKMASTER_ENABLED) {
+      return false;
+    }
     // Load from localStorage on initialization
     const saved = localStorage.getItem('tasks-enabled');
     return saved !== null ? JSON.parse(saved) : true; // Default to true
@@ -33,11 +39,22 @@ export const TasksSettingsProvider = ({ children }) => {
 
   // Save to localStorage whenever tasksEnabled changes
   useEffect(() => {
+    if (!TASKMASTER_ENABLED) {
+      return;
+    }
     localStorage.setItem('tasks-enabled', JSON.stringify(tasksEnabled));
   }, [tasksEnabled]);
 
   // Check TaskMaster installation status asynchronously on component mount
   useEffect(() => {
+    if (!TASKMASTER_ENABLED) {
+      // Flag off: report "not installed" without touching the network so no
+      // TaskMaster trace (requests included) leaks into the disabled UI.
+      setIsTaskMasterInstalled(false);
+      setIsTaskMasterReady(false);
+      setIsCheckingInstallation(false);
+      return;
+    }
     const checkInstallation = async () => {
       try {
         const response = await api.get('/taskmaster/installation-status');
@@ -72,6 +89,9 @@ export const TasksSettingsProvider = ({ children }) => {
   }, []);
 
   const toggleTasksEnabled = () => {
+    if (!TASKMASTER_ENABLED) {
+      return;
+    }
     setTasksEnabled(prev => !prev);
   };
 
