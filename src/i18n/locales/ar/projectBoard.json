@@ -17,12 +17,31 @@
     "title": "المراحل",
     "current": "الحالية"
   },
+  "sprint": {
+    "current": "السبرنت الحالي",
+    "started": "بدأ {{date}}",
+    "ended": "انتهى {{date}}",
+    "taskCount": "المهام {{done}}/{{total}}",
+    "others": "سبرنتات أخرى ({{count}})",
+    "status": {
+      "planned": "مخطط",
+      "current": "جارٍ",
+      "done": "منجز"
+    }
+  },
   "tasksSection": {
     "title": "المهام",
     "open": "مفتوحة",
     "in_progress": "جارية",
     "done": "منجزة",
-    "empty": "لا مهام"
+    "empty": "لا مهام",
+    "kind": {
+      "feature": "ميزة",
+      "bug": "خطأ",
+      "chore": "صيانة",
+      "spike": "استكشاف"
+    },
+    "issueLink": "عرض الخطأ {{id}}"
   },
   "issues": {
     "title": "الأخطاء",

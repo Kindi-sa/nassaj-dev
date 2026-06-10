@@ -17,12 +17,31 @@
     "title": "Phases",
     "current": "Current"
   },
+  "sprint": {
+    "current": "Current sprint",
+    "started": "Started {{date}}",
+    "ended": "Ended {{date}}",
+    "taskCount": "Tasks {{done}}/{{total}}",
+    "others": "Other sprints ({{count}})",
+    "status": {
+      "planned": "Planned",
+      "current": "Current",
+      "done": "Done"
+    }
+  },
   "tasksSection": {
     "title": "Tasks",
     "open": "Open",
     "in_progress": "In progress",
     "done": "Done",
-    "empty": "No tasks"
+    "empty": "No tasks",
+    "kind": {
+      "feature": "Feature",
+      "bug": "Bug",
+      "chore": "Chore",
+      "spike": "Spike"
+    },
+    "issueLink": "View issue {{id}}"
   },
   "issues": {
     "title": "Issues",
