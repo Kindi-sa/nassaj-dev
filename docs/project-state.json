@@ -405,6 +405,26 @@
    "status": "done",
    "owner": "backend-dev",
    "closed": "2026-06-10"
+  },
+  {
+   "id": "T-42",
+   "phase": "P2",
+   "sprint": null,
+   "kind": "feature",
+   "title": "SYNC-V134-W2: موجة مزايا upstream — إشعار اكتمال التشغيل صوت+عنوان التبويب معرّباً (d75cf7f/d3f82d2)، شريط تقدم رفع الملفات حد 200MB ‏(cc05243/7fdc2f5)، إظهار أخطاء نتائج الأدوات بنقل يدوي حافظ على عزو الرسائل (a20359f)، استعلام مشاريع خفيف مع الحفاظ على isMember ‏(a33926e)، إصلاح اختبار webauthn ليحيّد env ‏(fd7eb58). الاختبارات 289+15 صفر فشل",
+   "status": "done",
+   "owner": "frontend-dev",
+   "closed": "2026-06-10"
+  },
+  {
+   "id": "T-43",
+   "phase": "P2",
+   "sprint": null,
+   "kind": "feature",
+   "title": "C-MU-UX-UPSTREAM-WATCH: رفع إصدار الفورك إلى 1.34.0 ‏(bce6881) + مراقب إصدارات upstream — فحص GitHub releases كل 6 ساعات بكاش، شريط كهرماني للمالك في ذيل الشريط الجانبي برابط الإصدار وزر إقرار (ebd0f9a)",
+   "status": "done",
+   "owner": "frontend-dev",
+   "closed": "2026-06-10"
   }
  ],
  "issues": [
