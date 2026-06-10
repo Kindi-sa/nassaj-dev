@@ -221,6 +221,33 @@ CREATE TABLE IF NOT EXISTS session_agents_meta (
 );
 `;
 
+/**
+ * webauthn_credentials — registered passkeys (WebAuthn credentials) per user.
+ * id is the credential ID as a base64url string (what the authenticator returns
+ * and what login responses are looked up by). public_key is the COSE public key
+ * bytes used to verify assertion signatures; counter backs clone detection.
+ * transports is a JSON array of hint strings (e.g. ["internal","hybrid"]).
+ *
+ * NOTE: created via migration (migrateWebAuthnCredentials), NOT included in
+ * INIT_SCHEMA_SQL. Its index likewise lives only in the migration.
+ */
+export const WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    device_type TEXT,
+    backed_up INTEGER NOT NULL DEFAULT 0,
+    aaguid TEXT,
+    name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),

@@ -19,3 +19,8 @@ export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 export { userDb } from '@/modules/database/repositories/users.js';
 export { vapidKeysDb } from '@/modules/database/repositories/vapid-keys.js';
+export { webauthnCredentialsDb } from '@/modules/database/repositories/webauthn-credentials.js';
+export type {
+  WebAuthnCredentialRow,
+  WebAuthnCredentialSummary,
+} from '@/modules/database/repositories/webauthn-credentials.js';

@@ -14,6 +14,7 @@ import {
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
+  WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
 
 const SQLITE_UUID_SQL = `
@@ -552,6 +553,19 @@ const migrateMessageAuthors = (db: Database): void => {
   db.exec('CREATE INDEX IF NOT EXISTS idx_message_authors_session ON message_authors(session_id)');
 };
 
+/**
+ * Passkey support (B-PK-1). Creates the webauthn_credentials table and its
+ * user lookup index (index lives here, never in INIT_SCHEMA_SQL — see the 502
+ * lesson). Idempotent (IF NOT EXISTS); no backfill — users register passkeys
+ * explicitly from their account settings.
+ */
+const migrateWebAuthnCredentials = (db: Database): void => {
+  db.exec(WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL);
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id)'
+  );
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -609,6 +623,9 @@ export const runMigrations = (db: Database) => {
 
     // Message sender attribution — after users exist so the FK resolves.
     migrateMessageAuthors(db);
+
+    // Passkeys (WebAuthn) — after users exist so the FK resolves.
+    migrateWebAuthnCredentials(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {
