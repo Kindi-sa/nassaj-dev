@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { participantsDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import type { ProjectVisibility } from '@/shared/types.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
@@ -49,6 +50,13 @@ export type ProjectListItem = {
   // list is NOT filtered server-side (full sharing is preserved) — the frontend
   // "My Projects / All" toggle decides what to show.
   isMember: boolean;
+  // Private-project visibility (B-PRIV). 'private' projects only ever reach a
+  // user who is allowed to see them — the list is filtered server-side below.
+  visibility: ProjectVisibility;
+  // True when the requesting user may toggle this project's visibility / manage
+  // its members: the project creator, a project_members 'owner', or the platform
+  // owner (an administrative capability, distinct from content visibility).
+  canManageVisibility: boolean;
   sessions: SessionSummary[];
   cursorSessions: SessionSummary[];
   codexSessions: SessionSummary[];
@@ -78,8 +86,14 @@ type GetProjectsWithSessionsOptions = {
   sessionsOffset?: number;
   // Authenticated requester id (from req.user.id). When provided, each project's
   // `isMember` flag reflects whether this user participates in >=1 of its
-  // sessions. Read from req.user only — never from request input.
+  // sessions. Read from req.user only — never from request input. Also drives
+  // the B-PRIV server-side visibility filter: private projects this user cannot
+  // see are excluded from the list entirely.
   currentUserId?: number | null;
+  // True when the requester is the platform owner (req.user.role === 'owner').
+  // Grants the administrative canManageVisibility capability ONLY — it does NOT
+  // bypass the visibility filter (privacy is absolute by owner decision).
+  isPlatformOwner?: boolean;
 };
 
 type SessionPaginationOptions = {
@@ -266,12 +280,25 @@ export async function getProjectsWithSessions(
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getProjectPaths() as Array<{
+  const allProjectRows = projectsDb.getProjectPaths() as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;
     isStarred?: number;
+    visibility?: ProjectVisibility;
+    created_by?: number | null;
   }>;
+
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+
+  // B-PRIV central enforcement: resolve the set of project paths this user is
+  // allowed to see (public + creator + explicit member + session-derived) and
+  // drop everything else BEFORE building the payload, so a private project is
+  // never serialized to a non-member in the first place.
+  const visibleProjectPaths = new Set(projectsDb.getVisibleProjectPaths(currentUserId));
+  const projectRows = allProjectRows.filter((row) => visibleProjectPaths.has(row.project_path));
+
   const totalProjects = projectRows.length;
   const projects: ProjectListItem[] = [];
   let processedProjects = 0;
@@ -279,8 +306,20 @@ export async function getProjectsWithSessions(
   // One set-based query: the distinct project paths this user participates in,
   // used to flag each project's `isMember` without filtering the list.
   const memberProjectPaths =
-    typeof options.currentUserId === 'number'
-      ? new Set(participantsDb.getProjectPathsForUser(options.currentUserId))
+    currentUserId !== null
+      ? new Set(participantsDb.getProjectPathsForUser(currentUserId))
+      : new Set<string>();
+
+  // project_ids where the user holds the project_members 'owner' role — one query
+  // instead of a per-project lookup. Combined with created_by and platform-owner
+  // role to decide canManageVisibility below.
+  const ownedProjectIds =
+    currentUserId !== null
+      ? new Set(
+          projectMembersDb
+            .listUserProjectIds(currentUserId)
+            .filter((projectId) => projectMembersDb.getRole(projectId, currentUserId) === 'owner'),
+        )
       : new Set<string>();
 
   for (const row of projectRows) {
@@ -306,6 +345,13 @@ export async function getProjectsWithSessions(
       offset: options.sessionsOffset,
     });
 
+    const visibility: ProjectVisibility = row.visibility === 'private' ? 'private' : 'public';
+    const canManageVisibility =
+      currentUserId !== null &&
+      (row.created_by === currentUserId ||
+        ownedProjectIds.has(projectId) ||
+        options.isPlatformOwner === true);
+
     projects.push({
       projectId,
       path: projectPath,
@@ -313,6 +359,8 @@ export async function getProjectsWithSessions(
       fullPath: projectPath,
       isStarred: Boolean(row.isStarred),
       isMember: memberProjectPaths.has(projectPath),
+      visibility,
+      canManageVisibility,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,
       codexSessions: sessionsPage.sessionsByProvider.codex,
@@ -341,18 +389,30 @@ export async function getProjectsWithSessions(
  * conversation history in the archive view regardless of each session's flag.
  */
 export async function getArchivedProjectsWithSessions(
-  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization'> = {},
+  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization' | 'currentUserId' | 'isPlatformOwner'> = {},
 ): Promise<ArchivedProjectListItem[]> {
   if (!options.skipSynchronization) {
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getArchivedProjectPaths() as Array<{
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+
+  const allProjectRows = projectsDb.getArchivedProjectPaths() as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;
     isStarred?: number;
+    visibility?: ProjectVisibility;
+    created_by?: number | null;
   }>;
+
+  // B-PRIV: getVisibleProjectPaths only resolves active projects, so archived
+  // visibility is decided per-row by isProjectVisibleToUser (which ignores the
+  // archived flag). A private archived project stays hidden from non-members.
+  const projectRows = allProjectRows.filter((row) =>
+    projectsDb.isProjectVisibleToUser(row.project_id, currentUserId),
+  );
 
   const archivedProjects: ArchivedProjectListItem[] = [];
 
@@ -364,6 +424,13 @@ export async function getArchivedProjectsWithSessions(
 
     const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
 
+    const visibility: ProjectVisibility = row.visibility === 'private' ? 'private' : 'public';
+    const canManageVisibility =
+      currentUserId !== null &&
+      (row.created_by === currentUserId ||
+        projectMembersDb.getRole(row.project_id, currentUserId) === 'owner' ||
+        options.isPlatformOwner === true);
+
     archivedProjects.push({
       projectId: row.project_id,
       path: row.project_path,
@@ -372,6 +439,8 @@ export async function getArchivedProjectsWithSessions(
       isStarred: Boolean(row.isStarred),
       // Archived view does not drive the "My Projects" filter; default to false.
       isMember: false,
+      visibility,
+      canManageVisibility,
       isArchived: true,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,

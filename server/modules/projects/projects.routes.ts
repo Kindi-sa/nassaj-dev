@@ -13,7 +13,18 @@ const router = express.Router();
 
 type AuthenticatedUser = {
   id?: number | string;
+  role?: string;
 };
+
+/**
+ * True when the authenticated user is the platform owner (role 'owner'). Grants
+ * administrative capabilities (manage-visibility flag, orphan recovery) but NEVER
+ * bypasses the private-project visibility filter — privacy is absolute (B-PRIV).
+ */
+function isPlatformOwner(req: express.Request): boolean {
+  const authenticatedUser = (req as express.Request & { user?: AuthenticatedUser }).user;
+  return authenticatedUser?.role === 'owner';
+}
 
 /**
  * Reads the authenticated user's numeric id from req.user (set by
@@ -100,7 +111,9 @@ router.get(
       sessionsOffset,
       // isMember flagging (c98aeb7) must survive the lightweight query path:
       // the "my projects" sidebar filter depends on it in every response shape.
+      // currentUserId also drives the B-PRIV server-side visibility filter.
       currentUserId: readAuthenticatedUserId(req),
+      isPlatformOwner: isPlatformOwner(req),
     });
     res.json(projects);
   }),
@@ -108,8 +121,11 @@ router.get(
 
 router.get(
   '/archived',
-  asyncHandler(async (_req, res) => {
-    const projects = await getArchivedProjectsWithSessions();
+  asyncHandler(async (req, res) => {
+    const projects = await getArchivedProjectsWithSessions({
+      currentUserId: readAuthenticatedUserId(req),
+      isPlatformOwner: isPlatformOwner(req),
+    });
     res.json(createApiSuccessResponse({ projects }));
   }),
 );

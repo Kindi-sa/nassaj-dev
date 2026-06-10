@@ -4,7 +4,7 @@ import { promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
-import { participantsDb } from '@/modules/database/index.js';
+import { participantsDb, projectsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
@@ -186,27 +186,40 @@ async function flushPendingWatcherUpdate(): Promise<void> {
     // `isMember` is per-user, but the shared fetch above runs without a
     // requester so every project carries isMember:false. Stamp the correct
     // membership flag per authenticated client before sending (one DB lookup
-    // and one serialization per distinct userId, not per socket). Sockets
-    // without a stamped identity keep the unauthenticated isMember:false view.
+    // and one serialization per distinct userId, not per socket).
+    //
+    // B-PRIV: the shared fetch returns EVERY project, so it must also be filtered
+    // to the projects each recipient is allowed to see — otherwise a private
+    // project would leak to non-members through the projects_updated broadcast.
+    // Unauthenticated sockets receive only the public projects.
     const serializedByUserId = new Map<number, string>();
     let serializedFallback: string | null = null;
 
     const resolveUpdateMessage = (client: RealtimeClientConnection): string => {
       const membershipUserId = toMembershipUserId(client.userId);
       if (membershipUserId === null) {
-        serializedFallback ??= JSON.stringify({ ...basePayload, projects: updatedProjects });
+        if (serializedFallback === null) {
+          const publicPaths = new Set(projectsDb.getVisibleProjectPaths(null));
+          serializedFallback = JSON.stringify({
+            ...basePayload,
+            projects: updatedProjects.filter(project => publicPaths.has(project.fullPath)),
+          });
+        }
         return serializedFallback;
       }
 
       let serialized = serializedByUserId.get(membershipUserId);
       if (!serialized) {
+        const visiblePaths = new Set(projectsDb.getVisibleProjectPaths(membershipUserId));
         const memberProjectPaths = new Set(participantsDb.getProjectPathsForUser(membershipUserId));
         serialized = JSON.stringify({
           ...basePayload,
-          projects: updatedProjects.map(project => ({
-            ...project,
-            isMember: memberProjectPaths.has(project.fullPath),
-          })),
+          projects: updatedProjects
+            .filter(project => visiblePaths.has(project.fullPath))
+            .map(project => ({
+              ...project,
+              isMember: memberProjectPaths.has(project.fullPath),
+            })),
         });
         serializedByUserId.set(membershipUserId, serialized);
       }
