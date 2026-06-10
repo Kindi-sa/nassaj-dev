@@ -319,31 +319,35 @@ describe('provisionUserDirs filesystem layout', () => {
     );
   });
 
-  it('skips agents/skills symlinks when the operator has no such dirs', () => {
-    // Runs BEFORE the case below creates ~/.claude/agents|skills in the
-    // sandbox: ensureSymlink must no-op on a missing target, leaving the
+  it('skips agents/skills/plugins symlinks when the operator has no such dirs', () => {
+    // Runs BEFORE the case below creates ~/.claude/agents|skills|plugins in
+    // the sandbox: ensureSymlink must no-op on a missing target, leaving the
     // user's .claude/ without dangling links. (node:test runs cases in order.)
     assert.ok(!fs.existsSync(path.join(sandboxHome, '.claude', 'agents')));
     assert.ok(!fs.existsSync(path.join(sandboxHome, '.claude', 'skills')));
+    assert.ok(!fs.existsSync(path.join(sandboxHome, '.claude', 'plugins')));
 
     const userId = 9003;
     provisionUserDirs(userId);
 
     const claudeDir = userConfigDir(userId, '.claude');
-    for (const name of ['agents', 'skills']) {
+    for (const name of ['agents', 'skills', 'plugins']) {
       const link = path.join(claudeDir, name);
       assert.ok(!fs.existsSync(link), `${name} link must not be created`);
       assert.ok(!isLinkAt(link), `${name} must not exist even as a dangling symlink`);
     }
   });
 
-  it('symlinks shared agents/ and skills/ for ALL users when the operator dirs exist', () => {
-    // ADR-023 Decision 3: agent cards and skills are fully shared. Pre-create
-    // the operator dirs, then assert a (non-owner) user's .claude/ links back.
+  it('symlinks shared agents/, skills/ and plugins/ for ALL users when the operator dirs exist', () => {
+    // ADR-023 Decision 3: agent cards, skills and plugins are fully shared.
+    // Pre-create the operator dirs, then assert a (non-owner) user's .claude/
+    // links back.
     const sharedAgents = path.join(sandboxHome, '.claude', 'agents');
     const sharedSkills = path.join(sandboxHome, '.claude', 'skills');
+    const sharedPlugins = path.join(sandboxHome, '.claude', 'plugins');
     fs.mkdirSync(sharedAgents, { recursive: true });
     fs.mkdirSync(sharedSkills, { recursive: true });
+    fs.mkdirSync(sharedPlugins, { recursive: true });
     fs.writeFileSync(path.join(sharedAgents, 'ui-designer.md'), '# ui-designer');
 
     const userId = 9004;
@@ -353,6 +357,7 @@ describe('provisionUserDirs filesystem layout', () => {
     for (const [name, shared] of [
       ['agents', sharedAgents],
       ['skills', sharedSkills],
+      ['plugins', sharedPlugins],
     ] as const) {
       const link = path.join(claudeDir, name);
       assert.ok(fs.existsSync(link), `${name} symlink should exist`);
