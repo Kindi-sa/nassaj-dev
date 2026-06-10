@@ -6,6 +6,8 @@ export { auditLogDb } from '@/modules/database/repositories/audit-log.js';
 export { invitesDb } from '@/modules/database/repositories/invites.js';
 export { credentialsDb } from '@/modules/database/repositories/credentials.js';
 export { githubTokensDb } from '@/modules/database/repositories/github-tokens.js';
+export { hashMessageAuthorContent, messageAuthorsDb } from '@/modules/database/repositories/message-authors.db.js';
+export type { MessageAuthorRow } from '@/modules/database/repositories/message-authors.db.js';
 export { notificationPreferencesDb } from '@/modules/database/repositories/notification-preferences.js';
 export { participantsDb } from '@/modules/database/repositories/participants.db.js';
 export type { ParticipantRole, SessionParticipantRow } from '@/modules/database/repositories/participants.db.js';

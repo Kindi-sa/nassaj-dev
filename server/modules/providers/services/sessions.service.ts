@@ -1,7 +1,13 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import {
+  hashMessageAuthorContent,
+  messageAuthorsDb,
+  projectsDb,
+  sessionsDb,
+} from '@/modules/database/index.js';
+import type { MessageAuthorRow } from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type {
   FetchHistoryOptions,
@@ -63,6 +69,86 @@ function resolveProjectDisplayName(
 }
 
 /**
+ * Stamps the sender identity (`userId`) onto user-authored text messages
+ * loaded from provider history (B-MU-UX-FIX-MSG-AUTHOR).
+ *
+ * The run path records one message_authors row per sent prompt (sidecar
+ * attribution — the transcript itself is written by the provider CLI/SDK and
+ * carries no user identity). Here each kind:'text' role:'user' message is
+ * matched back to a recorded row by content hash; when the same text was
+ * recorded more than once (e.g. two users sent identical prompts) the row
+ * closest in time wins and is consumed so the next identical message matches
+ * the next row. Messages with no matching row (recorded before attribution
+ * existed, provider-rewritten prompts) keep no userId — clients fall back.
+ *
+ * Mutates `messages` in place; never throws (attribution is best-effort and
+ * must not break history loading).
+ */
+function stampUserMessageAuthors(sessionId: string, messages: NormalizedMessage[]): void {
+  let authorRows: MessageAuthorRow[];
+  try {
+    authorRows = messageAuthorsDb.listBySession(sessionId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Failed to load message authors for history stamping', { sessionId, error: message });
+    return;
+  }
+  if (authorRows.length === 0) {
+    return;
+  }
+
+  const candidatesByHash = new Map<string, MessageAuthorRow[]>();
+  for (const row of authorRows) {
+    const list = candidatesByHash.get(row.contentHash);
+    if (list) {
+      list.push(row);
+    } else {
+      candidatesByHash.set(row.contentHash, [row]);
+    }
+  }
+
+  for (const message of messages) {
+    if (message.kind !== 'text' || message.role !== 'user' || message.userId != null) {
+      continue;
+    }
+    const content = typeof message.content === 'string' ? message.content : '';
+    if (!content.trim()) {
+      continue;
+    }
+
+    const candidates = candidatesByHash.get(hashMessageAuthorContent(content));
+    if (!candidates || candidates.length === 0) {
+      continue;
+    }
+
+    // Closest recorded timestamp wins when several rows share the hash.
+    let bestIndex = 0;
+    const messageTime = Date.parse(message.timestamp);
+    if (candidates.length > 1 && Number.isFinite(messageTime)) {
+      let bestDelta = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < candidates.length; index++) {
+        const rowTime = Date.parse(candidates[index].createdAt);
+        const delta = Number.isFinite(rowTime)
+          ? Math.abs(rowTime - messageTime)
+          : Number.POSITIVE_INFINITY;
+        if (delta < bestDelta) {
+          bestDelta = delta;
+          bestIndex = index;
+        }
+      }
+    }
+
+    message.userId = candidates[bestIndex].userId;
+    // Consume the matched row (but always keep the last one) so repeated
+    // identical texts map one-to-one while a lone row still covers transcript
+    // echoes of the same prompt.
+    if (candidates.length > 1) {
+      candidates.splice(bestIndex, 1);
+    }
+  }
+}
+
+/**
  * Application service for provider-backed session message operations.
  *
  * Callers pass a provider id and this service resolves the concrete provider
@@ -94,7 +180,7 @@ export const sessionsService = {
    * Provider and provider-specific lookup hints are resolved from the indexed
    * session metadata in the database.
    */
-  fetchHistory(
+  async fetchHistory(
     sessionId: string,
     options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
   ): Promise<FetchHistoryResult> {
@@ -107,11 +193,18 @@ export const sessionsService = {
     }
 
     const provider = session.provider as LLMProvider;
-    return providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
+    const result = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
       limit: options.limit ?? null,
       offset: options.offset ?? 0,
       projectPath: session.project_path ?? '',
     });
+
+    // Sender attribution for multi-user sessions: providers normalize history
+    // without identity (the transcript has none), so the sidecar stamping runs
+    // here — the single choke point every history read flows through.
+    stampUserMessageAuthors(sessionId, result.messages);
+
+    return result;
   },
 
   /**

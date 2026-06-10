@@ -17,7 +17,7 @@ import path from 'path';
 import { StringDecoder } from 'string_decoder';
 
 import sessionManager from './sessionManager.js';
-import { participantsDb, sessionsDb } from './modules/database/index.js';
+import { messageAuthorsDb, participantsDb, sessionsDb } from './modules/database/index.js';
 import {
     clearAntigravityProjectPath,
     registerAntigravityProjectPath,
@@ -747,6 +747,11 @@ async function spawnAntigravity(command, options = {}, ws) {
             provider: 'antigravity',
             projectPath: cleanCwd,
         });
+        // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): record WHO authored this
+        // prompt so history loads can stamp userId onto the matching USER_INPUT
+        // turn. Best-effort — turns agy rewrites (e.g. injected resume
+        // instructions) simply won't hash-match and stay unattributed.
+        messageAuthorsDb.recordUserMessage(finalSessionId, ws.userId, command);
     }
 
     // Shared discovery state so the early stdout hook and the close-time safety

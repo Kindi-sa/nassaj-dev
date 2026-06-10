@@ -36,7 +36,7 @@ import {
   registerSessionProcess,
   unregisterSessionProcess
 } from './services/session-process-monitor.js';
-import { participantsDb } from './modules/database/index.js';
+import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -830,6 +830,10 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   let tempImagePaths = [];
   let tempDir = null;
   let participantRecorded = false;
+  // Exact prompt text handed to the SDK (and therefore written verbatim into
+  // the transcript). Updated to the image-annotated form after handleImages so
+  // the authorship hash recorded below matches the transcript line.
+  let promptTextForAuthorship = command;
 
   // Record the authenticated human who spawned this run as a session
   // participant. Once per spawn (idempotent at the DB layer too) and only when
@@ -843,6 +847,10 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       provider: 'claude',
       projectPath: options.cwd || options.projectPath || process.cwd(),
     });
+    // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): remember WHO authored this
+    // prompt so history loads can stamp userId onto the transcript's user
+    // message (the transcript itself carries no identity). Never throws.
+    messageAuthorsDb.recordUserMessage(sid, ws.userId, promptTextForAuthorship);
   };
 
   const emitNotification = (event) => {
@@ -911,6 +919,9 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     const finalCommand = imageResult.modifiedCommand;
     tempImagePaths = imageResult.tempImagePaths;
     tempDir = imageResult.tempDir;
+    // The transcript stores the image-annotated prompt, so authorship must
+    // hash the same text (recordParticipant runs only after this point).
+    promptTextForAuthorship = finalCommand;
 
     sdkOptions.hooks = {
       Notification: [{
@@ -1082,6 +1093,14 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
         if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
           msg.parentToolUseId = transformedMessage.parentToolUseId;
+        }
+        // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): every user-authored
+        // text echoed by this run was typed by the human who spawned it, so
+        // stamp the JWT-sourced socket userId on the live payload. Mirrors
+        // (other viewers) receive the same stamped copy via the writer
+        // fan-out and can render the true author instead of themselves.
+        if (msg.kind === 'text' && msg.role === 'user' && Number.isInteger(ws?.userId)) {
+          msg.userId = ws.userId;
         }
         ws.send(msg);
       }

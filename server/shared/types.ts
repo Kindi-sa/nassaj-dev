@@ -201,6 +201,17 @@ export type NormalizedMessage = {
   role?: 'user' | 'assistant';
   content?: string;
   /**
+   * Authenticated sender of this message (users.id) — multi-user sessions.
+   *
+   * Present only on kind:'text' role:'user' messages whose author is known:
+   * stamped from the JWT-authenticated socket on the live run path, and from
+   * the message_authors sidecar table on history loads. Absent for messages
+   * recorded before author tracking existed and for provider-internal user
+   * rows — clients must treat a missing value as "author unknown" and fall
+   * back (never assume the viewing user authored it).
+   */
+  userId?: number;
+  /**
    * Optional display-oriented metadata used by providers that need to expose
    * richer transcript artifacts without introducing a brand-new message kind.
    *

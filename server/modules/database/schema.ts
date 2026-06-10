@@ -161,6 +161,34 @@ CREATE TABLE IF NOT EXISTS session_participants (
 `;
 
 /**
+ * message_authors — per-message sender attribution for multi-user sessions
+ * (B-MU-UX-FIX-MSG-AUTHOR). One row is written on the run path for every user
+ * prompt an authenticated user sends; history loads join user-authored text
+ * messages back to their author by (session_id, content_hash) plus timestamp
+ * proximity. The transcript .jsonl itself is written by the provider CLI/SDK
+ * (not by this server), so authorship cannot be embedded in the transcript
+ * line without breaking format compatibility — this table is the sidecar.
+ *
+ * No FK on session_id on purpose: the run path can outrace the session
+ * synchronizer (the sessions row may not exist yet at spawn time) and stale
+ * rows for deleted sessions are harmless (matched by session_id only).
+ * Messages recorded before this table existed simply have no row — the
+ * frontend treats a missing userId as "unknown author" and falls back.
+ *
+ * NOTE: created via migration (migrateMessageAuthors), NOT in INIT_SCHEMA_SQL.
+ */
+export const MESSAGE_AUTHORS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS message_authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
  * session_agents_cache — parsed-on-demand inventory of the non-human actors in
  * a session transcript: the base model ('model') and any spawned subagents
  * ('subagent'). Populated by the transcript parser and keyed so repeated parses

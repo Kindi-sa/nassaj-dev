@@ -5,6 +5,7 @@ import {
   AUDIT_LOG_TABLE_SCHEMA_SQL,
   INVITES_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
+  MESSAGE_AUTHORS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL,
@@ -539,6 +540,18 @@ const migrateParticipantsAndAgents = (db: Database): void => {
   }
 };
 
+/**
+ * Per-message sender attribution (B-MU-UX-FIX-MSG-AUTHOR). Creates the
+ * message_authors sidecar table the run path writes a row into for every user
+ * prompt, plus the session lookup index the history-stamping path reads.
+ * Idempotent (IF NOT EXISTS); no backfill is possible — pre-existing messages
+ * have no recorded author and stay unattributed by design.
+ */
+const migrateMessageAuthors = (db: Database): void => {
+  db.exec(MESSAGE_AUTHORS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_message_authors_session ON message_authors(session_id)');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -593,6 +606,9 @@ export const runMigrations = (db: Database) => {
     // Participant & agent tracking — must run after sessions/users exist so the
     // FKs resolve and the owner backfill can find both tables.
     migrateParticipantsAndAgents(db);
+
+    // Message sender attribution — after users exist so the FK resolves.
+    migrateMessageAuthors(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {
