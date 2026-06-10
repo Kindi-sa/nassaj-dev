@@ -31,6 +31,10 @@ module.exports = {
       instances: 1,
       autorestart: true,
       max_restarts: 10,
+      // حدّ ذاكرة وقائي ضد OOM (نوبة 2026-06-06). 512MB يكفي لنسخة dev من الـ UI.
+      max_memory_restart: '512M',
+      treekill: false,
+      kill_timeout: 86400000,
       watch: false,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
