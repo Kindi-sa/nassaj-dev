@@ -1,17 +1,28 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
+
+/**
+ * Owner attribution for a single session. Resolved from the session_participants
+ * row flagged 'owner'. `null` for legacy / pre-multi-user sessions that have no
+ * participant row (the frontend falls back to a neutral state).
+ */
+export type SessionOwner = {
+  userId: number;
+  username: string;
+};
 
 type SessionSummary = {
   id: string;
   summary: string;
   messageCount: number;
   lastActivity: string;
+  owner: SessionOwner | null;
 };
 
 type SessionsByProvider = Record<'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity' | 'opencode', SessionSummary[]>;
@@ -30,6 +41,11 @@ export type ProjectListItem = {
   displayName: string;
   fullPath: string;
   isStarred: boolean;
+  // True when the requesting user owns or participates in >=1 session whose
+  // project_path belongs to this project. Purely informational: the project
+  // list is NOT filtered server-side (full sharing is preserved) — the frontend
+  // "My Projects / All" toggle decides what to show.
+  isMember: boolean;
   sessions: SessionSummary[];
   cursorSessions: SessionSummary[];
   codexSessions: SessionSummary[];
@@ -57,6 +73,10 @@ type GetProjectsWithSessionsOptions = {
   skipSynchronization?: boolean;
   sessionsLimit?: number;
   sessionsOffset?: number;
+  // Authenticated requester id (from req.user.id). When provided, each project's
+  // `isMember` flag reflects whether this user participates in >=1 of its
+  // sessions. Read from req.user only — never from request input.
+  currentUserId?: number | null;
 };
 
 type SessionPaginationOptions = {
@@ -128,13 +148,34 @@ function normalizeSessionPagination(options: SessionPaginationOptions = {}): { l
   };
 }
 
-function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
+function mapSessionRowToSummary(row: SessionRepositoryRow, owner: SessionOwner | null): SessionSummary {
   return {
     id: row.session_id,
     summary: row.custom_name || '',
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+    owner,
   };
+}
+
+/**
+ * Batched owner resolution for a page of session rows: a single query fetches
+ * the owner of every session at once (avoids N+1), keyed by session_id. Legacy
+ * sessions absent from the map resolve to a null owner.
+ */
+function resolveOwnersForRows(rows: SessionRepositoryRow[]): Map<string, SessionOwner> {
+  const sessionIds = rows.map((row) => row.session_id);
+  const owners = new Map<string, SessionOwner>();
+
+  if (sessionIds.length === 0) {
+    return owners;
+  }
+
+  for (const ownerRow of participantsDb.getOwnersBySessionIds(sessionIds)) {
+    owners.set(ownerRow.sessionId, { userId: ownerRow.userId, username: ownerRow.username });
+  }
+
+  return owners;
 }
 
 function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByProvider {
@@ -147,6 +188,8 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
     opencode: [],
   };
 
+  const owners = resolveOwnersForRows(rows);
+
   for (const row of rows) {
     const provider = row.provider as keyof SessionsByProvider;
     const bucket = byProvider[provider];
@@ -154,7 +197,7 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
       continue;
     }
 
-    bucket.push(mapSessionRowToSummary(row));
+    bucket.push(mapSessionRowToSummary(row, owners.get(row.session_id) ?? null));
   }
 
   return byProvider;
@@ -226,6 +269,13 @@ export async function getProjectsWithSessions(
   const projects: ProjectListItem[] = [];
   let processedProjects = 0;
 
+  // One set-based query: the distinct project paths this user participates in,
+  // used to flag each project's `isMember` without filtering the list.
+  const memberProjectPaths =
+    typeof options.currentUserId === 'number'
+      ? new Set(participantsDb.getProjectPathsForUser(options.currentUserId))
+      : new Set<string>();
+
   for (const row of projectRows) {
     processedProjects += 1;
 
@@ -255,6 +305,7 @@ export async function getProjectsWithSessions(
       displayName,
       fullPath: projectPath,
       isStarred: Boolean(row.isStarred),
+      isMember: memberProjectPaths.has(projectPath),
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,
       codexSessions: sessionsPage.sessionsByProvider.codex,
@@ -312,6 +363,8 @@ export async function getArchivedProjectsWithSessions(
       displayName,
       fullPath: row.project_path,
       isStarred: Boolean(row.isStarred),
+      // Archived view does not drive the "My Projects" filter; default to false.
+      isMember: false,
       isArchived: true,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,

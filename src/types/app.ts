@@ -19,6 +19,14 @@ export type ProviderModelsCacheInfo = {
 
 export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'preview' | `plugin:${string}`;
 
+// Owner attribution for a session (B-MU-UX-API). Resolved server-side from the
+// session_participants row flagged 'owner'. `null` for legacy / pre-multi-user
+// sessions with no participant row — the UI falls back to a neutral state.
+export interface SessionOwner {
+  userId: number;
+  username: string;
+}
+
 export interface ProjectSession {
   id: string;
   title?: string;
@@ -29,6 +37,8 @@ export interface ProjectSession {
   updated_at?: string;
   lastActivity?: string;
   messageCount?: number;
+  // Owning human of this session, or null for legacy sessions (B-MU-UX-API).
+  owner?: SessionOwner | null;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
   // (session switching, sidebar focus, etc.) can match against selectedProject.
@@ -59,6 +69,10 @@ export interface Project {
   fullPath: string;
   path?: string;
   isStarred?: boolean;
+  // True when the requesting user participates in >=1 session of this project
+  // (B-MU-UX-PROJ-FILTER). Informational only — the server never filters the
+  // project list; the frontend "My Projects / All" toggle uses this flag.
+  isMember?: boolean;
   sessions?: ProjectSession[];
   cursorSessions?: ProjectSession[];
   codexSessions?: ProjectSession[];

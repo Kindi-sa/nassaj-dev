@@ -15,6 +15,26 @@ type AuthenticatedUser = {
   id?: number | string;
 };
 
+/**
+ * Reads the authenticated user's numeric id from req.user (set by
+ * authenticateToken). Returns null when absent or non-numeric. Ownership and
+ * participation are ALWAYS derived from this — never from request input.
+ */
+function readAuthenticatedUserId(req: express.Request): number | null {
+  const authenticatedUser = (req as express.Request & { user?: AuthenticatedUser }).user;
+  const rawId = authenticatedUser?.id;
+  if (typeof rawId === 'number' && Number.isInteger(rawId)) {
+    return rawId;
+  }
+
+  if (typeof rawId === 'string' && rawId.trim() !== '') {
+    const parsed = Number.parseInt(rawId, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+}
+
 function readQueryStringValue(value: unknown): string {
   if (typeof value === 'string') {
     return value;
@@ -68,8 +88,10 @@ function resolveRouteErrorMessage(error: unknown): string {
 
 router.get(
   '/',
-  asyncHandler(async (_req, res) => {
-    const projects = await getProjectsWithSessions();
+  asyncHandler(async (req, res) => {
+    const projects = await getProjectsWithSessions({
+      currentUserId: readAuthenticatedUserId(req),
+    });
     res.json(projects);
   }),
 );

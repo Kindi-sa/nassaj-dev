@@ -57,6 +57,16 @@ export type SessionParticipantRow = {
   avatarUrl: string | null;
 };
 
+/**
+ * Minimal owner identity for a single session, used to attribute each session
+ * in the projects/sessions listing to the human who first spawned it.
+ */
+export type SessionOwnerRow = {
+  sessionId: string;
+  userId: number;
+  username: string;
+};
+
 export const participantsDb = {
   /**
    * Records (or refreshes) a human participant on a session spawn.
@@ -156,5 +166,59 @@ export const participantsDb = {
          ORDER BY CASE WHEN MAX(sp.role = 'owner') = 1 THEN 0 ELSE 1 END, datetime(MIN(sp.first_seen)) ASC`
       )
       .all(...sessionIds) as SessionParticipantRow[];
+  },
+
+  /**
+   * Batched owner lookup for a page of sessions (avoids N+1 in the listing
+   * path). Returns at most one owner row per session_id — the 'owner' role row.
+   * Sessions without any participant row (legacy / pre-multi-user) simply do
+   * not appear in the result, and the caller falls back to a null owner.
+   */
+  getOwnersBySessionIds(sessionIds: string[]): SessionOwnerRow[] {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+
+    const db = getConnection();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    return db
+      .prepare(
+        `SELECT
+           sp.session_id AS sessionId,
+           sp.user_id    AS userId,
+           u.username     AS username
+         FROM session_participants sp
+         JOIN users u ON u.id = sp.user_id
+         WHERE sp.role = 'owner'
+           AND sp.session_id IN (${placeholders})`
+      )
+      .all(...sessionIds) as SessionOwnerRow[];
+  },
+
+  /**
+   * Distinct project paths in which the given user participates (as owner or
+   * participant) in at least one session. Used by the projects listing to set a
+   * per-project "current user participates" flag without filtering the list.
+   * One set-based query joined through sessions — no per-project lookups.
+   */
+  getProjectPathsForUser(userId: number): string[] {
+    if (!Number.isInteger(userId)) {
+      return [];
+    }
+
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT DISTINCT s.project_path AS projectPath
+         FROM session_participants sp
+         JOIN sessions s ON s.session_id = sp.session_id
+         WHERE sp.user_id = ?
+           AND s.project_path IS NOT NULL`
+      )
+      .all(userId) as Array<{ projectPath: string | null }>;
+
+    return rows
+      .map((row) => row.projectPath)
+      .filter((projectPath): projectPath is string => typeof projectPath === 'string' && projectPath.length > 0);
   },
 };
