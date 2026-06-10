@@ -30,7 +30,7 @@ function mapAndCaptureWarn(options, validModelValues) {
 }
 
 // A representative dynamic catalog: the live picker source surfaces models that
-// are NOT in the static CLAUDE_FALLBACK_MODELS list (e.g. claude-fable-5). This
+// are NOT in the static CLAUDE_FALLBACK_MODELS list (e.g. claude-opus-4-9). This
 // mirrors the shape of providerModelsService.getProviderModels('claude').models.
 const DYNAMIC_CATALOG = {
   OPTIONS: [
@@ -174,10 +174,15 @@ test('mapCliOptionsToSDK coerces empty/whitespace/unknown to default even with a
 });
 
 test('mapCliOptionsToSDK falls back to the static list when no validModelValues is passed (catalog unavailable)', () => {
-  // claude-fable-5 is dynamic-only; without a catalog set it must NOT be accepted.
-  const dyn = mapAndCaptureWarn({ model: 'claude-fable-5' });
+  // claude-opus-4-9 is dynamic-only; without a catalog set it must NOT be accepted.
+  const dyn = mapAndCaptureWarn({ model: 'claude-opus-4-9' });
   assert.equal(dyn.model, DEFAULT, 'without a catalog, a dynamic-only model is rejected (static floor)');
   assert.equal(dyn.warnings.length, 1);
+
+  // claude-fable-5 is now in the static list and must pass through without a catalog.
+  const fable = mapAndCaptureWarn({ model: 'claude-fable-5' });
+  assert.equal(fable.model, 'claude-fable-5', 'fable-5 is a static-list model since the catalog addition');
+  assert.equal(fable.warnings.length, 0);
 
   // sonnet[1m] is in the static list and must still pass through.
   const stat = mapAndCaptureWarn({ model: 'sonnet[1m]' });

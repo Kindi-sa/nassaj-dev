@@ -41,6 +41,11 @@ import type { LLMProvider, ProviderModelOption, ProviderModelsDefinition } from 
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
+      value: 'claude-fable-5',
+      label: 'Fable 5',
+      description: 'Fable 5 · Most powerful, most intelligent model · $10/$50 per Mtok',
+    },
+    {
       value: 'default',
       label: 'Default (recommended)',
       description: 'Use the default model (currently Opus 4.7 (1M context)) · Most capable for complex work',

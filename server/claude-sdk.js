@@ -176,7 +176,7 @@ function matchesToolPermission(entry, toolName, input) {
  * Union of the LIVE/cached dynamic Claude catalog (same source the picker reads)
  * and the static {@link CLAUDE_FALLBACK_MODELS} OPTIONS as a safety net. The
  * static list alone does NOT contain dynamically-discovered models (e.g.
- * `claude-fable-5`), so validating against it rejected real picker selections
+ * `claude-opus-4-9`), so validating against it rejected real picker selections
  * and coerced them to default. Including the dynamic catalog fixes that while
  * keeping the static list as a floor for when the catalog is unavailable.
  *
@@ -276,7 +276,7 @@ function mapCliOptionsToSDK(options = {}, validModelValues) {
 
   // Map model with validation against the accepted-model set.
   // The set is the union of the LIVE/cached dynamic Claude catalog (same source
-  // the picker reads, e.g. claude-fable-5) and the static CLAUDE_FALLBACK_MODELS
+  // the picker reads, e.g. claude-opus-4-9) and the static CLAUDE_FALLBACK_MODELS
   // safety net. queryClaudeSDK passes it in from the cached SWR layer; when it is
   // omitted (e.g. standalone/unit callers) we fall back to the static list only.
   // Any value not in the set (the UI's "auto" sentinel, empty, whitespace, a
