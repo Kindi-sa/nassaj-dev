@@ -82,6 +82,7 @@ import userRoutes from './routes/user.js';
 import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
 import githubRoutes from './routes/github.js';
+import systemRoutes from './routes/system.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
@@ -237,6 +238,9 @@ app.use('/api/plugins', authenticateToken, pluginsRoutes);
 
 // GitHub API Routes (protected) — repository listing for the project wizard.
 app.use('/api/github', authenticateToken, githubRoutes);
+
+// System stats (protected) — live CPU/RAM for the sidebar footer widget.
+app.use('/api/system', authenticateToken, systemRoutes);
 
 // Antigravity rate limiting — in-memory bucket per IP.
 // Applied before the auth middleware so abusive callers can't burn auth cycles.

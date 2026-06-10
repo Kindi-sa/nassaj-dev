@@ -68,9 +68,11 @@
     "save": "حفظ",
     "delete": "حذف",
     "rename": "إعادة تسمية",
-    "joinCommunity": "انضم إلى المجتمع",
-    "reportIssue": "الإبلاغ عن مشكلة",
     "starOnGithub": "تمييز على GitHub"
+  },
+  "systemStats": {
+    "cpuUsage": "استهلاك المعالج",
+    "memoryUsage": "استهلاك الذاكرة"
   },
   "branding": {
     "openSource": "مفتوح المصدر"

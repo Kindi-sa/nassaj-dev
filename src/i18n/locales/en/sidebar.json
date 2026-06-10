@@ -68,9 +68,11 @@
     "save": "Save",
     "delete": "Delete",
     "rename": "Rename",
-    "joinCommunity": "Join Community",
-    "reportIssue": "Report Issue",
     "starOnGithub": "Star on GitHub"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "Open Source"
