@@ -175,6 +175,25 @@
         "label": "Dimensione carattere",
         "description": "Dimensione del carattere dell'editor in pixel"
       }
+    },
+    "themePresets": {
+      "title": "Theme",
+      "description": "Brand-tinted color presets applied on top of light and dark mode",
+      "groupLabel": "Theme preset",
+      "presets": {
+        "default": "Default",
+        "claude": "Claude",
+        "cursor": "Cursor",
+        "codex": "Codex",
+        "gemini": "Gemini",
+        "custom": "Custom"
+      },
+      "custom": {
+        "title": "Custom colors",
+        "accent": "Accent",
+        "background": "Background",
+        "foreground": "Text"
+      }
     }
   },
   "mcpForm": {

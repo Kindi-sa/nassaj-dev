@@ -384,6 +384,25 @@
       "label": "تخطيط من اليمين لليسار (RTL)",
       "description": "تبديل اتجاه الواجهة بين RTL وLTR (مستقل عن اللغة)"
     },
+    "themePresets": {
+      "title": "سمة الألوان",
+      "description": "أطقم ألوان بطابع العلامات تُطبَّق فوق الوضعين الفاتح والداكن",
+      "groupLabel": "اختيار سمة الألوان",
+      "presets": {
+        "default": "الافتراضية",
+        "claude": "Claude",
+        "cursor": "Cursor",
+        "codex": "Codex",
+        "gemini": "Gemini",
+        "custom": "مخصصة"
+      },
+      "custom": {
+        "title": "ألوان مخصصة",
+        "accent": "اللون المميز",
+        "background": "الخلفية",
+        "foreground": "النص"
+      }
+    },
     "projectSorting": {
       "label": "ترتيب المشاريع",
       "description": "كيفية ترتيب المشاريع في الشريط الجانبي",

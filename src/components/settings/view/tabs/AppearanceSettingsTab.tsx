@@ -7,6 +7,7 @@ import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
 import SettingsToggle from '../SettingsToggle';
+import ThemePresetPicker from './ThemePresetPicker';
 
 type AppearanceSettingsTabProps = {
   projectSortOrder: ProjectSortOrder;
@@ -55,6 +56,8 @@ export default function AppearanceSettingsTab({
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
+
+      <ThemePresetPicker />
 
       <SettingsSection title={t('mainTabs.appearance')}>
         <SettingsCard>
