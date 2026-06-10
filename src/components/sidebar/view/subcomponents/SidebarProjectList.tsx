@@ -32,6 +32,7 @@ export type SidebarProjectListProps = {
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectName: string) => void;
+  onSetProjectVisibility: (projectId: string, visibility: 'public' | 'private') => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -76,6 +77,7 @@ export default function SidebarProjectList({
   onToggleProject,
   onProjectSelect,
   onToggleStarProject,
+  onSetProjectVisibility,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -139,6 +141,7 @@ export default function SidebarProjectList({
               onToggleProject={onToggleProject}
               onProjectSelect={onProjectSelect}
               onToggleStarProject={onToggleStarProject}
+              onSetProjectVisibility={onSetProjectVisibility}
               onStartEditingProject={onStartEditingProject}
               onCancelEditingProject={onCancelEditingProject}
               onSaveProjectName={onSaveProjectName}

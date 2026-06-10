@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronRight, Edit3, Star, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Edit3, Globe, Lock, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '../../../../shared/view/ui';
@@ -34,6 +34,7 @@ type SidebarProjectItemProps = {
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectName: string) => void;
+  onSetProjectVisibility: (projectId: string, visibility: 'public' | 'private') => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -80,6 +81,7 @@ export default function SidebarProjectItem({
   onToggleProject,
   onProjectSelect,
   onToggleStarProject,
+  onSetProjectVisibility,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -112,6 +114,14 @@ export default function SidebarProjectItem({
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
+
+  // C-PRIV-6: privacy state + the affordance to flip it.
+  const isPrivate = project.visibility === 'private';
+  const canManageVisibility = Boolean(project.canManageVisibility);
+  const privateBadgeLabel = t('projects.privateProject');
+  const toggleVisibilityLabel = isPrivate ? t('projects.makePublic') : t('projects.makePrivate');
+  const toggleVisibility = () =>
+    onSetProjectVisibility(project.projectId, isPrivate ? 'public' : 'private');
 
   const saveProjectName = () => {
     onSaveProjectName(project.projectId);
@@ -193,7 +203,19 @@ export default function SidebarProjectItem({
                   ) : (
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <h3 className="min-w-0 truncate text-sm font-medium text-foreground">{project.displayName}</h3>
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          {isPrivate && (
+                            <span
+                              className="flex-shrink-0"
+                              role="img"
+                              aria-label={privateBadgeLabel}
+                              title={privateBadgeLabel}
+                            >
+                              <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                            </span>
+                          )}
+                          <h3 className="min-w-0 truncate text-sm font-medium text-foreground">{project.displayName}</h3>
+                        </div>
                         {tasksEnabled && (
                           <TaskIndicator
                             status={taskStatus}
@@ -238,6 +260,24 @@ export default function SidebarProjectItem({
                   </>
                 ) : (
                   <>
+                    {canManageVisibility && (
+                      <button
+                        className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-muted/40 active:scale-90"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleVisibility();
+                        }}
+                        title={toggleVisibilityLabel}
+                        aria-label={toggleVisibilityLabel}
+                      >
+                        {isPrivate ? (
+                          <Globe className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <Lock className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </button>
+                    )}
+
                     <button
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
                       onClick={(event) => {
@@ -341,8 +381,20 @@ export default function SidebarProjectItem({
                 </div>
               ) : (
                 <div>
-                  <div className="truncate text-sm font-semibold text-foreground" title={project.displayName}>
-                    {project.displayName}
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    {isPrivate && (
+                      <span
+                        className="flex-shrink-0"
+                        role="img"
+                        aria-label={privateBadgeLabel}
+                        title={privateBadgeLabel}
+                      >
+                        <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+                      </span>
+                    )}
+                    <div className="truncate text-sm font-semibold text-foreground" title={project.displayName}>
+                      {project.displayName}
+                    </div>
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {sessionCountDisplay}
@@ -388,6 +440,28 @@ export default function SidebarProjectItem({
               </>
             ) : (
               <>
+                {canManageVisibility && (
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="touch:opacity-100 flex h-7 w-7 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleVisibility();
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleVisibility();
+                      }
+                    }}
+                    title={toggleVisibilityLabel}
+                    aria-label={toggleVisibilityLabel}
+                  >
+                    {isPrivate ? <Globe className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+                  </div>
+                )}
                 <div
                   className="touch:opacity-100 flex h-7 w-7 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
                   onClick={(event) => {

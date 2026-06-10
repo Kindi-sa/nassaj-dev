@@ -232,6 +232,26 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/restore`, {
       method: 'POST',
     }),
+  // Project privacy (C-PRIV-6). Server returns { success, data:{ projectId, visibility } }
+  // and broadcasts `projects_updated`; the frontend updates optimistically first.
+  setProjectVisibility: (projectId, visibility) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+    }),
+  // Project membership management (manager-only). Optional in this UI wave.
+  getProjectMembers: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/members`),
+  addProjectMember: (projectId, userId, role = 'member') =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    }),
+  removeProjectMember: (projectId, userId) =>
+    authenticatedFetch(
+      `/api/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
   // Session deletion now mirrors project deletion:
   // - default: archive only (`isArchived = 1`)
   // - hardDelete: remove the row and, by default, its persisted transcript file

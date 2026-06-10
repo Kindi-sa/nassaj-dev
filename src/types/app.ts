@@ -76,6 +76,12 @@ export interface Project {
   // (B-MU-UX-PROJ-FILTER). Informational only — the server never filters the
   // project list; the frontend "My Projects / All" toggle uses this flag.
   isMember?: boolean;
+  // Project privacy (C-PRIV-6). The server removes private projects the user
+  // cannot see from the list entirely — these flags only drive UI affordances.
+  visibility?: 'public' | 'private';
+  // True when the user may flip visibility / manage members (project creator,
+  // an owner-role member, or the platform owner). Set by the server.
+  canManageVisibility?: boolean;
   sessions?: ProjectSession[];
   cursorSessions?: ProjectSession[];
   codexSessions?: ProjectSession[];

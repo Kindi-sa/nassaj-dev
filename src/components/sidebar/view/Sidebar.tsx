@@ -81,6 +81,7 @@ function Sidebar({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    setProjectVisibility,
     getProjectSessions,
     loadingMoreProjects,
     loadMoreSessionsForProject,
@@ -162,6 +163,7 @@ function Sidebar({
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
     onToggleStarProject: toggleStarProject,
+    onSetProjectVisibility: setProjectVisibility,
     onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {

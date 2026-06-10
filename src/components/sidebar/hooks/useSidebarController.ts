@@ -100,8 +100,14 @@ export function useSidebarController({
   const [isArchivedSessionsLoading, setIsArchivedSessionsLoading] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
+  // Optimistic project visibility (C-PRIV-6): flip locally on click, then let the
+  // `projects_updated` broadcast / refresh confirm the authoritative value.
+  const [optimisticVisibilityByProjectId, setOptimisticVisibilityByProjectId] = useState<
+    Map<string, 'public' | 'private'>
+  >(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
+  const visibilityToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
 
@@ -388,6 +394,79 @@ export function useSidebarController({
     [resolveProjectStarState],
   );
 
+  // C-PRIV-6: flip project visibility. Update optimistically, call the server,
+  // then drop the optimistic value once the authoritative `projects_updated`
+  // broadcast (or a manual refresh) lands. Errors roll the value back.
+  const setProjectVisibility = useCallback(
+    (projectId: string, nextVisibility: 'public' | 'private') => {
+      const previousVisibility =
+        optimisticVisibilityByProjectId.get(projectId) ??
+        projects.find((candidate) => candidate.projectId === projectId)?.visibility ??
+        'public';
+
+      const latestSequence = (visibilityToggleSequenceByProjectRef.current.get(projectId) ?? 0) + 1;
+      visibilityToggleSequenceByProjectRef.current.set(projectId, latestSequence);
+
+      setOptimisticVisibilityByProjectId((previous) => {
+        const next = new Map(previous);
+        next.set(projectId, nextVisibility);
+        return next;
+      });
+
+      const clearOptimistic = () => {
+        if (visibilityToggleSequenceByProjectRef.current.get(projectId) !== latestSequence) {
+          return;
+        }
+        setOptimisticVisibilityByProjectId((previous) => {
+          if (!previous.has(projectId)) {
+            return previous;
+          }
+          const next = new Map(previous);
+          next.delete(projectId);
+          return next;
+        });
+      };
+
+      const run = async () => {
+        try {
+          const response = await api.setProjectVisibility(projectId, nextVisibility);
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as {
+              error?: string | { message?: string };
+            };
+            const errorPayload = payload.error;
+            const message =
+              typeof errorPayload === 'string'
+                ? errorPayload
+                : errorPayload && typeof errorPayload === 'object' && errorPayload.message
+                  ? errorPayload.message
+                  : t('messages.updateProjectError');
+            throw new Error(message);
+          }
+
+          // The server broadcasts `projects_updated`; refresh to pick up the
+          // authoritative list (private projects may even disappear), then drop
+          // the optimistic override so the canonical value drives the UI.
+          await Promise.resolve(onRefreshRef.current());
+          clearOptimistic();
+        } catch (error) {
+          if (visibilityToggleSequenceByProjectRef.current.get(projectId) === latestSequence) {
+            setOptimisticVisibilityByProjectId((previous) => {
+              const next = new Map(previous);
+              next.set(projectId, previousVisibility);
+              return next;
+            });
+          }
+          console.error('[Sidebar] Failed to change project visibility:', error);
+          alert(t('messages.updateProjectError'));
+        }
+      };
+
+      void run();
+    },
+    [optimisticVisibilityByProjectId, projects, t],
+  );
+
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
@@ -426,27 +505,34 @@ export function useSidebarController({
   }, [onLoadMoreSessions, t]);
 
   const projectsWithResolvedStarState = useMemo(() => {
-    if (optimisticStarByProjectId.size === 0) {
+    if (optimisticStarByProjectId.size === 0 && optimisticVisibilityByProjectId.size === 0) {
       return projects;
     }
 
     return projects.map((project) => {
       const optimisticStarState = optimisticStarByProjectId.get(project.projectId);
-      if (optimisticStarState === undefined) {
-        return project;
-      }
+      const optimisticVisibility = optimisticVisibilityByProjectId.get(project.projectId);
 
-      const currentStarState = Boolean(project.isStarred);
-      if (currentStarState === optimisticStarState) {
+      const nextStar =
+        optimisticStarState !== undefined && Boolean(project.isStarred) !== optimisticStarState
+          ? optimisticStarState
+          : undefined;
+      const nextVisibility =
+        optimisticVisibility !== undefined && project.visibility !== optimisticVisibility
+          ? optimisticVisibility
+          : undefined;
+
+      if (nextStar === undefined && nextVisibility === undefined) {
         return project;
       }
 
       return {
         ...project,
-        isStarred: optimisticStarState,
+        ...(nextStar !== undefined ? { isStarred: nextStar } : {}),
+        ...(nextVisibility !== undefined ? { visibility: nextVisibility } : {}),
       };
     });
-  }, [optimisticStarByProjectId, projects]);
+  }, [optimisticStarByProjectId, optimisticVisibilityByProjectId, projects]);
 
   const sortedProjects = useMemo(
     () => sortProjects(projectsWithResolvedStarState, projectSortOrder),
@@ -804,6 +890,7 @@ export function useSidebarController({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    setProjectVisibility,
     getProjectSessions,
     loadMoreSessionsForProject,
     startEditing,
