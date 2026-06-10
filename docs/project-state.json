@@ -425,6 +425,26 @@
    "status": "done",
    "owner": "frontend-dev",
    "closed": "2026-06-10"
+  },
+  {
+   "id": "T-44",
+   "phase": "P4",
+   "sprint": null,
+   "kind": "feature",
+   "title": "C-MU-UX-HW-FONT + C-MU-UX-MSG-COORD + C-MU-UX-AVATAR-PICK: توحيد حجم خط العتاد مع الإعدادات (967268c)؛ عرض رسائل المنسّق (المؤلّف=مالك الجلسة) بهوية المنسّق لا المالك (54faff9)؛ منتقي أفاتار جاهز + لون + رفع في الملف الشخصي عبر avatar_url بثلاث بادئات بلا migration (dc8c96b)",
+   "status": "done",
+   "owner": "frontend-dev",
+   "closed": "2026-06-10"
+  },
+  {
+   "id": "T-45",
+   "phase": "P4",
+   "sprint": null,
+   "kind": "feature",
+   "title": "B-PRIV-* المشروع الخاص: خطة architect معتمدة (visibility+created_by على projects + جدول project_members + إنفاذ خادمي على كل مسارات projectId لا فلترة واجهية + قفل وقائمة سياق). معلّق على قرار: هل يرى owner المنصة المشاريع الخاصة؟",
+   "status": "open",
+   "owner": "architect",
+   "closed": null
   }
  ],
  "issues": [
