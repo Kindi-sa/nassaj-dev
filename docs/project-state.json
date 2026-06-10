@@ -395,6 +395,16 @@
    "status": "done",
    "owner": "frontend-dev",
    "closed": "2026-06-10"
+  },
+  {
+   "id": "T-41",
+   "phase": "P2",
+   "sprint": null,
+   "kind": "maintenance",
+   "title": "SYNC-V134-W1: موجة upstream الأولى من فجوة v1.33.0→v1.34.0 — توكنز الكاش في /cost (b2eb575)، تزامن شجرة الملفات #828 (d0713fc)، أزرار Shell ‏#831 (bb1ca2d)، اقتراحات / بأي موضع + تثبيت scroll + شريط المحرر + vite proxy ‏(b2e6aba/79824ad/722c0bf/0558543)، dir=auto للـcomposer ‏(9a093e1)، Fable 5 في الكتالوج (a8e2f47). لا انحدار اختبارات؛ يتبقى موجة المزايا (إشعار الاكتمال، شريط الرفع)",
+   "status": "done",
+   "owner": "backend-dev",
+   "closed": "2026-06-10"
   }
  ],
  "issues": [
