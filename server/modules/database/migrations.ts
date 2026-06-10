@@ -6,6 +6,7 @@ import {
   INVITES_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
   MESSAGE_AUTHORS_TABLE_SCHEMA_SQL,
+  PROJECT_MEMBERS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL,
@@ -132,6 +133,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'custom_project_name', 'TEXT DEFAULT NULL');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
+    addColumnToTableIfNotExists(db, 'projects', columnNames, 'visibility', "TEXT NOT NULL DEFAULT 'public'");
+    addColumnToTableIfNotExists(db, 'projects', columnNames, 'created_by', 'INTEGER');
     db.exec(`
       UPDATE projects
       SET project_id = ${SQLITE_UUID_SQL}
@@ -158,6 +161,12 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
 
   const isArchivedExpression = columnNames.includes('isArchived') ? 'COALESCE(isArchived, 0)' : '0';
 
+  const visibilityExpression = columnNames.includes('visibility')
+    ? "COALESCE(visibility, 'public')"
+    : "'public'";
+
+  const createdByExpression = columnNames.includes('created_by') ? 'created_by' : 'NULL';
+
   const projectIdExpression = columnNames.includes('project_id')
     ? `CASE
          WHEN project_id IS NULL OR trim(project_id) = ''
@@ -176,7 +185,9 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path TEXT NOT NULL UNIQUE,
         custom_project_name TEXT DEFAULT NULL,
         isStarred BOOLEAN DEFAULT 0,
-        isArchived BOOLEAN DEFAULT 0
+        isArchived BOOLEAN DEFAULT 0,
+        visibility TEXT NOT NULL DEFAULT 'public',
+        created_by INTEGER
       )
     `);
     db.exec(`
@@ -186,6 +197,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           ${customProjectNameExpression} AS custom_project_name,
           ${isStarredExpression} AS isStarred,
           ${isArchivedExpression} AS isArchived,
+          ${visibilityExpression} AS visibility,
+          ${createdByExpression} AS created_by,
           ${projectIdExpression} AS candidate_project_id,
           rowid AS source_rowid
         FROM projects
@@ -197,6 +210,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           custom_project_name,
           isStarred,
           isArchived,
+          visibility,
+          created_by,
           candidate_project_id,
           source_rowid,
           ROW_NUMBER() OVER (PARTITION BY project_path ORDER BY source_rowid) AS project_path_rank
@@ -212,7 +227,9 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           project_path,
           custom_project_name,
           isStarred,
-          isArchived
+          isArchived,
+          visibility,
+          created_by
         FROM deduped_paths
         WHERE project_path_rank = 1
       )
@@ -221,14 +238,18 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        visibility,
+        created_by
       )
       SELECT
         project_id,
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        visibility,
+        created_by
       FROM prepared_rows
     `);
     db.exec('DROP TABLE projects');
@@ -554,6 +575,43 @@ const migrateMessageAuthors = (db: Database): void => {
 };
 
 /**
+ * Private-project visibility (B-PRIV-1). Ensures the `visibility` + `created_by`
+ * columns exist on `projects` and creates the visibility lookup index.
+ *
+ * The columns are normally added by rebuildProjectsTableWithPrimaryKeySchema
+ * (which also keeps the table-rebuild path in sync — critical so they are not
+ * dropped on a future legacy rebuild). This function is a defensive, idempotent
+ * backstop that also owns the index (index lives in migrations, never in
+ * INIT_SCHEMA_SQL — see the 502 lesson). Existing rows default to 'public', so
+ * the introduction of private projects never retroactively hides any project.
+ */
+const migrateProjectVisibility = (db: Database): void => {
+  const projectsTableInfo = getTableInfo(db, 'projects');
+  const columnNames = projectsTableInfo.map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'projects', columnNames, 'visibility', "TEXT NOT NULL DEFAULT 'public'");
+  addColumnToTableIfNotExists(db, 'projects', columnNames, 'created_by', 'INTEGER');
+
+  // Defensive backfill: any NULL visibility (e.g. from a partial legacy rebuild)
+  // resolves to the safe 'public' default so it is never silently hidden.
+  db.exec("UPDATE projects SET visibility = 'public' WHERE visibility IS NULL");
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_projects_visibility ON projects(visibility)');
+};
+
+/**
+ * Explicit project membership (B-PRIV-1). Creates the project_members table and
+ * its user lookup index (index lives here, never in INIT_SCHEMA_SQL — see the
+ * 502 lesson). Idempotent (IF NOT EXISTS); no backfill — membership is derived
+ * for legacy private conversions at conversion time, and public projects need
+ * no rows. Must run AFTER both `projects` and `users` exist so the FKs resolve.
+ */
+const migrateProjectMembers = (db: Database): void => {
+  db.exec(PROJECT_MEMBERS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id)');
+};
+
+/**
  * Passkey support (B-PK-1). Creates the webauthn_credentials table and its
  * user lookup index (index lives here, never in INIT_SCHEMA_SQL — see the 502
  * lesson). Idempotent (IF NOT EXISTS); no backfill — users register passkeys
@@ -623,6 +681,12 @@ export const runMigrations = (db: Database) => {
 
     // Message sender attribution — after users exist so the FK resolves.
     migrateMessageAuthors(db);
+
+    // Private-project visibility + membership — after the projects table has its
+    // project_id primary key (rebuildProjectsTableWithPrimaryKeySchema, above)
+    // and after users exist so the project_members FKs resolve.
+    migrateProjectVisibility(db);
+    migrateProjectMembers(db);
 
     // Passkeys (WebAuthn) — after users exist so the FK resolves.
     migrateWebAuthnCredentials(db);

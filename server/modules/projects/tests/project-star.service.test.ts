@@ -11,6 +11,8 @@ type ProjectRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  visibility: 'public' | 'private';
+  created_by: number | null;
 };
 
 test('toggleProjectStar throws when projectId is missing', () => {

@@ -116,7 +116,38 @@ CREATE TABLE IF NOT EXISTS projects (
     project_path TEXT NOT NULL UNIQUE,
     custom_project_name TEXT DEFAULT NULL,
     isStarred BOOLEAN DEFAULT 0,
-    isArchived BOOLEAN DEFAULT 0
+    isArchived BOOLEAN DEFAULT 0,
+    visibility TEXT NOT NULL DEFAULT 'public',
+    created_by INTEGER
+);
+`;
+
+/**
+ * project_members — explicit membership of a project (B-PRIV).
+ *
+ * Backs the "private project" feature: a private project is only visible to its
+ * creator (projects.created_by), users explicitly listed here, and users
+ * derived from session_participants. There is NO platform-owner override on
+ * visibility — by owner decision, privacy is absolute and even the platform
+ * owner cannot see a private project's content unless they are a member.
+ *
+ * role: 'owner' (can manage visibility + members) | 'member' (read access only).
+ * added_by records who granted the membership (nullable; users.id).
+ *
+ * NOTE: created via migration (migrateProjectMembers), NOT in INIT_SCHEMA_SQL.
+ * Its index likewise lives only in the migration (see the 502 lesson where
+ * indexing migration-added structures at init broke fresh boots).
+ */
+export const PROJECT_MEMBERS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS project_members (
+    project_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    added_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, user_id),
+    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;
 

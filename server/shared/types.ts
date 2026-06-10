@@ -481,7 +481,17 @@ export type ProjectRepositoryRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  // Private-project visibility (B-PRIV). 'public' (default) is visible to every
+  // authenticated user; 'private' is visible only to its creator, explicit
+  // project_members, and users derived from session participation.
+  visibility: ProjectVisibility;
+  // users.id of the creator (nullable for legacy rows created before this column
+  // existed). Used both for visibility resolution and management authorization.
+  created_by: number | null;
 };
+
+/** Visibility mode of a project row. */
+export type ProjectVisibility = 'public' | 'private';
 
 /**
  * Result category returned by `projectsDb.createProjectPath`.
