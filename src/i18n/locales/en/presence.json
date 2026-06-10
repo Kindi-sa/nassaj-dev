@@ -3,5 +3,7 @@
   "online": "online",
   "you": "(you)",
   "idle": "Idle",
-  "workingOn": "Working on: {{target}}"
+  "workingOn": "Working on: {{target}}",
+  "more_one": "{{count}} more",
+  "more_other": "{{count}} more"
 }

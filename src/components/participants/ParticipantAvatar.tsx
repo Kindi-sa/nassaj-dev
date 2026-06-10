@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 
 import { cn } from '../../lib/utils';
@@ -26,6 +27,11 @@ type ParticipantAvatarProps = {
   // Optional profile picture. When present (and it loads), it replaces the
   // coloured initial circle. On load failure we fall back to initial + colour.
   avatarUrl?: string;
+  // Optional overrides for contexts (e.g. live presence) where the default
+  // role/last-seen tooltip is wrong. `tooltipContent` replaces the tooltip
+  // body; `ariaLabel` replaces the default "username — role" label.
+  tooltipContent?: ReactNode;
+  ariaLabel?: string;
 };
 
 function roleLabel(role: string, t: TFunction): string {
@@ -39,6 +45,8 @@ export default function ParticipantAvatar({
   t,
   stacked = true,
   avatarUrl,
+  tooltipContent,
+  ariaLabel,
 }: ParticipantAvatarProps) {
   const lastSeen = formatLastSeen(participant.last_seen, locale);
 
@@ -46,7 +54,7 @@ export default function ParticipantAvatar({
   const [imageFailed, setImageFailed] = useState(false);
   const showImage = Boolean(avatarUrl) && !imageFailed;
 
-  const tooltipContent = (
+  const defaultTooltipContent = (
     <span className="flex flex-col gap-0.5 text-start">
       <span className="font-semibold">{participant.username}</span>
       <span className="opacity-80">{roleLabel(participant.role, t)}</span>
@@ -59,10 +67,10 @@ export default function ParticipantAvatar({
   );
 
   return (
-    <Tooltip content={tooltipContent}>
+    <Tooltip content={tooltipContent ?? defaultTooltipContent}>
       <span
         role="img"
-        aria-label={`${participant.username} — ${roleLabel(participant.role, t)}`}
+        aria-label={ariaLabel ?? `${participant.username} — ${roleLabel(participant.role, t)}`}
         className={cn(
           'relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-semibold text-white',
           SIZE_CLASSES[size],

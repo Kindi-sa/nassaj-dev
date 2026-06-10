@@ -4,24 +4,30 @@ import { useAuth } from '../auth/context/AuthContext';
 import { cn } from '../../lib/utils';
 import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
+import { Tooltip } from '../../shared/view/ui';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
 /**
- * Live presence panel (C-MU-UX-PRESENCE).
+ * Live presence panel (C-MU-UX-PRESENCE, compact redesign
+ * C-MU-UX-PRESENCE-COMPACT).
  *
- * Shows which brothers are connected right now and, for each, the session /
- * project they are actively running. Self-contained: it subscribes to the
- * realtime `presence` channel through `usePresence` and is mounted in a
- * non-invasive spot (top of the sidebar) so it never touches sidebar internals.
+ * One dense row instead of one card per brother: a tiny "Online now" label +
+ * an overlapping avatar stack. Who is connected and what they are doing moved
+ * into each avatar's tooltip (username, "(you)", "Working on: <project>" or
+ * "Idle"), so the sidebar loses almost no information but a lot of height.
  *
- * - Each brother: coloured ParticipantAvatar (initial via avatarColorForUser) +
- *   username + a green "online" dot.
- * - Active brothers additionally show a short "working on: <project/session>".
- * - The current user is tagged "(you)".
- * - RTL-friendly: logical spacing only, no hard-coded left/right.
+ * - Avatars: shared ParticipantAvatar with a presence-specific tooltip.
+ * - Status dot: emerald = online; it pulses while the brother is actively
+ *   running a provider command (the tooltip names the project/session).
+ * - More than MAX_VISIBLE brothers collapse into a "+N" chip whose tooltip
+ *   lists the hidden ones with the same status line.
+ * - RTL-friendly: logical spacing only (`-ms-*`), no hard-coded left/right.
  * - Renders nothing until the first snapshot arrives.
  */
+
+/** How many avatars to show before collapsing the rest behind "+N". */
+const MAX_VISIBLE = 5;
 
 /** Last path segment of a project path, for a compact "working on" label. */
 function projectLabel(projectPath: string | null, sessionId: string | null): string | null {
@@ -68,70 +74,95 @@ export default function PresencePanel() {
     ? String(currentUser.id)
     : null;
 
-  return (
-    <div className="border-b border-border/60 px-3 py-2">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('title', { defaultValue: 'Online now' })}
-        </span>
-        <span className="text-[10px] text-muted-foreground/60">
-          {presenceUsers.length}
-        </span>
-      </div>
+  /** "Working on: <target>" while active, "Idle" otherwise. */
+  const statusText = (presenceUser: PresenceUser): string => {
+    const working = presenceUser.active
+      ? projectLabel(presenceUser.activeProjectPath, presenceUser.activeSessionId)
+      : null;
+    return working
+      ? t('workingOn', { defaultValue: 'Working on: {{target}}', target: working })
+      : t('idle', { defaultValue: 'Idle' });
+  };
 
-      <ul className="flex flex-col gap-1.5">
-        {presenceUsers.map((presenceUser) => {
-          const isSelf = currentUserId !== null && presenceUser.userId === currentUserId;
-          const working = presenceUser.active
-            ? projectLabel(presenceUser.activeProjectPath, presenceUser.activeSessionId)
-            : null;
+  /** "<username> (you)" for self, plain username otherwise. */
+  const displayName = (presenceUser: PresenceUser): string => {
+    const isSelf = currentUserId !== null && presenceUser.userId === currentUserId;
+    return isSelf
+      ? `${presenceUser.username} ${t('you', { defaultValue: '(you)' })}`
+      : presenceUser.username;
+  };
+
+  const visible = presenceUsers.slice(0, MAX_VISIBLE);
+  const overflow = presenceUsers.slice(MAX_VISIBLE);
+
+  return (
+    <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
+      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t('title', { defaultValue: 'Online now' })}
+      </span>
+
+      <ul
+        className="flex min-w-0 items-center"
+        aria-label={`${t('title', { defaultValue: 'Online now' })} (${presenceUsers.length})`}
+      >
+        {visible.map((presenceUser) => {
+          const status = statusText(presenceUser);
+          const name = displayName(presenceUser);
 
           return (
-            <li key={presenceUser.userId} className="flex items-start gap-2">
-              <span className="relative inline-flex flex-shrink-0">
+            <li key={presenceUser.userId} className="-ms-1.5 first:ms-0">
+              <span className="relative inline-flex rounded-full ring-2 ring-background">
                 <ParticipantAvatar
                   participant={toParticipant(presenceUser)}
                   size="sm"
                   locale={i18n.language}
                   t={t}
                   stacked={false}
+                  ariaLabel={`${name} — ${status}`}
+                  tooltipContent={
+                    <span className="flex flex-col gap-0.5 text-start">
+                      <span className="font-semibold">{name}</span>
+                      <span className="opacity-80">{status}</span>
+                    </span>
+                  }
                 />
-                {/* Green "online" dot, positioned with logical inset for RTL. */}
+                {/* Online dot (logical inset for RTL); pulses while active. */}
                 <span
-                  className="absolute bottom-0 end-0 h-2 w-2 rounded-full border border-background bg-emerald-500"
-                  aria-label={t('online', { defaultValue: 'online' })}
+                  className={cn(
+                    'absolute bottom-0 end-0 h-2 w-2 rounded-full border border-background bg-emerald-500',
+                    presenceUser.active && 'animate-pulse',
+                  )}
+                  aria-hidden="true"
                 />
               </span>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1">
-                  <span className="truncate text-xs font-medium text-foreground">
-                    {presenceUser.username}
-                  </span>
-                  {isSelf && (
-                    <span className="flex-shrink-0 text-[10px] text-muted-foreground/70">
-                      {t('you', { defaultValue: '(you)' })}
-                    </span>
-                  )}
-                </div>
-                {working ? (
-                  <p
-                    className={cn(
-                      'truncate text-[11px] text-muted-foreground',
-                    )}
-                    title={presenceUser.activeProjectPath ?? undefined}
-                  >
-                    {t('workingOn', { defaultValue: 'Working on: {{target}}', target: working })}
-                  </p>
-                ) : (
-                  <p className="truncate text-[11px] text-muted-foreground/50">
-                    {t('idle', { defaultValue: 'Idle' })}
-                  </p>
-                )}
-              </div>
             </li>
           );
         })}
+
+        {overflow.length > 0 && (
+          <li className="-ms-1.5">
+            <Tooltip
+              content={
+                <span className="flex flex-col gap-0.5 text-start">
+                  {overflow.map((presenceUser) => (
+                    <span key={presenceUser.userId}>
+                      <span className="font-semibold">{displayName(presenceUser)}</span>
+                      <span className="opacity-80"> — {statusText(presenceUser)}</span>
+                    </span>
+                  ))}
+                </span>
+              }
+            >
+              <span
+                className="inline-flex h-6 w-6 select-none items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background"
+                role="img"
+                aria-label={t('more', { defaultValue: '{{count}} more', count: overflow.length })}
+              >
+                +{overflow.length}
+              </span>
+            </Tooltip>
+          </li>
+        )}
       </ul>
     </div>
   );

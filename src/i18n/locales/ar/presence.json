@@ -3,5 +3,11 @@
   "online": "متصل",
   "you": "(أنت)",
   "idle": "خامل",
-  "workingOn": "يعمل على: {{target}}"
+  "workingOn": "يعمل على: {{target}}",
+  "more_zero": "لا أحد آخر",
+  "more_one": "وواحد آخر",
+  "more_two": "واثنان آخران",
+  "more_few": "و{{count}} آخرون",
+  "more_many": "و{{count}} آخرين",
+  "more_other": "و{{count}} آخرين"
 }
