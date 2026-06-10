@@ -234,12 +234,7 @@
     }
   },
   "claudeConnection": {
-    "title": "Claude subscription",
     "description": "Link your own Claude subscription to use it in your sessions. Each user has their own isolated credential.",
-    "statusLabel": "Status:",
-    "checking": "Checking...",
-    "connected": "Connected",
-    "notConnected": "Not connected",
     "recheck": "Re-check",
     "loadError": "Could not check subscription status. Please try again.",
     "banner": "Your Claude subscription is not linked yet. You need to link it before using Claude in your sessions.",
@@ -254,12 +249,7 @@
     }
   },
   "agyConnection": {
-    "title": "Antigravity (agy) subscription",
     "description": "Link your own Antigravity subscription to use it in your sessions. Each user has their own isolated credential.",
-    "statusLabel": "Status:",
-    "checking": "Checking...",
-    "connected": "Connected",
-    "notConnected": "Not connected",
     "recheck": "Re-check",
     "loadError": "Could not check subscription status. Please try again.",
     "banner": "Your Antigravity subscription is not linked yet. You need to link it before using agy in your sessions.",
@@ -613,9 +603,6 @@
       }
     },
     "antigravity": {
-      "authTitle": "Authenticate via CLI",
-      "reauthTitle": "Re-authenticate via CLI",
-      "instruction": "Run the following command in your terminal to start Google OAuth and create the first agy session:",
       "modelNote": "Uses Google AI Pro via agy CLI (v1.x). The active model is selected inside agy settings, not from this UI."
     },
     "connectionStatus": "Connection Status",

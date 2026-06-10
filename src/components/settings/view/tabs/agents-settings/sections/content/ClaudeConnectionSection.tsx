@@ -1,32 +1,31 @@
 import { useCallback, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Link2, Loader2, RefreshCw } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
 
-import { Button } from '../../../../../../../shared/view/ui';
 import { useAuth } from '../../../../../../auth';
-import SettingsSection from '../../../../SettingsSection';
 import { useClaudeConnection } from '../../../../../hooks/useClaudeConnection';
+import type { AuthStatus } from '../../../../../types/types';
 
+import AccountContent, { type UserCredentialLink } from './AccountContent';
 import ClaudeSetupTokenModal from './ClaudeSetupTokenModal';
 
+type ClaudeConnectionSectionProps = {
+  authStatus: AuthStatus;
+  onLogin: () => void;
+};
+
 /**
- * "Claude subscription" section of the Agents settings page (B-MU-ONBOARD),
- * rendered under the Claude agent's Account view.
+ * Claude Account view with the per-user subscription link merged in
+ * [C-MU-UX-AGENT-CREDS]. Thin stateful wrapper: it owns the
+ * `useClaudeConnection` fetch (B-MU-ONBOARD) and the `claude setup-token`
+ * terminal modal, and renders the single unified credential card
+ * (`AccountContent`) so connection state appears exactly once per agent.
  *
- * Shows whether the current user has linked their own Claude credential and,
- * when not linked, drives a guided onboarding flow:
- *  1. a warning banner explaining isolation requires a personal link,
- *  2. a "Link Claude account" button that opens the terminal running
- *     `claude setup-token`,
- *  3. an explicit "I've verified" re-check (plus an automatic re-check when the
- *     terminal process exits).
- *
- * The owner is symbolically linked by the backend, so the endpoint reports
- * `connected: true` and no onboarding CTA is shown — they are never forced
- * through the flow.
+ * Onboarding flow (non-owner, not linked): the card shows a warning banner
+ * with a "Link Claude account" CTA that opens the terminal modal running
+ * `claude setup-token`; status is re-checked when the process exits and via
+ * the explicit Re-check button. The owner is symbolically linked by the
+ * backend and never forced through the flow.
  */
-export default function ClaudeConnectionSection() {
-  const { t } = useTranslation('settings');
+export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeConnectionSectionProps) {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
 
@@ -41,85 +40,35 @@ export default function ClaudeConnectionSection() {
     void refresh();
   }, [refresh]);
 
+  const handleRecheck = useCallback(() => {
+    void refresh();
+  }, [refresh]);
+
+  const userLink: UserCredentialLink = {
+    connected,
+    loading,
+    error,
+    isOwner,
+    i18nPrefix: 'claudeConnection',
+    command: 'claude setup-token',
+    onLink: openModal,
+    onRecheck: handleRecheck,
+  };
+
   return (
-    <SettingsSection
-      title={t('claudeConnection.title')}
-      description={t('claudeConnection.description')}
-    >
-      {/* Status indicator */}
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="text-sm font-medium text-foreground">
-          {t('claudeConnection.statusLabel')}
-        </span>
-
-        {loading ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
-            {t('claudeConnection.checking')}
-          </span>
-        ) : connected ? (
-          <span
-            role="status"
-            className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400"
-          >
-            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
-            {t('claudeConnection.connected')}
-          </span>
-        ) : (
-          <span
-            role="status"
-            className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400"
-          >
-            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-            {t('claudeConnection.notConnected')}
-          </span>
-        )}
-
-        <Button type="button" variant="ghost" size="sm" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw className={loading ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
-          <span className="ms-1.5">{t('claudeConnection.recheck')}</span>
-        </Button>
-      </div>
-
-      {error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400">
-          {t('claudeConnection.loadError')}
-        </p>
-      )}
-
-      {/* Onboarding banner + CTA — only when not connected (owner is auto-linked) */}
-      {!loading && !connected && !isOwner && (
-        <div
-          role="alert"
-          className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/15"
-        >
-          <p className="text-sm text-amber-800 dark:text-amber-300">
-            {t('claudeConnection.banner')}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {t('claudeConnection.bannerHint')}{' '}
-            <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
-              claude setup-token
-            </code>
-            .
-          </p>
-          <Button type="button" size="sm" onClick={openModal}>
-            <Link2 className="h-4 w-4" aria-hidden />
-            <span className="ms-1.5">{t('claudeConnection.linkButton')}</span>
-          </Button>
-        </div>
-      )}
-
-      {/* Owner note: linked automatically, no action required */}
-      {!loading && isOwner && connected && (
-        <p className="text-sm text-muted-foreground">{t('claudeConnection.ownerNote')}</p>
-      )}
+    <>
+      <AccountContent
+        agent="claude"
+        authStatus={authStatus}
+        onLogin={onLogin}
+        userLink={userLink}
+      />
 
       <ClaudeSetupTokenModal
         isOpen={isModalOpen}
         onClose={closeModal}
         onComplete={handleProcessComplete}
       />
-    </SettingsSection>
+    </>
   );
 }

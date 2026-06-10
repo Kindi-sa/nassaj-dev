@@ -233,12 +233,7 @@
     }
   },
   "claudeConnection": {
-    "title": "اشتراك Claude",
     "description": "اربط اشتراك Claude الخاص بك لاستخدامه في جلساتك. لكل مستخدم اعتماده المعزول.",
-    "statusLabel": "الحالة:",
-    "checking": "جارٍ التحقّق...",
-    "connected": "مرتبط",
-    "notConnected": "غير مرتبط",
     "recheck": "إعادة الفحص",
     "loadError": "تعذّر التحقّق من حالة الاشتراك. حاول مرة أخرى.",
     "banner": "اشتراكك بـ Claude غير مرتبط بعد. يلزم ربطه قبل استخدام Claude في جلساتك.",
@@ -253,12 +248,7 @@
     }
   },
   "agyConnection": {
-    "title": "اشتراك Antigravity (agy)",
     "description": "اربط اشتراك Antigravity الخاص بك لاستخدامه في جلساتك. لكل مستخدم اعتماده المعزول.",
-    "statusLabel": "الحالة:",
-    "checking": "جارٍ التحقّق...",
-    "connected": "مرتبط",
-    "notConnected": "غير مرتبط",
     "recheck": "إعادة الفحص",
     "loadError": "تعذّر التحقّق من حالة الاشتراك. حاول مرة أخرى.",
     "banner": "اشتراكك بـ Antigravity غير مرتبط بعد. يلزم ربطه قبل استخدام agy في جلساتك.",
@@ -609,9 +599,6 @@
       }
     },
     "antigravity": {
-      "authTitle": "المصادقة عبر سطر الأوامر",
-      "reauthTitle": "إعادة المصادقة عبر سطر الأوامر",
-      "instruction": "نفّذ الأمر التالي في الطرفية لبدء مصادقة Google OAuth وإنشاء أول جلسة agy:",
       "modelNote": "يستخدم Google AI Pro عبر agy CLI (v1.x). يُختار النموذج النشط من داخل إعدادات agy، وليس من هذه الواجهة."
     },
     "connectionStatus": "حالة الاتصال",
