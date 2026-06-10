@@ -14,6 +14,7 @@ import { Octokit } from '@octokit/rest';
 import { providerModelsService } from '../modules/providers/services/provider-models.service.js';
 import { IS_PLATFORM } from '../constants/config.js';
 import { normalizeProjectPath } from '../shared/utils.js';
+import { buildTokenPushUrl } from '../utils/gitIdentity.js';
 
 const router = express.Router();
 
@@ -1085,9 +1086,19 @@ router.post('/', validateExternalApiKey, async (req, res) => {
             });
           });
 
-          // Push the branch to remote
+          // Push the branch to remote.
+          // Per-user push credentials (B-MU-UX-GIT-ID): reuse the already
+          // resolved per-user token (tokenToUse = githubToken || the requesting
+          // user's active token). When the origin is an https github URL, push
+          // to a transient token-embedded URL so the push is attributed to the
+          // user; the token is NEVER persisted to .git/config and NEVER logged.
+          // Falls back to `origin` (shared) for non-https-github remotes.
           console.log('🔄 Pushing branch to remote...');
-          const pushProcess = spawn('git', ['push', '-u', 'origin', finalBranchName], {
+          const tokenPushUrl = buildTokenPushUrl(repoUrl, tokenToUse);
+          const pushArgs = tokenPushUrl
+            ? ['push', tokenPushUrl, `${finalBranchName}:${finalBranchName}`]
+            : ['push', '-u', 'origin', finalBranchName];
+          const pushProcess = spawn('git', pushArgs, {
             cwd: finalProjectPath,
             stdio: 'pipe'
           });
@@ -1112,6 +1123,26 @@ router.post('/', validateExternalApiKey, async (req, res) => {
               }
             });
           });
+
+          // When we pushed via a token URL (no -u possible against a raw URL),
+          // record the upstream against the clean `origin` remote so .git/config
+          // tracks origin — never the token-embedded URL.
+          if (tokenPushUrl) {
+            try {
+              await new Promise((resolve) => {
+                const cfg = spawn('git', ['config', `branch.${finalBranchName}.remote`, 'origin'], { cwd: finalProjectPath, stdio: 'pipe' });
+                cfg.on('close', () => resolve());
+                cfg.on('error', () => resolve());
+              });
+              await new Promise((resolve) => {
+                const cfg = spawn('git', ['config', `branch.${finalBranchName}.merge`, `refs/heads/${finalBranchName}`], { cwd: finalProjectPath, stdio: 'pipe' });
+                cfg.on('close', () => resolve());
+                cfg.on('error', () => resolve());
+              });
+            } catch {
+              // Upstream tracking is best-effort; the push already succeeded.
+            }
+          }
 
           branchInfo = {
             name: finalBranchName,

@@ -30,6 +30,7 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
   PROCESS_TAG_ENV_VAR,
   registerSessionProcess,
@@ -882,6 +883,14 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // while conversations/instructions stay shared via symlinks. Falls back to the
     // base env unchanged when no userId is present (single-user / platform mode).
     sdkOptions.env = resolveProviderEnv(ws?.userId ?? null, 'claude', sdkOptions.env);
+
+    // Per-user commit authorship (B-MU-UX-GIT-ID): inject GIT_AUTHOR_*/
+    // GIT_COMMITTER_* for the authenticated user so any commit the agent makes
+    // during this run is attributed to the brother who spawned it — independent
+    // of the credential-isolation policy above (attribution, not isolation).
+    // Empty when the user has no stored identity -> the agent's commits fall
+    // back to the system git config (current behavior). No global config write.
+    Object.assign(sdkOptions.env, buildGitAuthorEnv(ws?.userId ?? null));
 
     // Frozen-session indicator: the SDK never exposes the spawned CLI's pid,
     // so tag the child env with a unique value the process monitor can match

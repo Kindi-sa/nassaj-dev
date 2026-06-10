@@ -5,6 +5,7 @@ import { promises as fs } from 'fs';
 import { projectsDb } from '../modules/database/index.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
+import { buildGitAuthorEnv, getUserGithubToken, buildTokenPushUrl } from '../utils/gitIdentity.js';
 
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
@@ -44,6 +45,36 @@ function spawnAsync(command, args, options = {}) {
       reject(error);
     });
   });
+}
+
+/**
+ * Resolves the push target for a remote (B-MU-UX-GIT-ID push credentials).
+ *
+ * If the requesting user has an active GitHub token AND the remote resolves to
+ * an https github.com URL, returns a transient token-embedded URL to push to
+ * (never persisted to .git/config, never logged). Otherwise returns the remote
+ * name unchanged so the caller falls back to the shared push behavior.
+ *
+ * @param {string} projectPath repo working directory
+ * @param {string} remoteName validated remote name (e.g. 'origin')
+ * @param {number|undefined} userId authenticated user id (req.user.id)
+ * @returns {Promise<string>} token URL, or the remote name as fallback
+ */
+async function resolveTokenPushTarget(projectPath, remoteName, userId) {
+  const token = getUserGithubToken(userId);
+  if (!token) {
+    return remoteName; // No per-user token -> shared remote credentials.
+  }
+  let remoteUrl;
+  try {
+    const { stdout } = await spawnAsync('git', ['remote', 'get-url', remoteName], { cwd: projectPath });
+    remoteUrl = stdout.trim();
+  } catch {
+    return remoteName; // Remote absent/unresolvable -> fall back.
+  }
+  // buildTokenPushUrl returns null for non-https-github remotes (SSH, other
+  // hosts, agy/placeholder repos), in which case we keep the named remote.
+  return buildTokenPushUrl(remoteUrl, token) || remoteName;
 }
 
 // Input validation helpers (defense-in-depth)
@@ -543,8 +574,15 @@ router.post('/initial-commit', async (req, res) => {
     // Add all files
     await spawnAsync('git', ['add', '.'], { cwd: projectPath });
 
-    // Create initial commit
-    const { stdout } = await spawnAsync('git', ['commit', '-m', 'Initial commit'], { cwd: projectPath });
+    // Create initial commit, attributed to the requesting user (B-MU-UX-GIT-ID).
+    // GIT_AUTHOR_*/GIT_COMMITTER_* are injected transiently for this spawn only;
+    // when the user has no stored identity this is empty and git falls back to
+    // the system/global config (current behavior).
+    const authorEnv = buildGitAuthorEnv(req.user?.id);
+    const { stdout } = await spawnAsync('git', ['commit', '-m', 'Initial commit'], {
+      cwd: projectPath,
+      env: { ...process.env, ...authorEnv },
+    });
 
     res.json({ success: true, output: stdout, message: 'Initial commit created successfully' });
   } catch (error) {
@@ -583,9 +621,16 @@ router.post('/commit', async (req, res) => {
       await spawnAsync('git', ['add', '--', repositoryRelativeFilePath], { cwd: repositoryRootPath });
     }
 
-    // Commit with message
-    const { stdout } = await spawnAsync('git', ['commit', '-m', message], { cwd: repositoryRootPath });
-    
+    // Commit with message, attributed to the requesting user (B-MU-UX-GIT-ID).
+    // The per-user identity is injected transiently via GIT_AUTHOR_*/
+    // GIT_COMMITTER_* for this spawn only — no global git config is touched.
+    // Empty when the user has no stored identity -> falls back to system config.
+    const authorEnv = buildGitAuthorEnv(req.user?.id);
+    const { stdout } = await spawnAsync('git', ['commit', '-m', message], {
+      cwd: repositoryRootPath,
+      env: { ...process.env, ...authorEnv },
+    });
+
     res.json({ success: true, output: stdout });
   } catch (error) {
     console.error('Git commit error:', error);
@@ -1264,7 +1309,15 @@ router.post('/push', async (req, res) => {
 
     validateRemoteName(remoteName);
     validateBranchName(remoteBranch);
-    const { stdout } = await spawnAsync('git', ['push', remoteName, remoteBranch], { cwd: projectPath });
+
+    // Per-user push credentials (B-MU-UX-GIT-ID): if the requesting user has
+    // their own active GitHub token and the remote is an https github.com URL,
+    // push to a transient token-embedded URL so the push is attributed to them.
+    // The token is used only for this spawn; it is never written into
+    // .git/config (we pass a URL, not `git remote set-url`) and never logged.
+    // No token / non-https-github remote -> fall back to the shared remote name.
+    const pushTarget = await resolveTokenPushTarget(projectPath, remoteName, req.user?.id);
+    const { stdout } = await spawnAsync('git', ['push', pushTarget, remoteBranch], { cwd: projectPath });
 
     res.json({
       success: true,
@@ -1347,9 +1400,24 @@ router.post('/publish', async (req, res) => {
       });
     }
 
-    // Publish the branch (set upstream and push)
+    // Publish the branch (set upstream and push).
+    // Per-user push credentials (B-MU-UX-GIT-ID): when the requesting user has
+    // their own token (https github remote), push to a transient token-embedded
+    // URL so the push is attributed to them, then record the upstream against
+    // the CLEAN named remote — so .git/config never holds the token. Otherwise
+    // fall back to the shared `git push --set-upstream <remote>`.
     validateRemoteName(remoteName);
-    const { stdout } = await spawnAsync('git', ['push', '--set-upstream', remoteName, branch], { cwd: projectPath });
+    const pushTarget = await resolveTokenPushTarget(projectPath, remoteName, req.user?.id);
+    let stdout;
+    if (pushTarget === remoteName) {
+      ({ stdout } = await spawnAsync('git', ['push', '--set-upstream', remoteName, branch], { cwd: projectPath }));
+    } else {
+      // Push via the token URL (no upstream can be tracked against a raw URL)...
+      ({ stdout } = await spawnAsync('git', ['push', pushTarget, `${branch}:${branch}`], { cwd: projectPath }));
+      // ...then record the upstream against the clean named remote (token-free).
+      await spawnAsync('git', ['config', `branch.${branch}.remote`, remoteName], { cwd: projectPath });
+      await spawnAsync('git', ['config', `branch.${branch}.merge`, `refs/heads/${branch}`], { cwd: projectPath });
+    }
     
     res.json({ 
       success: true, 
