@@ -63,6 +63,14 @@ module.exports = {
         // مرور قوية وتُطبع مرة واحدة في سجل الخادم.
         // BOOTSTRAP_OWNER_USERNAME: 'owner',
         // BOOTSTRAP_OWNER_PASSWORD: 'CHANGE_ME_min_12_chars',
+
+        // ── Passkeys / WebAuthn (B-PK) ──────────────────────────────────────
+        // هوية الـ relying party لمفاتيح المرور. RP_ID نطاق فقط بلا scheme؛
+        // ORIGIN أصل كامل (يدعم قائمة بفواصل). بدونها يسقط الخادم إلى إعداد
+        // localhost التطويري ولن تعمل passkeys على النطاق المنشور.
+        WEBAUTHN_RP_ID: 'nassaj-dev.alkindy.tech',
+        WEBAUTHN_ORIGIN: 'https://nassaj-dev.alkindy.tech',
+        WEBAUTHN_RP_NAME: 'Nassaj Dev',
       },
     },
   ],
