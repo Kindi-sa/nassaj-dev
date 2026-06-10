@@ -147,10 +147,6 @@
       "label": "Koyu Mod",
       "description": "Açık ve koyu temalar arasında geçiş yap"
     },
-    "participantsBar": {
-      "label": "Katılımcı çubuğunu göster",
-      "description": "Konuşmanın üst kısmında ajanlar ve katılımcılar şeridini göster"
-    },
     "projectSorting": {
       "label": "Proje Sıralama",
       "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",

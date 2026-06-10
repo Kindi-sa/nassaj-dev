@@ -147,10 +147,6 @@
       "label": "ダークモード",
       "description": "ライトテーマとダークテーマを切り替えます"
     },
-    "participantsBar": {
-      "label": "参加者バーを表示",
-      "description": "会話の上部にエージェントと参加者のバーを表示します"
-    },
     "projectSorting": {
       "label": "プロジェクトの並び順",
       "description": "サイドバーでのプロジェクトの並び順を設定します",

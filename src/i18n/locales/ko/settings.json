@@ -147,10 +147,6 @@
       "label": "다크 모드",
       "description": "라이트/다크 테마 전환"
     },
-    "participantsBar": {
-      "label": "참가자 표시줄 보기",
-      "description": "대화 상단에 에이전트 및 참가자 표시줄을 표시합니다"
-    },
     "projectSorting": {
       "label": "프로젝트 정렬",
       "description": "사이드바에서 프로젝트 정렬 방식",

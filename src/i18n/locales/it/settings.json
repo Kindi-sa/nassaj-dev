@@ -147,10 +147,6 @@
       "label": "Modalità scura",
       "description": "Alterna tra tema chiaro e scuro"
     },
-    "participantsBar": {
-      "label": "Mostra barra partecipanti",
-      "description": "Mostra la striscia di agenti e partecipanti in cima alla conversazione"
-    },
     "projectSorting": {
       "label": "Ordinamento progetti",
       "description": "Come vengono ordinati i progetti nella barra laterale",
