@@ -38,6 +38,10 @@
       "wontfix": "لن يُصلح"
     }
   },
+  "decisions": {
+    "title": "القرارات",
+    "empty": "لا قرارات بعد"
+  },
   "architecture": {
     "technical": "تقني",
     "simplified": "مبسّط",

@@ -38,6 +38,10 @@
       "wontfix": "Won't fix"
     }
   },
+  "decisions": {
+    "title": "Decisions",
+    "empty": "No decisions yet"
+  },
   "architecture": {
     "technical": "Technical",
     "simplified": "Simplified",

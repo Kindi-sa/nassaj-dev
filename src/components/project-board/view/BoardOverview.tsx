@@ -1,8 +1,17 @@
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, CheckCircle2, Circle, CircleDot, Wrench, XCircle } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Circle,
+  CircleDot,
+  FileText,
+  Wrench,
+  XCircle,
+} from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
 import type {
+  BoardDecision,
   BoardIssue,
   BoardTask,
   IssueSeverity,
@@ -224,6 +233,47 @@ function IssuesList({ state }: { state: ProjectBoardState }) {
   );
 }
 
+function DecisionRow({ decision }: { decision: BoardDecision }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10px] text-muted-foreground">{decision.id}</span>
+        <span className="text-sm font-medium text-foreground">{decision.title}</span>
+      </div>
+      {decision.link && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <FileText className="mt-0.5 h-3 w-3 flex-shrink-0" />
+          <span dir="ltr" className="break-all font-mono text-[11px]">
+            {decision.link}
+          </span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function DecisionsList({ state }: { state: ProjectBoardState }) {
+  const { t } = useTranslation('projectBoard');
+  const decisions = state.decisions ?? [];
+
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{t('decisions.title')}</h3>
+      {decisions.length ? (
+        <div className="space-y-2">
+          {decisions.map((decision) => (
+            <DecisionRow key={decision.id} decision={decision} />
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-border/60 px-3 py-4 text-center text-[11px] text-muted-foreground">
+          {t('decisions.empty')}
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function BoardOverview({ state }: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
 
@@ -242,6 +292,7 @@ export default function BoardOverview({ state }: BoardOverviewProps) {
         <PhaseTimeline state={state} />
         <TasksBoard state={state} />
         <IssuesList state={state} />
+        <DecisionsList state={state} />
       </div>
     </div>
   );
