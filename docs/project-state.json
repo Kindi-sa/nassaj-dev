@@ -3,7 +3,7 @@
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
   "updated": "2026-06-10",
-  "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مخطّطة تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API يهبط أولاً قبل بنود الواجهة. تفاصيل: docs/workitems/PHASE-MU.md.",
+  "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "phases": [
     { "id": "P0", "title": "تأسيس الفرع: AntigravityProvider (agy) + عربية/RTL", "status": "done", "progress": 100 },
     { "id": "P1", "title": "موثوقية الجلسات والاستئناف (PHASE-SR-0)", "status": "done", "progress": 100 },
@@ -25,22 +25,22 @@
     { "id": "T-11", "phase": "P4", "title": "عزل اشتراكات Claude/agy لكل مستخدم (CLAUDE_CONFIG_DIR لكل عملية)", "status": "in_progress", "owner": "backend-dev", "closed": null },
     { "id": "T-12", "phase": "P4", "title": "onboarding ربط حسابات Claude وagy من تبويب الملف الشخصي", "status": "in_progress", "owner": "backend-dev", "closed": null },
     { "id": "T-13", "phase": "P4", "title": "تفعيل علم SESSION_REGISTRY_agy افتراضياً بعد فترة مراقبة", "status": "open", "owner": "backend-dev", "closed": null },
-    { "id": "T-14", "phase": "P4", "title": "B-MU-UX-API: كشف مالك الجلسة والمشاركين للعميل (أساس شريحة العزو/الحضور)", "status": "open", "owner": "backend-dev", "closed": null },
-    { "id": "T-15", "phase": "P4", "title": "C-MU-UX-OWNER-BADGE: شارة المالك لكل جلسة في الشريط الجانبي", "status": "open", "owner": "frontend-dev", "closed": null },
-    { "id": "T-16", "phase": "P4", "title": "C-MU-UX-MSG-IDENTITY: هويّة المنسّق مقابل الوكيل الفرعي بلون المالك داخل المحادثة", "status": "open", "owner": "frontend-dev", "closed": null },
-    { "id": "T-17", "phase": "P4", "title": "B-MU-UX-PRESENCE + C-MU-UX-PRESENCE: حضور لحظي (قناة WS + لوحة منفصلة)", "status": "open", "owner": "backend-dev", "closed": null },
-    { "id": "T-18", "phase": "P4", "title": "B-MU-UX-GIT-ID: هويّة git per-user (مؤلِّف commit + دفع بتوكن المستخدم مع تراجع للحساب المشترك)", "status": "open", "owner": "backend-dev", "closed": null },
-    { "id": "T-19", "phase": "P4", "title": "B-MU-UX-FIX-MIRROR: تقييد معالِجات المرآة اللحظية بالجلسة النشطة", "status": "open", "owner": "frontend-dev", "closed": null },
-    { "id": "T-20", "phase": "P4", "title": "B-MU-UX-FIX-WSROTATE: إصلاح موت WebSocket اللحظي بعد تدوير التوكن", "status": "open", "owner": "frontend-dev", "closed": null },
-    { "id": "T-21", "phase": "P4", "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)", "status": "open", "owner": "backend-dev", "closed": null }
+    { "id": "T-14", "phase": "P4", "title": "B-MU-UX-API: كشف مالك الجلسة والمشاركين للعميل (أساس شريحة العزو/الحضور)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-15", "phase": "P4", "title": "C-MU-UX-OWNER-BADGE: شارة المالك لكل جلسة في الشريط الجانبي", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-16", "phase": "P4", "title": "C-MU-UX-MSG-IDENTITY: هويّة المنسّق مقابل الوكيل الفرعي بلون المالك داخل المحادثة", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-17", "phase": "P4", "title": "B-MU-UX-PRESENCE + C-MU-UX-PRESENCE: حضور لحظي (قناة WS + لوحة منفصلة)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-18", "phase": "P4", "title": "B-MU-UX-GIT-ID: هويّة git per-user (مؤلِّف commit + دفع بتوكن المستخدم مع تراجع للحساب المشترك)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-19", "phase": "P4", "title": "B-MU-UX-FIX-MIRROR: تقييد معالِجات المرآة اللحظية بالجلسة النشطة", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-20", "phase": "P4", "title": "B-MU-UX-FIX-WSROTATE: إصلاح موت WebSocket اللحظي بعد تدوير التوكن", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-21", "phase": "P4", "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" }
   ],
   "issues": [
     { "id": "B-1", "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف", "severity": "high", "status": "fixed", "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)", "found": "2026-06-08" },
     { "id": "B-2", "title": "pm2 restart يقتل جلسات Claude الأبناء وكل الوكلاء (treekill)", "severity": "critical", "status": "fixed", "fix": "treekill:false + kill_timeout 24h في PM2، وdrain موقوت بلا سقف قبل الخروج (ADR-021/ADR-022)", "found": "2026-06-07" },
     { "id": "B-3", "title": "مؤشر تعفّن السياق لا يحتسب توكنز الـcache", "severity": "medium", "status": "fixed", "fix": "تصحيح حساب التوكنز في TokenUsageSummary ليشمل cache مع شريط ملوّن بعتبات محافظة", "found": "2026-06-05" },
     { "id": "B-4", "title": "نموذج Fable لا يُتعرّف عليه كسياق 1M في resolveContextWindow", "severity": "low", "status": "fixed", "fix": "إضافة أنماط Fable إلى كتالوج النماذج الديناميكي (10bb55e)", "found": "2026-06-09" },
-    { "id": "B-5", "title": "أحداث المرآة اللحظية تُفسد واجهة الجلسة المعروضة (معالِجات complete/error/status/permission_request لا تقارن msg.sessionId بالنشطة)", "severity": "high", "status": "open", "fix": "B-MU-UX-FIX-MIRROR: تقييد كل معالِج بالـsessionId النشط في useChatRealtimeHandlers.ts", "found": "2026-06-10" },
-    { "id": "B-6", "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)", "severity": "high", "status": "open", "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx", "found": "2026-06-10" }
+    { "id": "B-5", "title": "أحداث المرآة اللحظية تُفسد واجهة الجلسة المعروضة (معالِجات complete/error/status/permission_request لا تقارن msg.sessionId بالنشطة)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-MIRROR: تقييد كل معالِج بالـsessionId النشط في useChatRealtimeHandlers.ts (638d022)", "found": "2026-06-10" },
+    { "id": "B-6", "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)", "severity": "high", "status": "fixed", "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx (fe3fbe2)", "found": "2026-06-10" }
   ],
   "decisions": [
     { "id": "ADR-021", "title": "بقاء الجلسات وإعادة البث (session survival & replay)", "link": "docs/decisions/021-session-survival-and-replay.md" },
