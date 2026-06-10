@@ -44,7 +44,7 @@
     { "id": "T-28", "phase": "P4", "title": "C-MU-UX-BOARD-FIX: تشخيص «no project state file» (ليس باگ) + حالة فراغ إرشادية وزر نسخ skeleton ‏schema v1", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
     { "id": "T-29", "phase": "P5", "title": "B-PK-1..4: ‏webauthn_credentials + repository، env/challenge store، خدمة ومسارات /api/auth/webauthn (تسجيل مصادَق + دخول discoverable بعقد /login)", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
     { "id": "T-30", "phase": "P5", "title": "C-PK-1..3: زر «الدخول بمفتاح مرور» في LoginForm + طبقة @simplewebauthn/browser + إدارة المفاتيح في Profile", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
-    { "id": "T-31", "phase": "P4", "title": "الثيمات في Appearance — معلّق بانتظار قرار تصميمي: لا ثيمات موجودة مسبقاً؛ يلزم Design Brief من ui-designer لتعريف لوحات الألوان قبل التنفيذ", "status": "open", "owner": "frontend-dev", "closed": null }
+    { "id": "T-31", "phase": "P4", "title": "C-MU-UX-THEMES: منتقي ثيمات أصيل في Appearance — محرّك enhanced-appearance منقول إلى src/lib/theme-presets.ts: ‏4 presets (Claude/Cursor/Codex/Gemini) + محرر مخصص + Default، تكامل مع dark في ThemeContext، مفتاح nassaj-theme-preset، تطبيق مبكر بلا وميض (commit 27627a0)", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" }
   ],
   "issues": [
     { "id": "B-1", "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف", "severity": "high", "status": "fixed", "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)", "found": "2026-06-08" },

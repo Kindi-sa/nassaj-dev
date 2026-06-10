@@ -384,12 +384,19 @@
   زر نسخ skeleton صالح وفق schema v1. يقابل **B-8** في `project-state.json`.
 - **Commit:** ‏`e75af2b`.
 
-#### C-MU-UX-THEMES: الثيمات في Appearance ⏸️ (معلّق — بانتظار قرار تصميمي)
+#### C-MU-UX-THEMES: الثيمات في Appearance ✅
 - **الوصف:** سُجّل في ‏`e3b1f24` «قيد التنفيذ بالتوازي»، وتبيّن من استقصاء شامل (الكود + git history
   كل الفروع + dangling commits + تبويب Branding) أنه **لا توجد ثيمات جاهزة في المشروع إطلاقاً**:
   تبويب Branding شعار وعنوان فقط، وThemeContext ثنائي dark/light، وsrc/index.css مهيأ بنيوياً
-  لثيمات إضافية (متغيرات CSS بنمط shadcn) لكن لا ثيم إضافي معرَّف.
-- **سبب التعليق:** لا ثيمات موجودة مسبقاً؛ يلزم Design Brief من ui-designer لتعريف لوحات الألوان قبل التنفيذ.
+  لثيمات إضافية (متغيرات CSS بنمط shadcn) لكن لا ثيم إضافي معرَّف. عُلّق مؤقتاً بانتظار قرار تصميمي.
+- **الحلّ (2026-06-10):** نُقل محرّك الثيمات من إضافة `enhanced-appearance` v0.6.0 ‏(Apache 2.0،
+  AlKindy OSS) كميزة أصيلة: ‏`src/lib/theme-presets.ts` (محرّك اشتقاق ~29 متغير CSS بنمط shadcn) +
+  منتقي ثيم في إعدادات Appearance ‏(`ThemePresetPicker.tsx`، radiogroup ببطاقات swatches) —
+  4 presets ‏(Claude/Cursor/Codex/Gemini) + محرر ألوان مخصص + خيار «Default» افتراضي يعيد تعريفات
+  ‏`src/index.css` الأصلية. الحالة في `localStorage[nassaj-theme-preset]`، الوضع الداكن من
+  ThemeContext القائم (إعادة اشتقاق عند التبديل، بلا toggles مكررة)، تطبيق مبكر في `main.jsx`
+  يمنع وميض الثيم الافتراضي. ‏i18n كاملة ar/en والبقية إنجليزية.
+- **Commit:** ‏`27627a0`.
 
 ### مخطّط ترتيب التنفيذ الحرج (V1)
 
