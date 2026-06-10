@@ -7,9 +7,10 @@ import { api } from '../utils/api';
  * App-wide branding (custom logo + title).
  *
  * The values are stored server-side in `app_config` (application-level, shared
- * across all users) and fetched once when the authenticated shell mounts. When
- * either value is null the UI falls back to its built-in default (the inline SVG
- * logo and the i18n `app.title`).
+ * across all users) and fetched once when the app mounts — from a PUBLIC,
+ * non-sensitive endpoint, so the pre-auth screens (login/setup/splash) already
+ * show the custom identity. When either value is null the UI falls back to its
+ * built-in default (the inline SVG logo and the i18n `app.title`).
  */
 export type Branding = {
   title: string | null;
@@ -58,6 +59,31 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Apply the custom identity to the document chrome (tab title + favicon) as
+  // soon as branding resolves, so the very first thing a visitor sees — even on
+  // the pre-auth login/setup screens — is the custom brand, not the default
+  // values baked into index.html. When no custom value is set we leave the
+  // static defaults untouched.
+  useEffect(() => {
+    if (isLoading || typeof document === 'undefined') {
+      return;
+    }
+    if (branding.title) {
+      document.title = branding.title;
+    }
+    if (branding.logoUrl) {
+      // Replace the static favicon links with the uploaded logo (all allowed
+      // upload formats — png/jpg/webp/svg — are valid favicon sources in
+      // current browsers). apple-touch-icon links are left alone: iOS needs
+      // fixed-size PNGs and falls back gracefully.
+      document.head.querySelectorAll('link[rel="icon"]').forEach((node) => node.remove());
+      const link = document.createElement('link');
+      link.rel = 'icon';
+      link.href = branding.logoUrl;
+      document.head.appendChild(link);
+    }
+  }, [branding.title, branding.logoUrl, isLoading]);
 
   return (
     <BrandingContext.Provider value={{ ...branding, isLoading, refresh }}>

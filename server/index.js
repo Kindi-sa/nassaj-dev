@@ -75,7 +75,7 @@ import taskmasterRoutes from './routes/taskmaster.js';
 import projectBoardRoutes from './routes/project-board.js';
 import mcpUtilsRoutes from './routes/mcp-utils.js';
 import commandsRoutes from './routes/commands.js';
-import settingsRoutes from './routes/settings.js';
+import settingsRoutes, { getBrandingHandler } from './routes/settings.js';
 import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import userRoutes from './routes/user.js';
@@ -223,6 +223,13 @@ app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
 
 // Commands API Routes (protected)
 app.use('/api/commands', authenticateToken, commandsRoutes);
+
+// Public branding read (custom title + logo URL — non-sensitive). Registered
+// BEFORE the authenticated /api/settings mount so the pre-auth screens
+// (login/setup/splash) can fetch the custom identity without a token. Only GET
+// is captured here; branding writes still go through the protected router below
+// (owner-only).
+app.get('/api/settings/branding', getBrandingHandler);
 
 // Settings API Routes (protected)
 app.use('/api/settings', authenticateToken, settingsRoutes);

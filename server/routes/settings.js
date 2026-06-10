@@ -147,9 +147,12 @@ function getBrandingLogoUrl() {
   return version ? `/branding/logo.${ext}?v=${version}` : `/branding/logo.${ext}`;
 }
 
-// Public-ish read: any authenticated user needs this to render the header chrome.
-// (The whole /api/settings router already requires a valid token.)
-router.get('/branding', async (req, res) => {
+// Public read: the branding payload is non-sensitive (custom title + logo URL
+// only) and is needed by the PRE-AUTH screens (login/setup/splash) to show the
+// custom identity. server/index.js registers this same handler on a public
+// route BEFORE the authenticated /api/settings mount, so GET works without a
+// token while all branding writes below stay owner-only.
+export async function getBrandingHandler(req, res) {
   try {
     const title = appConfigDb.get(BRANDING_TITLE_KEY);
     res.json({
@@ -160,7 +163,9 @@ router.get('/branding', async (req, res) => {
     console.error('Error fetching branding:', error);
     res.status(500).json({ error: 'Failed to fetch branding' });
   }
-});
+}
+
+router.get('/branding', getBrandingHandler);
 
 // Owner-only: update the custom application title. Empty/whitespace clears it
 // (falls back to the default i18n title on the client).

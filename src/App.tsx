@@ -22,14 +22,12 @@ function AuthenticatedApp() {
       <PluginsProvider>
         <TasksSettingsProvider>
           <TaskMasterProvider>
-            <BrandingProvider>
-              <ProtectedRoute>
-                <Routes>
-                  <Route path="/" element={<AppContent />} />
-                  <Route path="/session/:sessionId" element={<AppContent />} />
-                </Routes>
-              </ProtectedRoute>
-            </BrandingProvider>
+            <ProtectedRoute>
+              <Routes>
+                <Route path="/" element={<AppContent />} />
+                <Route path="/session/:sessionId" element={<AppContent />} />
+              </Routes>
+            </ProtectedRoute>
           </TaskMasterProvider>
         </TasksSettingsProvider>
       </PluginsProvider>
@@ -136,14 +134,19 @@ export default function App() {
         <RtlProvider>
           <ParticipantsBarProvider>
             <AuthProvider>
-              <Router basename={routerBasename}>
-                <Routes>
-                  {/* Public invite-acceptance route — must bypass the auth gate. */}
-                  <Route path="/join" element={<JoinPage />} />
-                  {/* Everything else is gated behind authentication. */}
-                  <Route path="/*" element={<AuthenticatedApp />} />
-                </Routes>
-              </Router>
+              {/* Branding sits ABOVE the auth gate: its endpoint is public, so the
+                  login/setup/join screens and the document chrome (title/favicon)
+                  already carry the custom identity before any token exists. */}
+              <BrandingProvider>
+                <Router basename={routerBasename}>
+                  <Routes>
+                    {/* Public invite-acceptance route — must bypass the auth gate. */}
+                    <Route path="/join" element={<JoinPage />} />
+                    {/* Everything else is gated behind authentication. */}
+                    <Route path="/*" element={<AuthenticatedApp />} />
+                  </Routes>
+                </Router>
+              </BrandingProvider>
             </AuthProvider>
           </ParticipantsBarProvider>
         </RtlProvider>

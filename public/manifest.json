@@ -1,7 +1,7 @@
 {
-  "name": "CloudCLI UI",
-  "short_name": "CloudCLI UI",
-  "description": "CloudCLI UI web application",
+  "name": "نسّاج",
+  "short_name": "نسّاج",
+  "description": "نسّاج — مساحة عمل الوكلاء",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

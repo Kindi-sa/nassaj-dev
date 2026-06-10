@@ -4,6 +4,7 @@ import { KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { IS_PLATFORM } from '../../../constants/config';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import { useWebAuthn } from '../hooks/useWebAuthn';
 
@@ -35,6 +36,10 @@ export default function LoginForm() {
   const { t } = useTranslation('auth');
   const { login } = useAuth();
   const { isSupported: isPasskeySupported, loginWithPasskey } = useWebAuthn();
+  // Custom branding title (if configured) is interpolated into the description
+  // copy (`{{appName}}`) so the login screen never names the stock product.
+  const { title: brandingTitle } = useBranding();
+  const appName = brandingTitle ?? t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
 
   const [formState, setFormState] = useState<LoginFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');
@@ -86,7 +91,7 @@ export default function LoginForm() {
   return (
     <AuthScreenLayout
       title={t('login.title')}
-      description={t('login.description')}
+      description={t('login.description', { appName })}
       footerText={t('login.footer')}
     >
       {showPasskeyButton && (
