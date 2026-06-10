@@ -1,8 +1,8 @@
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import StandaloneShell from '../../../../standalone-shell/view/StandaloneShell';
-import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../../../constants/config';
+import StandaloneShell from '../../../../../../standalone-shell/view/StandaloneShell';
+import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../../../../../constants/config';
 
 /** The approved registration command that writes the credential into the
  *  caller's isolated per-user directory (PTY injects the isolated env). */

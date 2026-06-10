@@ -1,8 +1,8 @@
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import StandaloneShell from '../../../../standalone-shell/view/StandaloneShell';
-import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../../../constants/config';
+import StandaloneShell from '../../../../../../standalone-shell/view/StandaloneShell';
+import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../../../../../constants/config';
 
 /** The approved registration command. agy has no separate `agy login`
  *  subcommand: running `agy` interactively launches its OAuth flow whenever no

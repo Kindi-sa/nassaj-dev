@@ -3,6 +3,8 @@ import type { McpProject } from '../../../../../mcp/types';
 import { McpServers } from '../../../../../mcp';
 
 import AccountContent from './content/AccountContent';
+import AgyConnectionSection from './content/AgyConnectionSection';
+import ClaudeConnectionSection from './content/ClaudeConnectionSection';
 import PermissionsContent from './content/PermissionsContent';
 
 export default function AgentCategoryContentSection({
@@ -22,11 +24,19 @@ export default function AgentCategoryContentSection({
   return (
     <div className="flex-1 overflow-y-auto p-3 md:p-4">
       {selectedCategory === 'account' && (
-        <AccountContent
-          agent={selectedAgent}
-          authStatus={agentContextById[selectedAgent].authStatus}
-          onLogin={agentContextById[selectedAgent].onLogin}
-        />
+        <div className="space-y-6">
+          <AccountContent
+            agent={selectedAgent}
+            authStatus={agentContextById[selectedAgent].authStatus}
+            onLogin={agentContextById[selectedAgent].onLogin}
+          />
+
+          {/* Per-user subscription link (credential isolation, Phase-MU) —
+              moved here from the Profile tab so each agent owns its own
+              credentials section. */}
+          {selectedAgent === 'claude' && <ClaudeConnectionSection />}
+          {selectedAgent === 'antigravity' && <AgyConnectionSection />}
+        </div>
       )}
 
       {selectedCategory === 'permissions' && selectedAgent === 'claude' && (

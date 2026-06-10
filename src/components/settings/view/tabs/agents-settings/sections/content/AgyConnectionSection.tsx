@@ -2,15 +2,16 @@ import { useCallback, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Link2, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '../../../../../shared/view/ui';
-import { useAuth } from '../../../../auth';
-import SettingsSection from '../../SettingsSection';
-import { useAgyConnection } from '../../../hooks/useAgyConnection';
+import { Button } from '../../../../../../../shared/view/ui';
+import { useAuth } from '../../../../../../auth';
+import SettingsSection from '../../../../SettingsSection';
+import { useAgyConnection } from '../../../../../hooks/useAgyConnection';
 
 import AgySetupModal from './AgySetupModal';
 
 /**
- * "Antigravity (agy) subscription" section of the personal Profile tab.
+ * "Antigravity (agy) subscription" section of the Agents settings page,
+ * rendered under the Antigravity agent's Account view.
  * Mirror of `ClaudeConnectionSection`.
  *
  * Shows whether the current user has linked their own agy credential and, when

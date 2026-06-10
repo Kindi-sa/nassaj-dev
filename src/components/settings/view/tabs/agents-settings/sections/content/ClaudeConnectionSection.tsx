@@ -2,15 +2,16 @@ import { useCallback, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Link2, Loader2, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { Button } from '../../../../../shared/view/ui';
-import { useAuth } from '../../../../auth';
-import SettingsSection from '../../SettingsSection';
-import { useClaudeConnection } from '../../../hooks/useClaudeConnection';
+import { Button } from '../../../../../../../shared/view/ui';
+import { useAuth } from '../../../../../../auth';
+import SettingsSection from '../../../../SettingsSection';
+import { useClaudeConnection } from '../../../../../hooks/useClaudeConnection';
 
 import ClaudeSetupTokenModal from './ClaudeSetupTokenModal';
 
 /**
- * "Claude subscription" section of the personal Profile tab (B-MU-ONBOARD).
+ * "Claude subscription" section of the Agents settings page (B-MU-ONBOARD),
+ * rendered under the Claude agent's Account view.
  *
  * Shows whether the current user has linked their own Claude credential and,
  * when not linked, drives a guided onboarding flow:

@@ -8,8 +8,6 @@ import { MIN_PASSWORD_LENGTH } from '../../../../auth/constants';
 import { api } from '../../../../../utils/api';
 import { parseJsonSafely, resolveApiErrorMessage } from '../../../../auth/utils';
 import SettingsSection from '../../SettingsSection';
-import ClaudeConnectionSection from './ClaudeConnectionSection';
-import AgyConnectionSection from './AgyConnectionSection';
 
 type FeedbackKind = 'success' | 'error';
 type Feedback = { kind: FeedbackKind; message: string } | null;
@@ -194,12 +192,6 @@ export default function ProfileSettingsTab() {
         <h2 className="text-lg font-semibold text-foreground">{t('profile.title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t('profile.subtitle')}</p>
       </div>
-
-      {/* Claude subscription link (Phase-MU onboarding) */}
-      <ClaudeConnectionSection />
-
-      {/* Antigravity (agy) subscription link */}
-      <AgyConnectionSection />
 
       {/* Profile picture */}
       <SettingsSection
