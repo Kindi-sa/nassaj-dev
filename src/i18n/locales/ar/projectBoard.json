@@ -1,0 +1,45 @@
+{
+  "sections": {
+    "overview": "نظرة عامة",
+    "architecture": "الهيكلة"
+  },
+  "updated": "آخر تحديث {{date}}",
+  "error": "تعذّر تحميل لوحة المشروع.",
+  "stateError": "ملف project-state.json غير صالح — تُعرض آخر نسخة سليمة.",
+  "empty": {
+    "title": "لا توجد لوحة مشروع بعد",
+    "description": "لا يملك هذا المشروع ملف حالة. أنشئه لتحصل على لوحة حيّة بالمراحل والمهام والأخطاء.",
+    "hint": "تتحدّث اللوحة تلقائياً عند أي تغيير في الملف — دون حاجة لإعادة التحميل."
+  },
+  "phases": {
+    "title": "المراحل",
+    "current": "الحالية"
+  },
+  "tasksSection": {
+    "title": "المهام",
+    "open": "مفتوحة",
+    "in_progress": "جارية",
+    "done": "منجزة",
+    "empty": "لا مهام"
+  },
+  "issues": {
+    "title": "الأخطاء",
+    "severity": {
+      "low": "منخفضة",
+      "medium": "متوسطة",
+      "high": "عالية",
+      "critical": "حرجة"
+    },
+    "status": {
+      "open": "مفتوح",
+      "fixed": "أُصلح",
+      "wontfix": "لن يُصلح"
+    }
+  },
+  "architecture": {
+    "technical": "تقني",
+    "simplified": "مبسّط",
+    "missing": "لا توجد وثائق هيكلة (docs/ARCHITECTURE.md أو docs/ARCHITECTURE_AR.md).",
+    "variantMissing": "هذه النسخة من وثيقة الهيكلة غير موجودة."
+  }
+}

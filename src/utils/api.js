@@ -161,6 +161,9 @@ export const api = {
   },
   projectTaskmaster: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/taskmaster`),
+  // Project Board — live projection of docs/project-state.json + ARCHITECTURE files.
+  projectBoard: (projectId) =>
+    authenticatedFetch(`/api/project-board/${encodeURIComponent(projectId)}`),
   // Multi-user participation (Phase-MU): humans + agents seen in a session/project.
   // Lazy endpoints — fetched on demand (hover/open), never in the initial load.
   sessionParticipants: (sessionId) =>

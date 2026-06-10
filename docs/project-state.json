@@ -1,0 +1,41 @@
+{
+  "$version": 1,
+  "$spec": "~/.claude/wiki/project-board.md",
+  "project": "nassaj-dev",
+  "updated": "2026-06-10",
+  "phases": [
+    { "id": "P0", "title": "تأسيس الفرع: AntigravityProvider (agy) + عربية/RTL", "status": "done", "progress": 100 },
+    { "id": "P1", "title": "موثوقية الجلسات والاستئناف (PHASE-SR-0)", "status": "done", "progress": 100 },
+    { "id": "P2", "title": "مزامنة upstream v1.32.0 → v1.33.0", "status": "current", "progress": 0 },
+    { "id": "P3", "title": "لوحة المشروع + إخفاء TaskMaster", "status": "done", "progress": 100 },
+    { "id": "P4", "title": "تعدد المستخدمين بعزل الاشتراكات (Phase-MU)", "status": "pending", "progress": 0 }
+  ],
+  "tasks": [
+    { "id": "T-1", "phase": "P1", "title": "إصلاح replay عند استئناف agy: الردّ من transcript.jsonl لا stdout", "status": "done", "owner": "backend-dev", "closed": "2026-06-09" },
+    { "id": "T-2", "phase": "P1", "title": "سجل replay لكل جلسة خلف علم SESSION_REGISTRY_agy", "status": "done", "owner": "backend-dev", "closed": "2026-06-09" },
+    { "id": "T-3", "phase": "P1", "title": "drain موقوت قبل الإيقاف (B-N-DRAIN) + treekill:false في PM2", "status": "done", "owner": "backend-dev", "closed": "2026-06-09" },
+    { "id": "T-4", "phase": "P1", "title": "مرايا الجلسة اللحظية: بث قراءة-فقط لمشاهدين متعددين", "status": "done", "owner": "backend-dev", "closed": "2026-06-09" },
+    { "id": "T-5", "phase": "P2", "title": "دمج 15 commit من upstream v1.33.0 (الفرع chore/sync-upstream-v1.33)", "status": "in_progress", "owner": "backend-dev", "closed": null },
+    { "id": "T-6", "phase": "P2", "title": "تعطيل Antigravity مؤقتاً وإضافة مزوّد Cursor", "status": "open", "owner": "backend-dev", "closed": null },
+    { "id": "T-7", "phase": "P3", "title": "إخفاء تكامل TaskMaster بالكامل خلف العلم TASKMASTER_ENABLED", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-8", "phase": "P3", "title": "مسار /api/project-board مع مراقبة chokidar وبث WebSocket", "status": "done", "owner": "backend-dev", "closed": "2026-06-10" },
+    { "id": "T-9", "phase": "P3", "title": "واجهة لوحة المشروع: مراحل/مهام/أخطاء + هيكلة بمخططات Mermaid", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-10", "phase": "P3", "title": "ملفات dogfooding: project-state.json وARCHITECTURE بنسختيه", "status": "done", "owner": "frontend-dev", "closed": "2026-06-10" },
+    { "id": "T-11", "phase": "P4", "title": "عزل اشتراكات Claude/agy لكل مستخدم (CLAUDE_CONFIG_DIR لكل عملية)", "status": "in_progress", "owner": "backend-dev", "closed": null },
+    { "id": "T-12", "phase": "P4", "title": "onboarding ربط حسابات Claude وagy من تبويب الملف الشخصي", "status": "in_progress", "owner": "backend-dev", "closed": null },
+    { "id": "T-13", "phase": "P4", "title": "تفعيل علم SESSION_REGISTRY_agy افتراضياً بعد فترة مراقبة", "status": "open", "owner": "backend-dev", "closed": null }
+  ],
+  "issues": [
+    { "id": "B-1", "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف", "severity": "high", "status": "fixed", "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)", "found": "2026-06-08" },
+    { "id": "B-2", "title": "pm2 restart يقتل جلسات Claude الأبناء وكل الوكلاء (treekill)", "severity": "critical", "status": "fixed", "fix": "treekill:false + kill_timeout 24h في PM2، وdrain موقوت بلا سقف قبل الخروج (ADR-021/ADR-022)", "found": "2026-06-07" },
+    { "id": "B-3", "title": "مؤشر تعفّن السياق لا يحتسب توكنز الـcache", "severity": "medium", "status": "fixed", "fix": "تصحيح حساب التوكنز في TokenUsageSummary ليشمل cache مع شريط ملوّن بعتبات محافظة", "found": "2026-06-05" },
+    { "id": "B-4", "title": "نموذج Fable لا يُتعرّف عليه كسياق 1M في resolveContextWindow", "severity": "low", "status": "fixed", "fix": "إضافة أنماط Fable إلى كتالوج النماذج الديناميكي (10bb55e)", "found": "2026-06-09" }
+  ],
+  "decisions": [
+    { "id": "ADR-021", "title": "بقاء الجلسات وإعادة البث (session survival & replay)", "link": "docs/decisions/021-session-survival-and-replay.md" },
+    { "id": "ADR-022", "title": "PM2 كمشرف عمليات مع drain على SIGTERM", "link": "docs/decisions/022-process-supervisor-pm2-sigterm-drain.md" },
+    { "id": "ADR-023", "title": "تعدد المستخدمين بعزل اشتراك Claude", "link": "docs/decisions/023-multiuser-claude-subscription-isolation.md" },
+    { "id": "ADR-024", "title": "تعدد المستخدمين بعزل اشتراك agy", "link": "docs/decisions/024-multiuser-agy-subscription-isolation.md" },
+    { "id": "ADR-025", "title": "إصلاح شامل لاختيار النماذج", "link": "docs/decisions/025-model-selection-overhaul.md" }
+  ]
+}

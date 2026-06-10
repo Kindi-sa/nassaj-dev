@@ -72,6 +72,7 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import cursorRoutes from './routes/cursor.js';
 import taskmasterRoutes from './routes/taskmaster.js';
+import projectBoardRoutes from './routes/project-board.js';
 import mcpUtilsRoutes from './routes/mcp-utils.js';
 import commandsRoutes from './routes/commands.js';
 import settingsRoutes from './routes/settings.js';
@@ -212,6 +213,9 @@ app.use('/api/cursor', authenticateToken, cursorRoutes);
 
 // TaskMaster API Routes (protected)
 app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
+
+// Project Board API Routes (protected) — live view of docs/project-state.json
+app.use('/api/project-board', authenticateToken, projectBoardRoutes);
 
 // MCP utilities
 app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);

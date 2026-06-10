@@ -22,7 +22,8 @@
     "shell": "Shell",
     "files": "Dosyalar",
     "git": "Kaynak Kontrolü",
-    "tasks": "Görevler"
+    "tasks": "Görevler",
+    "board": "Project Board"
   },
   "status": {
     "loading": "Yükleniyor...",

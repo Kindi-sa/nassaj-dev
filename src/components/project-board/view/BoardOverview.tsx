@@ -1,0 +1,248 @@
+import { useTranslation } from 'react-i18next';
+import { AlertTriangle, CheckCircle2, Circle, CircleDot, Wrench, XCircle } from 'lucide-react';
+
+import { cn } from '../../../lib/utils';
+import type {
+  BoardIssue,
+  BoardTask,
+  IssueSeverity,
+  ProjectBoardState,
+  TaskStatus,
+} from '../types';
+
+type BoardOverviewProps = {
+  state: ProjectBoardState;
+};
+
+const SEVERITY_STYLES: Record<IssueSeverity, string> = {
+  low: 'bg-muted text-muted-foreground border-border',
+  medium: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
+  high: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
+  critical: 'bg-destructive/10 text-destructive border-destructive/30',
+};
+
+const TASK_COLUMNS: TaskStatus[] = ['open', 'in_progress', 'done'];
+
+function PhaseTimeline({ state }: { state: ProjectBoardState }) {
+  const { t } = useTranslation('projectBoard');
+
+  if (!state.phases?.length) {
+    return null;
+  }
+
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{t('phases.title')}</h3>
+      <ol className="relative space-y-0 border-s-2 border-border ps-5">
+        {state.phases.map((phase) => {
+          const isCurrent = phase.status === 'current';
+          const progress = Math.max(0, Math.min(100, Number(phase.progress) || 0));
+
+          return (
+            <li key={phase.id} className="relative pb-5 last:pb-0">
+              <span
+                className={cn(
+                  'absolute -start-[1.65rem] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-background',
+                  phase.status === 'done' && 'border-green-500 text-green-500',
+                  isCurrent && 'border-primary text-primary',
+                  phase.status === 'pending' && 'border-border text-muted-foreground',
+                  phase.status === 'cancelled' && 'border-border text-muted-foreground',
+                )}
+              >
+                {phase.status === 'done' && <CheckCircle2 className="h-3.5 w-3.5" />}
+                {isCurrent && <CircleDot className="h-3.5 w-3.5" />}
+                {phase.status === 'pending' && <Circle className="h-3 w-3" />}
+                {phase.status === 'cancelled' && <XCircle className="h-3.5 w-3.5" />}
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs text-muted-foreground">{phase.id}</span>
+                <span
+                  className={cn(
+                    'text-sm font-medium',
+                    phase.status === 'cancelled'
+                      ? 'text-muted-foreground line-through'
+                      : 'text-foreground',
+                  )}
+                >
+                  {phase.title}
+                </span>
+                {isCurrent && (
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                    {t('phases.current')}
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-2 flex max-w-md items-center gap-2">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all',
+                      phase.status === 'done' ? 'bg-green-500' : 'bg-primary',
+                    )}
+                    style={{ width: `${phase.status === 'done' ? 100 : progress}%` }}
+                  />
+                </div>
+                <span className="w-9 text-end text-[11px] tabular-nums text-muted-foreground">
+                  {phase.status === 'done' ? 100 : progress}%
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+function TaskCard({ task }: { task: BoardTask }) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <p className={cn('text-xs text-foreground', task.status === 'done' && 'text-muted-foreground')}>
+          {task.title}
+        </p>
+        <span className="flex-shrink-0 font-mono text-[10px] text-muted-foreground">{task.id}</span>
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono">{task.phase}</span>
+        {task.owner && <span>{task.owner}</span>}
+        {task.closed && <span>{task.closed}</span>}
+      </div>
+    </div>
+  );
+}
+
+function TasksBoard({ state }: { state: ProjectBoardState }) {
+  const { t } = useTranslation('projectBoard');
+  const tasks = state.tasks ?? [];
+
+  if (!tasks.length) {
+    return null;
+  }
+
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{t('tasksSection.title')}</h3>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {TASK_COLUMNS.map((column) => {
+          const columnTasks = tasks.filter((task) => task.status === column);
+
+          return (
+            <div key={column} className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-xs font-medium text-foreground">
+                  {t(`tasksSection.${column}`)}
+                </span>
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+                  {columnTasks.length}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {columnTasks.length ? (
+                  columnTasks.map((task) => <TaskCard key={task.id} task={task} />)
+                ) : (
+                  <p className="px-1 py-2 text-center text-[11px] text-muted-foreground">
+                    {t('tasksSection.empty')}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function IssueRow({ issue }: { issue: BoardIssue }) {
+  const { t } = useTranslation('projectBoard');
+
+  return (
+    <div className="rounded-lg border border-border/60 bg-card p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            'rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+            SEVERITY_STYLES[issue.severity] ?? SEVERITY_STYLES.low,
+          )}
+        >
+          {t(`issues.severity.${issue.severity}`, { defaultValue: issue.severity })}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">{issue.id}</span>
+        <span
+          className={cn(
+            'text-sm',
+            issue.status === 'open' ? 'font-medium text-foreground' : 'text-muted-foreground',
+          )}
+        >
+          {issue.title}
+        </span>
+        <span className="ms-auto flex items-center gap-1 text-[11px] text-muted-foreground">
+          {issue.status === 'fixed' && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+          {issue.status === 'open' && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
+          {issue.status === 'wontfix' && <XCircle className="h-3.5 w-3.5" />}
+          {t(`issues.status.${issue.status}`, { defaultValue: issue.status })}
+        </span>
+      </div>
+      {issue.fix && (
+        <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <Wrench className="mt-0.5 h-3 w-3 flex-shrink-0" />
+          <span>{issue.fix}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function IssuesList({ state }: { state: ProjectBoardState }) {
+  const { t } = useTranslation('projectBoard');
+  const issues = state.issues ?? [];
+
+  if (!issues.length) {
+    return null;
+  }
+
+  // Open issues first, then by severity weight inside each group.
+  const severityWeight: Record<IssueSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+  const sorted = [...issues].sort((a, b) => {
+    const openDelta = Number(a.status !== 'open') - Number(b.status !== 'open');
+    if (openDelta !== 0) return openDelta;
+    return (severityWeight[a.severity] ?? 4) - (severityWeight[b.severity] ?? 4);
+  });
+
+  return (
+    <section>
+      <h3 className="mb-3 text-sm font-semibold text-foreground">{t('issues.title')}</h3>
+      <div className="space-y-2">
+        {sorted.map((issue) => (
+          <IssueRow key={issue.id} issue={issue} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export default function BoardOverview({ state }: BoardOverviewProps) {
+  const { t } = useTranslation('projectBoard');
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-4xl space-y-8 px-4 py-5 sm:px-6">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold text-foreground">{state.project}</h2>
+          {state.updated && (
+            <span className="text-xs text-muted-foreground">
+              {t('updated', { date: state.updated })}
+            </span>
+          )}
+        </div>
+
+        <PhaseTimeline state={state} />
+        <TasksBoard state={state} />
+        <IssuesList state={state} />
+      </div>
+    </div>
+  );
+}

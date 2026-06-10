@@ -1,0 +1,45 @@
+{
+  "sections": {
+    "overview": "Overview",
+    "architecture": "Architecture"
+  },
+  "updated": "Updated {{date}}",
+  "error": "Failed to load the project board.",
+  "stateError": "project-state.json is invalid — showing the last valid version.",
+  "empty": {
+    "title": "No project board yet",
+    "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
+    "hint": "The board updates automatically whenever the file changes — no refresh needed."
+  },
+  "phases": {
+    "title": "Phases",
+    "current": "Current"
+  },
+  "tasksSection": {
+    "title": "Tasks",
+    "open": "Open",
+    "in_progress": "In progress",
+    "done": "Done",
+    "empty": "No tasks"
+  },
+  "issues": {
+    "title": "Issues",
+    "severity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "status": {
+      "open": "Open",
+      "fixed": "Fixed",
+      "wontfix": "Won't fix"
+    }
+  },
+  "architecture": {
+    "technical": "Technical",
+    "simplified": "Simplified",
+    "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
+    "variantMissing": "This version of the architecture document does not exist."
+  }
+}
