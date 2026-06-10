@@ -441,10 +441,10 @@
    "phase": "P4",
    "sprint": null,
    "kind": "feature",
-   "title": "B-PRIV-* المشروع الخاص: خطة architect معتمدة (visibility+created_by على projects + جدول project_members + إنفاذ خادمي على كل مسارات projectId لا فلترة واجهية + قفل وقائمة سياق). معلّق على قرار: هل يرى owner المنصة المشاريع الخاصة؟",
-   "status": "open",
+   "title": "B-PRIV-* المشروع الخاص (منجز): الخصوصية مطلقة — الخادم لا يُرجِع مشروعاً خاصاً لغير أعضائه حتى owner المنصة. visibility+created_by على projects + جدول project_members + getVisibleProjectPaths + حارس assertProjectVisible (404) على كل مسارات projectId شاملة الملفات وWS/presence + مسارات إدارة (visibility/members/orphan-recover) + قفل وبند سياق بالواجهة. اختبارات 301+15 (+12 تثبت عدم التسريب). commits a3dfaa4→dae6b33 + واجهة 078d5f8",
+   "status": "done",
    "owner": "architect",
-   "closed": null
+   "closed": "2026-06-10"
   }
  ],
  "issues": [
@@ -565,6 +565,12 @@
    "id": "ADR-026",
    "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
    "link": "docs/decisions/026-passkey-webauthn.md"
+  },
+  {
+   "id": "ADR-027",
+   "title": "خصوصية المشروع مطلقة: owner المنصة لا يرى محتوى مشروع خاص ليس عضواً فيه؛ استرداد اليتيم عبر نقل ملكية/حذف لا عبر رؤية المحتوى",
+   "path": "docs/decisions/027-private-projects.md",
+   "date": "2026-06-10"
   }
  ]
 }
