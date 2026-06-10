@@ -1,15 +1,18 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { Check, Edit2, Trash2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip } from '../../../../shared/view/ui';
 import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
 import { cn } from '../../../../lib/utils';
-import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import type { Project, ProjectSession, LLMProvider, SessionOwner } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import { ParticipantAvatar } from '../../../participants';
+import type { SessionParticipant } from '../../../participants';
 
 /**
  * Builds the absolute, openable session URL on the current origin, honoring any
@@ -42,6 +45,20 @@ type SidebarSessionItemProps = {
   ) => void;
   t: TFunction;
 };
+
+/**
+ * Adapts a session `owner` ({userId, username}) into the SessionParticipant
+ * shape ParticipantAvatar consumes. The avatar only reads userId/username/role
+ * for the coloured initial + tooltip, so the time fields are placeholders.
+ */
+const ownerToParticipant = (owner: SessionOwner): SessionParticipant => ({
+  userId: owner.userId,
+  username: owner.username,
+  role: 'owner',
+  first_seen: '',
+  last_seen: '',
+  message_count: 0,
+});
 
 /**
  * Compact relative time for sidebar rows:
@@ -87,11 +104,18 @@ export default function SidebarSessionItem({
   onDeleteSession,
   t,
 }: SidebarSessionItemProps) {
+  const { i18n } = useTranslation();
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
   const isEditing = editingSession === session.id;
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
+
+  // Session owner badge (C-MU-UX-OWNER-BADGE): a single coloured avatar that
+  // attributes the session to one human. `owner` is null for legacy sessions
+  // (no recorded participant) — we render no badge then rather than crash.
+  const owner = session.owner ?? null;
+  const ownerParticipant = owner ? ownerToParticipant(owner) : null;
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -177,8 +201,17 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
+                {ownerParticipant && (
+                  <ParticipantAvatar
+                    participant={ownerParticipant}
+                    size="xs"
+                    locale={i18n.language}
+                    t={t}
+                    stacked={false}
+                  />
+                )}
                 {compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  <span className="ms-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
               <div className="mt-0.5 flex items-center gap-1.5">
@@ -220,10 +253,19 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
+                {ownerParticipant && (
+                  <ParticipantAvatar
+                    participant={ownerParticipant}
+                    size="xs"
+                    locale={i18n.language}
+                    t={t}
+                    stacked={false}
+                  />
+                )}
                 {compactSessionAge && (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
+                      'ms-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
