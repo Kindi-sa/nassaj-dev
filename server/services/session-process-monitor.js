@@ -36,6 +36,10 @@
 
 import fs from 'fs';
 
+import {
+  presenceRunStarted,
+  presenceRunStopped,
+} from '../modules/websocket/services/presence.service.js';
 import { createNormalizedMessage } from '../shared/utils.js';
 
 /** Env var injected into spawned provider processes to map pid → session. */
@@ -168,19 +172,32 @@ function stopPolling() {
  * @param {Object} details.writer - WebSocketWriter for this session.
  * @param {number|null} [details.pid] - Child pid when the spawner exposes it.
  * @param {string|null} [details.runTag] - Env tag to resolve the pid from /proc.
+ * @param {string|null} [details.projectPath] - Working dir of the run, surfaced
+ *   in the live presence panel ("what is this brother working on now").
  */
-function registerSessionProcess(sessionId, { provider, writer, pid = null, runTag = null }) {
+function registerSessionProcess(sessionId, { provider, writer, pid = null, runTag = null, projectPath = null }) {
     if (!sessionId || !writer) return;
+
+    // Live presence (B-MU-UX-PRESENCE): attribute this run to the authenticated
+    // user that owns the session's writer. The userId comes from the JWT (set on
+    // the WebSocketWriter at connect time), never from client input.
+    presenceRunStarted({
+        userId: writer.userId ?? null,
+        sessionId,
+        projectPath,
+        provider,
+    });
 
     const existing = runs.get(sessionId);
     if (existing) {
         existing.writer = writer;
         if (pid) existing.pid = pid;
         if (runTag) existing.runTag = runTag;
+        if (projectPath) existing.projectPath = projectPath;
         return;
     }
 
-    const run = { provider, writer, pid, runTag, lastState: 'running' };
+    const run = { provider, writer, pid, runTag, projectPath, lastState: 'running' };
     runs.set(sessionId, run);
     broadcastState(sessionId, run, 'running');
     startPolling();
@@ -194,6 +211,9 @@ function unregisterSessionProcess(sessionId) {
     const run = runs.get(sessionId);
     if (!run) return;
     runs.delete(sessionId);
+    // Live presence (B-MU-UX-PRESENCE): the user is no longer active on this
+    // session. Read the userId from the run's writer (JWT-sourced).
+    presenceRunStopped({ userId: run.writer?.userId ?? null, sessionId });
     broadcastState(sessionId, run, 'idle');
     if (runs.size === 0) stopPolling();
 }

@@ -450,8 +450,10 @@ async function getClaudeBuiltInCommands(context = {}) {
  * @param {string|null} runTag - PROCESS_TAG_ENV_VAR value injected into the
  *   spawned CLI env; lets the process monitor resolve the child pid from
  *   /proc and surface frozen (kill -STOP) state to the UI.
+ * @param {string|null} projectPath - Working dir of the run, forwarded to the
+ *   process monitor so the live presence panel can show what the user is on.
  */
-function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null, runTag = null) {
+function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null, runTag = null, projectPath = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
@@ -461,7 +463,7 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
     writer
   });
   if (writer && runTag) {
-    registerSessionProcess(sessionId, { provider: 'claude', writer, runTag });
+    registerSessionProcess(sessionId, { provider: 'claude', writer, runTag, projectPath });
   }
 }
 
@@ -1042,7 +1044,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Track the query instance for abort capability
     if (capturedSessionId) {
-      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag);
+      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag, options.cwd || options.projectPath || null);
       recordParticipant(capturedSessionId);
     }
 
@@ -1053,7 +1055,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag);
+        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag, options.cwd || options.projectPath || null);
         recordParticipant(capturedSessionId);
 
         // Set session ID on writer

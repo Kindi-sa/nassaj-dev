@@ -22,6 +22,10 @@ import {
     clearAntigravityProjectPath,
     registerAntigravityProjectPath,
 } from './modules/providers/list/antigravity/antigravity-project-registry.js';
+import {
+    presenceRunStarted,
+    presenceRunStopped,
+} from './modules/websocket/services/presence.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createNormalizedMessage } from './shared/utils.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
@@ -681,6 +685,11 @@ async function spawnAntigravity(command, options = {}, ws) {
         if (terminalNotified) return;
         terminalNotified = true;
 
+        // Live presence (B-MU-UX-PRESENCE): this brother is no longer active on
+        // the session. agy does not flow through the process monitor, so the run
+        // start/stop are reported to presence directly here.
+        presenceRunStopped({ userId: ws?.userId ?? null, sessionId: finalSessionId });
+
         if (code === 0 && !error) {
             notifyRunStopped({
                 userId: ws?.userId || null,
@@ -720,6 +729,16 @@ async function spawnAntigravity(command, options = {}, ws) {
     }
 
     activeSessions.set(finalSessionId, { process: agProcess, brainUUID: existingBrainUUID });
+
+    // Live presence (B-MU-UX-PRESENCE): mark this brother active on the session
+    // with its project path. userId is JWT-sourced (set on the writer), never
+    // from client input; paired with the presenceRunStopped in notifyTerminal.
+    presenceRunStarted({
+        userId: ws?.userId ?? null,
+        sessionId: finalSessionId,
+        projectPath: cleanCwd,
+        provider: 'antigravity',
+    });
 
     // Record the authenticated human who spawned this agy run. Idempotent at the
     // DB layer; skipped for unauthenticated (single-user) runs with no userId.

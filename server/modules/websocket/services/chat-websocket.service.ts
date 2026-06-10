@@ -1,5 +1,9 @@
 import type { WebSocket } from 'ws';
 
+import {
+  presenceConnect,
+  presenceDisconnect,
+} from '@/modules/websocket/services/presence.service.js';
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
 import { addSessionMirror, WebSocketWriter } from '@/modules/websocket/services/websocket-writer.service.js';
 import type {
@@ -219,7 +223,13 @@ export function handleChatConnection(
   console.log('[INFO] Chat WebSocket connected');
   connectedClients.add(ws);
 
-  const writer = new WebSocketWriter(ws, readRequestUserId(request));
+  // Live presence (B-MU-UX-PRESENCE): register this authenticated socket as
+  // "connected". The userId is read strictly from the JWT-authenticated request
+  // (same precedence as the chat writer), never from client input.
+  const presenceUserId = readRequestUserId(request);
+  presenceConnect(ws, request.user, presenceUserId);
+
+  const writer = new WebSocketWriter(ws, presenceUserId);
 
   ws.on('message', async (rawMessage) => {
     try {
@@ -414,5 +424,8 @@ export function handleChatConnection(
   ws.on('close', () => {
     console.log('[INFO] Chat client disconnected');
     connectedClients.delete(ws);
+    // Drop this socket from presence; the user stays "connected" while any of
+    // their other tabs/devices keep a socket open (multi-tab dedupe).
+    presenceDisconnect(ws);
   });
 }

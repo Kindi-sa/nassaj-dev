@@ -21,6 +21,7 @@ import enSidebar from './locales/en/sidebar.json';
 import enChat from './locales/en/chat.json';
 import enCodeEditor from './locales/en/codeEditor.json';
 import enTasks from './locales/en/tasks.json';
+import enPresence from './locales/en/presence.json';
 // eslint-disable-next-line import-x/order
 import enProjectBoard from './locales/en/projectBoard.json';
 
@@ -31,6 +32,7 @@ import arSidebar from './locales/ar/sidebar.json';
 import arChat from './locales/ar/chat.json';
 import arCodeEditor from './locales/ar/codeEditor.json';
 import arTasks from './locales/ar/tasks.json';
+import arPresence from './locales/ar/presence.json';
 // eslint-disable-next-line import-x/order
 import arProjectBoard from './locales/ar/projectBoard.json';
 
@@ -132,6 +134,7 @@ i18n
         chat: enChat,
         codeEditor: enCodeEditor,
         tasks: enTasks,
+        presence: enPresence,
         projectBoard: enProjectBoard,
       },
       ar: {
@@ -142,6 +145,7 @@ i18n
         chat: arChat,
         codeEditor: arCodeEditor,
         tasks: arTasks,
+        presence: arPresence,
         projectBoard: arProjectBoard,
       },
       ko: {
@@ -224,7 +228,7 @@ i18n
     debug: false,
 
     // Namespaces - load only what's needed
-    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'projectBoard'],
+    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'presence', 'projectBoard'],
     defaultNS: 'common',
 
     // Key separator for nested keys (default: '.')
