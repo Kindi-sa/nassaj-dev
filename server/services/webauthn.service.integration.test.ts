@@ -164,7 +164,9 @@ test('registration options: bound to the user and excludes existing credentials'
 
     const options = await createRegistrationOptions({ id: user.id, username: user.username });
 
-    assert.equal(options.rp.id, 'localhost', 'dev fallback rpID');
+    // rpID is captured from env at module load, so neutralize the ambient
+    // WEBAUTHN_RP_ID (e.g. from .env) instead of asserting a hardcoded fallback.
+    assert.equal(options.rp.id, process.env.WEBAUTHN_RP_ID || 'localhost', 'dev fallback rpID');
     assert.equal(options.user.name, 'alice');
     assert.deepEqual(
       options.excludeCredentials?.map((c) => c.id),
