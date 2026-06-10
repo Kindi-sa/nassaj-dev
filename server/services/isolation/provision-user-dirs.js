@@ -6,7 +6,7 @@
  * conversations and instructions stay SHARED via symlinks back to the operator
  * root (~/.claude, ~/.gemini, ~/.codex).
  *
- * Layout created per user (mode 0750):
+ * Layout created per user (dir mode 0700, sensitive files 0600):
  *   ~/.nassaj-users/<userId>/
  *     .claude/                         (isolated credentials)
  *       projects   -> ~/.claude/projects        (shared conversations)
@@ -18,6 +18,16 @@
  *                  must `claude login` separately.)
  *     .gemini/
  *       projects   -> ~/.gemini/projects         (shared, if present)
+ *       antigravity-cli/                          (agy isolated credentials)
+ *         brain            -> ~/.gemini/antigravity-cli/brain
+ *                  (SHARED for ALL users — every user sees the same agy
+ *                  conversations, mirroring .claude/projects. getBrainDir(userId)
+ *                  resolves to exactly this path under isolation — agy-cli.js:99.)
+ *         antigravity-oauth-token -> ~/.gemini/antigravity-cli/antigravity-oauth-token
+ *                  (OWNER ONLY: the bootstrap owner reuses the operator agy token
+ *                  so an isolated owner never re-authenticates. Non-owner users get
+ *                  no link and must run `agy` to authenticate. installation_id and
+ *                  settings.json are linked too for the owner when present.)
  *     .codex/
  *       (isolated; no shared subtree symlinked yet)
  *
@@ -31,7 +41,36 @@ import path from 'path';
 
 import { auditLogDb, userDb } from '../../modules/database/index.js';
 
-const DIR_MODE = 0o750;
+// Per-user isolated config trees are owner-only (0700): under a shared system
+// uid this prevents any other local reader from listing another user's tree.
+// (B-MU-OS-PERM, ADR-023 Decision 2.) `nassaj` itself owns every path so its
+// own read/write is unaffected.
+const DIR_MODE = 0o700;
+
+// Sensitive credential files (the Claude OAuth/credentials JSON and any token
+// file) are owner read/write only.
+const FILE_MODE = 0o600;
+
+// Credential filenames inside a user's .claude/ dir that must be 0600 whenever
+// present (real files; symlinks are skipped — see chmodIfPresent).
+const CLAUDE_CREDENTIAL_FILES = ['.credentials.json', '.claude.json'];
+
+// agy (antigravity) keeps its state under ~/.gemini/antigravity-cli relative to
+// HOME. Under isolation resolveProviderEnv overrides HOME to the per-user root,
+// so agy materializes its token here. These are the relative subpaths inside a
+// user's .gemini/ dir.
+const AGY_DIR = path.join('.gemini', 'antigravity-cli');
+const AGY_BRAIN_SUBDIR = 'brain';
+
+// Sensitive agy credential filenames inside the antigravity-cli dir that must be
+// 0600 whenever present as a REAL file (symlinks skipped — the owner's token is a
+// symlink to the operator file and must not be re-chmod-ed).
+const AGY_CREDENTIAL_FILES = ['antigravity-oauth-token'];
+
+// Owner-only artifacts symlinked from the operator's agy dir so the bootstrap
+// owner never re-authenticates. The token is the credential; installation_id and
+// settings.json are reused for continuity when present.
+const AGY_OWNER_LINKED_FILES = ['antigravity-oauth-token', 'installation_id', 'settings.json'];
 
 // In-process guard so the (cheap) filesystem checks and the audit write only
 // run once per user per server lifetime, even under concurrent spawns.
@@ -92,6 +131,65 @@ function isSymlink(p) {
     return fs.lstatSync(p).isSymbolicLink();
   } catch {
     return false;
+  }
+}
+
+/**
+ * Tightens permissions on `p` to `mode` if it exists as a REAL file/dir.
+ * Symlinks are skipped on purpose: the owner's `.credentials.json` is a symlink
+ * back to the operator's shared credential, and chmod-ing through it would
+ * rewrite the operator file's mode. Never throws — hardening must not block
+ * provisioning.
+ */
+function chmodIfPresent(p, mode) {
+  try {
+    if (isSymlink(p)) {
+      return;
+    }
+    if (!fs.existsSync(p)) {
+      return;
+    }
+    fs.chmodSync(p, mode);
+  } catch (err) {
+    console.error('[provision] chmod failed', {
+      path: p,
+      mode: mode.toString(8),
+      error: err?.message || String(err),
+    });
+  }
+}
+
+/**
+ * Applies restrictive permissions across a user's isolated tree: the user root
+ * and every config subdir to 0700, and any present credential file to 0600.
+ * Idempotent and safe to call on every provisioning pass; tolerant of missing
+ * paths. Symlinked credentials are intentionally skipped (see chmodIfPresent).
+ *
+ * @param {string} userRoot absolute path to the user's isolated config root
+ */
+function hardenUserTree(userRoot) {
+  chmodIfPresent(userRoot, DIR_MODE);
+
+  for (const sub of ['.claude', '.gemini', '.codex']) {
+    chmodIfPresent(path.join(userRoot, sub), DIR_MODE);
+  }
+
+  // agy lives under .gemini/antigravity-cli; tighten that dir too (0700) so a
+  // non-owner's freshly-written token dir is never group/world-listable.
+  chmodIfPresent(path.join(userRoot, AGY_DIR), DIR_MODE);
+
+  const claudeDir = path.join(userRoot, '.claude');
+  for (const name of CLAUDE_CREDENTIAL_FILES) {
+    chmodIfPresent(path.join(claudeDir, name), FILE_MODE);
+  }
+
+  // agy token: 0600 when a REAL file (a non-owner who ran `agy` and wrote their
+  // own token). The owner's token is a symlink to the operator file and is
+  // skipped by chmodIfPresent's isSymlink guard, so the shared file's mode is
+  // never rewritten. (B-MU-OS-PERM, ADR-023.)
+  const agyDir = path.join(userRoot, AGY_DIR);
+  for (const name of AGY_CREDENTIAL_FILES) {
+    chmodIfPresent(path.join(agyDir, name), FILE_MODE);
   }
 }
 
@@ -164,8 +262,43 @@ export function provisionUserDirs(userId) {
     ensureDir(geminiDir);
     ensureSymlink(path.join(home, '.gemini', 'projects'), path.join(geminiDir, 'projects'));
 
+    // --- agy / antigravity (isolated credentials + SHARED brain) ---
+    // agy resolves its store under ~/.gemini/antigravity-cli relative to HOME;
+    // under isolation resolveProviderEnv sets HOME to userRoot, so this dir is
+    // exactly where agy reads/writes its token (and getBrainDir(userId) resolves
+    // its brain — agy-cli.js:99-104). It lives alongside gemini's projects/ under
+    // the shared .gemini dir without collision (different subdir).
+    const operatorAgyDir = path.join(home, AGY_DIR);
+    const userAgyDir = path.join(userRoot, AGY_DIR);
+    ensureDir(userAgyDir);
+
+    // brain is SHARED for EVERY user (owner and non-owner) — the mirror of
+    // .claude/projects: a symlink to the operator's single brain store so all
+    // users see the same agy conversations. getBrainDir(userId) computes
+    // userRoot/.gemini/antigravity-cli/brain under isolation, which IS this link,
+    // so the share is honored on read/write/discovery.
+    ensureSymlink(
+      path.join(operatorAgyDir, AGY_BRAIN_SUBDIR),
+      path.join(userAgyDir, AGY_BRAIN_SUBDIR),
+    );
+
+    // The bootstrap owner reuses the operator's real agy token (+ installation_id
+    // / settings.json when present) so the isolated owner never re-authenticates.
+    // Non-owner users get NO token here on purpose: each runs `agy` to OAuth their
+    // own. ensureSymlink is a no-op when a target is missing.
+    if (isOwnerUser(userId)) {
+      for (const name of AGY_OWNER_LINKED_FILES) {
+        ensureSymlink(path.join(operatorAgyDir, name), path.join(userAgyDir, name));
+      }
+    }
+
     // --- Codex (isolated; no shared subtree mirrored yet) ---
     ensureDir(path.join(userRoot, '.codex'));
+
+    // Tighten permissions every pass: mkdir's `mode` is masked by the process
+    // umask, so enforce 0700 dirs / 0600 credential files explicitly. Idempotent
+    // and cheap. (B-MU-OS-PERM, ADR-023 Decision 2.)
+    hardenUserTree(userRoot);
 
     // Record provisioning once, on first creation of the user root.
     if (createdRoot) {
