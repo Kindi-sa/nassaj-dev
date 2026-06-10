@@ -60,6 +60,9 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               type: 'user',
               content: unescapeWithMathProtection(decodeHtmlEntities(content)),
               timestamp: msg.timestamp,
+              // Real author (users.id). Absent = unknown author; the renderer
+              // must not attribute the message to the viewing user.
+              userId: msg.userId,
               ...sharedMetadata,
             });
           }

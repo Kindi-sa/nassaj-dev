@@ -29,6 +29,12 @@ export interface ChatMessage {
   type: string;
   content?: string;
   displayText?: string;
+  /**
+   * Authenticated author (users.id) of a user message — same id as the
+   * participants API. Absent = author unknown; renderers must fall back to a
+   * neutral avatar, never the viewing user's.
+   */
+  userId?: number;
   timestamp: string | number | Date;
   images?: ChatImage[];
   reasoning?: string;

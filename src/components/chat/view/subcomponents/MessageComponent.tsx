@@ -43,6 +43,10 @@ type MessageComponentProps = {
   // view's selectedSession.owner. `null`/undefined for legacy sessions, where
   // we fall back to the generic provider-logo + "Claude" rendering.
   owner?: SessionOwner | null;
+  // Session participants keyed by String(userId), used to resolve a user
+  // message's `userId` author stamp to the real sender's avatar/name/colour
+  // (B-MU-UX-FIX-MSG-AUTHOR). Optional so standalone renders degrade safely.
+  participantsById?: Map<string, SessionParticipant>;
   provider: Provider | string;
 };
 
@@ -55,7 +59,7 @@ type InteractiveOption = {
 type PermissionGrantState = 'idle' | 'granted' | 'error';
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, owner, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onShowSettings, onGrantToolPermission, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, owner, participantsById, provider }: MessageComponentProps) => {
   const { t, i18n } = useTranslation('chat');
   const { user } = useAuth();
   // Build a minimal participant view of the signed-in user so the chat reuses
@@ -92,9 +96,37 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
   }, [owner]);
   const ownerColorClass = owner ? avatarColorForUser(owner.userId) : null;
 
+  // Real author of this user message (B-MU-UX-FIX-MSG-AUTHOR). `message.userId`
+  // is the numeric users.id stamped by the server on live WS payloads and
+  // history rows (and locally on optimistic sends). Resolution order:
+  //   1. matches the signed-in viewer  → their own participant view (avatar);
+  //   2. found in the session roster   → that participant (name/avatar/colour);
+  //   3. known id, roster not loaded   → deterministic colour from the id;
+  //   4. no userId at all              → null = unknown author; the renderer
+  //      shows a neutral placeholder and must NOT fall back to the viewer.
+  const messageUserId = typeof message.userId === 'number' ? message.userId : undefined;
+  const isOwnMessage =
+    messageUserId !== undefined && user?.id !== undefined && Number(user.id) === messageUserId;
+  const authorParticipant = useMemo<SessionParticipant | null>(() => {
+    if (messageUserId === undefined) return null;
+    if (isOwnMessage) return currentUserParticipant;
+    const known = participantsById?.get(String(messageUserId));
+    if (known) return known;
+    return {
+      userId: messageUserId,
+      username: '',
+      role: 'user',
+      first_seen: '',
+      last_seen: '',
+      message_count: 0,
+    };
+  }, [messageUserId, isOwnMessage, currentUserParticipant, participantsById]);
+
+  // Consecutive user messages only group when they share an author, so a
+  // different sender's bubble never hides behind the previous author's avatar.
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
-      (prevMessage.type === 'user') ||
+      (prevMessage.type === 'user' && prevMessage.userId === message.userId) ||
       (prevMessage.type === 'tool') ||
       (prevMessage.type === 'error'));
   const messageRef = useRef<HTMLDivElement | null>(null);
@@ -226,14 +258,30 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
           </div>
           {!isGrouped && (
             <div className="hidden flex-shrink-0 sm:flex">
-              <ParticipantAvatar
-                participant={currentUserParticipant}
-                size="sm"
-                locale={i18n.language}
-                t={t}
-                stacked={false}
-                avatarUrl={currentUserParticipant.avatarUrl ?? undefined}
-              />
+              {authorParticipant ? (
+                <ParticipantAvatar
+                  participant={authorParticipant}
+                  size="sm"
+                  locale={i18n.language}
+                  t={t}
+                  stacked={false}
+                  avatarUrl={authorParticipant.avatarUrl ?? undefined}
+                />
+              ) : (
+                /* Unknown author (no userId stamp — legacy rows or
+                 * provider-rewritten commands): neutral grey placeholder,
+                 * never the viewing user's avatar. */
+                <span
+                  role="img"
+                  aria-label={t('participants.unknownAuthor', { defaultValue: 'Unknown author' })}
+                  title={t('participants.unknownAuthor', { defaultValue: 'Unknown author' })}
+                  className="inline-flex h-6 w-6 select-none items-center justify-center rounded-full bg-gray-400 text-white dark:bg-gray-600"
+                >
+                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.866 0-7 2.239-7 5v1h14v-1c0-2.761-3.134-5-7-5z" />
+                  </svg>
+                </span>
+              )}
             </div>
           )}
         </div>

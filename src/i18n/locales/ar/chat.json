@@ -337,6 +337,7 @@
     "agentKinds": {
       "model": "النموذج الأساسي",
       "subagent": "وكيل فرعي"
-    }
+    },
+    "unknownAuthor": "مؤلف غير معروف"
   }
 }

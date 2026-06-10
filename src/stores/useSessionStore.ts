@@ -41,6 +41,13 @@ export interface NormalizedMessage {
   role?: 'user' | 'assistant';
   content?: string;
   /**
+   * Authenticated author (users.id) of a kind:'text' role:'user' message in
+   * multi-user sessions; same id as the participants API. Absent = author
+   * unknown (rows recorded before author tracking, provider-internal echoes) —
+   * never assume the viewing user wrote it.
+   */
+  userId?: number;
+  /**
    * Mirrors optional transcript metadata from the server.
    *
    * These fields are currently used by Claude history normalization so local

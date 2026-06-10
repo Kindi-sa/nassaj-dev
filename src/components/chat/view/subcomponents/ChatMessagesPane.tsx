@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Fragment, useCallback, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
+import { useSessionParticipants } from '../../../participants';
+import type { SessionParticipant } from '../../../participants/types';
 import type { ChatMessage } from '../../types/types';
 import type {
   Project,
@@ -128,6 +130,20 @@ export default function ChatMessagesPane({
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
+
+  // Roster of humans seen in this session, used to resolve a message's
+  // `userId` author stamp to a username/avatar/colour so mirrors render the
+  // real sender instead of the viewing user (B-MU-UX-FIX-MSG-AUTHOR). Keyed by
+  // String(userId) to tolerate the backend's loose id typing.
+  const { participants } = useSessionParticipants(currentSessionId ?? selectedSession?.id ?? null);
+  const participantsById = useMemo(() => {
+    const byId = new Map<string, SessionParticipant>();
+    for (const participant of participants) {
+      byId.set(String(participant.userId), participant);
+    }
+    return byId;
+  }, [participants]);
+
   const messageKeyMapRef = useRef<WeakMap<ChatMessage, string>>(new WeakMap());
   const allocatedKeysRef = useRef<Set<string>>(new Set());
   const generatedMessageKeyCounterRef = useRef(0);
@@ -290,6 +306,7 @@ export default function ChatMessagesPane({
                   showThinking={showThinking}
                   selectedProject={selectedProject}
                   owner={selectedSession?.owner ?? null}
+                  participantsById={participantsById}
                   provider={displayProvider}
                 />
               </Fragment>

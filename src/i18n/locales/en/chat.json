@@ -330,6 +330,7 @@
     "agentKinds": {
       "model": "Base model",
       "subagent": "Subagent"
-    }
+    },
+    "unknownAuthor": "Unknown author"
   }
 }

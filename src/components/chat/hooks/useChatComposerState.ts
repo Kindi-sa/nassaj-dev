@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -12,6 +12,7 @@ import type {
 import { useDropzone } from 'react-dropzone';
 
 import { authenticatedFetch } from '../../../utils/api';
+import { useAuth } from '../../auth/context/AuthContext';
 import { thinkingModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
@@ -199,6 +200,16 @@ export function useChatComposerState({
   setIsUserScrolledUp,
   setPendingPermissionRequests,
 }: UseChatComposerStateArgs) {
+  const { user } = useAuth();
+  // Numeric users.id of the signed-in sender, stamped on optimistic user
+  // messages so the author avatar resolves locally before the server-stamped
+  // echo/history rows arrive (B-MU-UX-FIX-MSG-AUTHOR). Undefined when the
+  // identity layer exposes no numeric id (e.g. platform mode).
+  const authUserId = useMemo(() => {
+    const raw = user?.id;
+    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isInteger(numeric) ? numeric : undefined;
+  }, [user?.id]);
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
       // Draft inputs are keyed by the DB projectId so per-project drafts
@@ -753,6 +764,7 @@ export function useChatComposerState({
         content: currentInput,
         images: uploadedImages as any,
         timestamp: new Date(),
+        userId: authUserId,
       };
 
       addMessage(userMessage);
@@ -797,6 +809,7 @@ export function useChatComposerState({
     [
       selectedSession,
       attachedImages,
+      authUserId,
       currentSessionId,
       dispatchProviderCommand,
       executeCommand,
@@ -833,7 +846,7 @@ export function useChatComposerState({
       }
       pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
 
-      addMessage({ type: 'user', content: command, timestamp: new Date() });
+      addMessage({ type: 'user', content: command, timestamp: new Date(), userId: authUserId });
       setIsLoading(true);
       setCanAbortSession(true);
       setClaudeStatus({ text: 'Processing', tokens: 0, can_interrupt: true });
@@ -843,7 +856,7 @@ export function useChatComposerState({
       dispatchProviderCommand(command, undefined);
     },
     [
-      addMessage, dispatchProviderCommand, isLoading, pendingViewSessionRef, scrollToBottom,
+      addMessage, authUserId, dispatchProviderCommand, isLoading, pendingViewSessionRef, scrollToBottom,
       selectedProject, setCanAbortSession, setClaudeStatus, setIsLoading, setIsUserScrolledUp,
     ],
   );

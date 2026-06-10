@@ -83,6 +83,10 @@ function chatMessageToNormalized(
     kind: 'text',
     role: msg.type === 'user' ? 'user' : 'assistant',
     content: msg.content || '',
+    // Preserve the author stamp on optimistic local user messages so the
+    // sender's own avatar resolves immediately (mirrors get the same id from
+    // the server-stamped WS echo / history rows).
+    userId: typeof msg.userId === 'number' ? msg.userId : undefined,
   } as NormalizedMessage;
 }
 
