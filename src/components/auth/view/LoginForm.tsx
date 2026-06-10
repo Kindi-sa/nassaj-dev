@@ -2,9 +2,11 @@ import { useCallback, useState } from 'react';
 import type { FormEvent } from 'react';
 import { KeyRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { IS_PLATFORM } from '../../../constants/config';
 import { useAuth } from '../context/AuthContext';
 import { useWebAuthn } from '../hooks/useWebAuthn';
+
 import AuthErrorAlert from './AuthErrorAlert';
 import AuthInputField from './AuthInputField';
 import AuthScreenLayout from './AuthScreenLayout';

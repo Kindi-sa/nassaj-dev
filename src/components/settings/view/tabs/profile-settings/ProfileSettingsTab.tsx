@@ -1,7 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { CheckCircle2, Loader2, UserRound } from 'lucide-react';
+import { Loader2, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { Button } from '../../../../../shared/view/ui';
 import { useAuth } from '../../../../auth';
 import { MIN_PASSWORD_LENGTH } from '../../../../auth/constants';
@@ -9,44 +10,22 @@ import { api } from '../../../../../utils/api';
 import { parseJsonSafely, resolveApiErrorMessage } from '../../../../auth/utils';
 import SettingsSection from '../../SettingsSection';
 
-type FeedbackKind = 'success' | 'error';
-type Feedback = { kind: FeedbackKind; message: string } | null;
+import FeedbackBanner from './FeedbackBanner';
+import type { Feedback } from './FeedbackBanner';
+import PasskeysSection from './PasskeysSection';
 
 const inputClass =
   'w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60';
 
-function FeedbackBanner({ feedback }: { feedback: Feedback }) {
-  if (!feedback) {
-    return null;
-  }
-  if (feedback.kind === 'success') {
-    return (
-      <div
-        role="status"
-        className="flex items-center gap-2 rounded-md border border-green-300 bg-green-100 p-3 dark:border-green-800 dark:bg-green-900/20"
-      >
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-700 dark:text-green-400" />
-        <p className="text-sm text-green-700 dark:text-green-400">{feedback.message}</p>
-      </div>
-    );
-  }
-  return (
-    <div
-      role="alert"
-      className="rounded-md border border-red-300 bg-red-100 p-3 dark:border-red-800 dark:bg-red-900/20"
-    >
-      <p className="text-sm text-red-700 dark:text-red-400">{feedback.message}</p>
-    </div>
-  );
-}
-
 /**
  * Profile settings tab (F-1).
  *
- * Two self-service sections, available to every signed-in role:
+ * Self-service sections, available to every signed-in role:
+ *  - Profile picture upload.
  *  - Change username: shows the current username (read-only) and a new value.
  *  - Change password: current + new + confirm. On success the fresh token is
  *    persisted by the auth context, so the session continues without a logout.
+ *  - Passkeys: WebAuthn credential management (PasskeysSection, C-PK-3).
  *
  * Form state lives here; the actual mutations are delegated to the auth context
  * (which owns token persistence), keeping this component free of business logic.
@@ -381,6 +360,9 @@ export default function ProfileSettingsTab() {
           </div>
         </form>
       </SettingsSection>
+
+      {/* Passkeys (C-PK-3) */}
+      <PasskeysSection />
     </div>
   );
 }

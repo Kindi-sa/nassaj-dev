@@ -25,6 +25,7 @@ import type {
   PublicKeyCredentialRequestOptionsJSON,
 } from '@simplewebauthn/browser';
 import { useCallback, useMemo } from 'react';
+
 import { api } from '../../../utils/api';
 import { useAuth } from '../context/AuthContext';
 import type { ApiErrorPayload, PasskeyCredentialSummary } from '../types';
