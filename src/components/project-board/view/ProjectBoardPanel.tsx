@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, Check, Copy, KanbanSquare, Network } from 'lucide-react';
+import { AlertTriangle, CalendarRange, Check, Copy, KanbanSquare, Network, Target } from 'lucide-react';
 
 import { Pill, PillBar } from '../../../shared/view/ui';
 import type { Project } from '../../../types/app';
@@ -9,6 +9,8 @@ import { useProjectBoard } from '../hooks/useProjectBoard';
 
 import ArchitectureView from './ArchitectureView';
 import BoardOverview from './BoardOverview';
+import ObjectivesView from './ObjectivesView';
+import ScheduleView from './ScheduleView';
 
 type ProjectBoardPanelProps = {
   selectedProject: Project | null;
@@ -16,7 +18,7 @@ type ProjectBoardPanelProps = {
   onFileOpen?: (filePath: string) => void;
 };
 
-type BoardSection = 'overview' | 'architecture';
+type BoardSection = 'overview' | 'schedule' | 'objectives' | 'architecture';
 
 /** Minimal valid docs/project-state.json (schema v1, spec: ~/.claude/wiki/project-board.md). */
 function buildStarterTemplate(projectName: string): string {
@@ -113,20 +115,51 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
     return <BoardEmptyState projectName={projectName} />;
   }
 
+  // Schema 1.2 conditional tabs: a non-empty section is what shows its tab
+  // (spec: ~/.claude/wiki/project-board.md). Agile-only files are unaffected.
+  const hasSchedule = Boolean(board.state?.schedule?.length);
+  const hasObjectives = Boolean(board.state?.objectives?.length || board.state?.kpis?.length);
+
+  // The selection can outlive its tab (project switch, file edit) — fall back.
+  const activeSection =
+    (section === 'schedule' && !hasSchedule) || (section === 'objectives' && !hasObjectives)
+      ? 'overview'
+      : section;
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border/60 px-4 py-2">
         <PillBar>
           <Pill
-            isActive={section === 'overview'}
+            isActive={activeSection === 'overview'}
             onClick={() => setSection('overview')}
             className="px-2.5 py-[5px]"
           >
             <KanbanSquare className="h-3.5 w-3.5" />
             <span>{t('sections.overview')}</span>
           </Pill>
+          {hasSchedule && (
+            <Pill
+              isActive={activeSection === 'schedule'}
+              onClick={() => setSection('schedule')}
+              className="px-2.5 py-[5px]"
+            >
+              <CalendarRange className="h-3.5 w-3.5" />
+              <span>{t('sections.schedule')}</span>
+            </Pill>
+          )}
+          {hasObjectives && (
+            <Pill
+              isActive={activeSection === 'objectives'}
+              onClick={() => setSection('objectives')}
+              className="px-2.5 py-[5px]"
+            >
+              <Target className="h-3.5 w-3.5" />
+              <span>{t('sections.objectives')}</span>
+            </Pill>
+          )}
           <Pill
-            isActive={section === 'architecture'}
+            isActive={activeSection === 'architecture'}
             onClick={() => setSection('architecture')}
             className="px-2.5 py-[5px]"
           >
@@ -144,13 +177,15 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
       )}
 
       <div className="min-h-0 flex-1">
-        {section === 'overview' ? (
-          board.state ? (
+        {activeSection === 'overview' &&
+          (board.state ? (
             <BoardOverview state={board.state} onFileOpen={onFileOpen} />
           ) : (
             <BoardEmptyState projectName={projectName} />
-          )
-        ) : (
+          ))}
+        {activeSection === 'schedule' && board.state && <ScheduleView state={board.state} />}
+        {activeSection === 'objectives' && board.state && <ObjectivesView state={board.state} />}
+        {activeSection === 'architecture' && (
           <ArchitectureView
             technical={board.architecture.technical}
             simplified={board.architecture.simplified}

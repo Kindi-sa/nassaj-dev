@@ -1,6 +1,8 @@
 {
   "sections": {
     "overview": "نظرة عامة",
+    "schedule": "الجدول الزمني",
+    "objectives": "الأهداف",
     "architecture": "الهيكلة"
   },
   "updated": "آخر تحديث {{date}}",
@@ -61,6 +63,52 @@
     "title": "القرارات",
     "empty": "لا قرارات بعد",
     "openLink": "فتح وثيقة القرار {{id}}"
+  },
+  "schedule": {
+    "title": "الجدول الزمني (Gantt)",
+    "critical": "حرج",
+    "legendScheduled": "مجدول",
+    "legendCritical": "المسار الحرج",
+    "legendMilestone": "معلَم",
+    "cpm": {
+      "cycle": "تعذّر حساب المسار الحرج: دورة في التبعيات.",
+      "missingDeps": "بعض التبعيات تشير إلى بنود غير موجودة وجرى تجاهلها في حساب المسار الحرج."
+    },
+    "noDates": "لا تواريخ صالحة لرسم المخطط الزمني.",
+    "progress": "الإنجاز {{value}}%",
+    "durationDays": "المدة: {{days}} يوم",
+    "owner": "المسؤول: {{name}}",
+    "deliverable": "التسليم: {{id}}",
+    "deliverableLink": "عرض التسليم {{id}}",
+    "dependsOn": "يعتمد على: {{ids}}"
+  },
+  "deliverables": {
+    "title": "التسليمات",
+    "due": "الاستحقاق {{date}}",
+    "overdue": "متأخر",
+    "acceptance": "معيار القبول",
+    "deliveredBy": "يُسلَّم عبر: {{ids}}",
+    "statuses": {
+      "pending": "قيد الانتظار",
+      "in_progress": "جارٍ",
+      "delivered": "سُلِّم",
+      "accepted": "مقبول",
+      "rejected": "مرفوض"
+    }
+  },
+  "objectives": {
+    "title": "الأهداف (OKR)",
+    "baseline": "خط الأساس: {{value}}",
+    "statuses": {
+      "on_track": "على المسار",
+      "at_risk": "في خطر",
+      "off_track": "خارج المسار",
+      "done": "منجز"
+    }
+  },
+  "kpis": {
+    "title": "مؤشرات الأداء (KPIs)",
+    "target": "الهدف: {{value}}"
   },
   "architecture": {
     "technical": "تقني",
