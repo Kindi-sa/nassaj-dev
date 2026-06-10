@@ -12,6 +12,8 @@ import { createRateLimiter } from '../middleware/rate-limit.js';
 import { verifyPassword, needsRehash, hashPassword } from '../services/password.service.js';
 import { createInvite, acceptInvite, InviteError } from '../services/invite.service.js';
 
+import webauthnRouter from './webauthn.js';
+
 const MIN_PASSWORD_LENGTH = 8;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
 
@@ -42,6 +44,9 @@ const avatarUpload = multer({
 }).single('avatar');
 
 const router = express.Router();
+
+// Passkey (WebAuthn) registration, credential management, and login (B-PK).
+router.use('/webauthn', webauthnRouter);
 
 // Brute-force protection on credential-checking endpoints (m-RATELIMIT):
 // 10 attempts / 15 min / IP on login and invite acceptance.

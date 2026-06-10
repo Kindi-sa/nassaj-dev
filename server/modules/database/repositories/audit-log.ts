@@ -27,7 +27,9 @@ export type AuditAction =
   | 'username_changed'
   | 'password_reset'
   | 'avatar_updated'
-  | 'admin_provider_sharing_update';
+  | 'admin_provider_sharing_update'
+  | 'passkey_registered'
+  | 'passkey_removed';
 
 type AuditLogRow = {
   id: number;
