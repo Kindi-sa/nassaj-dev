@@ -1,7 +1,7 @@
 import type { WebSocket } from 'ws';
 
 import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
-import { WebSocketWriter } from '@/modules/websocket/services/websocket-writer.service.js';
+import { addSessionMirror, WebSocketWriter } from '@/modules/websocket/services/websocket-writer.service.js';
 import type {
   AnyRecord,
   AuthenticatedWebSocketRequest,
@@ -184,8 +184,12 @@ async function dispatchProviderCommand(
 /**
  * Extracts the authenticated request user id in the formats currently produced
  * by platform and OSS auth code paths.
+ *
+ * Exported so the shell (PTY) path resolves the JWT-authenticated user id with
+ * the exact same precedence as chat (B-MU-PTY-AUTH), keeping a single source of
+ * truth for `request.user → userId` across both websocket routes.
  */
-function readRequestUserId(
+export function readRequestUserId(
   request: AuthenticatedWebSocketRequest | undefined
 ): string | number | null {
   const user = request?.user;
@@ -317,6 +321,18 @@ export function handleChatConnection(
         const provider = readProvider(data.provider);
         const sessionId = typeof data.sessionId === 'string' ? data.sessionId : '';
         let isActive = false;
+
+        // Realtime mirror (all providers): register this socket as a READ-ONLY
+        // copy-receiver of the session's live stream (WebSocketWriter fan-out).
+        // A refreshed tab or a second user viewing the same session gets the
+        // stream — including permission prompts — without ever touching the
+        // active writer, honouring the documented no-swap veto below.
+        // NOTE for SESSION_REGISTRY_agy: when that flag is enabled, the
+        // attach-replay below may overlap with the first mirrored live
+        // payloads; dedup by seq on the client before enabling.
+        if (sessionId) {
+          addSessionMirror(sessionId, ws);
+        }
 
         if (provider === 'cursor') {
           isActive = dependencies.isCursorSessionActive(sessionId);
