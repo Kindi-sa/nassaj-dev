@@ -445,6 +445,38 @@
    "status": "done",
    "owner": "architect",
    "closed": "2026-06-10"
+  },
+  {
+   "id": "T-46",
+   "phase": "P1",
+   "sprint": null,
+   "kind": "bug",
+   "issue": "B-12",
+   "title": "B-SR-GHOST-PRUNE: تنظيف جلسات الأشباح — معالج unlink في sessions-watcher يحذف صف SQLite بمطابقة jsonl_path ويبث projects_updated، وprune عند الإقلاع داخل ClaudeSessionSynchronizer ‏(fs.access، الحذف على ENOENT فقط، مقصور على provider=claude وjsonl_path غير فارغ، يشمل المؤرشف) — حذف صلب لأن المحتوى غير قابل للاسترداد؛ +5 اختبارات (321 صفر فشل) (b716fbb)",
+   "status": "done",
+   "owner": "backend-dev",
+   "closed": "2026-06-11"
+  },
+  {
+   "id": "T-47",
+   "phase": "P4",
+   "sprint": null,
+   "kind": "bug",
+   "issue": "B-13",
+   "title": "B-ISO-SHARE-AGENTS: مشاركة agents/ وskills/ من مركز المشغّل في provisionUserDirs لكل المستخدمين (symlink بجوار projects/CLAUDE.md/NASSAJ.md، ‏settings.json يبقى شخصياً عمداً) + اختباران في isolation.e2e ‏(24/24)؛ الروابط أُنشئت يدوياً للمستخدمين 1–3 فوراً (ef528c9)",
+   "status": "done",
+   "owner": "backend-dev",
+   "closed": "2026-06-11"
+  },
+  {
+   "id": "T-46",
+   "phase": "P4",
+   "sprint": null,
+   "kind": "feature",
+   "title": "C-MU-UX-AVATAR-PRO: استبدال الأشكال الهندسية بمعرض أفاتارات احترافي — 12 ‏SVG من DiceBear ‏(lorelei/notionists/open-peeps/thumbs، كلها CC0) مولّدة build-time إلى public/avatars-gallery مع قائمة بيضاء صارمة في الخادم (commit 0acc68e)",
+   "status": "done",
+   "owner": "ui-designer",
+   "closed": "2026-06-10"
   }
  ],
  "issues": [
@@ -533,6 +565,29 @@
    "title": "فشل إنشاء passkey على النطاق المنشور: restart ‏13:58 جرى بلا env فسقط webauthn على rpID=localhost (سجل pm2 يؤكد). المعالجة: WEBAUTHN_* أُضيفت إلى .env المحلي (يقرؤها dotenv عند الإقلاع) — يُغلق نهائياً بعد restart قادم",
    "status": "fixed",
    "found": "2026-06-10"
+  },
+  {
+   "id": "B-12",
+   "severity": "medium",
+   "title": "جلسات أشباح في قائمة المحادثات: فهرس sessions في SQLite لا يُنظَّف عند حذف ملف الـtranscript من القرص (مكنسة cleanupPeriodDays ‏30 يوماً)، فتبقى مدخلات لا تُفتح ولا تُستأنف",
+   "status": "fixed",
+   "fix": "B-SR-GHOST-PRUNE (T-46): معالج unlink لحظي + prune عند الإقلاع بحذف صلب (b716fbb) — يسري بعد restart قادم",
+   "found": "2026-06-11"
+  },
+  {
+   "id": "B-13",
+   "severity": "high",
+   "title": "جلسات العزل لا ترى وكلاء المشغّل المخصصين (Agent type 'ui-designer' not found): ‏provisionUserDirs لا يربط agents/ وskills/ من المركز، فجلسات CLAUDE_CONFIG_DIR المعزولة تفقد بطاقات الوكلاء الـ25 والمهارات المخصصة. قيد مفتوح متبقٍّ: settings.json المركزي (hooks حارس القاعدة الصفرية + الصلاحيات) لا يصل للجلسات المعزولة — يحتاج قراراً منفصلاً (مرشّح: managed-settings أو seeding)",
+   "status": "fixed",
+   "fix": "B-ISO-SHARE-AGENTS (T-47): ‏symlink ‏agents/+skills/ لكل المستخدمين في التزويد (ef528c9) + ربط يدوي فوري للمستخدمين 1–3؛ شق settings.json/hooks فُرز بنداً مستقلاً B-14",
+   "found": "2026-06-11"
+  },
+  {
+   "id": "B-14",
+   "severity": "medium",
+   "title": "سياسات settings.json المركزية (hooks حارس القاعدة الصفرية، الصلاحيات، cleanupPeriodDays) لا تصل للجلسات المعزولة — symlink مرفوض لأنه يجعل تفضيلات المستخدم الشخصية (theme) تكتب في الملف المركزي. مرشّحات الحل: managed-settings.json على مستوى النظام، أو seeding/merge عند التزويد",
+   "status": "open",
+   "found": "2026-06-11"
   }
  ],
  "decisions": [
