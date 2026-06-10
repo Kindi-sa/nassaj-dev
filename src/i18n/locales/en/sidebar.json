@@ -112,18 +112,6 @@
   "version": {
     "updateAvailable": "Update available"
   },
-  "search": {
-    "modeProjects": "Projects",
-    "modeConversations": "Conversations",
-    "conversationsPlaceholder": "Search in conversations...",
-    "searching": "Searching...",
-    "noResults": "No results found",
-    "tryDifferentQuery": "Try a different search query",
-    "matches_one": "{{count}} match",
-    "matches_other": "{{count}} matches",
-    "projectsScanned_one": "{{count}} project scanned",
-    "projectsScanned_other": "{{count}} projects scanned"
-  },
   "deleteConfirmation": {
     "deleteProject": "Remove Project",
     "deleteSession": "Delete Session",

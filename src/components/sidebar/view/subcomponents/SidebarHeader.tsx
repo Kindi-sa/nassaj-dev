@@ -1,11 +1,11 @@
-import { Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
+import { Archive, FolderPlus, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { cn } from '../../../../lib/utils';
 import { useBranding } from '../../../../contexts/BrandingContext';
-import type { SidebarSearchMode } from '../../types/types';
+import type { ProjectMembershipFilter, SidebarSearchMode } from '../../types/types';
 
 const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
@@ -22,6 +22,8 @@ type SidebarHeaderProps = {
   onClearSearchFilter: () => void;
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
+  membershipFilter: ProjectMembershipFilter;
+  onMembershipFilterChange: (filter: ProjectMembershipFilter) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
@@ -41,6 +43,8 @@ export default function SidebarHeader({
   onClearSearchFilter,
   searchMode,
   onSearchModeChange,
+  membershipFilter,
+  onMembershipFilterChange,
   onRefresh,
   isRefreshing,
   onCreateProject,
@@ -49,13 +53,62 @@ export default function SidebarHeader({
 }: SidebarHeaderProps) {
   const { title: brandingTitle, logoUrl: brandingLogoUrl } = useBranding();
   const showSearchTools = (projectsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
-  const searchPlaceholder = searchMode === 'conversations'
-    ? t('search.conversationsPlaceholder')
-    : searchMode === 'archived'
-      ? t('search.archivedPlaceholder', 'Search archived sessions...')
-      : t('projects.searchPlaceholder');
+  const searchPlaceholder = searchMode === 'archived'
+    ? t('search.archivedPlaceholder', 'Search archived sessions...')
+    : t('projects.searchPlaceholder');
 
   const displayTitle = brandingTitle ?? t('app.title');
+
+  // "My Projects / All" view filter (C-MU-UX-PROJ-FILTER), shown where the
+  // old Projects/Conversations tabs used to be (C-MU-UX-SIDEBAR-TABS).
+  const membershipOptions: { value: ProjectMembershipFilter; label: string }[] = [
+    { value: 'mine', label: t('projects.myProjects') },
+    { value: 'all', label: t('projects.all') },
+  ];
+
+  // Shared segmented control: membership filter + archive toggle. Selecting a
+  // membership option always returns to the projects view, leaving the archive.
+  const filterToggle = (
+    <div className="flex rounded-lg bg-muted/50 p-0.5">
+      {membershipOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => {
+            onMembershipFilterChange(option.value);
+            if (searchMode !== 'projects') {
+              onSearchModeChange('projects');
+            }
+          }}
+          aria-pressed={searchMode === 'projects' && membershipFilter === option.value}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+            searchMode === 'projects' && membershipFilter === option.value
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+      <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
+        <button
+          onClick={() => onSearchModeChange('archived')}
+          aria-pressed={searchMode === 'archived'}
+          aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
+          title={t('search.archiveOnlyTooltip', 'Archive only')}
+          className={cn(
+            "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+            searchMode === 'archived'
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Archive className="h-3 w-3" />
+        </button>
+      </Tooltip>
+    </div>
+  );
 
   const LogoBlock = () => (
     <div className="flex min-w-0 items-center gap-2.5">
@@ -135,51 +188,8 @@ export default function SidebarHeader({
         {/* Search bar */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            {/* Search mode toggle */}
-            <div className="flex rounded-lg bg-muted/50 p-0.5">
-              <button
-                onClick={() => onSearchModeChange('projects')}
-                aria-pressed={searchMode === 'projects'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'projects'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Folder className="h-3 w-3" />
-                {t('search.modeProjects')}
-              </button>
-              <button
-                onClick={() => onSearchModeChange('conversations')}
-                aria-pressed={searchMode === 'conversations'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'conversations'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <MessageSquare className="h-3 w-3" />
-                {t('search.modeConversations')}
-              </button>
-              <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
-                <button
-                  onClick={() => onSearchModeChange('archived')}
-                  aria-pressed={searchMode === 'archived'}
-                  aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
-                  title={t('search.archiveOnlyTooltip', 'Archive only')}
-                  className={cn(
-                    "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                    searchMode === 'archived'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Archive className="h-3 w-3" />
-                </button>
-              </Tooltip>
-            </div>
+            {/* Membership filter + archive toggle */}
+            {filterToggle}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
@@ -253,50 +263,7 @@ export default function SidebarHeader({
         {/* Mobile search */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            <div className="flex rounded-lg bg-muted/50 p-0.5">
-              <button
-                onClick={() => onSearchModeChange('projects')}
-                aria-pressed={searchMode === 'projects'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'projects'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Folder className="h-3 w-3" />
-                {t('search.modeProjects')}
-              </button>
-              <button
-                onClick={() => onSearchModeChange('conversations')}
-                aria-pressed={searchMode === 'conversations'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'conversations'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <MessageSquare className="h-3 w-3" />
-                {t('search.modeConversations')}
-              </button>
-              <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
-                <button
-                  onClick={() => onSearchModeChange('archived')}
-                  aria-pressed={searchMode === 'archived'}
-                  aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
-                  title={t('search.archiveOnlyTooltip', 'Archive only')}
-                  className={cn(
-                    "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                    searchMode === 'archived'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Archive className="h-3 w-3" />
-                </button>
-              </Tooltip>
-            </div>
+            {filterToggle}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               <Input

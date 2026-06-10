@@ -112,18 +112,6 @@
   "version": {
     "updateAvailable": "تحديث متاح"
   },
-  "search": {
-    "modeProjects": "المشاريع",
-    "modeConversations": "المحادثات",
-    "conversationsPlaceholder": "ابحث في المحادثات...",
-    "searching": "جارٍ البحث...",
-    "noResults": "لا توجد نتائج",
-    "tryDifferentQuery": "جرّب استعلام بحث مختلف",
-    "matches_one": "{{count}} نتيجة",
-    "matches_other": "{{count}} نتيجة",
-    "projectsScanned_one": "تم فحص {{count}} مشروع",
-    "projectsScanned_other": "تم فحص {{count}} مشروع"
-  },
   "deleteConfirmation": {
     "deleteProject": "إزالة المشروع",
     "deleteSession": "حذف الجلسة",

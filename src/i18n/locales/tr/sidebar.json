@@ -111,18 +111,6 @@
   "version": {
     "updateAvailable": "Güncelleme mevcut"
   },
-  "search": {
-    "modeProjects": "Projeler",
-    "modeConversations": "Konuşmalar",
-    "conversationsPlaceholder": "Konuşmalarda ara...",
-    "searching": "Aranıyor...",
-    "noResults": "Sonuç bulunamadı",
-    "tryDifferentQuery": "Farklı bir arama sorgusu dene",
-    "matches_one": "{{count}} eşleşme",
-    "matches_other": "{{count}} eşleşme",
-    "projectsScanned_one": "{{count}} proje tarandı",
-    "projectsScanned_other": "{{count}} proje tarandı"
-  },
   "deleteConfirmation": {
     "deleteProject": "Projeyi Kaldır",
     "deleteSession": "Oturumu Sil",

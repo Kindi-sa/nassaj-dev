@@ -4,7 +4,9 @@ export type ProjectSortOrder = 'name' | 'date';
 // "My Projects / All" sidebar view filter (C-MU-UX-PROJ-FILTER). View-only —
 // never restricts access. `all` preserves the legacy behaviour.
 export type ProjectMembershipFilter = 'all' | 'mine';
-export type SidebarSearchMode = 'projects' | 'conversations' | 'archived';
+// 'conversations' mode removed with the Projects/Conversations tabs
+// (C-MU-UX-SIDEBAR-TABS); the header now toggles projects view vs archive.
+export type SidebarSearchMode = 'projects' | 'archived';
 export type ArchivedProjectListItem = Project & { isArchived: true };
 
 export type SessionWithProvider = ProjectSession & {
