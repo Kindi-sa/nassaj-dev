@@ -87,7 +87,7 @@ await initializeDatabase();
 // records a 'user_dirs_provisioned' audit row whose user_id is a FK to
 // users(id); without a matching user the (swallowed) insert fails the FK and
 // spams the log. Seeding makes the audit write a real, successful insert.
-const TEST_USER_IDS = [42, 9001, 9002] as const;
+const TEST_USER_IDS = [42, 9001, 9002, 9003, 9004] as const;
 {
   const db = getConnection();
   const insertUser = db.prepare(
@@ -275,6 +275,15 @@ describe('provider-sharing config round-trip', () => {
 // 3) provisionUserDirs — filesystem provisioning under the sandboxed HOME
 // ===========================================================================
 describe('provisionUserDirs filesystem layout', () => {
+  /** True if `p` is a symlink (even a dangling one). */
+  function isLinkAt(p: string): boolean {
+    try {
+      return fs.lstatSync(p).isSymbolicLink();
+    } catch {
+      return false;
+    }
+  }
+
   it('creates the isolated .claude/.gemini/.codex tree for a new user', () => {
     // Use a fresh userId per assertion run so the in-process "provisioned"
     // guard inside provisionUserDirs never short-circuits this case.
@@ -307,6 +316,64 @@ describe('provisionUserDirs filesystem layout', () => {
       fs.realpathSync(link),
       fs.realpathSync(sharedProjects),
       'projects symlink must point at the shared root'
+    );
+  });
+
+  it('skips agents/skills symlinks when the operator has no such dirs', () => {
+    // Runs BEFORE the case below creates ~/.claude/agents|skills in the
+    // sandbox: ensureSymlink must no-op on a missing target, leaving the
+    // user's .claude/ without dangling links. (node:test runs cases in order.)
+    assert.ok(!fs.existsSync(path.join(sandboxHome, '.claude', 'agents')));
+    assert.ok(!fs.existsSync(path.join(sandboxHome, '.claude', 'skills')));
+
+    const userId = 9003;
+    provisionUserDirs(userId);
+
+    const claudeDir = userConfigDir(userId, '.claude');
+    for (const name of ['agents', 'skills']) {
+      const link = path.join(claudeDir, name);
+      assert.ok(!fs.existsSync(link), `${name} link must not be created`);
+      assert.ok(!isLinkAt(link), `${name} must not exist even as a dangling symlink`);
+    }
+  });
+
+  it('symlinks shared agents/ and skills/ for ALL users when the operator dirs exist', () => {
+    // ADR-023 Decision 3: agent cards and skills are fully shared. Pre-create
+    // the operator dirs, then assert a (non-owner) user's .claude/ links back.
+    const sharedAgents = path.join(sandboxHome, '.claude', 'agents');
+    const sharedSkills = path.join(sandboxHome, '.claude', 'skills');
+    fs.mkdirSync(sharedAgents, { recursive: true });
+    fs.mkdirSync(sharedSkills, { recursive: true });
+    fs.writeFileSync(path.join(sharedAgents, 'ui-designer.md'), '# ui-designer');
+
+    const userId = 9004;
+    provisionUserDirs(userId);
+
+    const claudeDir = userConfigDir(userId, '.claude');
+    for (const [name, shared] of [
+      ['agents', sharedAgents],
+      ['skills', sharedSkills],
+    ] as const) {
+      const link = path.join(claudeDir, name);
+      assert.ok(fs.existsSync(link), `${name} symlink should exist`);
+      assert.ok(fs.lstatSync(link).isSymbolicLink(), `${name} must be a symlink, not a real dir`);
+      assert.equal(
+        fs.realpathSync(link),
+        fs.realpathSync(shared),
+        `${name} symlink must point at the operator's shared dir`
+      );
+    }
+
+    // An agent card placed by the operator is visible through the user's link.
+    assert.ok(
+      fs.existsSync(path.join(claudeDir, 'agents', 'ui-designer.md')),
+      'operator agent cards must be visible through the per-user link'
+    );
+
+    // settings.json must stay per-user (intentionally NOT symlinked).
+    assert.ok(
+      !isLinkAt(path.join(claudeDir, 'settings.json')),
+      'settings.json must not be symlinked to the operator file'
     );
   });
 

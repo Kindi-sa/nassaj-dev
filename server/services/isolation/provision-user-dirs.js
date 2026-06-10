@@ -12,6 +12,11 @@
  *       projects   -> ~/.claude/projects        (shared conversations)
  *       CLAUDE.md  -> ~/.claude/CLAUDE.md        (shared instructions, if present)
  *       NASSAJ.md  -> ~/.claude/NASSAJ.md        (shared instructions, if present)
+ *       agents     -> ~/.claude/agents           (shared agent cards, if present —
+ *                  ALL users; ADR-023 Decision 3: MCP/tools/files fully shared)
+ *       skills     -> ~/.claude/skills           (shared skills, if present — ALL users)
+ *       settings.json stays PER-USER on purpose (personal prefs, e.g. theme) —
+ *                  intentionally NOT symlinked.
  *       .credentials.json -> ~/.claude/.credentials.json  (OWNER ONLY: the
  *                  bootstrap owner reuses the operator credential so an isolated
  *                  owner never has to re-login. Non-owner users get no link and
@@ -245,6 +250,14 @@ export function provisionUserDirs(userId) {
     ensureSymlink(path.join(home, '.claude', 'projects'), path.join(claudeDir, 'projects'));
     ensureSymlink(path.join(home, '.claude', 'CLAUDE.md'), path.join(claudeDir, 'CLAUDE.md'));
     ensureSymlink(path.join(home, '.claude', 'NASSAJ.md'), path.join(claudeDir, 'NASSAJ.md'));
+
+    // Agent cards and skills are SHARED for ALL users (ADR-023 Decision 3:
+    // MCP/tools/files are fully shared) — without these links a per-user
+    // CLAUDE_CONFIG_DIR session cannot resolve the operator's custom agents
+    // ("Agent type 'X' not found") or skills. settings.json is deliberately
+    // NOT linked: each user keeps a personal settings file (theme prefs).
+    ensureSymlink(path.join(home, '.claude', 'agents'), path.join(claudeDir, 'agents'));
+    ensureSymlink(path.join(home, '.claude', 'skills'), path.join(claudeDir, 'skills'));
 
     // The bootstrap owner reuses the operator's real Claude credential even when
     // isolated, so the owner never has to re-login. Non-owner isolated users get
