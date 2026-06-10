@@ -17,6 +17,9 @@ import { useWebSocket } from '../../contexts/WebSocketContext';
 export type PresenceUser = {
   userId: string;
   username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) when the user
+  // has uploaded one; null falls back to the coloured initial.
+  avatarUrl: string | null;
   connected: true;
   active: boolean;
   activeSessionId: string | null;
@@ -45,6 +48,7 @@ function parsePresenceUser(raw: unknown): PresenceUser | null {
   return {
     userId: String(entry.userId),
     username: typeof entry.username === 'string' ? entry.username : String(entry.userId),
+    avatarUrl: typeof entry.avatarUrl === 'string' && entry.avatarUrl.length > 0 ? entry.avatarUrl : null,
     connected: true,
     active: Boolean(entry.active),
     activeSessionId: typeof entry.activeSessionId === 'string' ? entry.activeSessionId : null,

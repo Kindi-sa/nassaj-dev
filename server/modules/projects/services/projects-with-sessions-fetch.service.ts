@@ -15,6 +15,9 @@ import { AppError } from '@/shared/utils.js';
 export type SessionOwner = {
   userId: number;
   username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) or null; lets
+  // the frontend owner badge render the real avatar instead of the initial.
+  avatarUrl: string | null;
 };
 
 type SessionSummary = {
@@ -172,7 +175,11 @@ function resolveOwnersForRows(rows: SessionRepositoryRow[]): Map<string, Session
   }
 
   for (const ownerRow of participantsDb.getOwnersBySessionIds(sessionIds)) {
-    owners.set(ownerRow.sessionId, { userId: ownerRow.userId, username: ownerRow.username });
+    owners.set(ownerRow.sessionId, {
+      userId: ownerRow.userId,
+      username: ownerRow.username,
+      avatarUrl: ownerRow.avatarUrl ?? null,
+    });
   }
 
   return owners;

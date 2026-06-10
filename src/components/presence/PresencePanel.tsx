@@ -48,7 +48,8 @@ function projectLabel(projectPath: string | null, sessionId: string | null): str
 
 /**
  * Adapts a presence entry to the minimal SessionParticipant shape the shared
- * ParticipantAvatar expects (it only reads userId/username/role for rendering).
+ * ParticipantAvatar expects (it reads userId/username/role plus the optional
+ * profile picture for rendering).
  */
 function toParticipant(user: PresenceUser): SessionParticipant {
   return {
@@ -58,6 +59,7 @@ function toParticipant(user: PresenceUser): SessionParticipant {
     first_seen: '',
     last_seen: '',
     message_count: 0,
+    avatarUrl: user.avatarUrl,
   };
 }
 
@@ -118,6 +120,7 @@ export default function PresencePanel() {
                   locale={i18n.language}
                   t={t}
                   stacked={false}
+                  avatarUrl={presenceUser.avatarUrl ?? undefined}
                   ariaLabel={`${name} — ${status}`}
                   tooltipContent={
                     <span className="flex flex-col gap-0.5 text-start">

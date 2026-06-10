@@ -47,9 +47,10 @@ type SidebarSessionItemProps = {
 };
 
 /**
- * Adapts a session `owner` ({userId, username}) into the SessionParticipant
- * shape ParticipantAvatar consumes. The avatar only reads userId/username/role
- * for the coloured initial + tooltip, so the time fields are placeholders.
+ * Adapts a session `owner` ({userId, username, avatarUrl}) into the
+ * SessionParticipant shape ParticipantAvatar consumes. The avatar reads
+ * userId/username/role (plus the optional picture), so the time fields are
+ * placeholders.
  */
 const ownerToParticipant = (owner: SessionOwner): SessionParticipant => ({
   userId: owner.userId,
@@ -58,6 +59,7 @@ const ownerToParticipant = (owner: SessionOwner): SessionParticipant => ({
   first_seen: '',
   last_seen: '',
   message_count: 0,
+  avatarUrl: owner.avatarUrl ?? null,
 });
 
 /**
@@ -208,6 +210,7 @@ export default function SidebarSessionItem({
                     locale={i18n.language}
                     t={t}
                     stacked={false}
+                    avatarUrl={ownerParticipant.avatarUrl ?? undefined}
                   />
                 )}
                 {compactSessionAge && (
@@ -260,6 +263,7 @@ export default function SidebarSessionItem({
                     locale={i18n.language}
                     t={t}
                     stacked={false}
+                    avatarUrl={ownerParticipant.avatarUrl ?? undefined}
                   />
                 )}
                 {compactSessionAge && (

@@ -24,11 +24,12 @@
  * are tiny for a 2-4 person team, so sending the whole list is the simplest
  * correct option (no per-delta reconciliation on the client).
  *
- * Privacy: the snapshot exposes only userId, username, and the active
- * session/project ids — all of which are already shared inside this workspace.
+ * Privacy: the snapshot exposes only userId, username, avatarUrl, and the
+ * active session/project ids — all already shared inside this workspace.
  * Nothing sensitive (tokens, env, message content) is ever included.
  */
 
+import { userDb } from '@/modules/database/index.js';
 import {
   WS_OPEN_STATE,
   connectedClients,
@@ -65,6 +66,9 @@ type PresenceUserState = {
 type PresenceEntry = {
   userId: PresenceUserId;
   username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) or null, so
+  // presence avatars render the real picture instead of the coloured initial.
+  avatarUrl: string | null;
   connected: true;
   active: boolean;
   activeSessionId: string | null;
@@ -91,6 +95,25 @@ function toPresenceUserId(rawUserId: string | number | null | undefined): Presen
 }
 
 /**
+ * Resolves the user's current avatar URL from the users table at snapshot time
+ * (always fresh — picks up a newly uploaded picture without reconnecting).
+ * Snapshots are tiny (2-4 users) and the lookup is an indexed point read, so
+ * resolving here is cheaper than threading the avatar through every caller.
+ * Never throws: presence must keep broadcasting even if the lookup fails.
+ */
+function resolveAvatarUrl(userId: PresenceUserId): string | null {
+  const numericId = Number(userId);
+  if (!Number.isInteger(numericId)) {
+    return null;
+  }
+  try {
+    return userDb.getUserById(numericId)?.avatar_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Builds the full presence snapshot. The "active" run surfaced per user is the
  * most recently started one (a brother may have several runs going, but the UI
  * shows the freshest as the headline activity).
@@ -107,6 +130,7 @@ function buildSnapshot(): PresenceEntry[] {
     entries.push({
       userId: state.userId,
       username: state.username,
+      avatarUrl: resolveAvatarUrl(state.userId),
       connected: true,
       active: Boolean(active),
       activeSessionId: active?.sessionId ?? null,

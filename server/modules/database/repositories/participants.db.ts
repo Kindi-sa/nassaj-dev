@@ -65,6 +65,9 @@ export type SessionOwnerRow = {
   sessionId: string;
   userId: number;
   username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) or null, so
+  // owner badges can render the real avatar instead of the coloured initial.
+  avatarUrl: string | null;
 };
 
 export const participantsDb = {
@@ -186,7 +189,8 @@ export const participantsDb = {
         `SELECT
            sp.session_id AS sessionId,
            sp.user_id    AS userId,
-           u.username     AS username
+           u.username     AS username,
+           u.avatar_url   AS avatarUrl
          FROM session_participants sp
          JOIN users u ON u.id = sp.user_id
          WHERE sp.role = 'owner'

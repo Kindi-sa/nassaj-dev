@@ -25,6 +25,9 @@ export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'p
 export interface SessionOwner {
   userId: number;
   username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) when the
+  // owner has uploaded one; null/undefined falls back to the coloured initial.
+  avatarUrl?: string | null;
 }
 
 export interface ProjectSession {

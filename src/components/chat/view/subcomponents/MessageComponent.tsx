@@ -92,6 +92,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
       first_seen: '',
       last_seen: '',
       message_count: 0,
+      avatarUrl: owner.avatarUrl ?? null,
     };
   }, [owner]);
   const ownerColorClass = owner ? avatarColorForUser(owner.userId) : null;
@@ -321,6 +322,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                       locale={i18n.language}
                       t={t}
                       stacked={false}
+                      avatarUrl={ownerParticipant.avatarUrl ?? undefined}
                     />
                   )}
                 </div>
