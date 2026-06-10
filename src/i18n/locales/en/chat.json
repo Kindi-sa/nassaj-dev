@@ -296,7 +296,8 @@
     },
     "providers": {
       "assistant": "Assistant"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"

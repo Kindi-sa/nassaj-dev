@@ -10,6 +10,7 @@ import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/Palett
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
+import { setSessionProcessState } from '../../stores/sessionProcessStateStore';
 
 export default function AppContent() {
   return (
@@ -64,6 +65,21 @@ function AppContentInner() {
     openSettings,
     refreshProjects: refreshProjectsSilently,
   });
+
+  // Frozen-session indicator: route server process_state broadcasts (and
+  // terminal events as an idle fallback) into the global per-session store
+  // consumed by the sidebar badges, chat header, and status spinner.
+  useEffect(() => {
+    const msg = latestMessage;
+    if (!msg || typeof msg.sessionId !== 'string' || !msg.sessionId) {
+      return;
+    }
+    if (msg.kind === 'status' && msg.text === 'process_state' && typeof msg.processState === 'string') {
+      setSessionProcessState(msg.sessionId, msg.processState);
+    } else if (msg.kind === 'complete' || msg.kind === 'error') {
+      setSessionProcessState(msg.sessionId, 'idle');
+    }
+  }, [latestMessage]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {

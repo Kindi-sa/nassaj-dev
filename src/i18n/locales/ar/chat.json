@@ -294,7 +294,8 @@
     },
     "providers": {
       "assistant": "المساعد"
-    }
+    },
+    "frozen": "متوقفة مؤقتاً (العملية مجمّدة)"
   },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"

@@ -237,7 +237,8 @@
     },
     "providers": {
       "assistant": "Assistant"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "participants": {
     "hide": "参加者バーを非表示",

@@ -367,6 +367,11 @@ export function useChatRealtimeHandlers({
       }
 
       case 'status': {
+        if (msg.text === 'process_state') {
+          // Frozen-session indicator: consumed globally (AppContent →
+          // sessionProcessStateStore). Never treat it as a spinner status.
+          break;
+        }
         if (msg.text === 'token_budget' && msg.tokenBudget) {
           setTokenBudget(msg.tokenBudget as Record<string, unknown>);
         } else if (msg.text) {

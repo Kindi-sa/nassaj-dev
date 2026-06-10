@@ -284,5 +284,11 @@
       "updateAvailable": "تحديث متاح",
       "closeSidebar": "إغلاق الشريط الجانبي"
     }
+  },
+  "sessionProcessState": {
+    "running": "تعمل",
+    "frozen": "مجمّدة مؤقتاً",
+    "runningHint": "عملية الجلسة تعمل الآن",
+    "frozenHint": "عملية الجلسة موقوفة مؤقتاً (kill -STOP)"
   }
 }

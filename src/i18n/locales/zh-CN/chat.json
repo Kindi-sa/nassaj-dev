@@ -246,7 +246,8 @@
     },
     "providers": {
       "assistant": "Assistant"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "选择一个项目以开始与 {{provider}} 聊天"

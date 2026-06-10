@@ -264,7 +264,8 @@
     },
     "providers": {
       "assistant": "Asistan"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeye başlamak için bir proje seç"

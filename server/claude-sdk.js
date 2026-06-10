@@ -30,6 +30,11 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import {
+  PROCESS_TAG_ENV_VAR,
+  registerSessionProcess,
+  unregisterSessionProcess
+} from './services/session-process-monitor.js';
 import { participantsDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
@@ -440,8 +445,12 @@ async function getClaudeBuiltInCommands(context = {}) {
  * @param {Object} queryInstance - SDK query instance
  * @param {Array<string>} tempImagePaths - Temp image file paths for cleanup
  * @param {string} tempDir - Temp directory for cleanup
+ * @param {Object|null} writer - WebSocketWriter for this session
+ * @param {string|null} runTag - PROCESS_TAG_ENV_VAR value injected into the
+ *   spawned CLI env; lets the process monitor resolve the child pid from
+ *   /proc and surface frozen (kill -STOP) state to the UI.
  */
-function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null) {
+function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null, runTag = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
@@ -450,6 +459,9 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
     tempDir,
     writer
   });
+  if (writer && runTag) {
+    registerSessionProcess(sessionId, { provider: 'claude', writer, runTag });
+  }
 }
 
 /**
@@ -458,6 +470,8 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // Stop process-state monitoring and tell every viewer the session is idle.
+  unregisterSessionProcess(sessionId);
   // Mark as recently ended to block writer swaps during the race window
   recentlyEndedSessions.set(sessionId, Date.now() + RECENTLY_ENDED_GRACE_MS);
   setTimeout(() => recentlyEndedSessions.delete(sessionId), RECENTLY_ENDED_GRACE_MS);
@@ -869,6 +883,12 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // base env unchanged when no userId is present (single-user / platform mode).
     sdkOptions.env = resolveProviderEnv(ws?.userId ?? null, 'claude', sdkOptions.env);
 
+    // Frozen-session indicator: the SDK never exposes the spawned CLI's pid,
+    // so tag the child env with a unique value the process monitor can match
+    // against /proc/<pid>/environ to find the pid and watch for kill -STOP.
+    const processRunTag = crypto.randomUUID();
+    sdkOptions.env[PROCESS_TAG_ENV_VAR] = processRunTag;
+
     // Load MCP configuration
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
@@ -1013,7 +1033,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Track the query instance for abort capability
     if (capturedSessionId) {
-      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag);
       recordParticipant(capturedSessionId);
     }
 
@@ -1024,7 +1044,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag);
         recordParticipant(capturedSessionId);
 
         // Set session ID on writer

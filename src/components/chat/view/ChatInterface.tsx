@@ -13,6 +13,7 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
+import { useSessionProcessState } from '../../../stores/sessionProcessStateStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -189,6 +190,11 @@ function ChatInterface({
     pendingViewSessionRef,
     sessionStore,
   });
+
+  // Frozen-session indicator: pause the status spinner while the underlying
+  // provider process is kill -STOP'd (state 'T'), instead of spinning forever.
+  const sessionProcessState = useSessionProcessState(currentSessionId ?? selectedSession?.id ?? null);
+  const isSessionFrozen = sessionProcessState === 'frozen';
 
   const {
     input,
@@ -455,6 +461,7 @@ function ChatInterface({
           handleGrantToolPermission={handleGrantToolPermission}
           claudeStatus={claudeStatus}
           isLoading={isLoading}
+          isSessionFrozen={isSessionFrozen}
           onAbortSession={handleAbortSession}
           provider={provider}
           displayProvider={displayProvider}

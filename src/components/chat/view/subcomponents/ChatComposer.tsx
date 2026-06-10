@@ -54,6 +54,8 @@ interface ChatComposerProps {
   handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   claudeStatus: { text: string; tokens: number; can_interrupt: boolean } | null;
   isLoading: boolean;
+  /** True while the session's provider process is externally frozen (kill -STOP). */
+  isSessionFrozen?: boolean;
   onAbortSession: () => void;
   provider: Provider | string;
   displayProvider: Provider | string;
@@ -110,6 +112,7 @@ export default function ChatComposer({
   handleGrantToolPermission,
   claudeStatus,
   isLoading,
+  isSessionFrozen = false,
   onAbortSession,
   provider,
   displayProvider,
@@ -181,6 +184,7 @@ export default function ChatComposer({
         <ClaudeStatus
           status={claudeStatus}
           isLoading={isLoading}
+          frozen={isSessionFrozen}
           onAbort={onAbortSession}
           provider={displayProvider}
         />

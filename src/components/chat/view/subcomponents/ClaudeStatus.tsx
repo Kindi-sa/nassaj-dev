@@ -11,6 +11,12 @@ type ClaudeStatusProps = {
   } | null;
   onAbort?: () => void;
   isLoading: boolean;
+  /**
+   * True while the session's provider process is externally frozen
+   * (kill -STOP). Pauses the spinner animation and elapsed/dots timers and
+   * shows a static amber indicator instead of an endless "working" pulse.
+   */
+  frozen?: boolean;
   provider?: string;
 };
 
@@ -42,6 +48,7 @@ export default function ClaudeStatus({
   status,
   onAbort,
   isLoading,
+  frozen = false,
   provider = 'claude',
 }: ClaudeStatusProps) {
   const { t } = useTranslation('chat');
@@ -51,6 +58,11 @@ export default function ClaudeStatus({
   useEffect(() => {
     if (!isLoading) {
       setElapsedTime(0);
+      return;
+    }
+    // Frozen process: nothing is advancing, so pause the timers (elapsed
+    // display keeps its last value; the dots animation stops).
+    if (frozen) {
       return;
     }
     const startTime = Date.now();
@@ -65,12 +77,15 @@ export default function ClaudeStatus({
       clearInterval(timer);
       clearInterval(dotTimer);
     };
-  }, [isLoading]);
+  }, [isLoading, frozen]);
 
   if (!isLoading && !status) return null;
 
+  const isFrozenLoading = isLoading && frozen;
   const actionWords = ACTION_KEYS.map((key, i) => t(key, { defaultValue: DEFAULT_ACTION_WORDS[i] }));
-  const statusText = (status?.text || actionWords[Math.floor(elapsedTime / 3) % actionWords.length]).replace(/[.]+$/, '');
+  const statusText = isFrozenLoading
+    ? t('claudeStatus.frozen', { defaultValue: 'Paused (process frozen)' })
+    : (status?.text || actionWords[Math.floor(elapsedTime / 3) % actionWords.length]).replace(/[.]+$/, '');
 
   const providerLabel = t(PROVIDER_LABEL_KEYS[provider] || 'claudeStatus.providers.assistant', { defaultValue: 'Assistant' });
 
@@ -82,7 +97,7 @@ export default function ClaudeStatus({
         <div className="flex min-w-0 items-center gap-2.5">
           <div className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/20 ring-1 ring-primary/10">
             <SessionProviderLogo provider={provider} className="h-3.5 w-3.5" />
-            {isLoading && (
+            {isLoading && !frozen && (
               <span className="absolute inset-0 animate-pulse rounded-full ring-2 ring-emerald-500/20" />
             )}
           </div>
@@ -92,9 +107,9 @@ export default function ClaudeStatus({
               {providerLabel}
             </span>
             <div className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 rounded-full", isLoading ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+              <span className={cn("h-1.5 w-1.5 rounded-full", isLoading && !frozen ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
               <p className="truncate text-xs font-medium text-foreground">
-                {statusText}<span className="inline-block w-4 text-primary">{isLoading ? dots : ''}</span>
+                {statusText}<span className="inline-block w-4 text-primary">{isLoading && !frozen ? dots : ''}</span>
               </p>
             </div>
           </div>
