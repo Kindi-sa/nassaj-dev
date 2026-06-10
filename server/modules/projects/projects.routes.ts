@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { projectsDb } from '@/modules/database/index.js';
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
@@ -9,6 +10,14 @@ import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projec
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { participantsService } from '@/modules/providers/index.js';
 import { assertProjectVisible } from '@/modules/projects/services/project-visibility-guard.service.js';
+import {
+  addMember,
+  isOrphanProject,
+  listMembers,
+  recoverOrphanByTransfer,
+  removeMember,
+  setVisibility,
+} from '@/modules/projects/services/project-visibility-management.service.js';
 
 const router = express.Router();
 
@@ -333,6 +342,180 @@ router.delete(
     const force = req.query.force === 'true';
     await deleteOrArchiveProject(projectId, force);
     res.json({ success: true });
+  }),
+);
+
+/**
+ * Coerces a body field into a positive integer user id, or null when absent or
+ * malformed. Used by the membership/recovery routes (never trusts the client for
+ * authorization — only for the *target* of an already-authorized operation).
+ */
+function readBodyUserId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/**
+ * PATCH /api/projects/:projectId/visibility — toggle public/private.
+ * Body: { visibility: 'public' | 'private' }.
+ * Authorization (server-side): creator, project_members 'owner', or platform
+ * owner. Switching to private records the creator as a project_members 'owner'.
+ */
+router.patch(
+  '/:projectId/visibility',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const rawVisibility = (req.body as { visibility?: unknown })?.visibility;
+    const visibility = rawVisibility === 'private' ? 'private' : rawVisibility === 'public' ? 'public' : null;
+    if (visibility === null) {
+      throw new AppError("visibility must be 'public' or 'private'", {
+        code: 'INVALID_VISIBILITY',
+        statusCode: 400,
+      });
+    }
+
+    const result = setVisibility(
+      projectId,
+      visibility,
+      readAuthenticatedUserId(req),
+      isPlatformOwner(req),
+    );
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * GET /api/projects/:projectId/members — manager-only membership listing.
+ */
+router.get(
+  '/:projectId/members',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const result = listMembers(projectId, readAuthenticatedUserId(req), isPlatformOwner(req));
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * POST /api/projects/:projectId/members — add/update a member.
+ * Body: { userId: number, role?: 'owner' | 'member' }.
+ */
+router.post(
+  '/:projectId/members',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const body = (req.body ?? {}) as { userId?: unknown; role?: unknown };
+    const targetUserId = readBodyUserId(body.userId);
+    if (targetUserId === null) {
+      throw new AppError('A valid userId is required', { code: 'INVALID_USER_ID', statusCode: 400 });
+    }
+    const role = body.role === 'owner' ? 'owner' : 'member';
+
+    const result = addMember(
+      projectId,
+      targetUserId,
+      role,
+      readAuthenticatedUserId(req),
+      isPlatformOwner(req),
+    );
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * DELETE /api/projects/:projectId/members/:userId — remove a member.
+ */
+router.delete(
+  '/:projectId/members/:userId',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const targetUserId = readBodyUserId(req.params.userId);
+    if (targetUserId === null) {
+      throw new AppError('A valid userId is required', { code: 'INVALID_USER_ID', statusCode: 400 });
+    }
+
+    const result = removeMember(
+      projectId,
+      targetUserId,
+      readAuthenticatedUserId(req),
+      isPlatformOwner(req),
+    );
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * GET /api/projects/:projectId/orphan-status — platform-owner check for whether
+ * a project is orphaned (no creator and no owner member). Metadata only.
+ */
+router.get(
+  '/:projectId/orphan-status',
+  asyncHandler(async (req, res) => {
+    if (!isPlatformOwner(req)) {
+      throw new AppError('Insufficient permissions', {
+        code: 'PROJECT_MANAGE_FORBIDDEN',
+        statusCode: 403,
+      });
+    }
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    res.json(createApiSuccessResponse({ projectId, orphaned: isOrphanProject(projectId) }));
+  }),
+);
+
+/**
+ * POST /api/projects/:projectId/recover — platform-owner orphan recovery by
+ * transfer of ownership. Body: { newOwnerUserId: number }. Metadata only — does
+ * not read project content. Refuses non-orphans.
+ */
+router.post(
+  '/:projectId/recover',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const newOwnerUserId = readBodyUserId((req.body as { newOwnerUserId?: unknown })?.newOwnerUserId);
+    if (newOwnerUserId === null) {
+      throw new AppError('A valid newOwnerUserId is required', {
+        code: 'INVALID_USER_ID',
+        statusCode: 400,
+      });
+    }
+    const result = recoverOrphanByTransfer(projectId, newOwnerUserId, isPlatformOwner(req));
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+/**
+ * DELETE /api/projects/:projectId/recover — platform-owner deletion of an
+ * ORPHANED project. Metadata only (DB row + session jsonl); refuses non-orphans
+ * so a project with a legitimate manager can never be removed by this path.
+ */
+router.delete(
+  '/:projectId/recover',
+  asyncHandler(async (req, res) => {
+    if (!isPlatformOwner(req)) {
+      throw new AppError('Insufficient permissions', {
+        code: 'PROJECT_MANAGE_FORBIDDEN',
+        statusCode: 403,
+      });
+    }
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    if (!projectsDb.getProjectById(projectId)) {
+      throw new AppError('Project not found', { code: 'PROJECT_NOT_FOUND', statusCode: 404 });
+    }
+    if (!isOrphanProject(projectId)) {
+      throw new AppError('Project is not orphaned', {
+        code: 'PROJECT_NOT_ORPHANED',
+        statusCode: 409,
+      });
+    }
+    const force = req.query.force === 'true';
+    await deleteOrArchiveProject(projectId, force);
+    res.json(createApiSuccessResponse({ projectId, deleted: true }));
   }),
 );
 
