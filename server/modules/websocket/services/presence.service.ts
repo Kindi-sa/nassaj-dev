@@ -29,7 +29,7 @@
  * Nothing sensitive (tokens, env, message content) is ever included.
  */
 
-import { userDb } from '@/modules/database/index.js';
+import { projectsDb, userDb } from '@/modules/database/index.js';
 import {
   WS_OPEN_STATE,
   connectedClients,
@@ -114,11 +114,17 @@ function resolveAvatarUrl(userId: PresenceUserId): string | null {
 }
 
 /**
- * Builds the full presence snapshot. The "active" run surfaced per user is the
- * most recently started one (a brother may have several runs going, but the UI
- * shows the freshest as the headline activity).
+ * Builds the presence snapshot for ONE recipient. The "active" run surfaced per
+ * user is the most recently started one (a brother may have several runs going,
+ * but the UI shows the freshest as the headline activity).
+ *
+ * B-PRIV: `visiblePaths` is the set of project paths the recipient may see. When
+ * the freshest active run belongs to a project NOT in that set (a private
+ * project the recipient is not a member of), the activity is REDACTED — the user
+ * still shows as connected, but their active session/project/provider are nulled
+ * so a private workspace path/session id never leaks through presence.
  */
-function buildSnapshot(): PresenceEntry[] {
+function buildSnapshot(visiblePaths: Set<string>): PresenceEntry[] {
   const entries: PresenceEntry[] = [];
   for (const state of users.values()) {
     let active: PresenceRun | null = null;
@@ -127,16 +133,25 @@ function buildSnapshot(): PresenceEntry[] {
         active = run;
       }
     }
+
+    // Redact the headline activity when its project is not visible to the
+    // recipient. A null projectPath (provider without a resolved path) is left
+    // visible — it carries no private path to leak.
+    const activeVisible =
+      active !== null &&
+      (active.projectPath === null || visiblePaths.has(active.projectPath));
+    const surfacedActive = activeVisible ? active : null;
+
     entries.push({
       userId: state.userId,
       username: state.username,
       avatarUrl: resolveAvatarUrl(state.userId),
       connected: true,
-      active: Boolean(active),
-      activeSessionId: active?.sessionId ?? null,
-      activeProjectPath: active?.projectPath ?? null,
-      provider: active?.provider ?? null,
-      since: active ? active.since : state.connectedSince,
+      active: Boolean(surfacedActive),
+      activeSessionId: surfacedActive?.sessionId ?? null,
+      activeProjectPath: surfacedActive?.projectPath ?? null,
+      provider: surfacedActive?.provider ?? null,
+      since: surfacedActive ? surfacedActive.since : state.connectedSince,
     });
   }
   // Stable order so clients don't see rows jump around between snapshots.
@@ -144,18 +159,62 @@ function buildSnapshot(): PresenceEntry[] {
   return entries;
 }
 
-/** Sends the current snapshot to every open chat client immediately. */
+/** Coerces a stamped socket userId into a DB user id, or null. */
+function toRecipientUserId(rawUserId: string | number | null | undefined): number | null {
+  if (typeof rawUserId === 'number') {
+    return Number.isInteger(rawUserId) ? rawUserId : null;
+  }
+  if (typeof rawUserId === 'string' && rawUserId.trim() !== '') {
+    const parsed = Number.parseInt(rawUserId, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/**
+ * Sends the snapshot to every open chat client immediately. B-PRIV: the snapshot
+ * is built per-recipient and cached per distinct userId, so each client only
+ * ever sees activity in projects it is allowed to see (private-project runs of
+ * other users are redacted). Unauthenticated sockets get the public-only view.
+ */
 function broadcastNow(): void {
   broadcastTimer = null;
-  const payload = JSON.stringify({
-    type: PRESENCE_MESSAGE_TYPE,
-    users: buildSnapshot(),
-    timestamp: new Date().toISOString(),
-  });
+  const timestamp = new Date().toISOString();
+
+  const payloadByUserId = new Map<number, string>();
+  let publicPayload: string | null = null;
+
+  const resolvePayload = (rawUserId: string | number | null | undefined): string => {
+    const recipientId = toRecipientUserId(rawUserId);
+    if (recipientId === null) {
+      if (publicPayload === null) {
+        const publicPaths = new Set(projectsDb.getVisibleProjectPaths(null));
+        publicPayload = JSON.stringify({
+          type: PRESENCE_MESSAGE_TYPE,
+          users: buildSnapshot(publicPaths),
+          timestamp,
+        });
+      }
+      return publicPayload;
+    }
+
+    let payload = payloadByUserId.get(recipientId);
+    if (!payload) {
+      const visiblePaths = new Set(projectsDb.getVisibleProjectPaths(recipientId));
+      payload = JSON.stringify({
+        type: PRESENCE_MESSAGE_TYPE,
+        users: buildSnapshot(visiblePaths),
+        timestamp,
+      });
+      payloadByUserId.set(recipientId, payload);
+    }
+    return payload;
+  };
+
   connectedClients.forEach((client) => {
     if (client.readyState === WS_OPEN_STATE) {
       try {
-        client.send(payload);
+        client.send(resolvePayload(client.userId));
       } catch {
         // A failing socket will be cleaned up by its own close handler.
       }

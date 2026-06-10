@@ -8,6 +8,7 @@ import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWit
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { participantsService } from '@/modules/providers/index.js';
+import { assertProjectVisible } from '@/modules/projects/services/project-visibility-guard.service.js';
 
 const router = express.Router();
 
@@ -134,6 +135,8 @@ router.get(
   '/:projectId/sessions',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    // B-PRIV guard: 404 (not 403) when the project is not visible to this user.
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 20);
     const offset = parseNonNegativeIntQuery(req.query.offset, 'offset', 0);
     const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset });
@@ -263,6 +266,7 @@ router.get(
   '/:projectId/participants',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const result = await participantsService.getProjectParticipants(projectId);
     res.json(createApiSuccessResponse(result));
   }),
@@ -272,6 +276,7 @@ router.get(
   '/:projectId/taskmaster',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const taskMasterDetails = await getProjectTaskMaster(projectId);
     res.json(taskMasterDetails);
   }),
@@ -280,10 +285,16 @@ router.get(
 router.put('/:projectId/rename', (req, res) => {
   try {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    // B-PRIV guard: a non-member cannot rename a private project (404, not 403).
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const { displayName } = req.body as { displayName?: unknown };
     updateProjectDisplayName(projectId, displayName);
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({ error: error.message });
+      return;
+    }
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
   }
 });
@@ -292,6 +303,7 @@ router.post(
   '/:projectId/toggle-star',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const { isStarred } = toggleProjectStar(projectId);
     res.json({ success: true, isStarred });
   }),
@@ -301,6 +313,7 @@ router.post(
   '/:projectId/restore',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     restoreArchivedProject(projectId);
     res.json(createApiSuccessResponse({ projectId, isArchived: false }));
   }),
@@ -314,6 +327,9 @@ router.delete(
   '/:projectId',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    // B-PRIV guard: a non-member cannot archive/delete a private project (404).
+    // Platform-owner recovery of ORPHANED projects has its own route (B-PRIV-5).
+    assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const force = req.query.force === 'true';
     await deleteOrArchiveProject(projectId, force);
     res.json({ success: true });

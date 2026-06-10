@@ -1,5 +1,6 @@
 import type { WebSocket } from 'ws';
 
+import { projectsDb } from '@/modules/database/index.js';
 import {
   presenceConnect,
   presenceDisconnect,
@@ -134,6 +135,45 @@ function readResumeSessionId(data: ChatIncomingMessage): string | null {
 }
 
 /**
+ * B-PRIV spawn guard. A run is started against `options.cwd` (a project path).
+ * If that path maps to a KNOWN private project the user is not a member of, the
+ * run is refused so a non-member cannot start a session inside a private
+ * project's directory (which would also leak its content through the stream).
+ *
+ * Unregistered paths (no projects row yet) are allowed — that is the creation
+ * flow, which records the spawner as the project's participant/creator. Returns
+ * true when the spawn may proceed.
+ */
+function isSpawnProjectVisible(
+  data: ChatIncomingMessage,
+  userId: string | number | null
+): boolean {
+  const options = (data.options ?? {}) as { cwd?: unknown };
+  const cwd = typeof options.cwd === 'string' ? options.cwd.trim() : '';
+  if (!cwd) {
+    return true;
+  }
+
+  const projectRow = projectsDb.getProjectPath(cwd);
+  if (!projectRow) {
+    // Path not yet registered as a project — creation/first-run flow.
+    return true;
+  }
+
+  const numericUserId =
+    typeof userId === 'number'
+      ? userId
+      : typeof userId === 'string' && userId.trim() !== ''
+        ? Number.parseInt(userId, 10)
+        : null;
+
+  return projectsDb.isProjectVisibleToUser(
+    projectRow.project_id,
+    Number.isInteger(numericUserId) ? numericUserId : null
+  );
+}
+
+/**
  * Dispatches a chat command to the handler that owns the resolved provider.
  *
  * Routing is provider-driven, not message-type-driven: when a command carries a
@@ -248,6 +288,25 @@ export function handleChatConnection(
       const messageType = data.type;
       if (!messageType) {
         throw new Error('Message type is required');
+      }
+
+      // B-PRIV: refuse to start/resume a run inside a private project the
+      // authenticated user is not a member of (404-equivalent over WS).
+      const isSpawnMessage =
+        messageType in COMMAND_TYPE_TO_PROVIDER ||
+        messageType === 'opencode-command' ||
+        messageType === 'cursor-resume';
+      if (isSpawnMessage && !isSpawnProjectVisible(data, presenceUserId)) {
+        writer.send(
+          createNormalizedMessage({
+            kind: 'complete',
+            provider: COMMAND_TYPE_TO_PROVIDER[messageType] ?? DEFAULT_PROVIDER,
+            exitCode: 1,
+            success: false,
+            error: 'Project not found',
+          })
+        );
+        return;
       }
 
       if (messageType in COMMAND_TYPE_TO_PROVIDER) {

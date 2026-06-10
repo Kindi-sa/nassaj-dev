@@ -87,6 +87,7 @@ import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
+import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
@@ -615,6 +616,12 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(400).json({ error: 'Invalid file path' });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to this
+        // user, so a private project's existence is never disclosed.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the absolute project root via the DB-backed helper; the
         // caller passes the DB-assigned `projectId`, not a folder name.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
@@ -655,6 +662,11 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
         // Security: ensure the requested path is inside the project root
         if (!filePath) {
             return res.status(400).json({ error: 'Invalid file path' });
+        }
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
         }
 
         // Projects are now addressed by DB `projectId`, resolved to their path here.
@@ -719,6 +731,11 @@ app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(400).json({ error: 'Content is required' });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Projects are now addressed by DB `projectId`, resolved to their path here.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -758,6 +775,11 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
     try {
 
         // Using fsPromises from import
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
 
         // Resolve the project's absolute path through the DB (projectId is the
         // primary key of the `projects` table after the identifier migration).
@@ -848,6 +870,11 @@ app.post('/api/projects/:projectId/files/create', authenticateToken, async (req,
             return res.status(400).json({ error: nameValidation.error });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the project directory through the DB using the new projectId.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -921,6 +948,11 @@ app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, 
             return res.status(400).json({ error: nameValidation.error });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the project directory through the DB using the new projectId.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -991,6 +1023,11 @@ app.delete('/api/projects/:projectId/files', authenticateToken, async (req, res)
         // Validate input
         if (!targetPath) {
             return res.status(400).json({ error: 'Path is required' });
+        }
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
         }
 
         // Resolve the project directory through the DB using the new projectId.
@@ -1088,6 +1125,13 @@ const uploadFilesHandler = async (req, res) => {
         try {
             const { projectId } = req.params;
             const { targetPath, relativePaths, requestedFileCount: requestedFileCountRaw } = req.body;
+
+            // B-PRIV guard: 404 (not 403) when the project is not visible to the
+            // user. Temp uploads land in os.tmpdir(), so rejecting here (before any
+            // write into the project) fully protects a private project.
+            if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
 
             // Parse relative paths if provided (for folder uploads)
             let filePaths = [];
@@ -1223,6 +1267,11 @@ app.post('/api/projects/:projectId/files/upload', authenticateToken, uploadFiles
 // so we just leave the param rename for consistency with the rest of the API.
 app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req, res) => {
     try {
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         const multer = (await import('multer')).default;
         const path = (await import('path')).default;
         const fs = (await import('fs')).promises;
@@ -1312,6 +1361,12 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         const { projectId, sessionId } = req.params;
         const { provider = 'claude' } = req.query;
         const homeDir = os.homedir();
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user,
+        // so a private project's token usage is never disclosed to a non-member.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
 
         // Allow only safe characters in sessionId
         const safeSessionId = String(sessionId).replace(/[^a-zA-Z0-9._-]/g, '');
