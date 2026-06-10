@@ -67,7 +67,9 @@
     "version": "Version",
     "select": "Select",
     "selectAll": "Select All",
-    "deselectAll": "Deselect All"
+    "deselectAll": "Deselect All",
+    "done": "Done",
+    "failed": "Failed"
   },
   "time": {
     "justNow": "Just now",
@@ -120,6 +122,11 @@
     "newFolder": "New Folder (Cmd+Shift+N)",
     "refresh": "Refresh",
     "collapseAll": "Collapse All",
+    "uploadFiles": "Upload files (max {{size}} each)",
+    "uploadingFiles": "Uploading files",
+    "uploadComplete": "Upload complete",
+    "uploadFailed": "Upload failed",
+    "uploadedCount": "Uploaded {{uploaded}} of {{total}} {{label}}",
     "context": {
       "rename": "Rename",
       "delete": "Delete",

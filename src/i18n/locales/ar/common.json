@@ -67,7 +67,9 @@
     "version": "الإصدار",
     "select": "اختر",
     "selectAll": "تحديد الكل",
-    "deselectAll": "إلغاء تحديد الكل"
+    "deselectAll": "إلغاء تحديد الكل",
+    "done": "تم",
+    "failed": "فشل"
   },
   "time": {
     "justNow": "للتو",
@@ -120,6 +122,11 @@
     "newFolder": "مجلد جديد (Cmd+Shift+N)",
     "refresh": "تحديث",
     "collapseAll": "طيّ الكل",
+    "uploadFiles": "رفع ملفات (بحد أقصى {{size}} لكل ملف)",
+    "uploadingFiles": "جارٍ رفع الملفات",
+    "uploadComplete": "اكتمل الرفع",
+    "uploadFailed": "فشل الرفع",
+    "uploadedCount": "رُفع {{uploaded}} من أصل {{total}} ملف",
     "context": {
       "rename": "إعادة تسمية",
       "delete": "حذف",
