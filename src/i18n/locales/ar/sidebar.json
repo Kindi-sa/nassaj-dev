@@ -152,5 +152,10 @@
       "model": "النموذج الأساسي",
       "subagent": "وكيل فرعي"
     }
+  },
+  "upstream": {
+    "newRelease": "صدر upstream v{{version}}",
+    "openRelease": "فتح صفحة إصدار upstream v{{version}}",
+    "acknowledge": "إقرار"
   }
 }

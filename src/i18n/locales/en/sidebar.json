@@ -143,5 +143,10 @@
       "model": "Base model",
       "subagent": "Subagent"
     }
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }

@@ -9,7 +9,7 @@ import { ReleaseInfo } from '../types/sharedTypes';
  * @param {string} v2
  * @returns positive if v1 > v2, negative if v1 < v2, 0 if equal
  */
-const compareVersions = (v1: string, v2: string) => {
+export const compareVersions = (v1: string, v2: string) => {
   const parts1 = v1.split('.').map(Number);
   const parts2 = v2.split('.').map(Number);
   
