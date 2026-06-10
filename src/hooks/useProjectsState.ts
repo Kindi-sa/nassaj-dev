@@ -46,6 +46,7 @@ const projectsHaveChanges = (
       nextProject.displayName !== prevProject.displayName ||
       nextProject.fullPath !== prevProject.fullPath ||
       Boolean(nextProject.isStarred) !== Boolean(prevProject.isStarred) ||
+      Boolean(nextProject.isMember) !== Boolean(prevProject.isMember) ||
       serialize(nextProject.sessionMeta) !== serialize(prevProject.sessionMeta) ||
       serialize(nextProject.sessions) !== serialize(prevProject.sessions) ||
       serialize(nextProject.taskmaster) !== serialize(prevProject.taskmaster);
@@ -65,6 +66,31 @@ const projectsHaveChanges = (
       serialize(nextProject.antigravitySessions) !== serialize(prevProject.antigravitySessions) ||
       serialize(nextProject.opencodeSessions) !== serialize(prevProject.opencodeSessions)
     );
+  });
+};
+
+// Defense in depth for `projects_updated` broadcasts: when an incoming project
+// omits `isMember` (undefined), keep the flag last delivered by the
+// authenticated `GET /api/projects` fetch instead of silently dropping it —
+// otherwise the sidebar "My Projects" filter empties after the first broadcast.
+const preserveMembershipFlags = (incomingProjects: Project[], previousProjects: Project[]): Project[] => {
+  if (previousProjects.length === 0) {
+    return incomingProjects;
+  }
+
+  const previousByProjectId = new Map(previousProjects.map((project) => [project.projectId, project]));
+
+  return incomingProjects.map((project) => {
+    if (project.isMember !== undefined) {
+      return project;
+    }
+
+    const previousProject = previousByProjectId.get(project.projectId);
+    if (!previousProject || previousProject.isMember === undefined) {
+      return project;
+    }
+
+    return { ...project, isMember: previousProject.isMember };
   });
 };
 
@@ -445,7 +471,8 @@ export function useProjectsState({
 
     const hasActiveSession = Boolean(selectedSession && activeSessions.has(selectedSession.id));
 
-    const updatedProjectsWithTaskMaster = mergeTaskMasterCache(projectsMessage.projects, projects);
+    const incomingProjectsWithMembership = preserveMembershipFlags(projectsMessage.projects, projects);
+    const updatedProjectsWithTaskMaster = mergeTaskMasterCache(incomingProjectsWithMembership, projects);
     const updatedProjects = mergeExpandedSessionPages(projects, updatedProjectsWithTaskMaster);
 
     if (

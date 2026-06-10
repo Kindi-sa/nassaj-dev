@@ -10,6 +10,7 @@ import type {
   AnyRecord,
   AuthenticatedWebSocketRequest,
   LLMProvider,
+  RealtimeClientConnection,
 } from '@/shared/types.js';
 import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 
@@ -228,6 +229,11 @@ export function handleChatConnection(
   // (same precedence as the chat writer), never from client input.
   const presenceUserId = readRequestUserId(request);
   presenceConnect(ws, request.user, presenceUserId);
+
+  // Stamp the JWT-derived identity on the shared socket so broadcasters (e.g.
+  // the sessions watcher's `projects_updated`) can compute per-user fields like
+  // `isMember` for each client (B-MU-UX-FIX-WSMEMBER).
+  (ws as RealtimeClientConnection).userId = presenceUserId;
 
   const writer = new WebSocketWriter(ws, presenceUserId);
 

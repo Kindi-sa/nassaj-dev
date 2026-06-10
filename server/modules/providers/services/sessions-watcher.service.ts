@@ -4,9 +4,10 @@ import { promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
+import { participantsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
-import type { LLMProvider } from '@/shared/types.js';
+import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
 import { getProjectsWithSessions } from '@/modules/projects/index.js';
 
 type WatcherEventType = 'add' | 'change';
@@ -82,6 +83,21 @@ function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
   return filePath.endsWith('.jsonl');
 }
 
+/**
+ * Coerces the socket-stamped identity into a DB user id, or null when the
+ * socket is unauthenticated or the value is not an integer id.
+ */
+function toMembershipUserId(rawUserId: string | number | null | undefined): number | null {
+  if (typeof rawUserId === 'number') {
+    return Number.isInteger(rawUserId) ? rawUserId : null;
+  }
+  if (typeof rawUserId === 'string' && rawUserId.trim() !== '') {
+    const parsed = Number(rawUserId);
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function clearPendingWatcherFlushTimer(): void {
   if (pendingWatcherFlushTimer) {
     clearTimeout(pendingWatcherFlushTimer);
@@ -155,9 +171,8 @@ async function flushPendingWatcherUpdate(): Promise<void> {
     const updatedSessionIds = Array.from(queuedUpdate.updatedSessionIds);
 
     // Backward-compatible fields stay populated with the first queued values.
-    const updateMessage = JSON.stringify({
+    const basePayload = {
       type: 'projects_updated',
-      projects: updatedProjects,
       timestamp: new Date().toISOString(),
       changeType: changeTypes[0] ?? 'change',
       updatedSessionId: updatedSessionIds[0] ?? undefined,
@@ -166,11 +181,41 @@ async function flushPendingWatcherUpdate(): Promise<void> {
       updatedSessionIds,
       watchProviders,
       batched: true,
-    });
+    };
+
+    // `isMember` is per-user, but the shared fetch above runs without a
+    // requester so every project carries isMember:false. Stamp the correct
+    // membership flag per authenticated client before sending (one DB lookup
+    // and one serialization per distinct userId, not per socket). Sockets
+    // without a stamped identity keep the unauthenticated isMember:false view.
+    const serializedByUserId = new Map<number, string>();
+    let serializedFallback: string | null = null;
+
+    const resolveUpdateMessage = (client: RealtimeClientConnection): string => {
+      const membershipUserId = toMembershipUserId(client.userId);
+      if (membershipUserId === null) {
+        serializedFallback ??= JSON.stringify({ ...basePayload, projects: updatedProjects });
+        return serializedFallback;
+      }
+
+      let serialized = serializedByUserId.get(membershipUserId);
+      if (!serialized) {
+        const memberProjectPaths = new Set(participantsDb.getProjectPathsForUser(membershipUserId));
+        serialized = JSON.stringify({
+          ...basePayload,
+          projects: updatedProjects.map(project => ({
+            ...project,
+            isMember: memberProjectPaths.has(project.fullPath),
+          })),
+        });
+        serializedByUserId.set(membershipUserId, serialized);
+      }
+      return serialized;
+    };
 
     connectedClients.forEach(client => {
       if (client.readyState === WS_OPEN_STATE) {
-        client.send(updateMessage);
+        client.send(resolveUpdateMessage(client));
       }
     });
   } catch (error) {

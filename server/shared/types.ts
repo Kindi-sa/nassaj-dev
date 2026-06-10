@@ -32,6 +32,11 @@ export type AnyRecord = Record<string, any>;
 export type RealtimeClientConnection = {
   readyState: number;
   send(data: string): void;
+  // JWT-authenticated identity stamped on the socket at connect time
+  // (chat-websocket.service). Lets broadcasters personalize per-user fields
+  // (e.g. `isMember` in projects_updated) without re-authenticating. Never
+  // sourced from client input; absent/null for unauthenticated sockets.
+  userId?: string | number | null;
 };
 
 /**
