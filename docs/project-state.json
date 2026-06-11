@@ -595,9 +595,39 @@
       "phase": "P4",
       "sprint": null,
       "kind": "bug",
-      "title": "مراجعة ثيم الكندي (ملاحظة مستخدم 3): صفوف الإعدادات تظهر برمادي بارد ينفر من الخلفية العاجية الدافئة ومربع الاختيار أزرق فاقع خارج اللوحة (لقطة tool-display options) — يلزم تشخيص ui-designer: هل الرمادي hardcoded ‏(bg-gray-*) أم من tokens، ثم توحيد الحياد الدافئ أو تحويل المكوّنات إلى tokens",
-      "status": "todo",
-      "owner": "ui-designer",
+      "title": "مراجعة ثيم الكندي (ملاحظة مستخدم 3): صفوف الإعدادات تظهر برمادي بارد ينفر من الخلفية العاجية الدافئة ومربع الاختيار أزرق فاقع خارج اللوحة (لقطة tool-display options) — يلزم تشخيص ui-designer: هل الرمادي hardcoded ‏(bg-gray-*) أم من tokens، ثم توحيد الحياد الدافئ أو تحويل المكوّنات إلى tokens — أُنجز: التشخيص (ui-designer): الرمادي/الأزرق hardcoded خارج الـ tokens، أخطرها accent-blue-600 عام في index.css يصبغ كل checkbox؛ التنفيذ: 20 ملفاً حُوّلت إلى tokens (صفوف quick-settings → bg-secondary/hover:bg-accent، checkbox/radio → accent-primary وhsl(var(--*))، تبويبات الإعدادات → primary/ring) مع إبقاء ألوان هوية المزوّدين ودلالة yolo البرتقالية + تدفئة mutedForeground في alkindy إلى 30 8% 38% (36fdd6c)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-61",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "title": "إزالة الدومينين العامين diwan.alkindy.tech وnassaj.alkindy.tech من نفق cloudflared (السيرفر dev فقط): النفق الفعّال user-mode من ~/.cloudflared/config.yml (وحدة /etc/systemd ‏disabled؛ ما يبدو نفق /etc/cloudflared هو حاوية wafeq المنفصلة — لم تُمس)؛ صيغ -dev باقية، ingress validate ‏OK، ‏backup ‏config.yml.bak-2026-06-11، التوثيق صُحّح من التضارب. يتبقى: systemctl --user restart cloudflared بيد المستخدم + حذف CNAME الدومينين من لوحة Cloudflare",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-62",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "title": "ملاحظة «سيرفر تطوير وليس إنتاج — الإنتاج على سيرفر ميناء» بارزة أعلى nassaj-server-docs.md (وُجدت مضافة ضمن تحديث توثيق T-61؛ تحقق scribe دون تكرار)",
+      "status": "done",
+      "owner": "scribe",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-63",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "title": "هيكلة هرمية لـ /home/nassaj: اقتراح architect — ‏projects/ للمصادر وservices/ للتشغيل وarchive/ للميت + دمج نسخ ديوان الثلاث عبر git worktrees. نُفّذت المرحلتان الآمنتان 0+1: حذف core dumps ‏traventure ‏(494M)، أرشفة الميت (run-deploy*‎، diwan-review، 6 مجلدات Project شبه فارغة…)، دمج scripts→bin، تعطيل diwan-cloudflared الفاشلة المكررة، نقل alkindy-bm/contacts/rukhaimi-kb/nassaj-ops إلى projects/؛ تحقق: PM2 ‏5/5 وDocker ‏13/13 و0 وحدات فاشلة، والتوثيق محدَّث. تخطّيا بمسوّغ: wafeq-connect ‏(build context حي في compose ‏Wafeq-MCP) وtraventure (عملية node حية cwd بداخله). المؤجَّل لقرارات المستخدم: نقل مراسي PM2/systemd/Docker، توحيد ديوان worktrees، مصير ~/Diwan ‏prod حتى هجرة ميناء",
+      "status": "in_progress",
+      "owner": "devops",
       "closed": null
     }
   ],
