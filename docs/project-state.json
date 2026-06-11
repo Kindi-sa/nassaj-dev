@@ -669,6 +669,16 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-68",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "وضع «الشعار فقط» في Branding: مفتاح branding.logo_only في app_config، تبديل owner-only في الإعدادات، الترويسة تعرض الشعار المرفوع وحده (wordmark بارتفاع h-8، RTL-aware، العنوان يبقى في alt) بدل الأيقونة+الاسم؛ PUT /branding يحدّث الحقول المُرسلة فقط؛ ترجمات 9 لغات — commit fc98920؛ يتطلب pm2 restart nassaj-dev بيد المستخدم لتفعيل حقل الخادم",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
