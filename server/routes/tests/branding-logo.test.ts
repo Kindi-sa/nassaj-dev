@@ -201,6 +201,9 @@ async function buildServer() {
   appConfigStore.clear();
 
   const app = express();
+  // The real server registers express.json() app-wide; the PUT /branding
+  // handler depends on it to read req.body.
+  app.use(express.json());
   // Stand-in for authenticateToken: inject a verified owner so requireRole
   // ('owner') passes and the upload handler runs.
   app.use((req, _res, next) => {
@@ -246,11 +249,72 @@ async function buildServer() {
     return { status: res.status, body: json };
   };
 
+  // Plain JSON request helper for the GET/PUT /branding settings round-trips.
+  const requestJson = async (method: string, urlPath: string, body?: unknown) => {
+    const res = await fetch(`http://127.0.0.1:${port}${urlPath}`, {
+      method,
+      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    return { status: res.status, body: json };
+  };
+
   const close = () =>
     new Promise<void>((resolve) => server.close(() => resolve()));
 
-  return { uploadLogo, close };
+  return { uploadLogo, requestJson, close };
 }
+
+// ---------------------------------------------------------------------------
+// Splash hide-title setting (branding.splash_hide_title) round-trip.
+// ---------------------------------------------------------------------------
+test('GET branding defaults splashHideTitle to false', async () => {
+  const srv = await buildServer();
+  try {
+    const { status, body } = await srv.requestJson('GET', '/api/settings/branding');
+    assert.equal(status, 200);
+    assert.equal(body.splashHideTitle, false);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('PUT branding persists splashHideTitle and GET reflects it', async () => {
+  const srv = await buildServer();
+  try {
+    const enabled = await srv.requestJson('PUT', '/api/settings/branding', {
+      splashHideTitle: true,
+    });
+    assert.equal(enabled.status, 200);
+    assert.equal(enabled.body.splashHideTitle, true);
+
+    const fetched = await srv.requestJson('GET', '/api/settings/branding');
+    assert.equal(fetched.status, 200);
+    assert.equal(fetched.body.splashHideTitle, true);
+
+    const disabled = await srv.requestJson('PUT', '/api/settings/branding', {
+      splashHideTitle: false,
+    });
+    assert.equal(disabled.status, 200);
+    assert.equal(disabled.body.splashHideTitle, false);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('PUT branding ignores a non-boolean splashHideTitle', async () => {
+  const srv = await buildServer();
+  try {
+    const { status, body } = await srv.requestJson('PUT', '/api/settings/branding', {
+      splashHideTitle: 'yes',
+    });
+    assert.equal(status, 200);
+    assert.equal(body.splashHideTitle, false, 'non-boolean value must not be persisted');
+  } finally {
+    await srv.close();
+  }
+});
 
 test('POST branding/logo rejects a file declaring image/png whose bytes are not a real PNG (400)', async () => {
   const srv = await buildServer();

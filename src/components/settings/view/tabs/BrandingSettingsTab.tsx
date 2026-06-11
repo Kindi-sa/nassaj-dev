@@ -22,7 +22,7 @@ type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 export default function BrandingSettingsTab() {
   const { t } = useTranslation('settings');
   const { user } = useAuth();
-  const { title, logoUrl, logoDarkUrl, logoOnly, refresh } = useBranding();
+  const { title, logoUrl, logoDarkUrl, logoOnly, splashHideTitle, refresh } = useBranding();
 
   const isOwner = user?.role === 'owner';
   const defaultTitle = t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
@@ -41,6 +41,9 @@ export default function BrandingSettingsTab() {
 
   const [logoOnlyStatus, setLogoOnlyStatus] = useState<Status>({ kind: 'idle' });
   const [logoOnlyBusy, setLogoOnlyBusy] = useState(false);
+
+  const [splashHideTitleStatus, setSplashHideTitleStatus] = useState<Status>({ kind: 'idle' });
+  const [splashHideTitleBusy, setSplashHideTitleBusy] = useState(false);
 
   // Keep the input in sync if branding loads/changes after mount.
   useEffect(() => {
@@ -124,6 +127,27 @@ export default function BrandingSettingsTab() {
       });
     } finally {
       setLogoOnlyBusy(false);
+    }
+  };
+
+  const handleSplashHideTitleChange = async (value: boolean) => {
+    setSplashHideTitleBusy(true);
+    setSplashHideTitleStatus({ kind: 'idle' });
+    try {
+      const response = await api.branding.updateSplashHideTitle(value);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || t('brandingSettings.errorGeneric'));
+      }
+      await refresh();
+      setSplashHideTitleStatus({ kind: 'success', message: t('brandingSettings.savedSplash') });
+    } catch (error) {
+      setSplashHideTitleStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : t('brandingSettings.errorGeneric'),
+      });
+    } finally {
+      setSplashHideTitleBusy(false);
     }
   };
 
@@ -360,6 +384,36 @@ export default function BrandingSettingsTab() {
           {logoOnlyStatus.kind !== 'idle' && (
             <p className={`mt-2 text-xs ${statusClass(logoOnlyStatus)}`} role="status">
               {logoOnlyStatus.message}
+            </p>
+          )}
+        </SettingsCard>
+      </SettingsSection>
+
+      {/* Splash screen: hide the app name and show only the logo */}
+      <SettingsSection
+        title={t('brandingSettings.splashSection.label')}
+        description={t('brandingSettings.splashSection.description')}
+      >
+        <SettingsCard className="p-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-foreground">
+              {t('brandingSettings.splashSection.toggleLabel')}
+            </p>
+            <SettingsToggle
+              checked={splashHideTitle}
+              onChange={handleSplashHideTitleChange}
+              ariaLabel={t('brandingSettings.splashSection.toggleLabel')}
+              disabled={!isOwner || !logoUrl || splashHideTitleBusy}
+            />
+          </div>
+          {!logoUrl && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t('brandingSettings.logoOnlySection.needsLogo')}
+            </p>
+          )}
+          {splashHideTitleStatus.kind !== 'idle' && (
+            <p className={`mt-2 text-xs ${statusClass(splashHideTitleStatus)}`} role="status">
+              {splashHideTitleStatus.message}
             </p>
           )}
         </SettingsCard>

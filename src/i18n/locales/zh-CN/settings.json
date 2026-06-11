@@ -123,6 +123,12 @@
       "hint": "PNG、JPEG、WebP 或 SVG，最大 2MB。"
     },
     "savedLogoOnly": "显示模式已保存。",
+    "savedSplash": "加载界面偏好已保存。",
+    "splashSection": {
+      "label": "加载界面",
+      "description": "在加载（启动）界面隐藏应用名称，仅显示徽标。",
+      "toggleLabel": "在加载界面隐藏应用名称"
+    },
     "logoOnlySection": {
       "label": "仅徽标模式",
       "description": "在侧边栏标题中显示单个徽标（SVG/图片），替代图标和标题。",

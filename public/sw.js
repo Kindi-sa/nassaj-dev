@@ -75,25 +75,42 @@ self.addEventListener('activate', event => {
 self.addEventListener('push', event => {
   if (!event.data) return;
 
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: 'CloudCLI', body: event.data.text() };
-  }
+  event.waitUntil((async () => {
+    let payload;
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
 
-  const options = {
-    body: payload.body || '',
-    icon: '/logo-256.png',
-    badge: '/logo-128.png',
-    data: payload.data || {},
-    tag: payload.data?.tag || `${payload.data?.sessionId || 'global'}:${payload.data?.code || 'default'}`,
-    renotify: true
-  };
+    // The server already sends the branded title in JSON payloads (see
+    // notification-orchestrator buildPushBody). For payloads without a title
+    // (e.g. plain-text pushes) resolve it from the PUBLIC branding endpoint so
+    // the notification still carries the configured app name.
+    let title = payload.title;
+    if (!title) {
+      try {
+        const response = await fetch('/api/settings/branding');
+        const branding = await response.json();
+        if (typeof branding?.title === 'string' && branding.title) {
+          title = branding.title;
+        }
+      } catch {
+        // Offline / fetch failed — fall through to the stock default below.
+      }
+    }
 
-  event.waitUntil(
-    self.registration.showNotification(payload.title || 'CloudCLI', options)
-  );
+    const options = {
+      body: payload.body || '',
+      icon: '/logo-256.png',
+      badge: '/logo-128.png',
+      data: payload.data || {},
+      tag: payload.data?.tag || `${payload.data?.sessionId || 'global'}:${payload.data?.code || 'default'}`,
+      renotify: true
+    };
+
+    return self.registration.showNotification(title || 'CloudCLI', options);
+  })());
 });
 
 // Notification click event

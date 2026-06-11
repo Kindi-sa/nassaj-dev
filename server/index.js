@@ -90,6 +90,7 @@ import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './util
 import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
 import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
+import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -379,6 +380,29 @@ app.get('/branding/:name(logo|logo_dark).:ext', (req, res) => {
             res.status(404).end();
         }
     });
+});
+
+// Dynamic PWA manifest: serve public/manifest.json with its name fields
+// overridden by the custom branding title (when one is set), so the installed
+// PWA label follows the configured branding. Registered BEFORE the static
+// mounts below so this route wins over the file on disk. Served with no-cache
+// (the service worker fetches the manifest network-first) so a title change is
+// picked up on the next load without a new build.
+app.get('/manifest.json', async (req, res) => {
+    try {
+        const raw = await fsPromises.readFile(path.join(APP_ROOT, 'public', 'manifest.json'), 'utf8');
+        const manifest = JSON.parse(raw);
+        const brandingTitle = getBrandingTitle();
+        if (brandingTitle) {
+            manifest.name = brandingTitle;
+            manifest.short_name = brandingTitle;
+        }
+        res.setHeader('Cache-Control', 'no-cache');
+        res.type('application/manifest+json').send(JSON.stringify(manifest));
+    } catch (error) {
+        console.error('Error serving manifest.json:', error);
+        res.status(500).json({ error: 'Failed to serve manifest' });
+    }
 });
 
 // Serve public files (like api-docs.html)

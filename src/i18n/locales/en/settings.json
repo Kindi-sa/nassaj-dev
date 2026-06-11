@@ -142,6 +142,12 @@
       "uploadAria2": ""
     },
     "savedLogoOnly": "Display mode saved.",
+    "savedSplash": "Loading screen preference saved.",
+    "splashSection": {
+      "label": "Loading screen",
+      "description": "Hide the app name on the loading (splash) screen and show only the logo.",
+      "toggleLabel": "Hide the app name on the loading screen"
+    },
     "logoOnlySection": {
       "label": "Logo-only mode",
       "description": "Show a single logo (SVG/image) instead of the icon and title in the sidebar header.",

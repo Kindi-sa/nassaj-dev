@@ -123,6 +123,12 @@
       "hint": "PNG, JPEG, WebP 또는 SVG. 최대 2MB."
     },
     "savedLogoOnly": "표시 모드가 저장되었습니다.",
+    "savedSplash": "로딩 화면 설정이 저장되었습니다.",
+    "splashSection": {
+      "label": "로딩 화면",
+      "description": "로딩(스플래시) 화면에서 앱 이름을 숨기고 로고만 표시합니다.",
+      "toggleLabel": "로딩 화면에서 앱 이름 숨기기"
+    },
     "logoOnlySection": {
       "label": "로고 전용 모드",
       "description": "사이드바 헤더의 아이콘과 제목 대신 단일 로고(SVG/이미지)를 표시합니다.",

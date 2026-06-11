@@ -13,7 +13,17 @@ const loadingDotAnimationDelays = ['0s', '0.1s', '0.2s'];
  */
 export default function AuthLoadingScreen() {
   const { t } = useTranslation('sidebar');
-  const { title: brandingTitle, logoUrl: brandingLogoUrl, isLoading: isBrandingLoading } = useBranding();
+  const {
+    title: brandingTitle,
+    logoUrl: brandingLogoUrl,
+    splashHideTitle,
+    isLoading: isBrandingLoading,
+  } = useBranding();
+
+  // Owner opt-in: show the logo alone on the splash. Only honored when a
+  // custom logo exists — otherwise the title stays so the screen is never
+  // anonymous. The name is kept for screen readers via an sr-only heading.
+  const hideTitle = !isBrandingLoading && splashHideTitle && Boolean(brandingLogoUrl);
 
   // The placeholder is U+00A0 so the heading keeps its line box while loading.
   const displayTitle = isBrandingLoading
@@ -33,7 +43,9 @@ export default function AuthLoadingScreen() {
           )}
         </div>
 
-        <h1 className="mb-2 text-2xl font-bold text-foreground">{displayTitle}</h1>
+        <h1 className={hideTitle ? 'sr-only' : 'mb-2 text-2xl font-bold text-foreground'}>
+          {displayTitle}
+        </h1>
 
         <div className="flex items-center justify-center space-x-2">
           {loadingDotAnimationDelays.map((delay) => (

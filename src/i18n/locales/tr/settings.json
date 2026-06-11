@@ -123,6 +123,12 @@
       "hint": "PNG, JPEG, WebP veya SVG. En fazla 2 MB."
     },
     "savedLogoOnly": "Görünüm modu kaydedildi.",
+    "savedSplash": "Yükleme ekranı tercihi kaydedildi.",
+    "splashSection": {
+      "label": "Yükleme ekranı",
+      "description": "Yükleme (açılış) ekranında uygulama adını gizleyip yalnızca logoyu gösterin.",
+      "toggleLabel": "Yükleme ekranında uygulama adını gizle"
+    },
     "logoOnlySection": {
       "label": "Yalnızca logo modu",
       "description": "Kenar çubuğu başlığında simge ve başlık yerine tek bir logo (SVG/görsel) gösterin.",

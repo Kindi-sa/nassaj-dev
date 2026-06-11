@@ -10,6 +10,7 @@ import { requireRole } from '../middleware/auth.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
 import { sanitizeSvg, looksLikeSvgRoot } from '../services/svg-sanitizer.js';
+import { BRANDING_TITLE_KEY, BRANDING_SPLASH_HIDE_TITLE_KEY } from '../services/branding-config.js';
 
 const router = express.Router();
 
@@ -19,8 +20,9 @@ const router = express.Router();
 
 // app_config keys used for branding. These live in the app-level key/value store
 // (not per-user) so the customization applies application-wide and survives
-// restarts and deployments.
-const BRANDING_TITLE_KEY = 'branding.title';
+// restarts and deployments. The keys also needed outside these routes
+// (BRANDING_TITLE_KEY, BRANDING_SPLASH_HIDE_TITLE_KEY) are defined once in
+// services/branding-config.js and imported above.
 const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
 // Opaque cache-busting token bumped on every logo upload/delete. It is appended
 // to the public logo URL as `?v=<version>` so a replaced logo (which keeps the
@@ -187,6 +189,7 @@ export async function getBrandingHandler(req, res) {
       logoUrl: getBrandingLogoUrl(),
       logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
+      splashHideTitle: appConfigDb.get(BRANDING_SPLASH_HIDE_TITLE_KEY) === '1',
     });
   } catch (error) {
     console.error('Error fetching branding:', error);
@@ -196,10 +199,11 @@ export async function getBrandingHandler(req, res) {
 
 router.get('/branding', getBrandingHandler);
 
-// Owner-only: update the custom application title and/or the logo-only display
-// mode. Each field is written only when present in the body, so the two
-// controls in the settings UI update independently. An empty/whitespace title
-// clears it (falls back to the default i18n title on the client).
+// Owner-only: update the custom application title, the logo-only display mode
+// and/or the splash hide-title mode. Each field is written only when present in
+// the body, so the controls in the settings UI update independently. An
+// empty/whitespace title clears it (falls back to the default i18n title on
+// the client).
 router.put('/branding', requireRole('owner'), async (req, res) => {
   try {
     if (typeof req.body?.title === 'string') {
@@ -219,12 +223,19 @@ router.put('/branding', requireRole('owner'), async (req, res) => {
       appConfigDb.set(BRANDING_LOGO_ONLY_KEY, req.body.logoOnly ? '1' : '0');
     }
 
+    // '1' = the splash/loading screen hides the app title and shows the logo
+    // alone. The client ignores it while no logo is uploaded.
+    if (typeof req.body?.splashHideTitle === 'boolean') {
+      appConfigDb.set(BRANDING_SPLASH_HIDE_TITLE_KEY, req.body.splashHideTitle ? '1' : '0');
+    }
+
     const title = appConfigDb.get(BRANDING_TITLE_KEY);
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
       logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
+      splashHideTitle: appConfigDb.get(BRANDING_SPLASH_HIDE_TITLE_KEY) === '1',
     });
   } catch (error) {
     console.error('Error updating branding:', error);

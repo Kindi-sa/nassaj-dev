@@ -168,6 +168,11 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ logoOnly }),
       }),
+    updateSplashHideTitle: (splashHideTitle) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ splashHideTitle }),
+      }),
     uploadLogo: (file, variant = 'light') => {
       const formData = new FormData();
       formData.append('logo', file);

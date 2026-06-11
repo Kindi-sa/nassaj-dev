@@ -148,6 +148,12 @@
       "hint": "PNG, JPEG, WebP oder SVG. Max. 2 MB."
     },
     "savedLogoOnly": "Anzeigemodus gespeichert.",
+    "savedSplash": "Einstellung für den Ladebildschirm gespeichert.",
+    "splashSection": {
+      "label": "Ladebildschirm",
+      "description": "Den App-Namen auf dem Ladebildschirm (Splash) ausblenden und nur das Logo anzeigen.",
+      "toggleLabel": "App-Namen auf dem Ladebildschirm ausblenden"
+    },
     "logoOnlySection": {
       "label": "Nur-Logo-Modus",
       "description": "Ein einzelnes Logo (SVG/Bild) statt Icon und Titel in der Seitenleiste anzeigen.",

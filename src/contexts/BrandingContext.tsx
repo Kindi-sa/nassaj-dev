@@ -19,6 +19,8 @@ export type Branding = {
   logoDarkUrl: string | null;
   /** Show the uploaded logo alone (wordmark mode) instead of icon + title. */
   logoOnly: boolean;
+  /** Hide the app title on the splash/loading screen and show only the logo. */
+  splashHideTitle: boolean;
 };
 
 type BrandingContextValue = Branding & {
@@ -39,7 +41,7 @@ export const useBranding = (): BrandingContextValue => {
 };
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null, logoDarkUrl: null, logoOnly: false });
+  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null, logoDarkUrl: null, logoOnly: false, splashHideTitle: false });
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -54,6 +56,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         logoUrl: typeof data?.logoUrl === 'string' && data.logoUrl.length > 0 ? data.logoUrl : null,
         logoDarkUrl: typeof data?.logoDarkUrl === 'string' && data.logoDarkUrl.length > 0 ? data.logoDarkUrl : null,
         logoOnly: data?.logoOnly === true,
+        splashHideTitle: data?.splashHideTitle === true,
       });
     } catch {
       // Network/parse failure: keep defaults so the header still renders.

@@ -123,6 +123,12 @@
       "hint": "PNG, JPEG, WebP o SVG. Max 2MB."
     },
     "savedLogoOnly": "Modalità di visualizzazione salvata.",
+    "savedSplash": "Preferenza della schermata di caricamento salvata.",
+    "splashSection": {
+      "label": "Schermata di caricamento",
+      "description": "Nascondi il nome dell'app nella schermata di caricamento (splash) e mostra solo il logo.",
+      "toggleLabel": "Nascondi il nome dell'app nella schermata di caricamento"
+    },
     "logoOnlySection": {
       "label": "Modalità solo logo",
       "description": "Mostra un unico logo (SVG/immagine) al posto di icona e titolo nell'intestazione della barra laterale.",
