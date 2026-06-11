@@ -4,6 +4,7 @@ import { Check, ChevronDown, ChevronRight, Edit3, Globe, Lock, Star, Trash2, X }
 import type { TFunction } from 'i18next';
 
 import { Button } from '../../../../shared/view/ui';
+import ProjectBusyDot from '../../../../shared/view/ProjectBusyDot';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
@@ -107,6 +108,9 @@ export default function SidebarProjectItem({
   const [hasInteracted, setHasInteracted] = useState(false);
   const participantsActive = hasInteracted || isExpanded || isSelected;
   const markInteracted = () => setHasInteracted(true);
+  // Busy dot: ids of the project's loaded sessions, matched against the live
+  // process-state store (see ProjectBusyDot).
+  const sessionIds = sessions.map((session) => session.id);
   const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
@@ -215,6 +219,7 @@ export default function SidebarProjectItem({
                             </span>
                           )}
                           <h3 className="min-w-0 truncate text-sm font-medium text-foreground">{project.displayName}</h3>
+                          <ProjectBusyDot sessionIds={sessionIds} />
                         </div>
                         {tasksEnabled && (
                           <TaskIndicator
@@ -395,6 +400,7 @@ export default function SidebarProjectItem({
                     <div className="truncate text-sm font-semibold text-foreground" title={project.displayName}>
                       {project.displayName}
                     </div>
+                    <ProjectBusyDot sessionIds={sessionIds} />
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {sessionCountDisplay}

@@ -296,6 +296,7 @@
     "running": "تعمل",
     "frozen": "مجمّدة مؤقتاً",
     "runningHint": "عملية الجلسة تعمل الآن",
-    "frozenHint": "عملية الجلسة موقوفة مؤقتاً (kill -STOP)"
+    "frozenHint": "عملية الجلسة موقوفة مؤقتاً (kill -STOP)",
+    "projectBusyHint": "جلسة في هذا المشروع قيد العمل الآن"
   }
 }

@@ -289,6 +289,7 @@
     "running": "Running",
     "frozen": "Paused (frozen)",
     "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)"
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "Bu projedeki bir oturum şu anda işleniyor"
   }
 }

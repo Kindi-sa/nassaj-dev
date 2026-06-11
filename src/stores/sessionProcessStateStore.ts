@@ -64,3 +64,18 @@ export function useSessionProcessState(sessionId?: string | null): SessionProces
     sessionId ? (states.get(sessionId) ?? null) : null,
   );
 }
+
+/**
+ * Project-level rollup: true while ANY of the given session ids has a live
+ * 'running' process. Drives the busy dot next to a project's name in the
+ * sidebar; clears automatically when the last run goes idle ('idle' deletes
+ * the entry, see setSessionProcessState). 'frozen' deliberately does not
+ * count — a paused process is not "working".
+ */
+export function useAnySessionProcessing(
+  sessionIds: ReadonlyArray<string | null | undefined>,
+): boolean {
+  return useSyncExternalStore(subscribe, () =>
+    sessionIds.some((id) => Boolean(id) && states.get(id as string) === 'running'),
+  );
+}
