@@ -918,7 +918,7 @@
       "title": "سقوط nassaj-dev الكامل (الفصل الثاني اليوم): pm2 restart مع جلسات نشطة → القديمة تدخل drain ممسكة بالمنفذ 3004 (kill_timeout=24h + treekill:false من إصلاح B-2) → الجديدة تحرق max_restarts=10 بـ EADDRINUSE في 5 ثوانٍ → errored؛ وعند انتهاء drain لا يبقى أحد على المنفذ. موثّق بحادثتين: 14:39 (انقطاع حتى 15:50) و18:08 (سقوط كامل منذ 18:20:52). محفّز إضافي: سقف max_memory_restart=512M صار فعّالاً وتجاوزته العملية (586MB ‏01:34) فيُطلق restarts تلقائية تقع في نفس الفخ",
       "found": "2026-06-11",
       "triage": "critical: استعادة فورية pm2 restart nassaj-dev && pm2 save (بيد المالك — حارس العميل)؛ الإصلاح الجذري T-73",
-      "fix": "T-73 ‏(commit 4cc4bd6): تحرير المنفذ فوراً عند إشارة الإيقاف (shutdown-drain.service.ts) فلا EADDRINUSE مهما طال الـ drain + ‏kill_timeout=5min + ‏exp_backoff_restart_delay=1000 + ‏max_memory_restart=768M. منشور في dist-server؛ يسري بعد pm2 restart nassaj-dev && pm2 save من المالك"
+      "fix": "T-73 ‏(commit 4cc4bd6): تحرير المنفذ فوراً عند إشارة الإيقاف (shutdown-drain.service.ts) فلا EADDRINUSE مهما طال الـ drain + ‏kill_timeout=5min + ‏exp_backoff_restart_delay=1000 + ‏max_memory_restart=768M. منشور في dist-server؛ يسري بعد restart المالك عبر ملف الـ ecosystem (إلزامي لإعادة قراءة kill_timeout/backoff/mem): cd ~/Project/nassaj-dev && env -u PORT pm2 restart ecosystem.config.cjs --update-env && pm2 save — ويُفضَّل في لحظة بلا جلسات نشطة لأن العملية الجارية لا تزال بالكود القديم"
     },
     {
       "id": "B-24",
