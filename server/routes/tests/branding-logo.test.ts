@@ -46,6 +46,11 @@ process.env.HOME = TMP_HOME;
 process.env.USERPROFILE = TMP_HOME;
 const BRANDING_DIR = path.join(TMP_HOME, '.nassaj-users', '.branding');
 
+// Make the run deterministic regardless of the operator's shell environment:
+// auth.js resolves its JWT secret at load time (env first, then the db). With
+// the env var removed, it always takes the mocked getOrCreateJwtSecret() path.
+delete process.env.JWT_SECRET;
+
 // In-memory stand-in for app_config so the route never touches the real store.
 const appConfigStore = new Map<string, string>();
 
@@ -65,6 +70,10 @@ mock.module(dbIndexUrl, {
       set: (key: string, value: string) => {
         appConfigStore.set(key, value);
       },
+      // auth.js falls back to this when process.env.JWT_SECRET is unset (we
+      // delete it above), so the middleware loads without touching the real db.
+      getOrCreateJwtSecret: () =>
+        'nassaj-branding-test-jwt-secret-0123456789abcdef',
     },
     // Remaining named exports are stubbed only so settings.js and its transitive
     // imports (auth middleware, notification orchestrator, vapid keys) load.
