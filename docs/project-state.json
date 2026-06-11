@@ -649,6 +649,16 @@
       "status": "done",
       "owner": "coordinator",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-66",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "منع التفاف نص عدّاد التوكنز: min-w-0 + overflow-hidden + nowrap على الكبسولة، وspan العدّ ينكمش ويُقتطع بدل الكسر — TokenUsageSummary.tsx، commit be63dcd، إصلاح B-19",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -793,6 +803,14 @@
       "status": "fixed",
       "found": "2026-06-11",
       "triage": "critical-path للجلسة الجارية: أُصلح فوراً (T-64)"
+    },
+    {
+      "id": "B-19",
+      "severity": "low",
+      "title": "كبسولة عدّاد التوكنز في شريط الإدخال: نص 165K/1.0M يلتفّ خارج الكبسولة ثابتة الارتفاع عند ضيق عمود الدردشة (شرط sm: يقيس النافذة لا العمود)",
+      "status": "fixed",
+      "found": "2026-06-11",
+      "triage": "أُصلح فوراً (T-66)"
     }
   ],
   "decisions": [
