@@ -159,13 +159,17 @@ export const sessionsDb = {
   getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
+    // Sidebar order: newest-created first (creation date, NOT last activity).
+    // `created_at` comes from the session's first transcript timestamp /
+    // file birthtime at index time and never changes on upsert, so pagination
+    // pages stay stable while a session is active.
     return db
       .prepare(
         `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0
-         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
+         ORDER BY datetime(COALESCE(created_at, updated_at)) DESC, session_id DESC
          LIMIT ? OFFSET ?`
       )
       .all(normalizedProjectPath, limit, offset) as SessionRow[];

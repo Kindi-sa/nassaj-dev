@@ -101,6 +101,15 @@ export const getSessionDate = (session: SessionWithProvider): Date => {
   return new Date(getUpdatedTimestamp(session) || getCreatedTimestamp(session) || 0);
 };
 
+/**
+ * Creation date used for sidebar session ordering (newest-created first).
+ * Falls back to last activity only for legacy rows that carry no creation
+ * timestamp, mirroring the server-side COALESCE(created_at, updated_at).
+ */
+export const getSessionCreationDate = (session: SessionWithProvider): Date => {
+  return new Date(getCreatedTimestamp(session) || getUpdatedTimestamp(session) || 0);
+};
+
 export const getSessionName = (session: SessionWithProvider, t: TFunction): string => {
   return session.summary || session.name || t('projects.newSession');
 };
@@ -168,7 +177,9 @@ export const getAllSessions = (project: Project): SessionWithProvider[] => {
     ...antigravitySessions,
     ...opencodeSessions,
   ].sort(
-    (a, b) => getSessionDate(b).getTime() - getSessionDate(a).getTime(),
+    // Sidebar order: by creation date (newest first), NOT last activity, so a
+    // session keeps its position while it is being worked on.
+    (a, b) => getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime(),
   );
 };
 

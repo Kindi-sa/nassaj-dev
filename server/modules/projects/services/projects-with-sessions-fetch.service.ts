@@ -25,6 +25,9 @@ type SessionSummary = {
   id: string;
   summary: string;
   messageCount: number;
+  // Creation timestamp (first transcript timestamp / file birthtime at index
+  // time). The sidebar orders sessions by this, newest first — not by activity.
+  createdAt: string | null;
   lastActivity: string;
   owner: SessionOwner | null;
 };
@@ -170,6 +173,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow, owner: SessionOwner |
     id: row.session_id,
     summary: row.custom_name || '',
     messageCount: 0,
+    createdAt: row.created_at ?? null,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
     owner,
   };
