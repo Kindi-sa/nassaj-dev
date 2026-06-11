@@ -528,6 +528,36 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-54",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "فلتر ثلاثي لقائمة المشاريع (مشاريعي/الفريق/الكل): بث ownerId+isOwner مختومين لكل مستخدم (نمط WSMEMBER) بلا تغيير schema؛ orphan بلا مشاركة يظهر في «الكل» فقط؛ الافتراضي «الكل» (a5e3351) — ختم isOwner في بث WS يحتاج restart",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-55",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "إعادة تنظيم صفحة البروفايل الطويلة: تبويبان داخليان «الهوية» (avatar+username) و«الأمان» (password+passkeys) بنمط PillBar القائم، اللوحات تبقى mounted فلا يضيع إدخال غير محفوظ، a11y tablist كامل (058960b)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-56",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "ملاحظات المستخدم على ثيم الكندي: accent الفاتح الأصفر هُدّئ إلى 40 32% 89% (كريمي بالكاد مصفرّ)، alkindy قُدّم قبل claude في PRESET_ORDER، وcustom أُخفي من المنتقي مع توافق خلفي (يظهر فقط لمن هو ثيمه المفعّل) (de1ef33)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
