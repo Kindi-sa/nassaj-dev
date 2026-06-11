@@ -158,8 +158,8 @@
     "send": "إرسال",
     "stop": "إيقاف",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash",
-      "enter": "Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash"
+      "ctrlEnter": "Ctrl+Enter للإرسال • Shift+Enter لسطر جديد",
+      "enter": "Enter للإرسال • Shift+Enter لسطر جديد"
     },
     "clickToChangeMode": "اضغط لتغيير وضع الأذونات (أو اضغط Tab في الإدخال)",
     "showAllCommands": "عرض كل الأوامر",
