@@ -589,6 +589,16 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-60",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "مراجعة ثيم الكندي (ملاحظة مستخدم 3): صفوف الإعدادات تظهر برمادي بارد ينفر من الخلفية العاجية الدافئة ومربع الاختيار أزرق فاقع خارج اللوحة (لقطة tool-display options) — يلزم تشخيص ui-designer: هل الرمادي hardcoded ‏(bg-gray-*) أم من tokens، ثم توحيد الحياد الدافئ أو تحويل المكوّنات إلى tokens",
+      "status": "todo",
+      "owner": "ui-designer",
+      "closed": null
     }
   ],
   "issues": [
