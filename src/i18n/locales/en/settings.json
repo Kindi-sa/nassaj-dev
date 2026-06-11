@@ -412,6 +412,7 @@
       "presets": {
         "default": "Default",
         "claude": "Claude",
+        "alkindy": "Al-Kindy",
         "cursor": "Cursor",
         "codex": "Codex",
         "gemini": "Gemini",

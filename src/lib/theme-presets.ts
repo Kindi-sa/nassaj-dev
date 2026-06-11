@@ -11,7 +11,7 @@
  * definitions in `src/index.css` (:root / .dark) take over again.
  */
 
-export type ThemePresetId = 'default' | 'claude' | 'cursor' | 'codex' | 'gemini' | 'custom';
+export type ThemePresetId = 'default' | 'claude' | 'alkindy' | 'cursor' | 'codex' | 'gemini' | 'custom';
 
 export interface CustomColors {
   /** HSL triplets in shadcn format, e.g. "221 83% 53%". */
@@ -36,6 +36,7 @@ export const DEFAULT_CUSTOM_COLORS: CustomColors = {
 export const PRESET_ORDER: ThemePresetId[] = [
   'default',
   'claude',
+  'alkindy',
   'cursor',
   'codex',
   'gemini',
@@ -173,6 +174,29 @@ const BRAND_SPECS: Record<string, BrandSpec> = {
         muted: '22 7% 18%', mutedForeground: '32 10% 72%',
         accent: '22 8% 22%', accentForeground: '36 20% 94%',
         border: '24 8% 24%', input: '24 8% 28%',
+      },
+    },
+  },
+  alkindy: {
+    base: '221 47% 20%',
+    secondary: '39 38% 50%',
+    surfaces: {
+      light: {
+        background: '40 43% 96%', card: '0 0% 100%', popover: '0 0% 100%',
+        foreground: '221 47% 12%', cardForeground: '221 47% 12%',
+        secondary: '40 30% 92%', secondaryForeground: '221 47% 12%',
+        muted: '40 30% 92%', mutedForeground: '0 0% 40%',
+        accent: '39 44% 87%', accentForeground: '221 47% 12%',
+        border: '39 25% 84%', input: '39 25% 84%',
+        destructive: '2 49% 43%',
+      },
+      dark: {
+        background: '221 47% 12%', card: '221 46% 16%', popover: '221 46% 16%',
+        foreground: '216 12% 92%', cardForeground: '216 12% 92%',
+        secondary: '221 35% 22%', secondaryForeground: '216 12% 92%',
+        muted: '221 35% 19%', mutedForeground: '220 16% 71%',
+        accent: '221 30% 26%', accentForeground: '216 12% 92%',
+        border: '221 30% 24%', input: '221 20% 40%',
       },
     },
   },

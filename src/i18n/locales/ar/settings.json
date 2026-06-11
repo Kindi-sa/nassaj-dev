@@ -411,6 +411,7 @@
       "presets": {
         "default": "الافتراضية",
         "claude": "Claude",
+        "alkindy": "الكندي",
         "cursor": "Cursor",
         "codex": "Codex",
         "gemini": "Gemini",
