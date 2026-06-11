@@ -290,6 +290,9 @@
     "frozen": "Paused (frozen)",
     "runningHint": "Session process is running",
     "frozenHint": "Session process is temporarily frozen (kill -STOP)",
-    "projectBusyHint": "このプロジェクトのセッションが処理中です"
+    "projectBusyHint": "このプロジェクトのセッションが処理中です",
+    "done": "完了",
+    "doneHint": "セッションが完了しました（未読）",
+    "projectDoneHint": "このプロジェクトのセッションが完了しました（未読）"
   }
 }

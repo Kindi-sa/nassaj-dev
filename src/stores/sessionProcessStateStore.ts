@@ -56,6 +56,15 @@ export function setSessionProcessState(sessionId: string, state: string): void {
 }
 
 /**
+ * Non-reactive read of a session's current process state (null when idle or
+ * unknown). Used by transition detectors that need the previous state before
+ * applying an update, without subscribing.
+ */
+export function getSessionProcessState(sessionId?: string | null): SessionProcessState | null {
+  return sessionId ? (states.get(sessionId) ?? null) : null;
+}
+
+/**
  * Reactive process state for one session. Returns null when the session has
  * no live process (idle/unknown) so callers can simply hide the badge.
  */

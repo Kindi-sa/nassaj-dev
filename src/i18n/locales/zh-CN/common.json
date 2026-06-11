@@ -290,6 +290,9 @@
     "frozen": "Paused (frozen)",
     "runningHint": "Session process is running",
     "frozenHint": "Session process is temporarily frozen (kill -STOP)",
-    "projectBusyHint": "此项目中有会话正在处理中"
+    "projectBusyHint": "此项目中有会话正在处理中",
+    "done": "已完成",
+    "doneHint": "会话已完成，尚未打开",
+    "projectDoneHint": "此项目中有会话已完成且尚未打开"
   }
 }

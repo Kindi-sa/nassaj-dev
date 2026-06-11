@@ -11,6 +11,11 @@ import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { setSessionProcessState } from '../../stores/sessionProcessStateStore';
+import {
+  clearSessionFinishedUnopened,
+  markSessionFinishedUnopened,
+  shouldMarkSessionFinished,
+} from '../../stores/sessionCompletionStore';
 
 export default function AppContent() {
   return (
@@ -69,17 +74,37 @@ function AppContentInner() {
   // Frozen-session indicator: route server process_state broadcasts (and
   // terminal events as an idle fallback) into the global per-session store
   // consumed by the sidebar badges, chat header, and status spinner.
+  //
+  // The same stream drives the "finished — not opened yet" mark: a completion
+  // signal for a session the user is NOT viewing flips its dot from pulsing
+  // (running) to steady (done) until the conversation is opened. The ref
+  // guards against re-marking when this effect re-runs for a selection change
+  // while `latestMessage` still points at an already-processed payload.
+  const processedCompletionRef = useRef<unknown>(null);
   useEffect(() => {
     const msg = latestMessage;
     if (!msg || typeof msg.sessionId !== 'string' || !msg.sessionId) {
       return;
+    }
+    if (processedCompletionRef.current !== msg) {
+      processedCompletionRef.current = msg;
+      if (shouldMarkSessionFinished(msg, selectedSession?.id)) {
+        markSessionFinishedUnopened(msg.sessionId);
+      }
     }
     if (msg.kind === 'status' && msg.text === 'process_state' && typeof msg.processState === 'string') {
       setSessionProcessState(msg.sessionId, msg.processState);
     } else if (msg.kind === 'complete' || msg.kind === 'error') {
       setSessionProcessState(msg.sessionId, 'idle');
     }
-  }, [latestMessage]);
+  }, [latestMessage, selectedSession?.id]);
+
+  // Opening a conversation consumes its "finished — not opened yet" mark.
+  useEffect(() => {
+    if (selectedSession?.id) {
+      clearSessionFinishedUnopened(selectedSession.id);
+    }
+  }, [selectedSession?.id]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {

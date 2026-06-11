@@ -23,9 +23,9 @@
  *  - State transitions are broadcast as a NormalizedMessage of kind 'status'
  *    with `text: 'process_state'` through the run's writer. WebSocketWriter
  *    fans every payload out to the session's read-only mirrors, so refreshed
- *    tabs and additional viewers receive the indicator too. The 'frozen'
- *    state is re-broadcast on every tick (not only on change) so a viewer
- *    that attached after the freeze still learns about it within one poll.
+ *    tabs and additional viewers receive the indicator too. The state is
+ *    re-broadcast on every tick (not only on change) so a viewer that
+ *    attached mid-run still learns about it within one poll.
  *
  *  - `unregisterSessionProcess` broadcasts a final 'idle' so the UI clears
  *    the badge when the turn completes, errors, or is aborted.
@@ -137,13 +137,12 @@ function pollOnce() {
         if (!stat) continue; // Process gone; the terminal unregister emits 'idle'.
 
         const processState = stat.state === 'T' ? 'frozen' : 'running';
-        const changed = processState !== run.lastState;
-        // Re-broadcast 'frozen' every tick so late-joining viewers (page
-        // refresh, extra mirrors) learn the state without waiting for a change.
-        if (changed || processState === 'frozen') {
-            run.lastState = processState;
-            broadcastState(sessionId, run, processState);
-        }
+        // Re-broadcast EVERY tick (not only on change) so late-joining viewers
+        // (page refresh, extra mirrors) learn the current state — including
+        // 'running', which the sidebar busy dot depends on — within one poll
+        // instead of never. One tiny status payload per run per 5s is cheap.
+        run.lastState = processState;
+        broadcastState(sessionId, run, processState);
     }
 }
 

@@ -260,6 +260,9 @@
     "frozen": "Paused (frozen)",
     "runningHint": "Session process is running",
     "frozenHint": "Session process is temporarily frozen (kill -STOP)",
-    "projectBusyHint": "Eine Sitzung in diesem Projekt wird gerade verarbeitet"
+    "projectBusyHint": "Eine Sitzung in diesem Projekt wird gerade verarbeitet",
+    "done": "Fertig",
+    "doneHint": "Sitzung beendet und noch nicht geöffnet",
+    "projectDoneHint": "Eine Sitzung in diesem Projekt ist beendet und wurde noch nicht geöffnet"
   }
 }
