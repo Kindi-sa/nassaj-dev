@@ -21,8 +21,8 @@
     {
       "id": "P2",
       "title": "مزامنة upstream v1.32.0 → v1.33.0",
-      "status": "current",
-      "progress": 0
+      "status": "done",
+      "progress": 100
     },
     {
       "id": "P3",
@@ -629,6 +629,26 @@
       "status": "in_progress",
       "owner": "devops",
       "closed": null
+    },
+    {
+      "id": "T-64",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "عرض tool_result اليتيم كبلوك أداة مطويّ عبر ToolRenderer (Default config) بدل نص خام — useChatMessages.ts؛ commit 7c7a8c1، إصلاح B-18، build:client منشور (لا يحتاج restart)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-65",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "chore",
+      "title": "تدقيق فجوة upstream: كامل v1.32.0→v1.33.0 (13 commit) مدموج لدينا؛ ومعظم v1.33.1→v1.34.0 مأخوذ (heartbeat #770، ‏unmountedRef ‏#721، ‏cache tokens، ‏completion signal، ‏#827/#828/#831/#843…). المتبقي غير المأخوذ: ترقية claude-agent-sdk ‏0.3.152→0.3.165 (الأهم)، zh-TW ‏#773، cost modal، #838، #796، prism/plugins list، nginx docs ‏#820؛ ‏#835 (إزالة thinking mode) تجاهل مقصود — ميزتنا أغنى",
+      "status": "done",
+      "owner": "coordinator",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -765,6 +785,14 @@
       "title": "تبويب «مشاريعي» فارغ: (1) الخادم يعمل بكود سابق لـ a5e3351 فلا يبث isOwner — يحتاج restart؛ (2) المشاريع العشرة created_by=NULL من حقبة المستخدم الواحد وproject_members خالٍ؛ (3) فجوة كود: الاستنساخ من GitHub لا يختم created_by رغم توفر userId",
       "opened": "2026-06-11",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "B-18",
+      "severity": "medium",
+      "title": "نتيجة أداة يتيمة (tool_result بلا tool_use في النافذة المحمّلة — قطع صفحة/سقف realtime/إعادة اتصال وسط البث) كانت تُعرض كرسالة assistant نصية كاملة؛ المستخدم ظنّها تسريب تفكير رغم تعطيل showThinking (التفكير الحقيقي في Fable 5 مشفّر وفارغ النص أصلاً)",
+      "status": "fixed",
+      "found": "2026-06-11",
+      "triage": "critical-path للجلسة الجارية: أُصلح فوراً (T-64)"
     }
   ],
   "decisions": [
