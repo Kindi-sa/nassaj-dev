@@ -220,11 +220,23 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           break;
         }
 
+        // Orphaned result: its tool_use fell outside the loaded window (page
+        // cut, realtime cap, or mid-run reattach). Render it as a collapsed
+        // generic tool block — never as plain assistant prose, which dumps
+        // raw line-numbered file content into the transcript.
         converted.push({
-          type: msg.isError ? 'error' : 'assistant',
-          content,
+          type: 'assistant',
+          content: '',
           timestamp: msg.timestamp,
+          isToolUse: true,
+          toolName: 'ToolResult',
+          toolInput: '',
           toolId: msg.toolId,
+          toolResult: {
+            content,
+            isError: Boolean(msg.isError),
+            toolUseResult: (msg as any).toolUseResult,
+          },
           ...sharedMetadata,
         });
         break;
