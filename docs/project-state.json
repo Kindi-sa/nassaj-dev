@@ -1,631 +1,661 @@
 {
- "$version": 1,
- "$spec": "~/.claude/wiki/project-board.md",
- "project": "nassaj-dev",
- "updated": "2026-06-10",
- "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
- "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
- "phases": [
-  {
-   "id": "P0",
-   "title": "تأسيس الفرع: AntigravityProvider (agy) + عربية/RTL",
-   "status": "done",
-   "progress": 100
-  },
-  {
-   "id": "P1",
-   "title": "موثوقية الجلسات والاستئناف (PHASE-SR-0)",
-   "status": "done",
-   "progress": 100
-  },
-  {
-   "id": "P2",
-   "title": "مزامنة upstream v1.32.0 → v1.33.0",
-   "status": "current",
-   "progress": 0
-  },
-  {
-   "id": "P3",
-   "title": "لوحة المشروع + إخفاء TaskMaster",
-   "status": "done",
-   "progress": 100
-  },
-  {
-   "id": "P4",
-   "title": "تعدد المستخدمين بعزل الاشتراكات (Phase-MU)",
-   "status": "pending",
-   "progress": 85
-  },
-  {
-   "id": "P5",
-   "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
-   "status": "done",
-   "progress": 100
-  }
- ],
- "sprints": [
-  {
-   "id": "S-1",
-   "phase": "P3",
-   "goal": "عرض حقول مخطط 1.1 في لوحة المشروع: شريط السبرنت الحالي وشارات نوع المهمة وربط مهام bug بأخطائها",
-   "status": "done",
-   "started": "2026-06-10",
-   "ended": "2026-06-10"
-  }
- ],
- "tasks": [
-  {
-   "id": "T-1",
-   "phase": "P1",
-   "title": "إصلاح replay عند استئناف agy: الردّ من transcript.jsonl لا stdout",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-09"
-  },
-  {
-   "id": "T-2",
-   "phase": "P1",
-   "title": "سجل replay لكل جلسة خلف علم SESSION_REGISTRY_agy",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-09"
-  },
-  {
-   "id": "T-3",
-   "phase": "P1",
-   "title": "drain موقوت قبل الإيقاف (B-N-DRAIN) + treekill:false في PM2",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-09"
-  },
-  {
-   "id": "T-4",
-   "phase": "P1",
-   "title": "مرايا الجلسة اللحظية: بث قراءة-فقط لمشاهدين متعددين",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-09"
-  },
-  {
-   "id": "T-5",
-   "phase": "P2",
-   "title": "دمج 15 commit من upstream v1.33.0 (الفرع chore/sync-upstream-v1.33)",
-   "status": "in_progress",
-   "owner": "backend-dev",
-   "closed": null
-  },
-  {
-   "id": "T-6",
-   "phase": "P2",
-   "title": "تعطيل Antigravity مؤقتاً وإضافة مزوّد Cursor",
-   "status": "open",
-   "owner": "backend-dev",
-   "closed": null
-  },
-  {
-   "id": "T-7",
-   "phase": "P3",
-   "title": "إخفاء تكامل TaskMaster بالكامل خلف العلم TASKMASTER_ENABLED",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-8",
-   "phase": "P3",
-   "title": "مسار /api/project-board مع مراقبة chokidar وبث WebSocket",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-9",
-   "phase": "P3",
-   "title": "واجهة لوحة المشروع: مراحل/مهام/أخطاء + هيكلة بمخططات Mermaid",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-10",
-   "phase": "P3",
-   "title": "ملفات dogfooding: project-state.json وARCHITECTURE بنسختيه",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-11",
-   "phase": "P4",
-   "title": "عزل اشتراكات Claude/agy لكل مستخدم (CLAUDE_CONFIG_DIR لكل عملية)",
-   "status": "in_progress",
-   "owner": "backend-dev",
-   "closed": null
-  },
-  {
-   "id": "T-12",
-   "phase": "P4",
-   "title": "onboarding ربط حسابات Claude وagy من تبويب الملف الشخصي",
-   "status": "in_progress",
-   "owner": "backend-dev",
-   "closed": null
-  },
-  {
-   "id": "T-13",
-   "phase": "P4",
-   "title": "تفعيل علم SESSION_REGISTRY_agy افتراضياً بعد فترة مراقبة",
-   "status": "open",
-   "owner": "backend-dev",
-   "closed": null
-  },
-  {
-   "id": "T-14",
-   "phase": "P4",
-   "title": "B-MU-UX-API: كشف مالك الجلسة والمشاركين للعميل (أساس شريحة العزو/الحضور)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-15",
-   "phase": "P4",
-   "title": "C-MU-UX-OWNER-BADGE: شارة المالك لكل جلسة في الشريط الجانبي",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-16",
-   "phase": "P4",
-   "title": "C-MU-UX-MSG-IDENTITY: هويّة المنسّق مقابل الوكيل الفرعي بلون المالك داخل المحادثة",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-17",
-   "phase": "P4",
-   "title": "B-MU-UX-PRESENCE + C-MU-UX-PRESENCE: حضور لحظي (قناة WS + لوحة منفصلة)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-18",
-   "phase": "P4",
-   "title": "B-MU-UX-GIT-ID: هويّة git per-user (مؤلِّف commit + دفع بتوكن المستخدم مع تراجع للحساب المشترك)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-19",
-   "phase": "P4",
-   "title": "B-MU-UX-FIX-MIRROR: تقييد معالِجات المرآة اللحظية بالجلسة النشطة",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-20",
-   "phase": "P4",
-   "title": "B-MU-UX-FIX-WSROTATE: إصلاح موت WebSocket اللحظي بعد تدوير التوكن",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-21",
-   "phase": "P4",
-   "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-22",
-   "phase": "P4",
-   "title": "B-MU-UX-FIX-MSG-AUTHOR: عزو رسائل المستخدم لمُرسِلها الحقيقي (sidecar message_authors + ختم WS/التاريخ + أفاتار المؤلّف)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-23",
-   "phase": "P4",
-   "title": "C-MU-UX-AGENT-CREDS: نقل قسمي اشتراك Claude/Antigravity من Profile إلى صفحة Agents (فئة Account)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-24",
-   "phase": "P4",
-   "title": "C-MU-UX-SIDEBAR-TABS: فلتر «مشاريعي/الكل» بدل تبويبي Projects/Conversations وحذف البحث العابر للمشاريع من الشريط",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-25",
-   "phase": "P4",
-   "title": "C-MU-UX-PRESENCE-COMPACT: لوحة «المتصلون الآن» صف أفاتارات متراكب مُحكم (tooltip + ‏+N + a11y)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-26",
-   "phase": "P4",
-   "title": "C-MU-UX-AVATAR-URL: تمرير avatarUrl إلى owner/presence وكل أماكن ParticipantAvatar",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-27",
-   "phase": "P4",
-   "title": "C-MU-UX-PARTBAR-DEFAULT: شريط المشاركين ظاهر افتراضياً وحذف مفتاح Appearance (زر الطي باقٍ)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-28",
-   "phase": "P4",
-   "title": "C-MU-UX-BOARD-FIX: تشخيص «no project state file» (ليس باگ) + حالة فراغ إرشادية وزر نسخ skeleton ‏schema v1",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-29",
-   "phase": "P5",
-   "title": "B-PK-1..4: ‏webauthn_credentials + repository، env/challenge store، خدمة ومسارات /api/auth/webauthn (تسجيل مصادَق + دخول discoverable بعقد /login)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-30",
-   "phase": "P5",
-   "title": "C-PK-1..3: زر «الدخول بمفتاح مرور» في LoginForm + طبقة @simplewebauthn/browser + إدارة المفاتيح في Profile",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-31",
-   "phase": "P4",
-   "title": "C-MU-UX-THEMES: منتقي ثيمات أصيل في Appearance — محرّك enhanced-appearance منقول إلى src/lib/theme-presets.ts: ‏4 presets (Claude/Cursor/Codex/Gemini) + محرر مخصص + Default، تكامل مع dark في ThemeContext، مفتاح nassaj-theme-preset، تطبيق مبكر بلا وميض (commit 27627a0)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-32",
-   "phase": "P4",
-   "title": "C-MU-UX-BOARD-DECISIONS: عرض قسم القرارات (decisions) في لوحة المشروع — DecisionsList في BoardOverview (المعرّف/العنوان/مسار الوثيقة) + حالة فراغ + مفاتيح i18n في 9 لغات",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-33",
-   "phase": "P3",
-   "sprint": "S-1",
-   "kind": "feature",
-   "issue": null,
-   "title": "C-MU-UX-BOARD-SPRINTS: عرض حقول مخطط 1.1 — شريط السبرنت الحالي (المعرّف/الهدف/المرحلة/البدء/نسبة الإنجاز)، سبرنتات أخرى مطوية، شارة kind ‏(bug أحمر)، زر معرّف الخطأ يقفز لبنده في قسم الأخطاء مع وميض، فرز الأعمدة: سبرنت حالي ← مجدول ← backlog؛ توافق خلفي كامل مع ملفات v1",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-34",
-   "phase": "P3",
-   "sprint": null,
-   "kind": "feature",
-   "issue": null,
-   "title": "C-MU-UX-BOARD-DECISION-LINKS: روابط القرارات قابلة للنقر — كل decision.link يفتح الوثيقة داخل الواجهة عبر EditorSidebar/CodeEditor القائم، وملفات .md تُفتح مباشرة على معاينة Markdown (openMarkdownPreview)؛ link غائب → نص كما كان؛ ملف مفقود → رسالة خطأ العارض القائمة؛ مفتاح i18n ‏decisions.openLink في 9 لغات",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-35",
-   "phase": "P3",
-   "sprint": null,
-   "kind": "feature",
-   "issue": null,
-   "title": "C-MU-UX-BOARD-MODELS: نموذجا عرض مخطط 1.2 بتبويبات شرطية (لا قسم غير فارغ = لا تبويب) — «الجدول الزمني»: Gantt يدوي CSS-grid مجمّع بالمرحلة (أشرطة start→end بتعبئة progress، معيّنات للمعالم، tooltip تفصيلي، محور زمني LTR دائماً) + مسار حرج CPM من depends والمدد في lib/cpm.ts (دورات/مراجع مفقودة → تنويه بلا انهيار) + قائمة التسليمات (شارات حالة، متأخر أحمر، معيار القبول، ربط بند الجدول↔تسليمه)؛ «الأهداف»: بطاقات OKR بحالة RAG وأشرطة KR ‏score=min(current/target,1) مع baseline + شبكة KPI باتجاه up/down يلوّن الانحراف؛ types 1.2 + مفاتيح i18n في 9 لغات؛ تحقق SSR بثوابت CPM والهندسة",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-36",
-   "phase": "P3",
-   "sprint": null,
-   "kind": "feature",
-   "issue": null,
-   "title": "C-MU-UX-BOARD-OVERALL: نسبة الإنجاز الإجمالية للمشروع في رأس تبويب Overview — تُحتسب في الواجهة وفق المواصفة (متوسط progress للمراحل غير الملغاة مرجّحاً بعدد مهام كل مرحلة، مرحلة بلا مهام وزنها 1، وإلا متوسط بسيط؛ قصّ 0–100 وتقريب) + شريط تقدم بارز بـ role=progressbar ومفتاح i18n ‏overallProgress في 9 لغات؛ لا مراحل أو كلها cancelled → لا يظهر",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-37",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "bug",
-   "issue": "B-9",
-   "title": "B-MU-UX-FIX-WSMEMBER: إصلاح فلتر «مشاريعي» — sessions-watcher كان يبني رسالة projects_updated واحدة بلا currentUserId فتصل isMember:false للجميع؛ الآن يُختم العلم لكل عميل من userId المختوم على الـsocket عند مصادقة الـWS (lookup وserialize مرة واحدة لكل userId مميز، عميل مجهول = false) + دفاع واجهة: مقارنة isMember في projectsHaveChanges والاحتفاظ بالقيمة السابقة عند undefined",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-38",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "feature",
-   "title": "C-MU-UX-HW-FOOTER: استبدال Report Issue/Join Community في ذيل الشريط الجانبي بعتاد مباشر — مسار GET /api/system/stats (CPU من دلتا /proc/stat والذاكرة من MemAvailable) وعرض CPU/RAM رقماً ونسبة باستطلاع 5 ثوانٍ يتوقف عند document.hidden (commit e786893)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-39",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "bug",
-   "issue": "B-10",
-   "title": "C-MU-UX-AGENT-CREDS-DEDUP: توحيد بطاقة الاعتماد — تبويب Account كان يعرض بطاقتين متكررتين (Connection Status + قسم Subscription المنقول)؛ الآن بطاقة واحدة لكل وكيل تجمع الحالة وRe-login والاعتماد المعزول وRe-check (commit 72abc7a)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-40",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "feature",
-   "title": "C-MU-UX-BRAND-BOOT: هوية نسّاج (شعار+اسم من Branding) عند الإقلاع بدل هوية upstream — title/favicon/manifest وشاشات التحميل والدخول والإعداد، مع مسار عام GET /api/settings/branding يقدّم الاسم والشعار فقط قبل المصادقة (commit 6b4743c)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-41",
-   "phase": "P2",
-   "sprint": null,
-   "kind": "maintenance",
-   "title": "SYNC-V134-W1: موجة upstream الأولى من فجوة v1.33.0→v1.34.0 — توكنز الكاش في /cost (b2eb575)، تزامن شجرة الملفات #828 (d0713fc)، أزرار Shell ‏#831 (bb1ca2d)، اقتراحات / بأي موضع + تثبيت scroll + شريط المحرر + vite proxy ‏(b2e6aba/79824ad/722c0bf/0558543)، dir=auto للـcomposer ‏(9a093e1)، Fable 5 في الكتالوج (a8e2f47). لا انحدار اختبارات؛ يتبقى موجة المزايا (إشعار الاكتمال، شريط الرفع)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-42",
-   "phase": "P2",
-   "sprint": null,
-   "kind": "feature",
-   "title": "SYNC-V134-W2: موجة مزايا upstream — إشعار اكتمال التشغيل صوت+عنوان التبويب معرّباً (d75cf7f/d3f82d2)، شريط تقدم رفع الملفات حد 200MB ‏(cc05243/7fdc2f5)، إظهار أخطاء نتائج الأدوات بنقل يدوي حافظ على عزو الرسائل (a20359f)، استعلام مشاريع خفيف مع الحفاظ على isMember ‏(a33926e)، إصلاح اختبار webauthn ليحيّد env ‏(fd7eb58). الاختبارات 289+15 صفر فشل",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-43",
-   "phase": "P2",
-   "sprint": null,
-   "kind": "feature",
-   "title": "C-MU-UX-UPSTREAM-WATCH: رفع إصدار الفورك إلى 1.34.0 ‏(bce6881) + مراقب إصدارات upstream — فحص GitHub releases كل 6 ساعات بكاش، شريط كهرماني للمالك في ذيل الشريط الجانبي برابط الإصدار وزر إقرار (ebd0f9a)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-44",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "feature",
-   "title": "C-MU-UX-HW-FONT + C-MU-UX-MSG-COORD + C-MU-UX-AVATAR-PICK: توحيد حجم خط العتاد مع الإعدادات (967268c)؛ عرض رسائل المنسّق (المؤلّف=مالك الجلسة) بهوية المنسّق لا المالك (54faff9)؛ منتقي أفاتار جاهز + لون + رفع في الملف الشخصي عبر avatar_url بثلاث بادئات بلا migration (dc8c96b)",
-   "status": "done",
-   "owner": "frontend-dev",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-45",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "feature",
-   "title": "B-PRIV-* المشروع الخاص (منجز): الخصوصية مطلقة — الخادم لا يُرجِع مشروعاً خاصاً لغير أعضائه حتى owner المنصة. visibility+created_by على projects + جدول project_members + getVisibleProjectPaths + حارس assertProjectVisible (404) على كل مسارات projectId شاملة الملفات وWS/presence + مسارات إدارة (visibility/members/orphan-recover) + قفل وبند سياق بالواجهة. اختبارات 301+15 (+12 تثبت عدم التسريب). commits a3dfaa4→dae6b33 + واجهة 078d5f8",
-   "status": "done",
-   "owner": "architect",
-   "closed": "2026-06-10"
-  },
-  {
-   "id": "T-46",
-   "phase": "P1",
-   "sprint": null,
-   "kind": "bug",
-   "issue": "B-12",
-   "title": "B-SR-GHOST-PRUNE: تنظيف جلسات الأشباح — معالج unlink في sessions-watcher يحذف صف SQLite بمطابقة jsonl_path ويبث projects_updated، وprune عند الإقلاع داخل ClaudeSessionSynchronizer ‏(fs.access، الحذف على ENOENT فقط، مقصور على provider=claude وjsonl_path غير فارغ، يشمل المؤرشف) — حذف صلب لأن المحتوى غير قابل للاسترداد؛ +5 اختبارات (321 صفر فشل) (b716fbb)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-11"
-  },
-  {
-   "id": "T-47",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "bug",
-   "issue": "B-13",
-   "title": "B-ISO-SHARE-AGENTS: مشاركة agents/ وskills/ من مركز المشغّل في provisionUserDirs لكل المستخدمين (symlink بجوار projects/CLAUDE.md/NASSAJ.md، ‏settings.json يبقى شخصياً عمداً) + اختباران في isolation.e2e ‏(24/24)؛ الروابط أُنشئت يدوياً للمستخدمين 1–3 فوراً (ef528c9)",
-   "status": "done",
-   "owner": "backend-dev",
-   "closed": "2026-06-11"
-  },
-  {
-   "id": "T-46",
-   "phase": "P4",
-   "sprint": null,
-   "kind": "feature",
-   "title": "C-MU-UX-AVATAR-PRO: استبدال الأشكال الهندسية بمعرض أفاتارات احترافي — 12 ‏SVG من DiceBear ‏(lorelei/notionists/open-peeps/thumbs، كلها CC0) مولّدة build-time إلى public/avatars-gallery مع قائمة بيضاء صارمة في الخادم (commit 0acc68e)",
-   "status": "done",
-   "owner": "ui-designer",
-   "closed": "2026-06-10"
-  }
- ],
- "issues": [
-  {
-   "id": "B-1",
-   "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف",
-   "severity": "high",
-   "status": "fixed",
-   "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)",
-   "found": "2026-06-08"
-  },
-  {
-   "id": "B-2",
-   "title": "pm2 restart يقتل جلسات Claude الأبناء وكل الوكلاء (treekill)",
-   "severity": "critical",
-   "status": "fixed",
-   "fix": "treekill:false + kill_timeout 24h في PM2، وdrain موقوت بلا سقف قبل الخروج (ADR-021/ADR-022)",
-   "found": "2026-06-07"
-  },
-  {
-   "id": "B-3",
-   "title": "مؤشر تعفّن السياق لا يحتسب توكنز الـcache",
-   "severity": "medium",
-   "status": "fixed",
-   "fix": "تصحيح حساب التوكنز في TokenUsageSummary ليشمل cache مع شريط ملوّن بعتبات محافظة",
-   "found": "2026-06-05"
-  },
-  {
-   "id": "B-4",
-   "title": "نموذج Fable لا يُتعرّف عليه كسياق 1M في resolveContextWindow",
-   "severity": "low",
-   "status": "fixed",
-   "fix": "إضافة أنماط Fable إلى كتالوج النماذج الديناميكي (10bb55e)",
-   "found": "2026-06-09"
-  },
-  {
-   "id": "B-5",
-   "title": "أحداث المرآة اللحظية تُفسد واجهة الجلسة المعروضة (معالِجات complete/error/status/permission_request لا تقارن msg.sessionId بالنشطة)",
-   "severity": "high",
-   "status": "fixed",
-   "fix": "B-MU-UX-FIX-MIRROR: تقييد كل معالِج بالـsessionId النشط في useChatRealtimeHandlers.ts (638d022)",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-6",
-   "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)",
-   "severity": "high",
-   "status": "fixed",
-   "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx (fe3fbe2)",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-7",
-   "title": "رسائل المستخدم تُعرض لكل مشاهد بأفاتاره هو لا بأفاتار المُرسِل الحقيقي (لا هوية في WS ولا التاريخ)",
-   "severity": "high",
-   "status": "fixed",
-   "fix": "B-MU-UX-FIX-MSG-AUTHOR: جدول sidecar ‏message_authors بمطابقة hash (transcript الـCLI لا يُمَس)؛ الخادم يختم userId على كل رسالة مستخدم ويبثّها في WS والتاريخ؛ الواجهة تعرض أفاتار المؤلّف الحقيقي وتفصل تجميع الفقاعات عند اختلاف المؤلف؛ مؤلف مجهول = أفاتار محايد (437a8f3 خادم، 5b84e8d واجهة)",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-8",
-   "title": "لوحة المشروع تعرض «no project state file» (بلاغ AlNuman)",
-   "severity": "low",
-   "status": "fixed",
-   "fix": "C-MU-UX-BOARD-FIX: ليس باگ — حلّ المسار سليم والميزة تعمل (تحقق curl على nassaj-dev)؛ AlNuman بلا docs/project-state.json فعلاً. أُضيفت حالة فراغ إرشادية موحّدة + زر نسخ skeleton صالح وفق schema v1 ‏(e75af2b)",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-9",
-   "title": "بثّ projects_updated يمسح عضوية isMember لكل المستخدمين — فلتر «مشاريعي» يَفرغ بعد أول بثّ WS",
-   "severity": "high",
-   "status": "fixed",
-   "fix": "B-MU-UX-FIX-WSMEMBER: الخادم يختم isMember لكل عميل حسب هويته الموثَّقة قبل الإرسال (serialize واحد لكل userId مميز) + دفاع واجهة في useProjectsState (مهمة T-37)",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-10",
-   "severity": "medium",
-   "title": "تكرار بطاقة الاتصال/الاعتماد في تبويب Account لكل وكيل بعد نقل أقسام Subscription من Profile",
-   "status": "fixed",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-11",
-   "severity": "high",
-   "title": "فشل إنشاء passkey على النطاق المنشور: restart ‏13:58 جرى بلا env فسقط webauthn على rpID=localhost (سجل pm2 يؤكد). المعالجة: WEBAUTHN_* أُضيفت إلى .env المحلي (يقرؤها dotenv عند الإقلاع) — يُغلق نهائياً بعد restart قادم",
-   "status": "fixed",
-   "found": "2026-06-10"
-  },
-  {
-   "id": "B-12",
-   "severity": "medium",
-   "title": "جلسات أشباح في قائمة المحادثات: فهرس sessions في SQLite لا يُنظَّف عند حذف ملف الـtranscript من القرص (مكنسة cleanupPeriodDays ‏30 يوماً)، فتبقى مدخلات لا تُفتح ولا تُستأنف",
-   "status": "fixed",
-   "fix": "B-SR-GHOST-PRUNE (T-46): معالج unlink لحظي + prune عند الإقلاع بحذف صلب (b716fbb) — يسري بعد restart قادم",
-   "found": "2026-06-11"
-  },
-  {
-   "id": "B-13",
-   "severity": "high",
-   "title": "جلسات العزل لا ترى وكلاء المشغّل المخصصين (Agent type 'ui-designer' not found): ‏provisionUserDirs لا يربط agents/ وskills/ من المركز، فجلسات CLAUDE_CONFIG_DIR المعزولة تفقد بطاقات الوكلاء الـ25 والمهارات المخصصة. قيد مفتوح متبقٍّ: settings.json المركزي (hooks حارس القاعدة الصفرية + الصلاحيات) لا يصل للجلسات المعزولة — يحتاج قراراً منفصلاً (مرشّح: managed-settings أو seeding)",
-   "status": "fixed",
-   "fix": "B-ISO-SHARE-AGENTS (T-47): ‏symlink ‏agents/+skills/ لكل المستخدمين في التزويد (ef528c9) + ربط يدوي فوري للمستخدمين 1–3؛ شق settings.json/hooks فُرز بنداً مستقلاً B-14",
-   "found": "2026-06-11"
-  },
-  {
-   "id": "B-14",
-   "severity": "medium",
-   "title": "سياسات settings.json المركزية (hooks حارس القاعدة الصفرية، الصلاحيات، cleanupPeriodDays) لا تصل للجلسات المعزولة — symlink مرفوض لأنه يجعل تفضيلات المستخدم الشخصية (theme) تكتب في الملف المركزي. مرشّحات الحل: managed-settings.json على مستوى النظام، أو seeding/merge عند التزويد",
-   "status": "open",
-   "found": "2026-06-11"
-  }
- ],
- "decisions": [
-  {
-   "id": "ADR-021",
-   "title": "بقاء الجلسات وإعادة البث (session survival & replay)",
-   "link": "docs/decisions/021-session-survival-and-replay.md"
-  },
-  {
-   "id": "ADR-022",
-   "title": "PM2 كمشرف عمليات مع drain على SIGTERM",
-   "link": "docs/decisions/022-process-supervisor-pm2-sigterm-drain.md"
-  },
-  {
-   "id": "ADR-023",
-   "title": "تعدد المستخدمين بعزل اشتراك Claude",
-   "link": "docs/decisions/023-multiuser-claude-subscription-isolation.md"
-  },
-  {
-   "id": "ADR-024",
-   "title": "تعدد المستخدمين بعزل اشتراك agy",
-   "link": "docs/decisions/024-multiuser-agy-subscription-isolation.md"
-  },
-  {
-   "id": "ADR-025",
-   "title": "إصلاح شامل لاختيار النماذج",
-   "link": "docs/decisions/025-model-selection-overhaul.md"
-  },
-  {
-   "id": "ADR-026",
-   "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
-   "link": "docs/decisions/026-passkey-webauthn.md"
-  },
-  {
-   "id": "ADR-027",
-   "title": "خصوصية المشروع مطلقة: owner المنصة لا يرى محتوى مشروع خاص ليس عضواً فيه؛ استرداد اليتيم عبر نقل ملكية/حذف لا عبر رؤية المحتوى",
-   "path": "docs/decisions/027-private-projects.md",
-   "date": "2026-06-10"
-  }
- ]
+  "$version": 1,
+  "$spec": "~/.claude/wiki/project-board.md",
+  "project": "nassaj-dev",
+  "updated": "2026-06-11",
+  "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
+  "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
+  "phases": [
+    {
+      "id": "P0",
+      "title": "تأسيس الفرع: AntigravityProvider (agy) + عربية/RTL",
+      "status": "done",
+      "progress": 100
+    },
+    {
+      "id": "P1",
+      "title": "موثوقية الجلسات والاستئناف (PHASE-SR-0)",
+      "status": "done",
+      "progress": 100
+    },
+    {
+      "id": "P2",
+      "title": "مزامنة upstream v1.32.0 → v1.33.0",
+      "status": "current",
+      "progress": 0
+    },
+    {
+      "id": "P3",
+      "title": "لوحة المشروع + إخفاء TaskMaster",
+      "status": "done",
+      "progress": 100
+    },
+    {
+      "id": "P4",
+      "title": "تعدد المستخدمين بعزل الاشتراكات (Phase-MU)",
+      "status": "pending",
+      "progress": 85
+    },
+    {
+      "id": "P5",
+      "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
+      "status": "done",
+      "progress": 100
+    }
+  ],
+  "sprints": [
+    {
+      "id": "S-1",
+      "phase": "P3",
+      "goal": "عرض حقول مخطط 1.1 في لوحة المشروع: شريط السبرنت الحالي وشارات نوع المهمة وربط مهام bug بأخطائها",
+      "status": "done",
+      "started": "2026-06-10",
+      "ended": "2026-06-10"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "T-1",
+      "phase": "P1",
+      "title": "إصلاح replay عند استئناف agy: الردّ من transcript.jsonl لا stdout",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-09"
+    },
+    {
+      "id": "T-2",
+      "phase": "P1",
+      "title": "سجل replay لكل جلسة خلف علم SESSION_REGISTRY_agy",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-09"
+    },
+    {
+      "id": "T-3",
+      "phase": "P1",
+      "title": "drain موقوت قبل الإيقاف (B-N-DRAIN) + treekill:false في PM2",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-09"
+    },
+    {
+      "id": "T-4",
+      "phase": "P1",
+      "title": "مرايا الجلسة اللحظية: بث قراءة-فقط لمشاهدين متعددين",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-09"
+    },
+    {
+      "id": "T-5",
+      "phase": "P2",
+      "title": "دمج 15 commit من upstream v1.33.0 (الفرع chore/sync-upstream-v1.33)",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-6",
+      "phase": "P2",
+      "title": "تعطيل Antigravity مؤقتاً وإضافة مزوّد Cursor",
+      "status": "open",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-7",
+      "phase": "P3",
+      "title": "إخفاء تكامل TaskMaster بالكامل خلف العلم TASKMASTER_ENABLED",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-8",
+      "phase": "P3",
+      "title": "مسار /api/project-board مع مراقبة chokidar وبث WebSocket",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-9",
+      "phase": "P3",
+      "title": "واجهة لوحة المشروع: مراحل/مهام/أخطاء + هيكلة بمخططات Mermaid",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-10",
+      "phase": "P3",
+      "title": "ملفات dogfooding: project-state.json وARCHITECTURE بنسختيه",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-11",
+      "phase": "P4",
+      "title": "عزل اشتراكات Claude/agy لكل مستخدم (CLAUDE_CONFIG_DIR لكل عملية)",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-12",
+      "phase": "P4",
+      "title": "onboarding ربط حسابات Claude وagy من تبويب الملف الشخصي",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-13",
+      "phase": "P4",
+      "title": "تفعيل علم SESSION_REGISTRY_agy افتراضياً بعد فترة مراقبة",
+      "status": "open",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-14",
+      "phase": "P4",
+      "title": "B-MU-UX-API: كشف مالك الجلسة والمشاركين للعميل (أساس شريحة العزو/الحضور)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-15",
+      "phase": "P4",
+      "title": "C-MU-UX-OWNER-BADGE: شارة المالك لكل جلسة في الشريط الجانبي",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-16",
+      "phase": "P4",
+      "title": "C-MU-UX-MSG-IDENTITY: هويّة المنسّق مقابل الوكيل الفرعي بلون المالك داخل المحادثة",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-17",
+      "phase": "P4",
+      "title": "B-MU-UX-PRESENCE + C-MU-UX-PRESENCE: حضور لحظي (قناة WS + لوحة منفصلة)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-18",
+      "phase": "P4",
+      "title": "B-MU-UX-GIT-ID: هويّة git per-user (مؤلِّف commit + دفع بتوكن المستخدم مع تراجع للحساب المشترك)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-19",
+      "phase": "P4",
+      "title": "B-MU-UX-FIX-MIRROR: تقييد معالِجات المرآة اللحظية بالجلسة النشطة",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-20",
+      "phase": "P4",
+      "title": "B-MU-UX-FIX-WSROTATE: إصلاح موت WebSocket اللحظي بعد تدوير التوكن",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-21",
+      "phase": "P4",
+      "title": "B-MU-UX-PROJ-FILTER + C-MU-UX-PROJ-FILTER: فلتر «مشاريعي / الكل» (الافتراضي «الكل»)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-22",
+      "phase": "P4",
+      "title": "B-MU-UX-FIX-MSG-AUTHOR: عزو رسائل المستخدم لمُرسِلها الحقيقي (sidecar message_authors + ختم WS/التاريخ + أفاتار المؤلّف)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-23",
+      "phase": "P4",
+      "title": "C-MU-UX-AGENT-CREDS: نقل قسمي اشتراك Claude/Antigravity من Profile إلى صفحة Agents (فئة Account)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-24",
+      "phase": "P4",
+      "title": "C-MU-UX-SIDEBAR-TABS: فلتر «مشاريعي/الكل» بدل تبويبي Projects/Conversations وحذف البحث العابر للمشاريع من الشريط",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-25",
+      "phase": "P4",
+      "title": "C-MU-UX-PRESENCE-COMPACT: لوحة «المتصلون الآن» صف أفاتارات متراكب مُحكم (tooltip + ‏+N + a11y)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-26",
+      "phase": "P4",
+      "title": "C-MU-UX-AVATAR-URL: تمرير avatarUrl إلى owner/presence وكل أماكن ParticipantAvatar",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-27",
+      "phase": "P4",
+      "title": "C-MU-UX-PARTBAR-DEFAULT: شريط المشاركين ظاهر افتراضياً وحذف مفتاح Appearance (زر الطي باقٍ)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-28",
+      "phase": "P4",
+      "title": "C-MU-UX-BOARD-FIX: تشخيص «no project state file» (ليس باگ) + حالة فراغ إرشادية وزر نسخ skeleton ‏schema v1",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-29",
+      "phase": "P5",
+      "title": "B-PK-1..4: ‏webauthn_credentials + repository، env/challenge store، خدمة ومسارات /api/auth/webauthn (تسجيل مصادَق + دخول discoverable بعقد /login)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-30",
+      "phase": "P5",
+      "title": "C-PK-1..3: زر «الدخول بمفتاح مرور» في LoginForm + طبقة @simplewebauthn/browser + إدارة المفاتيح في Profile",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-31",
+      "phase": "P4",
+      "title": "C-MU-UX-THEMES: منتقي ثيمات أصيل في Appearance — محرّك enhanced-appearance منقول إلى src/lib/theme-presets.ts: ‏4 presets (Claude/Cursor/Codex/Gemini) + محرر مخصص + Default، تكامل مع dark في ThemeContext، مفتاح nassaj-theme-preset، تطبيق مبكر بلا وميض (commit 27627a0)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-32",
+      "phase": "P4",
+      "title": "C-MU-UX-BOARD-DECISIONS: عرض قسم القرارات (decisions) في لوحة المشروع — DecisionsList في BoardOverview (المعرّف/العنوان/مسار الوثيقة) + حالة فراغ + مفاتيح i18n في 9 لغات",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-33",
+      "phase": "P3",
+      "sprint": "S-1",
+      "kind": "feature",
+      "issue": null,
+      "title": "C-MU-UX-BOARD-SPRINTS: عرض حقول مخطط 1.1 — شريط السبرنت الحالي (المعرّف/الهدف/المرحلة/البدء/نسبة الإنجاز)، سبرنتات أخرى مطوية، شارة kind ‏(bug أحمر)، زر معرّف الخطأ يقفز لبنده في قسم الأخطاء مع وميض، فرز الأعمدة: سبرنت حالي ← مجدول ← backlog؛ توافق خلفي كامل مع ملفات v1",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-34",
+      "phase": "P3",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "C-MU-UX-BOARD-DECISION-LINKS: روابط القرارات قابلة للنقر — كل decision.link يفتح الوثيقة داخل الواجهة عبر EditorSidebar/CodeEditor القائم، وملفات .md تُفتح مباشرة على معاينة Markdown (openMarkdownPreview)؛ link غائب → نص كما كان؛ ملف مفقود → رسالة خطأ العارض القائمة؛ مفتاح i18n ‏decisions.openLink في 9 لغات",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-35",
+      "phase": "P3",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "C-MU-UX-BOARD-MODELS: نموذجا عرض مخطط 1.2 بتبويبات شرطية (لا قسم غير فارغ = لا تبويب) — «الجدول الزمني»: Gantt يدوي CSS-grid مجمّع بالمرحلة (أشرطة start→end بتعبئة progress، معيّنات للمعالم، tooltip تفصيلي، محور زمني LTR دائماً) + مسار حرج CPM من depends والمدد في lib/cpm.ts (دورات/مراجع مفقودة → تنويه بلا انهيار) + قائمة التسليمات (شارات حالة، متأخر أحمر، معيار القبول، ربط بند الجدول↔تسليمه)؛ «الأهداف»: بطاقات OKR بحالة RAG وأشرطة KR ‏score=min(current/target,1) مع baseline + شبكة KPI باتجاه up/down يلوّن الانحراف؛ types 1.2 + مفاتيح i18n في 9 لغات؛ تحقق SSR بثوابت CPM والهندسة",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-36",
+      "phase": "P3",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "C-MU-UX-BOARD-OVERALL: نسبة الإنجاز الإجمالية للمشروع في رأس تبويب Overview — تُحتسب في الواجهة وفق المواصفة (متوسط progress للمراحل غير الملغاة مرجّحاً بعدد مهام كل مرحلة، مرحلة بلا مهام وزنها 1، وإلا متوسط بسيط؛ قصّ 0–100 وتقريب) + شريط تقدم بارز بـ role=progressbar ومفتاح i18n ‏overallProgress في 9 لغات؛ لا مراحل أو كلها cancelled → لا يظهر",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-37",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-9",
+      "title": "B-MU-UX-FIX-WSMEMBER: إصلاح فلتر «مشاريعي» — sessions-watcher كان يبني رسالة projects_updated واحدة بلا currentUserId فتصل isMember:false للجميع؛ الآن يُختم العلم لكل عميل من userId المختوم على الـsocket عند مصادقة الـWS (lookup وserialize مرة واحدة لكل userId مميز، عميل مجهول = false) + دفاع واجهة: مقارنة isMember في projectsHaveChanges والاحتفاظ بالقيمة السابقة عند undefined",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-38",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "C-MU-UX-HW-FOOTER: استبدال Report Issue/Join Community في ذيل الشريط الجانبي بعتاد مباشر — مسار GET /api/system/stats (CPU من دلتا /proc/stat والذاكرة من MemAvailable) وعرض CPU/RAM رقماً ونسبة باستطلاع 5 ثوانٍ يتوقف عند document.hidden (commit e786893)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-39",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-10",
+      "title": "C-MU-UX-AGENT-CREDS-DEDUP: توحيد بطاقة الاعتماد — تبويب Account كان يعرض بطاقتين متكررتين (Connection Status + قسم Subscription المنقول)؛ الآن بطاقة واحدة لكل وكيل تجمع الحالة وRe-login والاعتماد المعزول وRe-check (commit 72abc7a)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-40",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "C-MU-UX-BRAND-BOOT: هوية نسّاج (شعار+اسم من Branding) عند الإقلاع بدل هوية upstream — title/favicon/manifest وشاشات التحميل والدخول والإعداد، مع مسار عام GET /api/settings/branding يقدّم الاسم والشعار فقط قبل المصادقة (commit 6b4743c)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-41",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "maintenance",
+      "title": "SYNC-V134-W1: موجة upstream الأولى من فجوة v1.33.0→v1.34.0 — توكنز الكاش في /cost (b2eb575)، تزامن شجرة الملفات #828 (d0713fc)، أزرار Shell ‏#831 (bb1ca2d)، اقتراحات / بأي موضع + تثبيت scroll + شريط المحرر + vite proxy ‏(b2e6aba/79824ad/722c0bf/0558543)، dir=auto للـcomposer ‏(9a093e1)، Fable 5 في الكتالوج (a8e2f47). لا انحدار اختبارات؛ يتبقى موجة المزايا (إشعار الاكتمال، شريط الرفع)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-42",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "feature",
+      "title": "SYNC-V134-W2: موجة مزايا upstream — إشعار اكتمال التشغيل صوت+عنوان التبويب معرّباً (d75cf7f/d3f82d2)، شريط تقدم رفع الملفات حد 200MB ‏(cc05243/7fdc2f5)، إظهار أخطاء نتائج الأدوات بنقل يدوي حافظ على عزو الرسائل (a20359f)، استعلام مشاريع خفيف مع الحفاظ على isMember ‏(a33926e)، إصلاح اختبار webauthn ليحيّد env ‏(fd7eb58). الاختبارات 289+15 صفر فشل",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-43",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "feature",
+      "title": "C-MU-UX-UPSTREAM-WATCH: رفع إصدار الفورك إلى 1.34.0 ‏(bce6881) + مراقب إصدارات upstream — فحص GitHub releases كل 6 ساعات بكاش، شريط كهرماني للمالك في ذيل الشريط الجانبي برابط الإصدار وزر إقرار (ebd0f9a)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-44",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "C-MU-UX-HW-FONT + C-MU-UX-MSG-COORD + C-MU-UX-AVATAR-PICK: توحيد حجم خط العتاد مع الإعدادات (967268c)؛ عرض رسائل المنسّق (المؤلّف=مالك الجلسة) بهوية المنسّق لا المالك (54faff9)؛ منتقي أفاتار جاهز + لون + رفع في الملف الشخصي عبر avatar_url بثلاث بادئات بلا migration (dc8c96b)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-45",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "B-PRIV-* المشروع الخاص (منجز): الخصوصية مطلقة — الخادم لا يُرجِع مشروعاً خاصاً لغير أعضائه حتى owner المنصة. visibility+created_by على projects + جدول project_members + getVisibleProjectPaths + حارس assertProjectVisible (404) على كل مسارات projectId شاملة الملفات وWS/presence + مسارات إدارة (visibility/members/orphan-recover) + قفل وبند سياق بالواجهة. اختبارات 301+15 (+12 تثبت عدم التسريب). commits a3dfaa4→dae6b33 + واجهة 078d5f8",
+      "status": "done",
+      "owner": "architect",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-46",
+      "phase": "P1",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-12",
+      "title": "B-SR-GHOST-PRUNE: تنظيف جلسات الأشباح — معالج unlink في sessions-watcher يحذف صف SQLite بمطابقة jsonl_path ويبث projects_updated، وprune عند الإقلاع داخل ClaudeSessionSynchronizer ‏(fs.access، الحذف على ENOENT فقط، مقصور على provider=claude وjsonl_path غير فارغ، يشمل المؤرشف) — حذف صلب لأن المحتوى غير قابل للاسترداد؛ +5 اختبارات (321 صفر فشل) (b716fbb)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-47",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-13",
+      "title": "B-ISO-SHARE-AGENTS: مشاركة agents/ وskills/ من مركز المشغّل في provisionUserDirs لكل المستخدمين (symlink بجوار projects/CLAUDE.md/NASSAJ.md، ‏settings.json يبقى شخصياً عمداً) + اختباران في isolation.e2e ‏(24/24)؛ الروابط أُنشئت يدوياً للمستخدمين 1–3 فوراً (ef528c9)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-49",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "C-MU-UX-AVATAR-PRO: استبدال الأشكال الهندسية بمعرض أفاتارات احترافي — 12 ‏SVG من DiceBear ‏(lorelei/notionists/open-peeps/thumbs، كلها CC0) مولّدة build-time إلى public/avatars-gallery مع قائمة بيضاء صارمة في الخادم (commit 0acc68e) — (كانت مرقّمة T-46 بالتعارض مع B-SR-GHOST-PRUNE؛ صُحّحت)",
+      "status": "done",
+      "owner": "ui-designer",
+      "closed": "2026-06-10"
+    },
+    {
+      "id": "T-48",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-14",
+      "title": "B-ISO-SHARE-ALL: تعميم كل إمكانيات نسّاج على كل المستخدمين تلقائياً — (1) plugins/ ‏symlink في provisionUserDirs + اختبارات (e3604b9) وربط يدوي للمستخدمين 1–3 (مجلد u2 الحقيقي حُفظ في plugins.bak-20260611)؛ (2) سياسة مُدارة: ‏~/.claude/managed-settings.json (permissions+hooks+enabledPlugins فقط — بلا model/theme/effortLevel لتبقى شخصية) تُفعَّل بربط /etc/claude-code/managed-settings.json إليها (sudo بيد المستخدم)",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-50",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "title": "تنظيف قائمة مشاريع الواجهة: ترحيل 31 جلسة من قشرة claudecodeui-dev إلى nassaj-dev (السكربت المعد مسبقاً + تكييف يدوي للدلو غير الفارغ)؛ حذف مشروعَي Claudecodeui-enhanced-appearance وClaudecodeui-users-management؛ حذف مشروع Diwan-staging الخردة (جلسة /model)؛ حذف 27 محادثة Antigravity (الأداة بقيت)؛ دمج نساج+نساج 2.0 → /home/nassaj/nassaj-core باسم nassaj (56 جلسة). النتيجة: 10 مشاريع/172 جلسة. Backup كامل + rollback: migration-backups/20260611-052202",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-11"
+    }
+  ],
+  "issues": [
+    {
+      "id": "B-1",
+      "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف",
+      "severity": "high",
+      "status": "fixed",
+      "fix": "اشتقاق الردّ من transcript.jsonl بدل stdout، وحقن التعليمات عند أول استئناف لمحادثات الـIDE (e7cf074)",
+      "found": "2026-06-08"
+    },
+    {
+      "id": "B-2",
+      "title": "pm2 restart يقتل جلسات Claude الأبناء وكل الوكلاء (treekill)",
+      "severity": "critical",
+      "status": "fixed",
+      "fix": "treekill:false + kill_timeout 24h في PM2، وdrain موقوت بلا سقف قبل الخروج (ADR-021/ADR-022)",
+      "found": "2026-06-07"
+    },
+    {
+      "id": "B-3",
+      "title": "مؤشر تعفّن السياق لا يحتسب توكنز الـcache",
+      "severity": "medium",
+      "status": "fixed",
+      "fix": "تصحيح حساب التوكنز في TokenUsageSummary ليشمل cache مع شريط ملوّن بعتبات محافظة",
+      "found": "2026-06-05"
+    },
+    {
+      "id": "B-4",
+      "title": "نموذج Fable لا يُتعرّف عليه كسياق 1M في resolveContextWindow",
+      "severity": "low",
+      "status": "fixed",
+      "fix": "إضافة أنماط Fable إلى كتالوج النماذج الديناميكي (10bb55e)",
+      "found": "2026-06-09"
+    },
+    {
+      "id": "B-5",
+      "title": "أحداث المرآة اللحظية تُفسد واجهة الجلسة المعروضة (معالِجات complete/error/status/permission_request لا تقارن msg.sessionId بالنشطة)",
+      "severity": "high",
+      "status": "fixed",
+      "fix": "B-MU-UX-FIX-MIRROR: تقييد كل معالِج بالـsessionId النشط في useChatRealtimeHandlers.ts (638d022)",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-6",
+      "title": "WebSocket اللحظي يموت دائماً بعد تدوير التوكن (login-after-logout / تغيير كلمة المرور)",
+      "severity": "high",
+      "status": "fixed",
+      "fix": "B-MU-UX-FIX-WSROTATE: إعادة ضبط unmountedRef عند إعادة الاتصال واستخدام التوكن الحديث في WebSocketContext.tsx (fe3fbe2)",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-7",
+      "title": "رسائل المستخدم تُعرض لكل مشاهد بأفاتاره هو لا بأفاتار المُرسِل الحقيقي (لا هوية في WS ولا التاريخ)",
+      "severity": "high",
+      "status": "fixed",
+      "fix": "B-MU-UX-FIX-MSG-AUTHOR: جدول sidecar ‏message_authors بمطابقة hash (transcript الـCLI لا يُمَس)؛ الخادم يختم userId على كل رسالة مستخدم ويبثّها في WS والتاريخ؛ الواجهة تعرض أفاتار المؤلّف الحقيقي وتفصل تجميع الفقاعات عند اختلاف المؤلف؛ مؤلف مجهول = أفاتار محايد (437a8f3 خادم، 5b84e8d واجهة)",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-8",
+      "title": "لوحة المشروع تعرض «no project state file» (بلاغ AlNuman)",
+      "severity": "low",
+      "status": "fixed",
+      "fix": "C-MU-UX-BOARD-FIX: ليس باگ — حلّ المسار سليم والميزة تعمل (تحقق curl على nassaj-dev)؛ AlNuman بلا docs/project-state.json فعلاً. أُضيفت حالة فراغ إرشادية موحّدة + زر نسخ skeleton صالح وفق schema v1 ‏(e75af2b)",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-9",
+      "title": "بثّ projects_updated يمسح عضوية isMember لكل المستخدمين — فلتر «مشاريعي» يَفرغ بعد أول بثّ WS",
+      "severity": "high",
+      "status": "fixed",
+      "fix": "B-MU-UX-FIX-WSMEMBER: الخادم يختم isMember لكل عميل حسب هويته الموثَّقة قبل الإرسال (serialize واحد لكل userId مميز) + دفاع واجهة في useProjectsState (مهمة T-37)",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-10",
+      "severity": "medium",
+      "title": "تكرار بطاقة الاتصال/الاعتماد في تبويب Account لكل وكيل بعد نقل أقسام Subscription من Profile",
+      "status": "fixed",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-11",
+      "severity": "high",
+      "title": "فشل إنشاء passkey على النطاق المنشور: restart ‏13:58 جرى بلا env فسقط webauthn على rpID=localhost (سجل pm2 يؤكد). المعالجة: WEBAUTHN_* أُضيفت إلى .env المحلي (يقرؤها dotenv عند الإقلاع) — يُغلق نهائياً بعد restart قادم",
+      "status": "fixed",
+      "found": "2026-06-10"
+    },
+    {
+      "id": "B-12",
+      "severity": "medium",
+      "title": "جلسات أشباح في قائمة المحادثات: فهرس sessions في SQLite لا يُنظَّف عند حذف ملف الـtranscript من القرص (مكنسة cleanupPeriodDays ‏30 يوماً)، فتبقى مدخلات لا تُفتح ولا تُستأنف",
+      "status": "fixed",
+      "fix": "B-SR-GHOST-PRUNE (T-46): معالج unlink لحظي + prune عند الإقلاع بحذف صلب (b716fbb) — يسري بعد restart قادم",
+      "found": "2026-06-11"
+    },
+    {
+      "id": "B-13",
+      "severity": "high",
+      "title": "جلسات العزل لا ترى وكلاء المشغّل المخصصين (Agent type 'ui-designer' not found): ‏provisionUserDirs لا يربط agents/ وskills/ من المركز، فجلسات CLAUDE_CONFIG_DIR المعزولة تفقد بطاقات الوكلاء الـ25 والمهارات المخصصة. قيد مفتوح متبقٍّ: settings.json المركزي (hooks حارس القاعدة الصفرية + الصلاحيات) لا يصل للجلسات المعزولة — يحتاج قراراً منفصلاً (مرشّح: managed-settings أو seeding)",
+      "status": "fixed",
+      "fix": "B-ISO-SHARE-AGENTS (T-47): ‏symlink ‏agents/+skills/ لكل المستخدمين في التزويد (ef528c9) + ربط يدوي فوري للمستخدمين 1–3؛ شق settings.json/hooks فُرز بنداً مستقلاً B-14",
+      "found": "2026-06-11"
+    },
+    {
+      "id": "B-14",
+      "severity": "medium",
+      "title": "سياسات settings.json المركزية (hooks حارس القاعدة الصفرية، الصلاحيات، cleanupPeriodDays) لا تصل للجلسات المعزولة — symlink مرفوض لأنه يجعل تفضيلات المستخدم الشخصية (theme) تكتب في الملف المركزي. مرشّحات الحل: managed-settings.json على مستوى النظام، أو seeding/merge عند التزويد",
+      "status": "in_progress",
+      "fix": "T-48: اعتُمد managed-settings — ملف السياسة ~/.claude/managed-settings.json جاهز (permissions+hooks+enabledPlugins)؛ يتبقى تفعيله: sudo mkdir -p /etc/claude-code && sudo ln -s ~/.claude/managed-settings.json /etc/claude-code/ (بيد المستخدم) ثم تحقق",
+      "found": "2026-06-11"
+    },
+    {
+      "id": "B-15",
+      "severity": "medium",
+      "title": "لوحة Claude Usage تعرض الاستهلاك الزائد بأرقام مضخّمة ×100: حقلا used_credits/monthly_limit من نقطة oauth/usage يصلان بالسنتات (5127/8000 = $51.27 من $80) لكن formatCredits في claudeUsageHelpers.ts يمرّرهما لـIntl.NumberFormat كدولارات مباشرة فيظهر «$5,127 of $8,000». الإصلاح: قسمة على 100 قبل التنسيق (والنسبة 64.1% صحيحة لأنها نسبة)",
+      "status": "fixed",
+      "found": "2026-06-11",
+      "fix": "fc5486a: التحويل سنتات→وحدة العملة في formatCredits (طبقة العرض لا الخدمة — كي يسري بـbuild:client دون restart) + maximumFractionDigits=2 + توثيق وحدة السنتات في عقدَي الواجهة والخادم؛ بُني العميل والإصلاح حيّ بتحديث الصفحة"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "ADR-021",
+      "title": "بقاء الجلسات وإعادة البث (session survival & replay)",
+      "link": "docs/decisions/021-session-survival-and-replay.md"
+    },
+    {
+      "id": "ADR-022",
+      "title": "PM2 كمشرف عمليات مع drain على SIGTERM",
+      "link": "docs/decisions/022-process-supervisor-pm2-sigterm-drain.md"
+    },
+    {
+      "id": "ADR-023",
+      "title": "تعدد المستخدمين بعزل اشتراك Claude",
+      "link": "docs/decisions/023-multiuser-claude-subscription-isolation.md"
+    },
+    {
+      "id": "ADR-024",
+      "title": "تعدد المستخدمين بعزل اشتراك agy",
+      "link": "docs/decisions/024-multiuser-agy-subscription-isolation.md"
+    },
+    {
+      "id": "ADR-025",
+      "title": "إصلاح شامل لاختيار النماذج",
+      "link": "docs/decisions/025-model-selection-overhaul.md"
+    },
+    {
+      "id": "ADR-026",
+      "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
+      "link": "docs/decisions/026-passkey-webauthn.md"
+    },
+    {
+      "id": "ADR-027",
+      "title": "خصوصية المشروع مطلقة: owner المنصة لا يرى محتوى مشروع خاص ليس عضواً فيه؛ استرداد اليتيم عبر نقل ملكية/حذف لا عبر رؤية المحتوى",
+      "path": "docs/decisions/027-private-projects.md",
+      "date": "2026-06-10"
+    }
+  ]
 }

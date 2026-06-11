@@ -1,6 +1,10 @@
 # حالة المشروع — nassaj-dev
 
-> آخر تحديث: 2026-06-10
+> آخر تحديث: 2026-06-11
+
+## دفعة 2026-06-11 — تنظيف جلسات الأشباح + مشاركة الوكلاء في العزل
+- **B-SR-GHOST-PRUNE (T-46/B-12، ‏b716fbb):** حذف جلسات الأشباح من فهرس SQLite — معالج `unlink` لحظي في sessions-watcher + prune عند الإقلاع في ClaudeSessionSynchronizer (حذف صلب على ENOENT فقط، مقصور على provider=claude، يشمل المؤرشف). +5 اختبارات (321/0). **يسري بعد restart.**
+- **B-ISO-SHARE-AGENTS (T-47/B-13، ‏ef528c9):** ‏provisionUserDirs يربط الآن `agents/` و`skills/` من مركز المشغّل لكل مستخدم معزول (كان سبب «Agent type 'ui-designer' not found») + ربط يدوي فوري للمستخدمين 1–3. ‏`settings.json` يبقى شخصياً عمداً — شق السياسات المركزية (hooks/الصلاحيات) بند مفتوح **B-14**.
 
 ## الحالة الراهنة
 ✅ المراحل (0→4) single-user مكتملة. 🟢 **شريحة B-MU-UX (عزو/حضور) مكتملة + دفعة UI/إصلاحات 2026-06-10** (أبرزها إصلاح عزو رسائل المستخدم B-MU-UX-FIX-MSG-AUTHOR). 🟢 **ميزة Passkey/WebAuthn منفَّذة كاملة (ADR-026)**. 🟡 **مرحلة Multi-User (Phase-MU): طبقة التفعيل V1 معتمدة (ADR-023، 2026-06-08) — بوابة-0 تالية؛ التفعيل الإنتاجي محجوب بالتحقق القانوني (ToS) + PDPL**. 🟢 **مرحلة SR-0 (Session Recovery, non-claude): شريحة الترميز + التحصينات مكتملة، فيتو qa-critic مرفوع (202/0)**؛ **العلم مُطفأ**؛ **التفعيل الإنتاجي مسموح بعد بوابة B-N-DRAIN فقط** (ADR-021/022 معتمدة 2026-06-06؛ آخر commits: 1631f87/423f2b8/42d0b46).
@@ -128,3 +132,10 @@
 - [ ] antigravity sessions في per-project sidebar (تحتاج تعديل session-fetch service)
 - [ ] agy model selector في Settings (حالياً يستخدم نموذج agy الافتراضي)
 - [ ] RTL audit بصري كامل (C-47 — اختبار يدوي)
+
+## 2026-06-11 — تنظيف قائمة المشاريع (T-50)
+- ترحيل 31 جلسة من قشرة claudecodeui-dev → nassaj-dev (أصبح 32 جلسة)، وحُذفت القشرة.
+- حُذف: Claudecodeui-enhanced-appearance، Claudecodeui-users-management، Diwan-staging (جلسة خردة)، 27 محادثة Antigravity (الأداة باقية).
+- دُمج نساج + نساج 2.0 → مشروع `nassaj` على `/home/nassaj/nassaj-core` (56 جلسة)؛ ذاكرة المنسّق `-home-nassaj/memory` بقيت بمكانها.
+- الحصيلة: 10 مشاريع / 172 جلسة. Backup + rollback: `~/.local/share/nassaj-dev/migration-backups/20260611-052202/`.
+- مؤجّل (قرارات معتمدة، تنفيذ بعد تجدد الحصة): إلغاء الدومينات العامة diwan/nassaj من النفق وإبقاء -dev، إعادة تنظيم ملفات السيرفر هرمياً، دمج نسخ ديوان الثلاث، توثيق «سيرفر تطوير لا إنتاج».
