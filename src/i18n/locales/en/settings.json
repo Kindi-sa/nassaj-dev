@@ -147,6 +147,13 @@
       "description": "Show a single logo (SVG/image) instead of the icon and title in the sidebar header.",
       "toggleLabel": "Replace the icon and title with the uploaded logo alone",
       "needsLogo": "Upload a logo first to enable this mode."
+    },
+    "logoDarkSection": {
+      "label": "Dark theme logo",
+      "description": "Optional logo shown in dark mode instead of the main one. Falls back to the main logo when not set.",
+      "uploadButton": "Upload dark logo",
+      "uploadAria": "Upload a dark-mode logo image",
+      "hint": "PNG, JPEG, WebP, or SVG. Max 2MB. Pick light colors readable on a dark background."
     }
   },
   "profile": {

@@ -22,18 +22,22 @@ type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 export default function BrandingSettingsTab() {
   const { t } = useTranslation('settings');
   const { user } = useAuth();
-  const { title, logoUrl, logoOnly, refresh } = useBranding();
+  const { title, logoUrl, logoDarkUrl, logoOnly, refresh } = useBranding();
 
   const isOwner = user?.role === 'owner';
   const defaultTitle = t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const darkFileInputRef = useRef<HTMLInputElement>(null);
   const [titleValue, setTitleValue] = useState(title ?? '');
   const [titleStatus, setTitleStatus] = useState<Status>({ kind: 'idle' });
   const [titleSaving, setTitleSaving] = useState(false);
 
   const [logoStatus, setLogoStatus] = useState<Status>({ kind: 'idle' });
   const [logoBusy, setLogoBusy] = useState(false);
+
+  const [logoDarkStatus, setLogoDarkStatus] = useState<Status>({ kind: 'idle' });
+  const [logoDarkBusy, setLogoDarkBusy] = useState(false);
 
   const [logoOnlyStatus, setLogoOnlyStatus] = useState<Status>({ kind: 'idle' });
   const [logoOnlyBusy, setLogoOnlyBusy] = useState(false);
@@ -64,38 +68,41 @@ export default function BrandingSettingsTab() {
     }
   };
 
-  const handleLogoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoSelected = (variant: 'light' | 'dark') => async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const setStatus = variant === 'dark' ? setLogoDarkStatus : setLogoStatus;
+    const setBusy = variant === 'dark' ? setLogoDarkBusy : setLogoBusy;
+
     const file = event.target.files?.[0];
     // Reset the input so re-selecting the same file fires change again.
     event.target.value = '';
     if (!file) return;
 
     if (!ACCEPTED_MIME.includes(file.type)) {
-      setLogoStatus({ kind: 'error', message: t('brandingSettings.errorType') });
+      setStatus({ kind: 'error', message: t('brandingSettings.errorType') });
       return;
     }
     if (file.size > LOGO_MAX_BYTES) {
-      setLogoStatus({ kind: 'error', message: t('brandingSettings.errorSize') });
+      setStatus({ kind: 'error', message: t('brandingSettings.errorSize') });
       return;
     }
 
-    setLogoBusy(true);
-    setLogoStatus({ kind: 'idle' });
+    setBusy(true);
+    setStatus({ kind: 'idle' });
     try {
-      const response = await api.branding.uploadLogo(file);
+      const response = await api.branding.uploadLogo(file, variant);
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data?.error || t('brandingSettings.errorGeneric'));
       }
       await refresh();
-      setLogoStatus({ kind: 'success', message: t('brandingSettings.savedLogo') });
+      setStatus({ kind: 'success', message: t('brandingSettings.savedLogo') });
     } catch (error) {
-      setLogoStatus({
+      setStatus({
         kind: 'error',
         message: error instanceof Error ? error.message : t('brandingSettings.errorGeneric'),
       });
     } finally {
-      setLogoBusy(false);
+      setBusy(false);
     }
   };
 
@@ -120,24 +127,27 @@ export default function BrandingSettingsTab() {
     }
   };
 
-  const handleRemoveLogo = async () => {
-    setLogoBusy(true);
-    setLogoStatus({ kind: 'idle' });
+  const handleRemoveLogo = (variant: 'light' | 'dark') => async () => {
+    const setStatus = variant === 'dark' ? setLogoDarkStatus : setLogoStatus;
+    const setBusy = variant === 'dark' ? setLogoDarkBusy : setLogoBusy;
+
+    setBusy(true);
+    setStatus({ kind: 'idle' });
     try {
-      const response = await api.branding.deleteLogo();
+      const response = await api.branding.deleteLogo(variant);
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(data?.error || t('brandingSettings.errorGeneric'));
       }
       await refresh();
-      setLogoStatus({ kind: 'success', message: t('brandingSettings.removedLogo') });
+      setStatus({ kind: 'success', message: t('brandingSettings.removedLogo') });
     } catch (error) {
-      setLogoStatus({
+      setStatus({
         kind: 'error',
         message: error instanceof Error ? error.message : t('brandingSettings.errorGeneric'),
       });
     } finally {
-      setLogoBusy(false);
+      setBusy(false);
     }
   };
 
@@ -220,7 +230,7 @@ export default function BrandingSettingsTab() {
                   type="file"
                   accept={ACCEPTED_MIME.join(',')}
                   className="hidden"
-                  onChange={handleLogoSelected}
+                  onChange={handleLogoSelected('light')}
                   aria-label={t('brandingSettings.logoSection.uploadAria')}
                 />
                 <Button
@@ -238,7 +248,7 @@ export default function BrandingSettingsTab() {
                 {logoUrl && (
                   <Button
                     variant="ghost"
-                    onClick={handleRemoveLogo}
+                    onClick={handleRemoveLogo('light')}
                     disabled={!isOwner || logoBusy}
                   >
                     {t('brandingSettings.logoSection.removeButton')}
@@ -254,6 +264,72 @@ export default function BrandingSettingsTab() {
           {logoStatus.kind !== 'idle' && (
             <p className={`mt-3 text-xs ${statusClass(logoStatus)}`} role="status">
               {logoStatus.message}
+            </p>
+          )}
+        </SettingsCard>
+      </SettingsSection>
+
+      {/* Dark-theme logo variant */}
+      <SettingsSection
+        title={t('brandingSettings.logoDarkSection.label')}
+        description={t('brandingSettings.logoDarkSection.description')}
+      >
+        <SettingsCard className="p-4">
+          <div className="flex items-center gap-4">
+            {/* Preview on a dark backdrop so a light-on-dark logo is judgeable */}
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-zinc-900">
+              {logoDarkUrl ? (
+                <img
+                  src={logoDarkUrl}
+                  alt={t('brandingSettings.logoSection.previewAlt')}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <ImageOff className="h-6 w-6 text-zinc-400" aria-hidden="true" />
+              )}
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                <input
+                  ref={darkFileInputRef}
+                  type="file"
+                  accept={ACCEPTED_MIME.join(',')}
+                  className="hidden"
+                  onChange={handleLogoSelected('dark')}
+                  aria-label={t('brandingSettings.logoDarkSection.uploadAria')}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => darkFileInputRef.current?.click()}
+                  disabled={!isOwner || logoDarkBusy}
+                >
+                  {logoDarkBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  {t('brandingSettings.logoDarkSection.uploadButton')}
+                </Button>
+                {logoDarkUrl && (
+                  <Button
+                    variant="ghost"
+                    onClick={handleRemoveLogo('dark')}
+                    disabled={!isOwner || logoDarkBusy}
+                  >
+                    {t('brandingSettings.logoSection.removeButton')}
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('brandingSettings.logoDarkSection.hint')}
+              </p>
+            </div>
+          </div>
+
+          {logoDarkStatus.kind !== 'idle' && (
+            <p className={`mt-3 text-xs ${statusClass(logoDarkStatus)}`} role="status">
+              {logoDarkStatus.message}
             </p>
           )}
         </SettingsCard>

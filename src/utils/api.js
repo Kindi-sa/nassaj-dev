@@ -168,16 +168,16 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify({ logoOnly }),
       }),
-    uploadLogo: (file) => {
+    uploadLogo: (file, variant = 'light') => {
       const formData = new FormData();
       formData.append('logo', file);
-      return authenticatedFetch('/api/settings/branding/logo', {
+      return authenticatedFetch(`/api/settings/branding/logo?variant=${encodeURIComponent(variant)}`, {
         method: 'POST',
         body: formData,
       });
     },
-    deleteLogo: () =>
-      authenticatedFetch('/api/settings/branding/logo', {
+    deleteLogo: (variant = 'light') =>
+      authenticatedFetch(`/api/settings/branding/logo?variant=${encodeURIComponent(variant)}`, {
         method: 'DELETE',
       }),
   },

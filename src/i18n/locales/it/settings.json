@@ -128,6 +128,13 @@
       "description": "Mostra un unico logo (SVG/immagine) al posto di icona e titolo nell'intestazione della barra laterale.",
       "toggleLabel": "Sostituisci icona e titolo con il solo logo caricato",
       "needsLogo": "Carica prima un logo per attivare questa modalità."
+    },
+    "logoDarkSection": {
+      "label": "Logo per tema scuro",
+      "description": "Logo opzionale mostrato in modalità scura al posto di quello principale. In assenza, si usa il logo principale.",
+      "uploadButton": "Carica logo scuro",
+      "uploadAria": "Carica un logo per la modalità scura",
+      "hint": "PNG, JPEG, WebP o SVG. Max 2MB. Scegli colori chiari leggibili su sfondo scuro."
     }
   },
   "notifications": {

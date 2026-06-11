@@ -153,6 +153,13 @@
       "description": "Ein einzelnes Logo (SVG/Bild) statt Icon und Titel in der Seitenleiste anzeigen.",
       "toggleLabel": "Icon und Titel durch das hochgeladene Logo ersetzen",
       "needsLogo": "Laden Sie zuerst ein Logo hoch, um diesen Modus zu aktivieren."
+    },
+    "logoDarkSection": {
+      "label": "Logo für dunkles Design",
+      "description": "Optionales Logo für den Dunkelmodus anstelle des Hauptlogos. Ohne Upload wird das Hauptlogo verwendet.",
+      "uploadButton": "Dunkles Logo hochladen",
+      "uploadAria": "Logo für den Dunkelmodus hochladen",
+      "hint": "PNG, JPEG, WebP oder SVG. Max. 2MB. Helle Farben wählen, die auf dunklem Hintergrund lesbar sind."
     }
   },
   "appearanceSettings": {

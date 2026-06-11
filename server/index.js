@@ -329,14 +329,17 @@ app.get('/avatars/:userId.:ext', (req, res) => {
 // (defense in depth) so no active content can execute even on direct navigation.
 const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
 const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
+const BRANDING_LOGO_DARK_PATH_KEY = 'branding.logo_dark_path';
 const BRANDING_EXT_TO_MIME = {
     png: 'image/png',
     jpg: 'image/jpeg',
     webp: 'image/webp',
     svg: 'image/svg+xml',
 };
-app.get('/branding/logo.:ext', (req, res) => {
-    const { ext } = req.params;
+// :name is constrained to the two known basenames, so (with :ext validated
+// below) no part of the URL reaches the filesystem path un-whitelisted.
+app.get('/branding/:name(logo|logo_dark).:ext', (req, res) => {
+    const { name, ext } = req.params;
     if (!Object.prototype.hasOwnProperty.call(BRANDING_EXT_TO_MIME, ext)) {
         return res.status(404).end();
     }
@@ -344,11 +347,13 @@ app.get('/branding/logo.:ext', (req, res) => {
     // app_config. This means a stale/orphaned file left under a different
     // extension (e.g. after a failed cleanup) is never served, even if it exists
     // on disk.
-    const activeExt = appConfigDb.get(BRANDING_LOGO_PATH_KEY);
+    const activeExt = appConfigDb.get(
+        name === 'logo_dark' ? BRANDING_LOGO_DARK_PATH_KEY : BRANDING_LOGO_PATH_KEY
+    );
     if (!activeExt || activeExt !== ext) {
         return res.status(404).end();
     }
-    const filePath = path.join(BRANDING_ROOT, `logo.${ext}`);
+    const filePath = path.join(BRANDING_ROOT, `${name}.${ext}`);
     res.type(BRANDING_EXT_TO_MIME[ext]);
     // Defense in depth: forbid MIME sniffing so the file can never be
     // re-interpreted as HTML/script by the browser regardless of its bytes.

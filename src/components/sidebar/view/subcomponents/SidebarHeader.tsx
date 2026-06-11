@@ -5,6 +5,7 @@ import { Button, Input, Tooltip } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { cn } from '../../../../lib/utils';
 import { useBranding } from '../../../../contexts/BrandingContext';
+import { useTheme } from '../../../../contexts/ThemeContext';
 import type { ProjectMembershipFilter, SidebarSearchMode } from '../../types/types';
 
 const MOD_KEY =
@@ -51,7 +52,10 @@ export default function SidebarHeader({
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
-  const { title: brandingTitle, logoUrl: brandingLogoUrl, logoOnly: brandingLogoOnly } = useBranding();
+  const { title: brandingTitle, logoUrl, logoDarkUrl, logoOnly: brandingLogoOnly } = useBranding();
+  const { isDarkMode } = useTheme();
+  // Dark theme prefers the dedicated dark logo and falls back to the main one.
+  const brandingLogoUrl = isDarkMode ? (logoDarkUrl ?? logoUrl) : logoUrl;
   const showSearchTools = (projectsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'archived'
     ? t('search.archivedPlaceholder', 'Search archived sessions...')

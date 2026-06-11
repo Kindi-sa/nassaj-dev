@@ -128,6 +128,13 @@
       "description": "사이드바 헤더의 아이콘과 제목 대신 단일 로고(SVG/이미지)를 표시합니다.",
       "toggleLabel": "아이콘과 제목을 업로드한 로고로만 교체",
       "needsLogo": "이 모드를 사용하려면 먼저 로고를 업로드하세요."
+    },
+    "logoDarkSection": {
+      "label": "다크 테마 로고",
+      "description": "다크 모드에서 기본 로고 대신 표시되는 선택적 로고입니다. 없으면 기본 로고를 사용합니다.",
+      "uploadButton": "다크 로고 업로드",
+      "uploadAria": "다크 모드용 로고 업로드",
+      "hint": "PNG, JPEG, WebP 또는 SVG. 최대 2MB. 어두운 배경에서 잘 보이는 밝은 색을 선택하세요."
     }
   },
   "notifications": {

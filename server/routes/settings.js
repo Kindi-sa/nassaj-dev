@@ -32,6 +32,11 @@ const BRANDING_LOGO_VERSION_KEY = 'branding.logo_version';
 // the icon + title pair. Meaningless without an uploaded logo — the client
 // falls back to icon+title whenever logoUrl is null.
 const BRANDING_LOGO_ONLY_KEY = 'branding.logo_only';
+// Optional dark-theme variant of the logo. Same storage/serving scheme as the
+// main logo with a `logo_dark.<ext>` filename; the client falls back to the
+// main logo on dark theme when this one is absent.
+const BRANDING_LOGO_DARK_PATH_KEY = 'branding.logo_dark_path';
+const BRANDING_LOGO_DARK_VERSION_KEY = 'branding.logo_dark_version';
 
 const BRANDING_TITLE_MAX_LENGTH = 60;
 
@@ -138,8 +143,9 @@ const BRANDING_ALLOWED_EXTS = new Set(Object.values(BRANDING_MIME_TO_EXT));
 // return the absolute filesystem path to the client. The stored value is an
 // EXTENSION (e.g. "png"), so it is validated against the allowed-extension set —
 // not the MIME-keyed map.
-function getBrandingLogoUrl() {
-  const ext = appConfigDb.get(BRANDING_LOGO_PATH_KEY);
+function getBrandingLogoUrl(variant = 'light') {
+  const cfg = brandingVariantConfig(variant);
+  const ext = appConfigDb.get(cfg.pathKey);
   if (!ext || !BRANDING_ALLOWED_EXTS.has(ext)) {
     return null;
   }
@@ -147,8 +153,25 @@ function getBrandingLogoUrl() {
   // static route match (/branding/logo.:ext matches the path only), so the file
   // is still served correctly, but every upload changes the URL and defeats any
   // cached copy of the previous logo.
-  const version = appConfigDb.get(BRANDING_LOGO_VERSION_KEY);
-  return version ? `/branding/logo.${ext}?v=${version}` : `/branding/logo.${ext}`;
+  const version = appConfigDb.get(cfg.versionKey);
+  return version ? `/branding/${cfg.basename}.${ext}?v=${version}` : `/branding/${cfg.basename}.${ext}`;
+}
+
+// Per-variant storage parameters. Only 'dark' differs; anything else (absent
+// query param, unknown value) maps to the main/light logo.
+function brandingVariantConfig(variant) {
+  if (variant === 'dark') {
+    return {
+      basename: 'logo_dark',
+      pathKey: BRANDING_LOGO_DARK_PATH_KEY,
+      versionKey: BRANDING_LOGO_DARK_VERSION_KEY,
+    };
+  }
+  return {
+    basename: 'logo',
+    pathKey: BRANDING_LOGO_PATH_KEY,
+    versionKey: BRANDING_LOGO_VERSION_KEY,
+  };
 }
 
 // Public read: the branding payload is non-sensitive (custom title + logo URL
@@ -162,6 +185,7 @@ export async function getBrandingHandler(req, res) {
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
+      logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
     });
   } catch (error) {
@@ -199,6 +223,7 @@ router.put('/branding', requireRole('owner'), async (req, res) => {
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
+      logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
     });
   } catch (error) {
@@ -251,6 +276,9 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
         outputBuffer = Buffer.from(sanitized, 'utf8');
       }
 
+      // 'dark' targets the dark-theme variant; anything else the main logo.
+      const variantCfg = brandingVariantConfig(req.query.variant);
+
       await fs.promises.mkdir(BRANDING_ROOT, { recursive: true });
 
       // Remove any logo stored under a different extension so a stale file is not
@@ -259,19 +287,19 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
         if (otherExt === ext) {
           continue;
         }
-        await fs.promises.rm(path.join(BRANDING_ROOT, `logo.${otherExt}`), { force: true });
+        await fs.promises.rm(path.join(BRANDING_ROOT, `${variantCfg.basename}.${otherExt}`), { force: true });
       }
 
-      const targetPath = path.join(BRANDING_ROOT, `logo.${ext}`);
+      const targetPath = path.join(BRANDING_ROOT, `${variantCfg.basename}.${ext}`);
       await fs.promises.writeFile(targetPath, outputBuffer);
 
       // Persist only the extension; the public URL is rebuilt from it on read.
-      appConfigDb.set(BRANDING_LOGO_PATH_KEY, ext);
+      appConfigDb.set(variantCfg.pathKey, ext);
       // Bump the cache-busting version so the rebuilt URL (?v=...) differs from
       // the previous one and forces every client to fetch the new bytes.
-      appConfigDb.set(BRANDING_LOGO_VERSION_KEY, String(Date.now()));
+      appConfigDb.set(variantCfg.versionKey, String(Date.now()));
 
-      res.json({ logoUrl: getBrandingLogoUrl() });
+      res.json({ logoUrl: getBrandingLogoUrl(), logoDarkUrl: getBrandingLogoUrl('dark') });
     } catch (error) {
       console.error('Branding logo update error:', error?.message);
       res.status(500).json({ error: 'Internal server error' });
@@ -279,22 +307,24 @@ router.post('/branding/logo', requireRole('owner'), (req, res) => {
   });
 });
 
-// Owner-only: remove the custom logo, reverting to the default inline SVG.
+// Owner-only: remove the custom logo (the variant named by ?variant, main by
+// default), reverting to the default inline SVG / main-logo fallback.
 router.delete('/branding/logo', requireRole('owner'), async (req, res) => {
   try {
+    const variantCfg = brandingVariantConfig(req.query.variant);
     // Remove every possible logo file regardless of which extension is recorded.
     await fs.promises
       .mkdir(BRANDING_ROOT, { recursive: true })
       .catch(() => {});
     for (const ext of Object.values(BRANDING_MIME_TO_EXT)) {
-      await fs.promises.rm(path.join(BRANDING_ROOT, `logo.${ext}`), { force: true });
+      await fs.promises.rm(path.join(BRANDING_ROOT, `${variantCfg.basename}.${ext}`), { force: true });
     }
-    appConfigDb.set(BRANDING_LOGO_PATH_KEY, '');
+    appConfigDb.set(variantCfg.pathKey, '');
     // Bump the version on delete too: a subsequent re-upload of an image that
     // happens to share the previous extension will then carry a fresh ?v, and
     // any cached copy is logically invalidated.
-    appConfigDb.set(BRANDING_LOGO_VERSION_KEY, String(Date.now()));
-    res.json({ logoUrl: null });
+    appConfigDb.set(variantCfg.versionKey, String(Date.now()));
+    res.json({ logoUrl: getBrandingLogoUrl(), logoDarkUrl: getBrandingLogoUrl('dark') });
   } catch (error) {
     console.error('Branding logo delete error:', error?.message);
     res.status(500).json({ error: 'Failed to remove branding logo' });

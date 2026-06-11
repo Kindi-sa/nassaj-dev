@@ -128,6 +128,13 @@
       "description": "在侧边栏标题中显示单个徽标（SVG/图片），替代图标和标题。",
       "toggleLabel": "仅用上传的徽标替换图标和标题",
       "needsLogo": "请先上传徽标以启用此模式。"
+    },
+    "logoDarkSection": {
+      "label": "深色主题徽标",
+      "description": "深色模式下替代主徽标显示的可选徽标。未设置时使用主徽标。",
+      "uploadButton": "上传深色徽标",
+      "uploadAria": "上传深色模式徽标",
+      "hint": "PNG、JPEG、WebP 或 SVG。最大 2MB。请选择在深色背景上清晰可读的浅色。"
     }
   },
   "notifications": {

@@ -128,6 +128,13 @@
       "description": "Kenar çubuğu başlığında simge ve başlık yerine tek bir logo (SVG/görsel) gösterin.",
       "toggleLabel": "Simge ve başlığı yalnızca yüklenen logoyla değiştir",
       "needsLogo": "Bu modu etkinleştirmek için önce bir logo yükleyin."
+    },
+    "logoDarkSection": {
+      "label": "Koyu tema logosu",
+      "description": "Koyu modda ana logo yerine gösterilen isteğe bağlı logo. Yüklenmezse ana logo kullanılır.",
+      "uploadButton": "Koyu logo yükle",
+      "uploadAria": "Koyu mod için logo yükle",
+      "hint": "PNG, JPEG, WebP veya SVG. En fazla 2MB. Koyu arka planda okunabilir açık renkler seçin."
     }
   },
   "notifications": {
