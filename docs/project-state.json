@@ -498,6 +498,36 @@
       "status": "done",
       "owner": "devops",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-51",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "ترتيب المحادثات داخل المشروع بتاريخ الإنشاء لا آخر نشاط: ORDER BY created_at في sessions.db (pagination متسق) + تمرير createdAt في SessionSummary + فرز العميل بـ getSessionCreationDate (106cd74)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-52",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "عدّاد الوقت المستغرق (ClaudeStatus) كان يتصفّر عند تحديث الصفحة: الحساب الآن من timestamp آخر رسالة مستخدم في الـ transcript ‏(runStartedAt) مع tick فوري وfallback — يصمد أمام refresh ‏(6c889e8)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-53",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "ثيم «الكندي / Al-Kindy» preset أصيل من Brand Book الرسمي (navy #1B2A4A + gold، surfaces يدوية للوضعين، AA/AAA محسوبة) + شاشة التحميل token-driven ‏(--brand-accent بدل bg-blue-500 الثابت) ‏(8b24a8d)؛ brief: ui-designer",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
