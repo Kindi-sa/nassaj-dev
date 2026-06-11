@@ -140,6 +140,13 @@
       "previewAlt": "Current logo preview",
       "hint": "PNG, JPEG, WebP, or SVG. Max 2MB.",
       "uploadAria2": ""
+    },
+    "savedLogoOnly": "Display mode saved.",
+    "logoOnlySection": {
+      "label": "Logo-only mode",
+      "description": "Show a single logo (SVG/image) instead of the icon and title in the sidebar header.",
+      "toggleLabel": "Replace the icon and title with the uploaded logo alone",
+      "needsLogo": "Upload a logo first to enable this mode."
     }
   },
   "profile": {

@@ -28,6 +28,10 @@ const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
 // cache miss in both the browser HTTP cache and the Service Worker, so the new
 // image appears immediately instead of the stale cached one.
 const BRANDING_LOGO_VERSION_KEY = 'branding.logo_version';
+// '1' = the header shows the uploaded logo alone (wordmark mode) instead of
+// the icon + title pair. Meaningless without an uploaded logo — the client
+// falls back to icon+title whenever logoUrl is null.
+const BRANDING_LOGO_ONLY_KEY = 'branding.logo_only';
 
 const BRANDING_TITLE_MAX_LENGTH = 60;
 
@@ -158,6 +162,7 @@ export async function getBrandingHandler(req, res) {
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
+      logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
     });
   } catch (error) {
     console.error('Error fetching branding:', error);
@@ -167,29 +172,38 @@ export async function getBrandingHandler(req, res) {
 
 router.get('/branding', getBrandingHandler);
 
-// Owner-only: update the custom application title. Empty/whitespace clears it
-// (falls back to the default i18n title on the client).
+// Owner-only: update the custom application title and/or the logo-only display
+// mode. Each field is written only when present in the body, so the two
+// controls in the settings UI update independently. An empty/whitespace title
+// clears it (falls back to the default i18n title on the client).
 router.put('/branding', requireRole('owner'), async (req, res) => {
   try {
-    const raw = typeof req.body?.title === 'string' ? req.body.title : '';
-    // Collapse whitespace and strip control characters before length-checking.
-    const cleaned = raw.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim();
+    if (typeof req.body?.title === 'string') {
+      // Collapse whitespace and strip control characters before length-checking.
+      const cleaned = req.body.title.replace(/[\x00-\x1f\x7f]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-    if (cleaned.length > BRANDING_TITLE_MAX_LENGTH) {
-      return res
-        .status(400)
-        .json({ error: `Title must be at most ${BRANDING_TITLE_MAX_LENGTH} characters` });
+      if (cleaned.length > BRANDING_TITLE_MAX_LENGTH) {
+        return res
+          .status(400)
+          .json({ error: `Title must be at most ${BRANDING_TITLE_MAX_LENGTH} characters` });
+      }
+
+      appConfigDb.set(BRANDING_TITLE_KEY, cleaned);
     }
 
-    appConfigDb.set(BRANDING_TITLE_KEY, cleaned);
+    if (typeof req.body?.logoOnly === 'boolean') {
+      appConfigDb.set(BRANDING_LOGO_ONLY_KEY, req.body.logoOnly ? '1' : '0');
+    }
 
+    const title = appConfigDb.get(BRANDING_TITLE_KEY);
     res.json({
-      title: cleaned.length > 0 ? cleaned : null,
+      title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
+      logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
     });
   } catch (error) {
-    console.error('Error updating branding title:', error);
-    res.status(500).json({ error: 'Failed to update branding title' });
+    console.error('Error updating branding:', error);
+    res.status(500).json({ error: 'Failed to update branding' });
   }
 });
 

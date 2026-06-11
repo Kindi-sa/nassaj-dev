@@ -8,6 +8,7 @@ import { useBranding } from '../../../../contexts/BrandingContext';
 import { api } from '../../../../utils/api';
 import SettingsCard from '../SettingsCard';
 import SettingsSection from '../SettingsSection';
+import SettingsToggle from '../SettingsToggle';
 
 const TITLE_MAX_LENGTH = 60;
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — must match the server limit.
@@ -21,7 +22,7 @@ type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 export default function BrandingSettingsTab() {
   const { t } = useTranslation('settings');
   const { user } = useAuth();
-  const { title, logoUrl, refresh } = useBranding();
+  const { title, logoUrl, logoOnly, refresh } = useBranding();
 
   const isOwner = user?.role === 'owner';
   const defaultTitle = t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
@@ -33,6 +34,9 @@ export default function BrandingSettingsTab() {
 
   const [logoStatus, setLogoStatus] = useState<Status>({ kind: 'idle' });
   const [logoBusy, setLogoBusy] = useState(false);
+
+  const [logoOnlyStatus, setLogoOnlyStatus] = useState<Status>({ kind: 'idle' });
+  const [logoOnlyBusy, setLogoOnlyBusy] = useState(false);
 
   // Keep the input in sync if branding loads/changes after mount.
   useEffect(() => {
@@ -92,6 +96,27 @@ export default function BrandingSettingsTab() {
       });
     } finally {
       setLogoBusy(false);
+    }
+  };
+
+  const handleLogoOnlyChange = async (value: boolean) => {
+    setLogoOnlyBusy(true);
+    setLogoOnlyStatus({ kind: 'idle' });
+    try {
+      const response = await api.branding.updateLogoOnly(value);
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || t('brandingSettings.errorGeneric'));
+      }
+      await refresh();
+      setLogoOnlyStatus({ kind: 'success', message: t('brandingSettings.savedLogoOnly') });
+    } catch (error) {
+      setLogoOnlyStatus({
+        kind: 'error',
+        message: error instanceof Error ? error.message : t('brandingSettings.errorGeneric'),
+      });
+    } finally {
+      setLogoOnlyBusy(false);
     }
   };
 
@@ -229,6 +254,36 @@ export default function BrandingSettingsTab() {
           {logoStatus.kind !== 'idle' && (
             <p className={`mt-3 text-xs ${statusClass(logoStatus)}`} role="status">
               {logoStatus.message}
+            </p>
+          )}
+        </SettingsCard>
+      </SettingsSection>
+
+      {/* Logo-only (wordmark) mode */}
+      <SettingsSection
+        title={t('brandingSettings.logoOnlySection.label')}
+        description={t('brandingSettings.logoOnlySection.description')}
+      >
+        <SettingsCard className="p-4">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-foreground">
+              {t('brandingSettings.logoOnlySection.toggleLabel')}
+            </p>
+            <SettingsToggle
+              checked={logoOnly}
+              onChange={handleLogoOnlyChange}
+              ariaLabel={t('brandingSettings.logoOnlySection.toggleLabel')}
+              disabled={!isOwner || !logoUrl || logoOnlyBusy}
+            />
+          </div>
+          {!logoUrl && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t('brandingSettings.logoOnlySection.needsLogo')}
+            </p>
+          )}
+          {logoOnlyStatus.kind !== 'idle' && (
+            <p className={`mt-2 text-xs ${statusClass(logoOnlyStatus)}`} role="status">
+              {logoOnlyStatus.message}
             </p>
           )}
         </SettingsCard>

@@ -121,6 +121,13 @@
       "uploadAria": "로고 이미지 업로드",
       "previewAlt": "현재 로고 미리보기",
       "hint": "PNG, JPEG, WebP 또는 SVG. 최대 2MB."
+    },
+    "savedLogoOnly": "표시 모드가 저장되었습니다.",
+    "logoOnlySection": {
+      "label": "로고 전용 모드",
+      "description": "사이드바 헤더의 아이콘과 제목 대신 단일 로고(SVG/이미지)를 표시합니다.",
+      "toggleLabel": "아이콘과 제목을 업로드한 로고로만 교체",
+      "needsLogo": "이 모드를 사용하려면 먼저 로고를 업로드하세요."
     }
   },
   "notifications": {

@@ -121,6 +121,13 @@
       "uploadAria": "Carica un'immagine del logo",
       "previewAlt": "Anteprima del logo attuale",
       "hint": "PNG, JPEG, WebP o SVG. Max 2MB."
+    },
+    "savedLogoOnly": "Modalità di visualizzazione salvata.",
+    "logoOnlySection": {
+      "label": "Modalità solo logo",
+      "description": "Mostra un unico logo (SVG/immagine) al posto di icona e titolo nell'intestazione della barra laterale.",
+      "toggleLabel": "Sostituisci icona e titolo con il solo logo caricato",
+      "needsLogo": "Carica prima un logo per attivare questa modalità."
     }
   },
   "notifications": {

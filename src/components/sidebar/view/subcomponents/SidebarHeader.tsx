@@ -51,7 +51,7 @@ export default function SidebarHeader({
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
-  const { title: brandingTitle, logoUrl: brandingLogoUrl } = useBranding();
+  const { title: brandingTitle, logoUrl: brandingLogoUrl, logoOnly: brandingLogoOnly } = useBranding();
   const showSearchTools = (projectsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
   const searchPlaceholder = searchMode === 'archived'
     ? t('search.archivedPlaceholder', 'Search archived sessions...')
@@ -113,7 +113,15 @@ export default function SidebarHeader({
     </div>
   );
 
-  const LogoBlock = () => (
+  // Wordmark mode: a single uploaded logo replaces the icon + title pair. The
+  // title still reaches assistive tech through the img alt text.
+  const LogoBlock = () => (brandingLogoOnly && brandingLogoUrl) ? (
+    <img
+      src={brandingLogoUrl}
+      alt={displayTitle}
+      className="h-8 w-auto max-w-[180px] min-w-0 object-contain object-left rtl:object-right"
+    />
+  ) : (
     <div className="flex min-w-0 items-center gap-2.5">
       {brandingLogoUrl ? (
         <img

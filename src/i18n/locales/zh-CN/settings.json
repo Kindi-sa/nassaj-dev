@@ -121,6 +121,13 @@
       "uploadAria": "上传徽标图片",
       "previewAlt": "当前徽标预览",
       "hint": "PNG、JPEG、WebP 或 SVG，最大 2MB。"
+    },
+    "savedLogoOnly": "显示模式已保存。",
+    "logoOnlySection": {
+      "label": "仅徽标模式",
+      "description": "在侧边栏标题中显示单个徽标（SVG/图片），替代图标和标题。",
+      "toggleLabel": "仅用上传的徽标替换图标和标题",
+      "needsLogo": "请先上传徽标以启用此模式。"
     }
   },
   "notifications": {

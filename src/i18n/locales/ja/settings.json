@@ -121,6 +121,13 @@
       "uploadAria": "ロゴ画像をアップロード",
       "previewAlt": "現在のロゴのプレビュー",
       "hint": "PNG、JPEG、WebP、SVG。最大 2MB。"
+    },
+    "savedLogoOnly": "表示モードを保存しました。",
+    "logoOnlySection": {
+      "label": "ロゴのみモード",
+      "description": "サイドバーヘッダーのアイコンとタイトルの代わりに単一のロゴ（SVG/画像）を表示します。",
+      "toggleLabel": "アイコンとタイトルをアップロードしたロゴのみに置き換える",
+      "needsLogo": "このモードを有効にするには、まずロゴをアップロードしてください。"
     }
   },
   "notifications": {

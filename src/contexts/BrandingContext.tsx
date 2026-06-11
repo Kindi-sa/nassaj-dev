@@ -15,6 +15,8 @@ import { api } from '../utils/api';
 export type Branding = {
   title: string | null;
   logoUrl: string | null;
+  /** Show the uploaded logo alone (wordmark mode) instead of icon + title. */
+  logoOnly: boolean;
 };
 
 type BrandingContextValue = Branding & {
@@ -35,7 +37,7 @@ export const useBranding = (): BrandingContextValue => {
 };
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null });
+  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null, logoOnly: false });
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -48,6 +50,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       setBranding({
         title: typeof data?.title === 'string' && data.title.length > 0 ? data.title : null,
         logoUrl: typeof data?.logoUrl === 'string' && data.logoUrl.length > 0 ? data.logoUrl : null,
+        logoOnly: data?.logoOnly === true,
       });
     } catch {
       // Network/parse failure: keep defaults so the header still renders.

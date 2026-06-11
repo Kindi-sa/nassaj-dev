@@ -121,6 +121,13 @@
       "uploadAria": "Logo görseli yükle",
       "previewAlt": "Geçerli logo önizlemesi",
       "hint": "PNG, JPEG, WebP veya SVG. En fazla 2 MB."
+    },
+    "savedLogoOnly": "Görünüm modu kaydedildi.",
+    "logoOnlySection": {
+      "label": "Yalnızca logo modu",
+      "description": "Kenar çubuğu başlığında simge ve başlık yerine tek bir logo (SVG/görsel) gösterin.",
+      "toggleLabel": "Simge ve başlığı yalnızca yüklenen logoyla değiştir",
+      "needsLogo": "Bu modu etkinleştirmek için önce bir logo yükleyin."
     }
   },
   "notifications": {
