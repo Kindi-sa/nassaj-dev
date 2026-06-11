@@ -4,7 +4,7 @@ import { promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
-import { participantsDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
@@ -212,6 +212,10 @@ async function flushPendingWatcherUpdate(): Promise<void> {
       if (!serialized) {
         const visiblePaths = new Set(projectsDb.getVisibleProjectPaths(membershipUserId));
         const memberProjectPaths = new Set(participantsDb.getProjectPathsForUser(membershipUserId));
+        // `isOwner` is per-user like `isMember`: the shared fetch above ran
+        // without a requester, so re-stamp it from the (user-independent)
+        // `ownerId` plus this user's project_members 'owner' roles.
+        const ownedProjectIds = new Set(projectMembersDb.listUserOwnedProjectIds(membershipUserId));
         serialized = JSON.stringify({
           ...basePayload,
           projects: updatedProjects
@@ -219,6 +223,9 @@ async function flushPendingWatcherUpdate(): Promise<void> {
             .map(project => ({
               ...project,
               isMember: memberProjectPaths.has(project.fullPath),
+              isOwner:
+                (project.ownerId !== null && project.ownerId === membershipUserId) ||
+                ownedProjectIds.has(project.projectId),
             })),
         });
         serializedByUserId.set(membershipUserId, serialized);

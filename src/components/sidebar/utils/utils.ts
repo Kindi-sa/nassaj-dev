@@ -3,14 +3,16 @@ import type { TFunction } from 'i18next';
 import type { Project } from '../../../types/app';
 import type { ProjectMembershipFilter, ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
 
-// View-only preference: "my projects" vs "all". Stored under its own key so it
-// is safe on a shared browser (no identity, just a display filter). Defaults to
-// 'all' to preserve the pre-multi-user behaviour (every project visible).
+// View-only preference: "my projects" / "team" / "all". Stored under its own
+// key so it is safe on a shared browser (no identity, just a display filter).
+// Defaults to 'all' to preserve the pre-multi-user behaviour (every project
+// visible).
 const PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY = 'sidebarProjectMembershipFilter';
 
 export const readProjectMembershipFilter = (): ProjectMembershipFilter => {
   try {
-    return localStorage.getItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY) === 'mine' ? 'mine' : 'all';
+    const storedFilter = localStorage.getItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY);
+    return storedFilter === 'mine' || storedFilter === 'team' ? storedFilter : 'all';
   } catch {
     return 'all';
   }
@@ -25,18 +27,37 @@ export const writeProjectMembershipFilter = (filter: ProjectMembershipFilter): v
 };
 
 /**
- * Applies the "my projects" view filter. `all` returns the list untouched;
- * `mine` keeps only projects the requesting user participates in (isMember).
- * This is a view filter only — access is never restricted server-side.
+ * Applies the "My projects / Team / All" view filter. This is a view filter
+ * only — access is never restricted client-side; the server already excludes
+ * projects the user may not see.
+ *
+ * - `all`  : list untouched (legacy behaviour, default).
+ * - `mine` : projects owned by the current user (`isOwner`, stamped by the
+ *            server: creator or owner-role project member).
+ * - `team` : shared projects — owned by someone else, or ownerless legacy
+ *            projects the user participates in (`isMember`). Ownerless
+ *            projects without the user's participation appear under `all` only.
  */
 export const filterProjectsByMembership = (
   projects: Project[],
   filter: ProjectMembershipFilter,
 ): Project[] => {
-  if (filter !== 'mine') {
-    return projects;
+  if (filter === 'mine') {
+    return projects.filter((project) => project.isOwner === true);
   }
-  return projects.filter((project) => project.isMember === true);
+
+  if (filter === 'team') {
+    return projects.filter((project) => {
+      if (project.isOwner === true) {
+        return false;
+      }
+
+      const hasRegisteredOwner = typeof project.ownerId === 'number';
+      return hasRegisteredOwner || project.isMember === true;
+    });
+  }
+
+  return projects;
 };
 
 export const readProjectSortOrder = (): ProjectSortOrder => {

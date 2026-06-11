@@ -86,6 +86,22 @@ export const projectMembersDb = {
       .all(projectId) as ProjectMemberRow[];
   },
 
+  /**
+   * Project ids where the given user holds the 'owner' member role. One
+   * set-based query, used to stamp the per-user `isOwner` flag on project
+   * payloads (sidebar "My projects" filter) without a per-project lookup.
+   */
+  listUserOwnedProjectIds(userId: number): string[] {
+    if (!Number.isInteger(userId)) {
+      return [];
+    }
+    const db = getConnection();
+    const rows = db
+      .prepare("SELECT project_id FROM project_members WHERE user_id = ? AND role = 'owner'")
+      .all(userId) as Array<{ project_id: string }>;
+    return rows.map((row) => row.project_id);
+  },
+
   /** Project ids the given user is an explicit member of (any role). */
   listUserProjectIds(userId: number): string[] {
     if (!Number.isInteger(userId)) {

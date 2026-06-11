@@ -59,10 +59,13 @@ export default function SidebarHeader({
 
   const displayTitle = brandingTitle ?? t('app.title');
 
-  // "My Projects / All" view filter (C-MU-UX-PROJ-FILTER), shown where the
-  // old Projects/Conversations tabs used to be (C-MU-UX-SIDEBAR-TABS).
+  // "My projects / Team / All" view filter (C-MU-UX-PROJ-FILTER), shown where
+  // the old Projects/Conversations tabs used to be (C-MU-UX-SIDEBAR-TABS).
+  // Flex order follows the document direction, so the segmented control lays
+  // out correctly in RTL without extra handling.
   const membershipOptions: { value: ProjectMembershipFilter; label: string }[] = [
     { value: 'mine', label: t('projects.myProjects') },
+    { value: 'team', label: t('projects.teamProjects') },
     { value: 'all', label: t('projects.all') },
   ];
 

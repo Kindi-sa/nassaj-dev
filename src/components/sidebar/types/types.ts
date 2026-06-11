@@ -1,9 +1,12 @@
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../types/app';
 
 export type ProjectSortOrder = 'name' | 'date';
-// "My Projects / All" sidebar view filter (C-MU-UX-PROJ-FILTER). View-only —
-// never restricts access. `all` preserves the legacy behaviour.
-export type ProjectMembershipFilter = 'all' | 'mine';
+// "My projects / Team / All" sidebar view filter (C-MU-UX-PROJ-FILTER).
+// View-only — never restricts access. `all` preserves the legacy behaviour
+// and stays the initial default; `mine` = owned by the current user;
+// `team` = shared projects owned by someone else (or ownerless projects the
+// user participates in).
+export type ProjectMembershipFilter = 'all' | 'mine' | 'team';
 // 'conversations' mode removed with the Projects/Conversations tabs
 // (C-MU-UX-SIDEBAR-TABS); the header now toggles projects view vs archive.
 export type SidebarSearchMode = 'projects' | 'archived';

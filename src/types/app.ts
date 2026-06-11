@@ -76,6 +76,12 @@ export interface Project {
   // (B-MU-UX-PROJ-FILTER). Informational only — the server never filters the
   // project list; the frontend "My Projects / All" toggle uses this flag.
   isMember?: boolean;
+  // Creator attribution for the sidebar "My projects / Team / All" filter.
+  // `ownerId` is the creator's user id (null for legacy/orphan projects);
+  // `isOwner` is stamped per-user by the server (creator or an owner-role
+  // project member). View-filter inputs only — never an access decision.
+  ownerId?: number | null;
+  isOwner?: boolean;
   // Project privacy (C-PRIV-6). The server removes private projects the user
   // cannot see from the list entirely — these flags only drive UI affordances.
   visibility?: 'public' | 'private';

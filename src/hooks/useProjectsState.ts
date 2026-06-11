@@ -47,6 +47,7 @@ const projectsHaveChanges = (
       nextProject.fullPath !== prevProject.fullPath ||
       Boolean(nextProject.isStarred) !== Boolean(prevProject.isStarred) ||
       Boolean(nextProject.isMember) !== Boolean(prevProject.isMember) ||
+      Boolean(nextProject.isOwner) !== Boolean(prevProject.isOwner) ||
       serialize(nextProject.sessionMeta) !== serialize(prevProject.sessionMeta) ||
       serialize(nextProject.sessions) !== serialize(prevProject.sessions) ||
       serialize(nextProject.taskmaster) !== serialize(prevProject.taskmaster);
@@ -70,9 +71,10 @@ const projectsHaveChanges = (
 };
 
 // Defense in depth for `projects_updated` broadcasts: when an incoming project
-// omits `isMember` (undefined), keep the flag last delivered by the
-// authenticated `GET /api/projects` fetch instead of silently dropping it —
-// otherwise the sidebar "My Projects" filter empties after the first broadcast.
+// omits a per-user flag (`isMember`/`isOwner` undefined), keep the value last
+// delivered by the authenticated `GET /api/projects` fetch instead of silently
+// dropping it — otherwise the sidebar "My projects"/"Team" filters empty after
+// the first broadcast.
 const preserveMembershipFlags = (incomingProjects: Project[], previousProjects: Project[]): Project[] => {
   if (previousProjects.length === 0) {
     return incomingProjects;
@@ -81,16 +83,24 @@ const preserveMembershipFlags = (incomingProjects: Project[], previousProjects: 
   const previousByProjectId = new Map(previousProjects.map((project) => [project.projectId, project]));
 
   return incomingProjects.map((project) => {
-    if (project.isMember !== undefined) {
-      return project;
-    }
-
     const previousProject = previousByProjectId.get(project.projectId);
-    if (!previousProject || previousProject.isMember === undefined) {
+    if (!previousProject) {
       return project;
     }
 
-    return { ...project, isMember: previousProject.isMember };
+    const preservedFlags: Partial<Pick<Project, 'isMember' | 'isOwner'>> = {};
+    if (project.isMember === undefined && previousProject.isMember !== undefined) {
+      preservedFlags.isMember = previousProject.isMember;
+    }
+    if (project.isOwner === undefined && previousProject.isOwner !== undefined) {
+      preservedFlags.isOwner = previousProject.isOwner;
+    }
+
+    if (Object.keys(preservedFlags).length === 0) {
+      return project;
+    }
+
+    return { ...project, ...preservedFlags };
   });
 };
 
