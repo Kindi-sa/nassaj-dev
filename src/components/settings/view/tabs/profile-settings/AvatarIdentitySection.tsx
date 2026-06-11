@@ -16,7 +16,7 @@ import {
   isAvatarColorValue,
   isGalleryAvatarValue,
 } from '../../../../participants/avatarChoice';
-import { initialForName } from '../../../../participants/utils';
+import { avatarColorForUser, initialForName } from '../../../../participants/utils';
 import SettingsSection from '../../SettingsSection';
 
 import FeedbackBanner from './FeedbackBanner';
@@ -149,7 +149,13 @@ export default function AvatarIdentitySection({ t }: Props) {
           <img
             src={currentAvatarUrl}
             alt={t('profile.avatar.currentAlt')}
-            className="h-20 w-20 flex-shrink-0 rounded-full object-cover ring-2 ring-border"
+            className={cn(
+              'h-20 w-20 flex-shrink-0 rounded-full object-cover ring-2 ring-border',
+              // Solid disc behind the picture: transparent gallery SVGs would
+              // otherwise float without a background (deterministic user colour,
+              // matching ParticipantAvatar). Opaque photos simply cover it.
+              avatarColorForUser(user?.id ?? username),
+            )}
             onError={() => setPreviewFailed(true)}
           />
         ) : chosenColorClass || username ? (

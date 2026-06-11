@@ -80,9 +80,11 @@ export default function ParticipantAvatar({
         className={cn(
           'relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-semibold text-white',
           SIZE_CLASSES[size],
-          // When no image is shown, paint either the user's chosen colour or
-          // the deterministic userId-derived fallback.
-          !showImage && (chosenColorClass ?? avatarColorForUser(participant.userId)),
+          // Always paint a colour disc: the user's chosen palette colour, or the
+          // deterministic userId-derived one. It shows through transparent
+          // gallery SVGs (DiceBear `fill="none"`) so image avatars sit on the
+          // same solid disc as lettered ones; opaque photos simply cover it.
+          chosenColorClass ?? avatarColorForUser(participant.userId),
           stacked && '-ms-1.5 first:ms-0',
         )}
       >
