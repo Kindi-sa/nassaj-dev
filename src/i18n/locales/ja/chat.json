@@ -19,6 +19,9 @@
     "cursor": "Cursor",
     "codex": "Codex"
   },
+  "externalOrigin": {
+    "label": "UIの外部で作成されました"
+  },
   "tools": {
     "settings": "ツール設定",
     "error": "ツールエラー",

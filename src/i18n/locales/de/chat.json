@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Außerhalb der Benutzeroberfläche erstellt"
+  },
   "tools": {
     "settings": "Werkzeugeinstellungen",
     "error": "Werkzeugfehler",

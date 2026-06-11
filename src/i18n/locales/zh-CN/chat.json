@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "在界面外创建"
+  },
   "tools": {
     "settings": "工具设置",
     "error": "工具错误",

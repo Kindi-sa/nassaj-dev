@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Создано вне интерфейса"
+  },
   "tools": {
     "settings": "Настройки инструмента",
     "error": "Ошибка инструмента",

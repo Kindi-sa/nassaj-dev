@@ -48,6 +48,9 @@
   "userAuthor": {
     "withName": "User: {{username}}"
   },
+  "externalOrigin": {
+    "label": "Created outside the UI"
+  },
   "sessionNotResumable": {
     "message": "This session could not be resumed — it no longer exists at the provider.",
     "startNew": "Start a new session"

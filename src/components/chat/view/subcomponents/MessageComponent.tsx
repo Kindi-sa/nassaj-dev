@@ -137,6 +137,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     messageUserId !== undefined &&
     messageUserId === owner.userId;
 
+  // Externally-originated user prompt: a user row with NO userId stamp. These
+  // rows were written straight into the provider transcript from outside the
+  // UI (an agent running `claude -p`, a direct CLI session, legacy history) so
+  // there is no message_authors row to resolve. Rendered with an explicit
+  // "Created outside the UI" caption and a terminal-icon avatar — never a
+  // person icon — so viewers cannot mistake machine-injected prompts for a
+  // human sender. (Coordinator→agent sidechain prompts never reach this
+  // stream: they live in subagents/agent-*.jsonl files which the server only
+  // mines for tool calls.)
+  const isExternalOriginMessage = message.type === 'user' && messageUserId === undefined;
+
   // Consecutive user messages only group when they share an author, so a
   // different sender's bubble never hides behind the previous author's avatar.
   const isGrouped = prevMessage && prevMessage.type === message.type &&
@@ -246,6 +257,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 </span>
               </div>
             )}
+            {/* Externally-originated prompt: explicit terminal-icon caption so
+             * the bubble is never mistaken for a human sender (the grey
+             * terminal avatar beside the bubble carries the same identity, but
+             * is hidden on mobile — the caption is the always-visible cue). */}
+            {isExternalOriginMessage && !isGrouped && (
+              <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-blue-100">
+                <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3M5.25 20.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+                <span dir="auto">
+                  {t('externalOrigin.label', { defaultValue: 'Created outside the UI' })}
+                </span>
+              </div>
+            )}
             <div className="whitespace-pre-wrap break-words text-sm" dir="auto">
               {message.content}
             </div>
@@ -303,17 +328,18 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   avatarUrl={authorParticipant.avatarUrl ?? undefined}
                 />
               ) : (
-                /* Unknown author (no userId stamp — legacy rows or
-                 * provider-rewritten commands): neutral grey placeholder,
-                 * never the viewing user's avatar. */
+                /* No userId stamp — the row was written to the transcript from
+                 * outside the UI (agent `claude -p`, direct CLI, legacy
+                 * history): neutral grey TERMINAL avatar, never a person icon
+                 * and never the viewing user's avatar. */
                 <span
                   role="img"
-                  aria-label={t('participants.unknownAuthor', { defaultValue: 'Unknown author' })}
-                  title={t('participants.unknownAuthor', { defaultValue: 'Unknown author' })}
+                  aria-label={t('externalOrigin.label', { defaultValue: 'Created outside the UI' })}
+                  title={t('externalOrigin.label', { defaultValue: 'Created outside the UI' })}
                   className="inline-flex h-6 w-6 select-none items-center justify-center rounded-full bg-gray-400 text-white dark:bg-gray-600"
                 >
-                  <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 12a4 4 0 100-8 4 4 0 000 8zm0 2c-3.866 0-7 2.239-7 5v1h14v-1c0-2.761-3.134-5-7-5z" />
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3M5.25 20.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
                   </svg>
                 </span>
               )}

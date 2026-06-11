@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "UI 외부에서 생성됨"
+  },
   "tools": {
     "settings": "도구 설정",
     "error": "도구 오류",

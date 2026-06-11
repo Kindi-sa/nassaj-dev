@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Arayüz dışında oluşturuldu"
+  },
   "tools": {
     "settings": "Araç Ayarları",
     "error": "Araç Hatası",
