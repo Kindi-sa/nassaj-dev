@@ -572,6 +572,10 @@
         "deleteFailed": "Could not delete the passkey.",
         "network": "Network error. Please check your connection and try again."
       }
+    },
+    "tabs": {
+      "identity": "기본 정보",
+      "security": "보안"
     }
   }
 }

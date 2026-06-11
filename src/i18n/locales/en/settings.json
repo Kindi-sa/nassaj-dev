@@ -145,6 +145,10 @@
   "profile": {
     "title": "Profile",
     "subtitle": "Manage your account username, password, and passkeys",
+    "tabs": {
+      "identity": "Identity",
+      "security": "Security"
+    },
     "saving": "Saving...",
     "avatar": {
       "title": "Profile picture",
