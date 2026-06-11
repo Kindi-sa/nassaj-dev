@@ -91,7 +91,7 @@ export default function InviteUserModal({ canInviteAdmin, onClose, onCreate }: I
                 value={role}
                 onChange={(event) => setRole(event.target.value as ManagedUserRole)}
                 disabled={isSubmitting}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
               >
                 <option value="user">{t('users.roles.user')}</option>
                 {canInviteAdmin && <option value="admin">{t('users.roles.admin')}</option>}

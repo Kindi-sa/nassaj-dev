@@ -189,9 +189,9 @@ export default function AvatarIdentitySection({ t }: Props) {
                     setFeedback(null);
                   }}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-ring',
                     active
-                      ? 'bg-blue-500 text-white'
+                      ? 'bg-primary text-primary-foreground'
                       : 'bg-muted text-muted-foreground hover:text-foreground',
                   )}
                 >
@@ -250,9 +250,9 @@ export default function AvatarIdentitySection({ t }: Props) {
                       disabled={isSaving}
                       onClick={() => saveChoice({ avatar: avatar.url })}
                       className={cn(
-                        'relative aspect-square overflow-hidden rounded-full ring-2 ring-offset-2 ring-offset-background transition focus:outline-none focus:ring-blue-500 disabled:opacity-60',
+                        'relative aspect-square overflow-hidden rounded-full ring-2 ring-offset-2 ring-offset-background transition focus:outline-none focus:ring-ring disabled:opacity-60',
                         selected
-                          ? 'ring-blue-500'
+                          ? 'ring-primary'
                           : 'ring-transparent hover:ring-border hover:scale-105',
                       )}
                     >
@@ -292,9 +292,9 @@ export default function AvatarIdentitySection({ t }: Props) {
                       disabled={isSaving}
                       onClick={() => saveChoice({ color: color.id })}
                       className={cn(
-                        'relative flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 transition focus:outline-none focus:ring-blue-500 disabled:opacity-60',
+                        'relative flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 transition focus:outline-none focus:ring-ring disabled:opacity-60',
                         color.className,
-                        selected ? 'ring-blue-500' : 'ring-transparent hover:ring-border',
+                        selected ? 'ring-primary' : 'ring-transparent hover:ring-border',
                       )}
                     >
                       {selected ? <Check className="h-4 w-4" aria-hidden /> : initial}

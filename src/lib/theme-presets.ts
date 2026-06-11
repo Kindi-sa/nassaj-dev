@@ -189,7 +189,7 @@ const BRAND_SPECS: Record<string, BrandSpec> = {
         background: '40 43% 96%', card: '0 0% 100%', popover: '0 0% 100%',
         foreground: '221 47% 12%', cardForeground: '221 47% 12%',
         secondary: '40 30% 92%', secondaryForeground: '221 47% 12%',
-        muted: '40 30% 92%', mutedForeground: '0 0% 40%',
+        muted: '40 30% 92%', mutedForeground: '30 8% 38%',
         accent: '40 32% 89%', accentForeground: '221 47% 12%',
         border: '39 25% 84%', input: '39 25% 84%',
         destructive: '2 49% 43%',

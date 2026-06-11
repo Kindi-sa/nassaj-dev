@@ -137,7 +137,7 @@ export default function ProviderSharingSettings({ role }: ProviderSharingSetting
                         setFeedback(null);
                         updateConfig(provider, event.target.value as SharingMode);
                       }}
-                      className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                      className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                     >
                       {SHARING_MODES.map((value) => (
                         <option key={value} value={value}>
