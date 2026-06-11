@@ -401,9 +401,12 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {/* min-w-0 + truncate: in a squeezed composer column the hint
+              * ellipsizes on one line instead of wrapping over the toolbar
+              * (lg: sees viewport width, not pane width). */}
             <div
-              className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              className={`hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
                 input.trim() ? 'opacity-0' : 'opacity-100'
               }`}
             >
@@ -411,7 +414,7 @@ export default function ChatComposer({
             </div>
             <PromptInputSubmit
               disabled={!input.trim() || isLoading}
-              className="h-10 w-10 sm:h-10 sm:w-10"
+              className="h-10 w-10 shrink-0 sm:h-10 sm:w-10"
             />
           </div>
         </PromptInputFooter>
