@@ -27,6 +27,11 @@ export default function ThemePresetPicker() {
     setCustomThemeColors,
   } = useTheme();
 
+  // `custom` is hidden from the picker, but a user who already has it saved
+  // keeps seeing (and editing) it until they switch to another preset.
+  const visiblePresets: ThemePresetId[] =
+    themePreset === 'custom' ? [...PRESET_ORDER, 'custom'] : PRESET_ORDER;
+
   return (
     <SettingsSection
       title={t('appearanceSettings.themePresets.title')}
@@ -38,7 +43,7 @@ export default function ThemePresetPicker() {
           aria-label={t('appearanceSettings.themePresets.groupLabel')}
           className="grid grid-cols-2 gap-3 sm:grid-cols-3"
         >
-          {PRESET_ORDER.map((id: ThemePresetId) => {
+          {visiblePresets.map((id: ThemePresetId) => {
             const isActive = themePreset === id;
             return (
               <button

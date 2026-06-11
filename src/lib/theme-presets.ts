@@ -33,14 +33,18 @@ export const DEFAULT_CUSTOM_COLORS: CustomColors = {
   foreground: '222 47% 11%',
 };
 
+/**
+ * Presets offered in the picker, in display order. `custom` is intentionally
+ * absent: it is hidden from the UI but remains a valid stored preset
+ * (see KNOWN_PRESETS) so existing users keep their custom theme.
+ */
 export const PRESET_ORDER: ThemePresetId[] = [
   'default',
-  'claude',
   'alkindy',
+  'claude',
   'cursor',
   'codex',
   'gemini',
-  'custom',
 ];
 
 type Hsl = { h: number; s: number; l: number };
@@ -186,7 +190,7 @@ const BRAND_SPECS: Record<string, BrandSpec> = {
         foreground: '221 47% 12%', cardForeground: '221 47% 12%',
         secondary: '40 30% 92%', secondaryForeground: '221 47% 12%',
         muted: '40 30% 92%', mutedForeground: '0 0% 40%',
-        accent: '39 44% 87%', accentForeground: '221 47% 12%',
+        accent: '40 32% 89%', accentForeground: '221 47% 12%',
         border: '39 25% 84%', input: '39 25% 84%',
         destructive: '2 49% 43%',
       },
@@ -321,7 +325,9 @@ const DEFAULT_STATE: ThemePresetState = {
   custom: { ...DEFAULT_CUSTOM_COLORS },
 };
 
-const KNOWN_PRESETS = new Set<string>(PRESET_ORDER);
+// Accepts everything in the picker plus the hidden-but-still-valid `custom`,
+// so a previously saved custom theme keeps loading and applying.
+const KNOWN_PRESETS = new Set<string>([...PRESET_ORDER, 'custom']);
 
 export function loadThemePresetState(): ThemePresetState {
   try {
