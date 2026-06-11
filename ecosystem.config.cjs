@@ -31,10 +31,21 @@ module.exports = {
       instances: 1,
       autorestart: true,
       max_restarts: 10,
-      // حدّ ذاكرة وقائي ضد OOM (نوبة 2026-06-06). 512MB يكفي لنسخة dev من الـ UI.
-      max_memory_restart: '512M',
+      // باعد بين محاولات إعادة التشغيل (B-23): بدون backoff كانت 10 محاولات
+      // EADDRINUSE تُحرق max_restarts في ~5 ثوانٍ وتترك العملية errored.
+      exp_backoff_restart_delay: 1000,
+      // حدّ ذاكرة وقائي ضد OOM (نوبة 2026-06-06). رُفع 512M → 768M بعد B-23:
+      // العملية تجاوزت 512M فعلياً (586MB في 2026-06-11 01:34) فأطلقت
+      // restarts تلقائية وقعت في فخ drain/EADDRINUSE.
+      max_memory_restart: '768M',
+      // treekill:false إلزامي (ADR-021/ADR-022): إشارات PM2 — بما فيها SIGKILL
+      // بعد kill_timeout — تصيب العملية الأم فقط، فلا تُقتل عمليات claude الأبناء.
       treekill: false,
-      kill_timeout: 86400000,
+      // B-23: كان 24h (86400000) لحماية الـ drain، لكن الخادم صار يحرّر المنفذ
+      // فوراً عند إشارة الإيقاف (shutdown-drain.service.ts) فلم يعد التراخي
+      // الطويل ضرورياً لتشغيل النسخة البديلة. 5 دقائق حدّ أمان: لو تتبّع PM2
+      // العملية القديمة بدقة فأقصى انتظار قبل SIGKILL للأم 5 دقائق بدل 24h.
+      kill_timeout: 300000,
       watch: false,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',

@@ -15,6 +15,7 @@ import Database from 'better-sqlite3';
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
+import { createShutdownDrain, resolveDrainTimeoutMs } from '@/services/shutdown-drain.service.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -1932,92 +1933,26 @@ async function startServer() {
 
         await closeSessionsWatcher();
 
-        // B-N-DRAIN (ADR-021 / ADR-022): a stop signal triggers a TIMED DRAIN
-        // instead of the previous immediate process.exit(0). In-flight provider
-        // runs (claude/agy/codex/...) are child processes that die with this
-        // process, so we wait — bounded by DRAIN_TIMEOUT_MS — for active
-        // sessions to finish before exiting. PM2's kill_timeout MUST exceed
-        // this budget, otherwise PM2's SIGKILL fires mid-drain (ADR-022; set in
-        // ecosystem.config.cjs as part of this work item).
-        //
-        // Both SIGTERM and SIGINT drain (PM2's default stop signal is SIGINT in
-        // fork mode); a SECOND signal of either kind forces an immediate exit
-        // so an operator is never locked out of a fast stop.
-        //
-        // DRAIN_TIMEOUT_MS = 0 (the default) waits WITHOUT a deadline — agent
-        // runs can legitimately take an hour or more, and cutting them at an
-        // arbitrary cap is exactly what drain exists to prevent. The escape
-        // hatches for a wedged drain are the second stop signal (immediate
-        // exit) and PM2's kill_timeout, which must be sized accordingly.
-        const DRAIN_TIMEOUT_MS = (() => {
-            const parsed = parseInt(process.env.DRAIN_TIMEOUT_MS, 10);
-            return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-        })();
-        const DRAIN_POLL_MS = 2000;
-
-        const countActiveSessionsByProvider = () => ({
-            claude: getActiveClaudeSDKSessions().length,
-            cursor: getActiveCursorSessions().length,
-            codex: getActiveCodexSessions().length,
-            gemini: getActiveGeminiSessions().length,
-            antigravity: getActiveAntigravitySessions().length,
-            opencode: getActiveOpenCodeSessions().length,
+        // B-N-DRAIN (ADR-021 / ADR-022) + B-23: a stop signal triggers a TIMED
+        // DRAIN instead of an immediate process.exit(0), and — critically —
+        // releases the HTTP/WS listener at once so the PM2 replacement
+        // instance can bind the port while in-flight provider runs finish.
+        // Full semantics documented in shutdown-drain.service.ts.
+        const drainThenShutdown = createShutdownDrain({
+            server,
+            wss,
+            countActiveSessionsByProvider: () => ({
+                claude: getActiveClaudeSDKSessions().length,
+                cursor: getActiveCursorSessions().length,
+                codex: getActiveCodexSessions().length,
+                gemini: getActiveGeminiSessions().length,
+                antigravity: getActiveAntigravitySessions().length,
+                opencode: getActiveOpenCodeSessions().length,
+            }),
+            stopAllPlugins,
+            exit: (code) => process.exit(code),
+            drainTimeoutMs: resolveDrainTimeoutMs(process.env.DRAIN_TIMEOUT_MS),
         });
-        const totalActiveSessions = (counts) =>
-            Object.values(counts).reduce((sum, n) => sum + n, 0);
-
-        const shutdownNow = async () => {
-            try {
-                await stopAllPlugins();
-            } finally {
-                process.exit(0);
-            }
-        };
-
-        let drainStarted = false;
-        const drainThenShutdown = async (signal) => {
-            if (drainStarted) {
-                console.warn(`[DRAIN] second ${signal} received — exiting immediately`);
-                process.exit(0);
-            }
-            drainStarted = true;
-
-            let counts = countActiveSessionsByProvider();
-            let total = totalActiveSessions(counts);
-            if (total === 0) {
-                await shutdownNow();
-                return;
-            }
-
-            const deadline = DRAIN_TIMEOUT_MS > 0 ? Date.now() + DRAIN_TIMEOUT_MS : Infinity;
-            console.log(
-                `[DRAIN] ${signal} received with ${total} active session(s); ` +
-                (DRAIN_TIMEOUT_MS > 0
-                    ? `waiting up to ${Math.round(DRAIN_TIMEOUT_MS / 1000)}s`
-                    : 'waiting with no deadline (send a second signal to force exit)'),
-                counts,
-            );
-            let lastLoggedTotal = total;
-            while (total > 0 && Date.now() < deadline) {
-                await new Promise((resolve) => setTimeout(resolve, DRAIN_POLL_MS));
-                counts = countActiveSessionsByProvider();
-                total = totalActiveSessions(counts);
-                if (total !== lastLoggedTotal) {
-                    lastLoggedTotal = total;
-                    console.log(`[DRAIN] ${total} active session(s) remaining`, counts);
-                }
-            }
-
-            if (total > 0) {
-                console.warn(
-                    `[DRAIN] timeout elapsed with ${total} session(s) still active; exiting anyway`,
-                    counts,
-                );
-            } else {
-                console.log('[DRAIN] all sessions finished; shutting down');
-            }
-            await shutdownNow();
-        };
 
         process.on('SIGTERM', () => void drainThenShutdown('SIGTERM'));
         process.on('SIGINT', () => void drainThenShutdown('SIGINT'));
