@@ -569,6 +569,26 @@
       "status": "done",
       "owner": "backend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-58",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "اعتماد شعار الزجزاج الذهبي favicon للموقع: ico متعدد الأحجام + png ‏16/32 + apple-touch-icon ‏180 + استبدال favicon.svg/png وكل icons/ (manifest بقي صالحاً) وتحديث index.html بلا مراجع ميتة (cfb056d)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-59",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "title": "نقطة نابضة خضراء بجانب اسم المشروع في الشريط الجانبي عند وجود جلسة قيد العمل: rollup ‏useAnySessionProcessing على sessionProcessStateStore (نفس مصدر شارة «تعمل»؛ running فقط، frozen لا يُحتسب)، ProjectBusyDot جديد، يدعم RTL والثيمين + ترجمات التسع لغات (1180eb0)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
