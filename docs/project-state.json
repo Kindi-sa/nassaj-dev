@@ -711,6 +711,16 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-72",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "توحيد أقراص الأفاتارات: SVG المعرض شفاف الخلفية كان يظهر بلا قرص بجوار الأحرف المصمتة؛ الآن قرص لون المستخدم يُرسم دائماً خلف الصورة في ParticipantAvatar (كل المواضع) + معاينة AvatarIdentitySection ‏(6528c80)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
