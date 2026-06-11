@@ -123,16 +123,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     };
   }, [messageUserId, isOwnMessage, currentUserParticipant, participantsById]);
 
-  // Coordinator-authored user prompt (C-MU-UX-MSG-COORD). In the nassaj model a
-  // session's owner drives it AS the coordinator — b24c7b1 already labels the
-  // assistant side "Coordinator: <owner>". So a user (blue-bubble) message whose
-  // author is the session owner is the COORDINATOR'S prompt, not a casual human
-  // chat from the viewer. We must NOT render it as the bare owner/"me" avatar
-  // (the reported bug); instead frame it with the explicit coordinator identity.
-  // Requires the owner identity (b24c7b1's `owner` prop) AND a userId stamp that
-  // matches the owner; legacy/unstamped rows and other participants are
-  // unaffected and keep their B-MU-UX-FIX-MSG-AUTHOR rendering.
-  const isCoordinatorMessage =
+  // Owner-authored user prompt. The HUMAN side of the conversation: a user
+  // (blue-bubble) message whose userId stamp matches the session owner is
+  // attributed to the owner BY NAME ("User: <owner>"), never as "Coordinator"
+  // — that label is reserved for the assistant side (b24c7b1), so viewers can
+  // always tell what the human typed apart from what the coordinator replied.
+  // Requires the owner identity (b24c7b1's `owner` prop) AND a matching userId
+  // stamp; legacy/unstamped rows and other participants are unaffected and
+  // keep their B-MU-UX-FIX-MSG-AUTHOR rendering.
+  const isOwnerAuthoredMessage =
     message.type === 'user' &&
     owner != null &&
     messageUserId !== undefined &&
@@ -235,18 +234,15 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
         /* User message bubble on the right */
         <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
           <div className="group flex-1 rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:flex-initial sm:px-4">
-            {/* Coordinator-authored prompt (C-MU-UX-MSG-COORD): an explicit
-             * "Coordinator: <owner>" caption so this blue bubble reads as the
-             * coordinator's instruction, never as the viewer's own chat. Shown
-             * once per group (the avatar beside the bubble carries the same
-             * identity). */}
-            {isCoordinatorMessage && !isGrouped && ownerParticipant && (
+            {/* Owner-authored prompt: a "User: <owner>" caption attributing
+             * this blue bubble to the human who typed it — never the
+             * "Coordinator" label, which belongs to the assistant side only.
+             * Shown once per group (the avatar beside the bubble carries the
+             * same identity). */}
+            {isOwnerAuthoredMessage && !isGrouped && ownerParticipant && (
               <div className="mb-1 flex items-center gap-1 text-[11px] font-medium text-blue-100">
-                <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 014-4h0a4 4 0 014 4v2M7 7a3 3 0 11-6 0 3 3 0 016 0zM21 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
                 <span dir="auto">
-                  {t('coordinator.withName', { username: ownerParticipant.username, defaultValue: 'Coordinator: {{username}}' })}
+                  {t('userAuthor.withName', { username: ownerParticipant.username, defaultValue: 'User: {{username}}' })}
                 </span>
               </div>
             )}
@@ -283,11 +279,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
           </div>
           {!isGrouped && (
             <div className="hidden flex-shrink-0 sm:flex">
-              {isCoordinatorMessage && ownerParticipant ? (
-                /* Coordinator prompt (C-MU-UX-MSG-COORD): the owner's coloured
-                 * avatar with a coordinator-specific label so it is never
-                 * mistaken for the viewer's own message. Same identity the
-                 * assistant side uses (b24c7b1), keeping COLOR = which brother. */
+              {isOwnerAuthoredMessage && ownerParticipant ? (
+                /* Owner-authored prompt: the owner's coloured avatar labelled
+                 * with the owner's own name ("User: <owner>"), keeping
+                 * COLOR = which brother while the "Coordinator" identity stays
+                 * exclusive to the assistant side (b24c7b1). */
                 <ParticipantAvatar
                   participant={ownerParticipant}
                   size="sm"
@@ -295,7 +291,7 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   t={t}
                   stacked={false}
                   avatarUrl={ownerParticipant.avatarUrl ?? undefined}
-                  ariaLabel={t('coordinator.withName', { username: ownerParticipant.username, defaultValue: 'Coordinator: {{username}}' })}
+                  ariaLabel={t('userAuthor.withName', { username: ownerParticipant.username, defaultValue: 'User: {{username}}' })}
                 />
               ) : authorParticipant ? (
                 <ParticipantAvatar
