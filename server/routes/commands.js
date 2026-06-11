@@ -287,17 +287,27 @@ const builtInCommands = [
  *
  * We source Claude's real built-in slash commands from the SDK at runtime
  * (`getClaudeBuiltInCommands`) and merge them on top of the static list above,
- * which always remains the fallback. To keep the `/list` endpoint from ever
- * blocking the UI, results are cached with a stale-while-revalidate policy:
+ * which always remains the fallback. Results are cached with a
+ * stale-while-revalidate policy tuned so the UI's SINGLE fetch per project
+ * selection sees the full set whenever possible:
  *  - A valid (non-expired) cache entry is merged and returned immediately.
- *  - A missing/expired entry returns the static list immediately AND kicks off
- *    a background refresh (single-flight) so the NEXT request gets the full set.
+ *  - An EXPIRED entry is still served (stale) while a background refresh runs —
+ *    never regress to the static-only list once a probe has succeeded.
+ *  - A COLD cache (no entry at all, e.g. right after server start) awaits the
+ *    first probe briefly (COLD_PROBE_WAIT_MS); on overrun it falls back to the
+ *    static list while the probe keeps running for the next request.
  *
  * Keyed per provider; only `claude` is ever populated (see resolveDynamicBuiltIns).
  */
 const DYNAMIC_BUILTIN_TTL_MS = 10 * 60 * 1000; // 10 minutes
+// How long a cold-cache /list request waits for the first probe before falling
+// back to the static list. The probe itself typically completes in <1s; its own
+// hard timeout (4s in getClaudeBuiltInCommands) still bounds the background run.
+// Env override exists for tests and operational tuning.
+const COLD_PROBE_WAIT_MS =
+  Number(process.env.COMMANDS_COLD_PROBE_WAIT_MS || "") || 2500;
 const dynamicBuiltInCache = new Map(); // provider -> { commands, expiresAt }
-const dynamicBuiltInInFlight = new Set(); // provider -> probe currently running
+const dynamicBuiltInInFlight = new Map(); // provider -> Promise<commands|null>
 
 /**
  * Builds the set of identifiers (name + aliases, normalized) already covered by
@@ -378,20 +388,21 @@ function mergeBuiltInCommands(dynamicCommands) {
 }
 
 /**
- * Kicks off a background probe for a provider's dynamic commands and stores the
- * result in the cache. Single-flight: concurrent calls for the same provider
- * are coalesced. Never throws.
+ * Kicks off a probe for a provider's dynamic commands and stores the result in
+ * the cache. Single-flight: concurrent calls for the same provider share one
+ * probe. The returned promise resolves with the normalized command array on
+ * success or `null` on failure/timeout — it never rejects.
  * @param {string} provider
  * @param {Object} context - probe context ({ userId, cwd })
+ * @returns {Promise<Array|null>} the (possibly already in-flight) probe
  */
 function refreshDynamicBuiltIns(provider, context) {
-  if (dynamicBuiltInInFlight.has(provider)) {
-    return;
+  const inFlight = dynamicBuiltInInFlight.get(provider);
+  if (inFlight) {
+    return inFlight;
   }
-  dynamicBuiltInInFlight.add(provider);
 
-  // Fire-and-forget; the current request never awaits this.
-  Promise.resolve()
+  const probe = Promise.resolve()
     .then(() => getClaudeBuiltInCommands(context))
     .then((commands) => {
       if (Array.isArray(commands)) {
@@ -399,30 +410,37 @@ function refreshDynamicBuiltIns(provider, context) {
           commands,
           expiresAt: Date.now() + DYNAMIC_BUILTIN_TTL_MS,
         });
+        return commands;
       }
+      return null;
     })
-    .catch(() => {
-      // Swallow — the static fallback covers this request and the next.
-    })
+    .catch(() => null) // Swallow — the static fallback covers this request.
     .finally(() => {
       dynamicBuiltInInFlight.delete(provider);
     });
+
+  dynamicBuiltInInFlight.set(provider, probe);
+  return probe;
 }
 
 /**
  * Resolves the built-in command list for a `/list` request.
  *
- * Non-blocking by design:
+ * Bounded-latency by design (the UI fetches this list ONCE per project
+ * selection, so "static now / full next time" would leave the menu incomplete
+ * until a refetch — see T-75):
  *  - Non-Claude providers always get the static list unchanged.
- *  - Claude: a fresh cache entry is merged and returned synchronously; a
- *    missing/expired entry returns the static list immediately and triggers a
- *    background refresh (stale-while-revalidate + single-flight).
+ *  - Fresh cache entry → merged and returned immediately.
+ *  - Expired entry → served STALE immediately while a background refresh runs
+ *    (true stale-while-revalidate; never regress to static after a success).
+ *  - Cold cache → awaits the first probe up to COLD_PROBE_WAIT_MS; on overrun
+ *    falls back to static while the probe continues for the next request.
  *
  * @param {string} provider
  * @param {Object} context - probe context ({ userId, cwd })
- * @returns {Array} built-in command list to return now
+ * @returns {Promise<Array>} built-in command list to return now
  */
-function resolveDynamicBuiltIns(provider, context) {
+async function resolveDynamicBuiltIns(provider, context) {
   if (provider !== "claude") {
     return builtInCommands;
   }
@@ -432,9 +450,47 @@ function resolveDynamicBuiltIns(provider, context) {
     return mergeBuiltInCommands(cached.commands);
   }
 
-  // Stale or missing: return static now, refresh in the background.
-  refreshDynamicBuiltIns(provider, context);
-  return builtInCommands;
+  const probe = refreshDynamicBuiltIns(provider, context);
+
+  if (cached) {
+    // Expired: serve the stale set now; the refresh updates the cache for the
+    // next request. Stale built-ins beat a sudden regression to 19 commands.
+    return mergeBuiltInCommands(cached.commands);
+  }
+
+  // Cold start: give the first probe a short, bounded window so the UI's only
+  // fetch usually gets the full list (probe is ~700ms warm on this host).
+  let waitHandle = null;
+  const winner = await Promise.race([
+    probe,
+    new Promise((resolve) => {
+      waitHandle = setTimeout(() => resolve("__cold_wait__"), COLD_PROBE_WAIT_MS);
+    }),
+  ]);
+  if (waitHandle) {
+    clearTimeout(waitHandle);
+  }
+
+  return Array.isArray(winner) ? mergeBuiltInCommands(winner) : builtInCommands;
+}
+
+/**
+ * TEST-ONLY: clears the dynamic cache/in-flight state so each test starts cold.
+ */
+function _resetDynamicBuiltInsForTests() {
+  dynamicBuiltInCache.clear();
+  dynamicBuiltInInFlight.clear();
+}
+
+/**
+ * TEST-ONLY: seeds a cache entry (e.g. an already-expired one) to exercise the
+ * stale-while-revalidate path without real timers.
+ * @param {string} provider
+ * @param {Array} commands
+ * @param {number} expiresAt - epoch ms
+ */
+function _seedDynamicBuiltInsForTests(provider, commands, expiresAt) {
+  dynamicBuiltInCache.set(provider, { commands, expiresAt });
 }
 
 /**
@@ -684,7 +740,7 @@ router.post("/list", async (req, res) => {
     // request body, mirroring how /execute reads context.provider; defaults to
     // claude. The probe runs under the requesting user's Claude config dir.
     const provider = readModelProvider(req.body?.provider);
-    const builtInList = resolveDynamicBuiltIns(provider, {
+    const builtInList = await resolveDynamicBuiltIns(provider, {
       userId: req.user?.id ?? null,
       cwd: projectPath || null,
     });
@@ -843,7 +899,13 @@ router.post("/execute", async (req, res) => {
   }
 });
 
-// Exported for unit testing the dynamic built-in merge/dedupe logic.
-export { mergeBuiltInCommands, builtInCommands };
+// Exported for unit testing the dynamic built-in merge/dedupe/resolve logic.
+export {
+  mergeBuiltInCommands,
+  builtInCommands,
+  resolveDynamicBuiltIns,
+  _resetDynamicBuiltInsForTests,
+  _seedDynamicBuiltInsForTests,
+};
 
 export default router;

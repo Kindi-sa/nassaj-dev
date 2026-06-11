@@ -216,11 +216,21 @@ export function useSlashCommands({
           : null;
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
+        // The CLI's dynamic built-in list (server /list probe) echoes the user's
+        // skills under their slash names. The skills endpoint already provides
+        // those with richer metadata (scope, sourcePath, plugin info), so any
+        // built-in whose name collides with a skill command is dropped here to
+        // keep each invocation listed once.
+        const skillCommandNames = new Set(
+          skillCommands.map((command) => command.name.toLowerCase()),
+        );
         const allCommands: SlashCommand[] = [
-          ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
-            ...command,
-            type: 'built-in',
-          })),
+          ...((data.builtIn || []) as SlashCommand[])
+            .filter((command) => !skillCommandNames.has(command.name.toLowerCase()))
+            .map((command) => ({
+              ...command,
+              type: 'built-in',
+            })),
           ...skillCommands,
           ...((data.custom || []) as SlashCommand[]).map((command) => ({
             ...command,
