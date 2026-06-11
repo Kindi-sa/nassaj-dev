@@ -8,8 +8,8 @@ export type ClaudeUsageWindow = {
 
 export type ClaudeExtraUsage = {
   enabled: boolean;
-  monthlyLimit: number;
-  usedCredits: number;
+  monthlyLimit: number; // in cents (minor currency units), e.g. 8000 = $80.00
+  usedCredits: number; // in cents, e.g. 5127 = $51.27
   utilization: number; // 0-100
   currency: string;
 };

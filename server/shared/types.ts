@@ -544,11 +544,15 @@ export type ClaudeUsageWindow = {
 /**
  * Extra (pay-as-you-go) usage block, present only for accounts that have it
  * enabled. Mirrors the Anthropic `extra_usage` object in normalized casing.
+ *
+ * `monthlyLimit` / `usedCredits` are in CENTS (minor currency units), exactly
+ * as the upstream oauth/usage endpoint reports them (5127 = $51.27); the
+ * frontend converts to currency units at the formatting edge (formatCredits).
  */
 export type ClaudeExtraUsage = {
   enabled: boolean;
-  monthlyLimit: number | null;
-  usedCredits: number | null;
+  monthlyLimit: number | null; // cents
+  usedCredits: number | null; // cents
   utilization: number | null;
   currency: string | null;
 };

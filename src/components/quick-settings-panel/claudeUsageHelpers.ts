@@ -64,17 +64,22 @@ export function formatPercent(utilization: number, locale: string): string {
   }).format(value / 100);
 }
 
-// Locale-aware currency credits, e.g. "$4,567 / $5,000".
+// Locale-aware currency credits, e.g. "$51.27 / $80.00".
+//
+// `amountInCents` is in CENTS (minor currency units): the oauth/usage endpoint
+// reports extra_usage.used_credits / monthly_limit in cents (e.g. 5127 = $51.27),
+// and the server forwards them unchanged. Convert here, at the formatting edge.
 export function formatCredits(
-  amount: number,
+  amountInCents: number,
   currency: string,
   locale: string,
 ): string {
+  const amount = amountInCents / 100;
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 2,
     }).format(amount);
   } catch {
     // Unknown currency code — fall back to a plain number with the code.
