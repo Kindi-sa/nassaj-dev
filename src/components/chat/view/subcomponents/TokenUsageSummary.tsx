@@ -95,14 +95,14 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
   if (!hasWindow) {
     return (
       <div
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground sm:gap-2 sm:px-2.5"
+        className="inline-flex h-9 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground sm:gap-2 sm:px-2.5"
         title={usedTokens > 0 ? `${usedTokens.toLocaleString(locale)}` : t('contextRot.empty')}
       >
-        <span className="grid h-5 w-5 place-items-center rounded-md bg-primary/10 text-primary">
+        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
-        <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
-        <span className="hidden text-muted-foreground/70 sm:inline">{t('contextRot.label')}</span>
+        <span className="shrink-0 font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
+        <span className="hidden min-w-0 truncate text-muted-foreground/70 sm:inline">{t('contextRot.label')}</span>
       </div>
     );
   }
@@ -133,7 +133,10 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
 
   return (
     <div
-      className={`inline-flex h-9 items-center gap-1.5 rounded-lg border bg-background/70 px-2 text-xs shadow-sm transition-colors sm:gap-2 sm:px-2.5 ${LEVEL_ACCENT_CLASS[level]}`}
+      // min-w-0 + overflow-hidden + nowrap: in a squeezed composer column the
+      // token-count span shrinks and ellipsizes instead of wrapping out of the
+      // fixed-height pill (viewport sm: breakpoints can't see pane width).
+      className={`inline-flex h-9 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border bg-background/70 px-2 text-xs shadow-sm transition-colors sm:gap-2 sm:px-2.5 ${LEVEL_ACCENT_CLASS[level]}`}
       title={tooltipLines.join('\n')}
       role="img"
       aria-label={t('contextRot.percentUsed', { percent: percentLabel })}
@@ -157,9 +160,9 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
         />
       </div>
 
-      <span className="font-medium tabular-nums text-foreground">{percentLabel}</span>
-      <span className="hidden tabular-nums text-muted-foreground/70 sm:inline">
-        {formatTokenCount(usedTokens)} / {formatTokenCount(totalTokens)}
+      <span className="shrink-0 font-medium tabular-nums text-foreground">{percentLabel}</span>
+      <span className="hidden min-w-0 truncate tabular-nums text-muted-foreground/70 sm:inline">
+        {formatTokenCount(usedTokens)}/{formatTokenCount(totalTokens)}
       </span>
     </div>
   );
