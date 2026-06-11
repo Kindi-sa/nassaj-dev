@@ -690,6 +690,27 @@
       "status": "done",
       "owner": "backend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-70",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": "B-22",
+      "title": "مؤشر نشاط ثلاثي الحالات للمشاريع/الجلسات: وميض bg-primary أثناء العمل، أخضر ثابت عند الانتهاء غير المفتوح (localStorage ‏sidebarSessionsFinishedUnopened + مزامنة تبويبات)، يُمسح بفتح المحادثة؛ إعادة بث process_state كل دورة من session-process-monitor؛ aria/title + ترجمات 9 لغات + 10 اختبارات (6b310ba). قيد معروف: refresh أثناء التشغيل قد يفوّت إشارة الانتهاء",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-71",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "تثبيت صف المشروع عند hover: ‏ProjectParticipantsSummary كان يُدرج skeleton/ملخصاً في الـ flow بعد أول hover فيقفز الارتفاع؛ الحل فتحة ثابتة h-5 ‏+ opacity transition ‏(2e55e9d)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -856,6 +877,13 @@
       "severity": "high",
       "status": "resolved",
       "title": "فلتر «مشاريعي» فارغ للجميع: dist-server منشور من بناء 02:43 سابقٍ لميزة isOwner (a5e3351 06:01) بينما client مبني بعدها — الخادم لا يرسل isOwner فالفلتر mine يرشّح كل شيء",
+      "found": "2026-06-11"
+    },
+    {
+      "id": "B-22",
+      "severity": "medium",
+      "status": "resolved",
+      "title": "نقطة انشغال المشروع (T-59) لا تظهر بعد تحديث الصفحة: إشارة running تُبث مرة واحدة فقط وstore الذاكرة يُمسح — وليس بسبب dist-server القديم",
       "found": "2026-06-11"
     }
   ],
