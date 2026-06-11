@@ -743,6 +743,18 @@
       "owner": "backend-dev",
       "closed": "2026-06-11",
       "summary": "commit 4cc4bd6: منطق drain استُخرج إلى server/services/shutdown-drain.service.ts (DI + ‏7 اختبارات وحدة) — عند أول SIGINT/SIGTERM: ‏server.close() يحرّر 3004 فوراً للنسخة البديلة، عملاء WS يُغلقون بكود 1001 ليعيدوا الاتصال بالجديدة (registry/transcript من PHASE-SR-0)، closeIdleConnections يقطع keep-alive الخامل، وعمليات claude الأبناء لا تُمسّ حتى تكتمل (هدف B-2 محفوظ). ecosystem: ‏kill_timeout ‏24h→5min، ‏exp_backoff_restart_delay=1000، ‏max_memory_restart ‏512M→768M، ‏treekill:false باقٍ. نُشر إلى dist-server ذرياً من worktree نظيف (backup: dist-server.bak-20260611-190916)؛ التفعيل بانتظار pm2 restart من المالك. اختبار دخاني: إشارة → port released → خروج نظيف"
+    },
+    {
+      "id": "T-74",
+      "phase": "P1",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-25",
+      "title": "تثبيت اختبار branding-logo.test.ts الهش: حذف JWT_SECRET من بيئة العملية قبل تسجيل الـ mocks + إضافة stub ‏getOrCreateJwtSecret إلى mock الـ appConfigDb كي لا يعتمد نجاح الاختبار على بيئة المشغّل",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-11",
+      "summary": "commit c935019: تعديلان في ملف الاختبار فقط (لا مساس بكود branding ولا نشر ولا restart) — delete process.env.JWT_SECRET بعد إعداد TMP_HOME، وstub ‏getOrCreateJwtSecret يعيد سراً ثابتاً للاختبار. النتيجة: branding-logo ‏15/15، الحزمة الكاملة npm test ‏330/330 صفر فشل"
     }
   ],
   "issues": [
@@ -926,15 +938,16 @@
       "status": "open",
       "title": "خطر متبقٍّ بعد إصلاح B-23 (مكتشف أثناء T-73 من قراءة مصدر PM2 7.0.1): عند انتهاء drain النسخة القديمة وخروجها المتأخر بينما البديلة online، يستقبل PM2 حدث exit المتأخر على نفس pm_id ويطلق respawn زائفاً (God.handleExit بلا حارس pid) → النسخة الزائدة تفشل EADDRINUSE أمام البديلة الصحية وتفسد محاسبة PM2 (قد تصل errored بينما الخدمة فعلياً حية كـ ghost). ‏exp_backoff يلجم العاصفة لكنه لا يمنعها. كما أن PM2 يعتقد حالياً أن العملية ماتت فوراً بسبب _tree_pids قديمة في pm2_env — سلوك عرَضي قد يتغير بعد pm2 delete/start نظيف فيصير restart منتظِراً حتى kill_timeout (5min)",
       "found": "2026-06-11",
-      "triage": "medium → backlog: الحل الجذري مرشّح لـ ADR (cluster mode reload بـ instances:1 أو الترحيل لـ systemd كما لمّح ADR-022)؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي"
+      "triage": "medium — بانتظار قرار المستخدم على ADR-028 (Proposed ‏2026-06-11): التوصية cluster-mode reload بـ instances:1 عبر pilot إلزامي (ESM shim، WAL، بقاء الأبناء، net.listen)، مؤقتاً runbook على fork-mode (restart عبر ecosystem في نافذة بلا جلسات، لا pm2 delete+start نظيف مع جلسات نشطة، restart تصالحي بعد drain طويل إن ظهرت errored)، وsystemd البسيط fallback؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي"
     },
     {
       "id": "B-25",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "title": "اختبار branding-logo.test.ts يفشل على HEAD نظيف (TypeError: appConfigDb.getOrCreateJwtSecret is not a function عند تحميل middleware/auth عبر mocks) — فشل سابق غير مرتبط بـ T-73؛ الحصيلة الحالية 300 ناجح / 1 فاشل من 301",
       "found": "2026-06-11",
-      "triage": "low → backlog: إصلاح mock قاعدة app_config في اختبار branding (مهمة kind:bug تُجدول لاحقاً)"
+      "triage": "low → backlog: إصلاح mock قاعدة app_config في اختبار branding (مهمة kind:bug تُجدول لاحقاً)",
+      "fix": "T-74 ‏(commit c935019): الاختبار كان هشّاً — mock الـ appConfigDb يوفّر get/set فقط بينما auth.js عند التحميل يسقط إلى appConfigDb.getOrCreateJwtSecret() عند غياب JWT_SECRET من البيئة، فنجاحه تاريخياً اعتمد على تصدير JWT_SECRET في بيئة المشغّل. الإصلاح في ملف الاختبار فقط: delete process.env.JWT_SECRET قبل تسجيل الـ mocks + إضافة stub لـ getOrCreateJwtSecret. لا انحدار في كود branding. الحصيلة بعد الإصلاح: الملف 15/15 والحزمة الكاملة 330/330 (الحزمة نمت عن 301 باختبارات أُضيفت لاحقاً)"
     },
     {
       "id": "B-22",
@@ -980,6 +993,12 @@
       "title": "خصوصية المشروع مطلقة: owner المنصة لا يرى محتوى مشروع خاص ليس عضواً فيه؛ استرداد اليتيم عبر نقل ملكية/حذف لا عبر رؤية المحتوى",
       "path": "docs/decisions/027-private-projects.md",
       "date": "2026-06-10"
+    },
+    {
+      "id": "ADR-028",
+      "title": "Restart overlap & supervisor ‏(B-24): معالجة respawn PM2 الزائف بعد drain طويل — Proposed بانتظار قرار المستخدم؛ التوصية cluster-mode reload (instances:1) عبر pilot، البديل المؤقت fork-mode بـ runbook، وfallback ‏systemd",
+      "link": "docs/decisions/028-restart-overlap-supervisor.md",
+      "date": "2026-06-11"
     }
   ]
 }
