@@ -56,6 +56,8 @@ interface ChatComposerProps {
   isLoading: boolean;
   /** True while the session's provider process is externally frozen (kill -STOP). */
   isSessionFrozen?: boolean;
+  /** Epoch-ms start of the current run (last triggering user message); lets the elapsed counter survive refresh. */
+  runStartedAt?: number | null;
   onAbortSession: () => void;
   provider: Provider | string;
   displayProvider: Provider | string;
@@ -113,6 +115,7 @@ export default function ChatComposer({
   claudeStatus,
   isLoading,
   isSessionFrozen = false,
+  runStartedAt = null,
   onAbortSession,
   provider,
   displayProvider,
@@ -187,6 +190,7 @@ export default function ChatComposer({
           frozen={isSessionFrozen}
           onAbort={onAbortSession}
           provider={displayProvider}
+          runStartedAt={runStartedAt}
         />
       )}
 

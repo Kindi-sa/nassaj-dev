@@ -343,6 +343,22 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
+  // Real start of the current run: timestamp of the last user message that
+  // triggered it. Transcript messages keep their original timestamps, so after
+  // a page refresh onto a still-processing session the elapsed counter in
+  // ClaudeStatus resumes from the true value instead of restarting at 0.
+  const runStartedAt = useMemo(() => {
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+      const message = chatMessages[i];
+      // Skip local-command stdout: user-role transcript artifacts, not the
+      // message that started the run.
+      if (message.type !== 'user' || message.isLocalCommandStdout) continue;
+      const ts = new Date(message.timestamp as string | number | Date).getTime();
+      return Number.isFinite(ts) ? ts : null;
+    }
+    return null;
+  }, [chatMessages]);
+
   if (!selectedProject) {
     const selectedProviderLabel =
       provider === 'cursor'
@@ -462,6 +478,7 @@ function ChatInterface({
           claudeStatus={claudeStatus}
           isLoading={isLoading}
           isSessionFrozen={isSessionFrozen}
+          runStartedAt={runStartedAt}
           onAbortSession={handleAbortSession}
           provider={provider}
           displayProvider={displayProvider}

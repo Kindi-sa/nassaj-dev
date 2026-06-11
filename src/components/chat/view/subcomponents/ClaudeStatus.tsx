@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '../../../../lib/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
@@ -18,6 +18,13 @@ type ClaudeStatusProps = {
    */
   frozen?: boolean;
   provider?: string;
+  /**
+   * Epoch-ms timestamp of the user message that started the current run.
+   * When provided, elapsed time is computed as `now - runStartedAt`, so the
+   * counter survives page refresh / re-attach instead of restarting from 0
+   * on component mount. Falls back to mount time when absent.
+   */
+  runStartedAt?: number | null;
 };
 
 const ACTION_KEYS = [
@@ -50,13 +57,19 @@ export default function ClaudeStatus({
   isLoading,
   frozen = false,
   provider = 'claude',
+  runStartedAt = null,
 }: ClaudeStatusProps) {
   const { t } = useTranslation('chat');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [dots, setDots] = useState('');
+  // Mount-time fallback for runs whose real start timestamp is not (yet)
+  // known. Kept in a ref so a frozen/unfrozen toggle does not reset it; cleared
+  // when the run ends.
+  const fallbackStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!isLoading) {
+      fallbackStartRef.current = null;
       setElapsedTime(0);
       return;
     }
@@ -65,10 +78,17 @@ export default function ClaudeStatus({
     if (frozen) {
       return;
     }
-    const startTime = Date.now();
-    const timer = setInterval(() => {
-      setElapsedTime(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
+    if (fallbackStartRef.current === null) {
+      fallbackStartRef.current = Date.now();
+    }
+    const tick = () => {
+      const start = runStartedAt ?? fallbackStartRef.current ?? Date.now();
+      setElapsedTime(Math.max(0, Math.floor((Date.now() - start) / 1000)));
+    };
+    // Run immediately so a refreshed page shows the real elapsed time at once
+    // instead of starting from 0 until the first interval fires.
+    tick();
+    const timer = setInterval(tick, 1000);
     const dotTimer = setInterval(() => {
       setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
     }, 500);
@@ -77,7 +97,7 @@ export default function ClaudeStatus({
       clearInterval(timer);
       clearInterval(dotTimer);
     };
-  }, [isLoading, frozen]);
+  }, [isLoading, frozen, runStartedAt]);
 
   if (!isLoading && !status) return null;
 
