@@ -679,6 +679,17 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-69",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-21",
+      "title": "إعادة بناء dist-server من لقطة HEAD نظيفة (9ec38a1) عبر git worktree مؤقت (الشجرة الحية فيها عمل جلسة موازية غير ملتزم) ونشره بـ cp -a مع backup ‏dist-server.bak-20260611-160443؛ التحقق: الناتج يحوي isOwner/listUserOwnedProjectIds. المتبقي: pm2 restart nassaj-dev بطرفية المستخدم",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -839,6 +850,13 @@
       "status": "fixed",
       "found": "2026-06-11",
       "triage": "أُصلح فوراً (T-67)"
+    },
+    {
+      "id": "B-21",
+      "severity": "high",
+      "status": "resolved",
+      "title": "فلتر «مشاريعي» فارغ للجميع: dist-server منشور من بناء 02:43 سابقٍ لميزة isOwner (a5e3351 06:01) بينما client مبني بعدها — الخادم لا يرسل isOwner فالفلتر mine يرشّح كل شيء",
+      "found": "2026-06-11"
     }
   ],
   "decisions": [
