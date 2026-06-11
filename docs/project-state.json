@@ -558,6 +558,17 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-57",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-17",
+      "title": "إصلاح «مشاريعي» الفارغ: backfill ‏created_by=1 للمشاريع العشرة في القاعدة الحية (backup ‏db.sqlite.bak-20260611) + ختم created_by في مسار الاستنساخ project-clone.service ‏(54999bb)؛ بقية مسارات الإنشاء سليمة وupsert لا يمسح المالك؛ يبقى restart بيد المستخدم لسريان isOwner في البث",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -686,6 +697,14 @@
       "status": "open",
       "found": "2026-06-11",
       "triage": "backlog (medium): توضيح مدخل الإجراء + تثبيت عرض رمز القفل؛ يتطلب فحص frontend لمصدر الوميض (إعادة render أو حالة غير مستقرة من WS)"
+    },
+    {
+      "id": "B-17",
+      "severity": "high",
+      "status": "closed",
+      "title": "تبويب «مشاريعي» فارغ: (1) الخادم يعمل بكود سابق لـ a5e3351 فلا يبث isOwner — يحتاج restart؛ (2) المشاريع العشرة created_by=NULL من حقبة المستخدم الواحد وproject_members خالٍ؛ (3) فجوة كود: الاستنساخ من GitHub لا يختم created_by رغم توفر userId",
+      "opened": "2026-06-11",
+      "closed": "2026-06-11"
     }
   ],
   "decisions": [
