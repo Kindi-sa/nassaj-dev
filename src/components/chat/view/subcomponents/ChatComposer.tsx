@@ -406,7 +406,7 @@ export default function ChatComposer({
               * ellipsizes on one line instead of wrapping over the toolbar
               * (lg: sees viewport width, not pane width). */}
             <div
-              className={`hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              className={`ms-2 hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
                 input.trim() ? 'opacity-0' : 'opacity-100'
               }`}
             >
