@@ -659,6 +659,16 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-11"
+    },
+    {
+      "id": "T-67",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "title": "اقتطاع نص التلميحات بسطر واحد (min-w-0 + truncate) وتثبيت زر الإرسال (shrink-0) — ChatComposer.tsx، إصلاح B-20",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11"
     }
   ],
   "issues": [
@@ -811,6 +821,14 @@
       "status": "fixed",
       "found": "2026-06-11",
       "triage": "أُصلح فوراً (T-66)"
+    },
+    {
+      "id": "B-20",
+      "severity": "low",
+      "title": "نص تلميحات الإرسال (Enter to send …) في شريط الإدخال بلا قيد عرض: يلتفّ لسطرين ويزاحم زر الأوامر عند ضيق عمود الدردشة (شرط lg: يقيس النافذة لا العمود) — نفس نمط B-19",
+      "status": "fixed",
+      "found": "2026-06-11",
+      "triage": "أُصلح فوراً (T-67)"
     }
   ],
   "decisions": [
