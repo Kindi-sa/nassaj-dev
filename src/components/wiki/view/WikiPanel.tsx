@@ -157,13 +157,6 @@ export default function WikiPanel() {
         }`}
       >
         <div className="px-2 pb-4 pt-3">
-          <div className="mb-3 flex items-center gap-2 px-2">
-            <BookOpen className="h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
-            <span className="text-sm font-semibold text-foreground">
-              {t('wiki.title', 'ويكي نسّاج')}
-            </span>
-          </div>
-
           <ul role="list" className="space-y-0.5">
             {PAGES.map((page) => {
               const isActive = page.file === activeFile;
