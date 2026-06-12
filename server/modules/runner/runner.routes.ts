@@ -32,6 +32,40 @@ import { broadcastNow, ensureRunnerWatcher } from './runner-watcher.service.js';
 
 const router = express.Router();
 
+/**
+ * Owner/admin gate for the control verbs (start/stop/pause/resume/approve).
+ * These write control files that launch self-driving `claude -p` sessions which
+ * consume Anthropic quota, mutate the repo and approve phase transitions — the
+ * contract describes the actor as "the owner". GET stays open to any
+ * authenticated user (read-only status). On a multi-user instance this stops a
+ * plain user from driving any project's runner (ADR-RUNNER-BRIDGE-001).
+ *
+ * The gate is supplied by the caller (server/index.js mounts requireRole there)
+ * to keep this module free of a direct middleware import — backend boundaries
+ * route cross-cutting middleware through the app entry, not module routers.
+ * Defaults to DENY (403): if the app entry ever forgets to inject the real gate,
+ * the control verbs fail closed rather than silently open the self-driving runner
+ * to any authenticated user. index.js always injects requireRole('owner','admin')
+ * at mount; tests inject their own. Fail-closed is the safe default for a
+ * state-changing security boundary.
+ */
+export type RunnerControlGuard = express.RequestHandler;
+
+const denyGuard: RunnerControlGuard = (_req, res) => {
+  res.status(403).json({ error: 'Runner control gate not configured' });
+};
+
+let requireRunnerControl: RunnerControlGuard = denyGuard;
+
+/** Inject the owner/admin gate from the app entry (server/index.js). */
+export function setRunnerControlGuard(guard: RunnerControlGuard): void {
+  requireRunnerControl = guard;
+}
+
+/** Wrapper so the guard is resolved per-request (after setRunnerControlGuard). */
+const controlGuard: express.RequestHandler = (req, res, next) =>
+  requireRunnerControl(req, res, next);
+
 type AuthenticatedRequest = express.Request & {
   user?: { id?: number | string; username?: string; role?: string };
 };
@@ -112,7 +146,7 @@ async function respondWithState(req: express.Request, res: express.Response): Pr
 }
 
 /** POST /api/runner/:projectId/start — registry.enabled = true. */
-router.post('/:projectId/start', async (req, res) => {
+router.post('/:projectId/start', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   const ok = await startRunner(resolved.name);
@@ -123,7 +157,7 @@ router.post('/:projectId/start', async (req, res) => {
 });
 
 /** POST /api/runner/:projectId/stop — registry.enabled = false (hard disable). */
-router.post('/:projectId/stop', async (req, res) => {
+router.post('/:projectId/stop', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   const ok = await stopRunner(resolved.name);
@@ -134,7 +168,7 @@ router.post('/:projectId/stop', async (req, res) => {
 });
 
 /** POST /api/runner/:projectId/pause — create the pause control file. */
-router.post('/:projectId/pause', async (req, res) => {
+router.post('/:projectId/pause', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   const user = (req as AuthenticatedRequest).user;
@@ -143,7 +177,7 @@ router.post('/:projectId/pause', async (req, res) => {
 });
 
 /** POST /api/runner/:projectId/resume — remove the pause control file. */
-router.post('/:projectId/resume', async (req, res) => {
+router.post('/:projectId/resume', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   await resumeRunner(resolved.name);
@@ -155,7 +189,7 @@ router.post('/:projectId/resume', async (req, res) => {
  * 409 unless the current stage is awaiting_approval (guards a stale approval
  * from being consumed by a future awaiting_approval boundary).
  */
-router.post('/:projectId/approve', async (req, res) => {
+router.post('/:projectId/approve', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
 

@@ -1,4 +1,4 @@
-export { default as runnerRoutes } from './runner.routes.js';
+export { default as runnerRoutes, setRunnerControlGuard } from './runner.routes.js';
 export {
   findRunnerProjectName,
   readRunnerStatus,

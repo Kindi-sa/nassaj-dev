@@ -79,7 +79,7 @@ import commandsRoutes from './routes/commands.js';
 import settingsRoutes, { getBrandingHandler } from './routes/settings.js';
 import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
-import { runnerRoutes } from './modules/runner/index.js';
+import { runnerRoutes, setRunnerControlGuard } from './modules/runner/index.js';
 import userRoutes from './routes/user.js';
 import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
@@ -227,6 +227,11 @@ app.use('/api/project-board', authenticateToken, projectBoardRoutes);
 
 // Runner Bridge API Routes (protected) — read runner state, write control files
 // (ADR-RUNNER-BRIDGE-001). The board overlay's only contact surface with the runner.
+// GET is open to any authenticated user (read-only status); the five control verbs
+// (start/stop/pause/resume/approve) launch self-driving `claude -p` sessions that
+// burn Anthropic quota and mutate the repo, so they require owner/admin — injected
+// here to keep the module router free of a direct middleware import.
+setRunnerControlGuard(requireRole('owner', 'admin'));
 app.use('/api/runner', authenticateToken, runnerRoutes);
 
 // MCP utilities
