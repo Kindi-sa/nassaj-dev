@@ -1316,9 +1316,10 @@
       "kind": "feature",
       "issue": null,
       "title": "جعل ثيم «الكندي/AlKindy» الافتراضي في كامل الموقع: DEFAULT_STATE.preset='alkindy' وfallback الافتراضي في theme-presets.ts/ThemeContext — يطبَّق على كل صفحة وواجهة لمن لم يختر ثيماً صراحةً",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #2)"
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #2)؛ commit 4d74f4b، build:client منشور. caveat: من حُفظ له 'default' سابقاً يبقى — migration قسري بانتظار قرار المالك"
     },
     {
       "id": "T-113",
@@ -1327,9 +1328,10 @@
       "kind": "bug",
       "issue": "B-50",
       "title": "إصلاح لوحة الحضور «المتصلون الآن»: ترتيب الأفاتارات + عدّاد دقيق يطابق عدد الفقاعات (الصورة تُظهر 3 فقاعات مقابل «1 users · 1 agents»)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #1)؛ PresencePanel.tsx/usePresence.ts"
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #1)؛ commit 4d74f4b منشور. السبب: العدّاد كان من openSessionsCount (WS) والأفاتارات من presenceUsers — مصدران مختلفان؛ وُحّدا على presenceUsers"
     },
     {
       "id": "T-114",
@@ -1338,9 +1340,10 @@
       "kind": "bug",
       "issue": "B-51",
       "title": "إضافة زر تسجيل الخروج (logout) في الواجهة: دالة useAuth().logout موجودة وendpoint /api/auth/logout موجود لكن لا زر يستدعيهما",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #3)"
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #3)؛ commit 4d74f4b منشور — زر في ذيل الشريط (desktop+mobile) بتأكيد بضغطتين"
     },
     {
       "id": "T-115",
@@ -1351,7 +1354,7 @@
       "title": "تشخيص وإصلاح فشل المستخدم «Alrazi» في إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح — تشخيص أولاً (سجلات + سلسلة سببية) قبل أي إصلاح",
       "status": "in_progress",
       "owner": "backend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #4)؛ تدفّق ProviderLoginModal→.credentials.json→getClaudeConnectionStatus؛ مشتبه: CLAUDE_CONFIG_DIR للمستخدم المعزول"
+      "note": "بلاغ المالك 2026-06-13 (طلب #4). التشخيص مكتمل (commit 1be6c83): السبب الجذري أن مسار المستخدم غير المالك يستخدم `claude setup-token` الذي يطبع التوكن ولا يكتب .credentials.json (تعليق الواجهة 'writes the credential' خاطئ)؛ مسار /login (الذي استخدمه Razi id=5) يكتبه فيعمل. سُدّت فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN في claude-auth + logging. ⏳ الإصلاح الجذري قرار منتج بانتظار المالك: (أ) تحويل المودال إلى /login، أو (ب) حقل لصق توكن يُحفظ في settings.json env"
     },
     {
       "id": "T-116",
@@ -1360,9 +1363,10 @@
       "kind": "feature",
       "issue": null,
       "title": "حذف مستخدم من صفحة إدارة المستخدمين في الإعدادات: DELETE /api/auth/users/:id (owner-only، منع حذف الذات) + deleteUser في users repo + زر حذف بتأكيد في UsersSettingsTab",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev+frontend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #5)"
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #5)؛ commit 1be6c83 (خادم: DELETE + deleteUser transactional + 3 اختبارات، dist-server مبني bak-20260613-024414) + 4d74f4b (واجهة). ⏳ يحتاج pm2 restart nassaj-dev بيد المالك ليصير الـendpoint حياً"
     },
     {
       "id": "T-117",
@@ -1371,9 +1375,10 @@
       "kind": "bug",
       "issue": "B-53",
       "title": "جعل شعار نسّاج في رأس الشريط الجانبي قابلاً للنقر (يعود للرئيسية): LogoBlock غير ملفوف برابط/onClick إلا في IS_PLATFORM",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #6)؛ SidebarHeader.tsx — مختلف عن B-48 (تكرار شعار الويكي)"
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #6)؛ commit 4d74f4b منشور — navigate('/') + focus ring + aria. مختلف عن B-48 (شعار الويكي)"
     }
   ],
   "issues": [
@@ -1381,37 +1386,37 @@
       "id": "B-50",
       "title": "لوحة «المتصلون الآن»: الأفاتارات ليست بالترتيب المطلوب والعدّاد لا يطابق عدد الفقاعات (3 فقاعات مقابل «1 users · 1 agents»)",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-13",
-      "triage": "medium → S-2 (سبرنت التثبيت الجاري)",
-      "note": "بلاغ المالك بصورة؛ PresencePanel.tsx/usePresence.ts — مهمة T-113"
+      "fix": "توحيد مصدر العدّاد والأفاتارات على presenceUsers (كان العدّاد من openSessionsCount) + ترتيب الأفاتارات + tooltip — T-113، commit 4d74f4b منشور",
+      "note": "بلاغ المالك بصورة"
     },
     {
       "id": "B-51",
       "title": "لا يوجد زر تسجيل خروج في الواجهة رغم وجود دالة logout وendpoint /api/auth/logout",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-13",
-      "triage": "medium → S-2",
-      "note": "بلاغ المالك — مهمة T-114"
+      "fix": "زر تسجيل خروج في ذيل الشريط الجانبي (desktop+mobile) يستدعي useAuth().logout بتأكيد بضغطتين — T-114، commit 4d74f4b منشور",
+      "note": "بلاغ المالك"
     },
     {
       "id": "B-52",
       "title": "المستخدم Alrazi لم يستطع إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح",
       "severity": "high",
-      "status": "open",
+      "status": "diagnosed",
       "found": "2026-06-13",
       "triage": "high → S-2 (يحجب مستخدماً عن استخدام المنتج)",
-      "note": "بلاغ المالك بصورة (التوكن في الصورة ملغى)؛ تشخيص أولاً — مهمة T-115"
+      "note": "السبب الجذري مثبت (T-115): مسار المستخدم غير المالك يستخدم `claude setup-token` الذي يطبع التوكن فقط ولا يكتبه في .credentials.json الذي يقرؤه getStatus؛ مسار /login يكتبه فيعمل (Razi id=5 نجح به). سُدّت فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN. الإصلاح الجذري قرار منتج بانتظار المالك (أ /login أم ب حقل لصق توكن). حلّ فوري لـAlRazi id=4: وضع توكن جديد في settings.json env بعد restart"
     },
     {
       "id": "B-53",
       "title": "شعار نسّاج في رأس الشريط الجانبي غير قابل للنقر (لا يعود للرئيسية)",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-13",
-      "triage": "low → S-2",
-      "note": "بلاغ المالك — مهمة T-117؛ مختلف عن B-48 (شعار الويكي)"
+      "fix": "لفّ LogoBlock بـbutton يستدعي navigate('/') مع hover/focus وaria — T-117، commit 4d74f4b منشور",
+      "note": "بلاغ المالك؛ مختلف عن B-48 (شعار الويكي)"
     },
     {
       "id": "B-1",
