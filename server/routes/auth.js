@@ -359,6 +359,64 @@ router.patch('/users/:id/status', authenticateToken, requireRole('owner'), (req,
   res.json({ success: true });
 });
 
+// Permanently delete a user (owner only) [T-116]. Owners may not delete
+// themselves, and the last remaining owner cannot be deleted. Removes the DB
+// row plus all referencing rows (transactional, see userDb.deleteUser) and the
+// per-user sidecar directory (~/.nassaj-users/<id>: avatar + isolated provider
+// credentials). Existing JWTs die naturally: authenticateToken can no longer
+// resolve the deleted id.
+//
+//   curl -X DELETE -H "Authorization: Bearer <owner-jwt>" \
+//        https://nassaj-dev.alkindy.tech/api/auth/users/7
+router.delete('/users/:id', authenticateToken, requireRole('owner'), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+
+    const target = userDb.getRawById(id);
+    if (!target) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (target.role === 'owner' && userDb.getOwnerCount() <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the last owner' });
+    }
+
+    const deleted = userDb.deleteUser(id);
+    if (!deleted) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Sidecar cleanup (best-effort, non-fatal): the per-user directory holds
+    // the uploaded avatar and the isolated provider credential dirs. `id` is a
+    // validated positive integer, never raw client input.
+    try {
+      await fs.promises.rm(path.join(AVATARS_ROOT, String(id)), {
+        recursive: true,
+        force: true,
+      });
+    } catch (cleanupError) {
+      console.error('User sidecar cleanup failed:', cleanupError?.message);
+    }
+
+    auditLogDb.record('user_deleted', {
+      userId: req.user.id,
+      metadata: { targetUserId: id, targetUsername: target.username, targetRole: target.role },
+      ipAddress: req.ip ?? null,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('User delete error:', error?.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Self-service account management (C-3)
 // ---------------------------------------------------------------------------
