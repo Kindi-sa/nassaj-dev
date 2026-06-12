@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-11",
+  "updated": "2026-06-12",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -51,6 +51,13 @@
       "status": "done",
       "started": "2026-06-10",
       "ended": "2026-06-10"
+    },
+    {
+      "id": "S-2",
+      "phase": "P4",
+      "status": "current",
+      "goal": "سبرنت تثبيت: حزمة حادثة AlKindy + تصليب الواجهة وطبقة البيانات (نتائج مسح 2026-06-12)",
+      "opened": "2026-06-12"
     }
   ],
   "tasks": [
@@ -755,6 +762,288 @@
       "owner": "backend-dev",
       "closed": "2026-06-11",
       "summary": "commit c935019: تعديلان في ملف الاختبار فقط (لا مساس بكود branding ولا نشر ولا restart) — delete process.env.JWT_SECRET بعد إعداد TMP_HOME، وstub ‏getOrCreateJwtSecret يعيد سراً ثابتاً للاختبار. النتيجة: branding-logo ‏15/15، الحزمة الكاملة npm test ‏330/330 صفر فشل"
+    },
+    {
+      "id": "T-75",
+      "kind": "feature",
+      "phase": "P1",
+      "sprint": null,
+      "issue": null,
+      "owner": "backend-dev",
+      "status": "done",
+      "title": "إتاحة كل أوامر Claude CLI المدمجة في قائمة السلاش بالواجهة (مثل /workflows و/btw): تشخيص لماذا لا يصل الجلب الديناميكي getClaudeBuiltInCommands بها وإصلاحه",
+      "summary": "commit 917e0ae: السبب الجذري مركّب — (1) /workflows و/btw تفاعليان TUI فقط والـ CLI ‏2.1.173 يرفضهما في print mode برد synthetic فلا يمكن للواجهة دعمهما، (2) cache بارد بعد إقلاع السيرفر كان يعيد القائمة الثابتة (19) للنداء الأول والواجهة لا تعيد الجلب، (3) انتهاء TTL كان يرتد للثابتة. الإصلاح: resolveDynamicBuiltIns ينتظر probe حتى 2.5s عند البرود ويقدّم stale أثناء التحديث + إسقاط مكررات skills في useSlashCommands. النتيجة: 51 أمراً من أول نداء خلال ~700ms. اختبارات 5 جديدة، npm test أخضر، build:client+server تمّا، يلزم restart",
+      "closed": "2026-06-11"
+    },
+    {
+      "id": "T-76",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-27",
+      "title": "ترتيب قائمة الجلسات حسب تاريخ الإنشاء (الأحدث أولاً) بدل آخر نشاط",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11",
+      "summary": "commit 106cd74؛ تحقق حي 192 جلسة created_at غير فارغ؛ build:client ونُشر؛ لا restart"
+    },
+    {
+      "id": "T-77",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-28",
+      "title": "إظهار التاريخ والوقت مع كل فقاعة رسالة",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11",
+      "summary": "MessageComponent.tsx عبر message.timestamp + tooltip؛ build:client مطابق للحزمة الحية؛ لا restart"
+    },
+    {
+      "id": "T-78",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "تنبيهات Push باسم البراندينق + خيار إخفاء الاسم في شاشة التحميل (splashHideTitle)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-11",
+      "summary": "commit 26e2b29 — فُعّلت 2026-06-12 بعد علاج يتيمة B-24 (kill -INT 241903): ‏GET /api/settings/branding الحي يعيد splashHideTitle والمفتاح يعمل. مصدر «CloudCLI» كان hardcoded في notification-orchestrator ‏(buildPushBody) وfallback ‏sw.js؛ وحدة branding-config.js الجديدة تقرأ branding.title من app_config لكل تنبيه، sw.js يجلب العنوان من /api/settings/branding عند غيابه، وroute ديناميكي /manifest.json يستبدل name/short_name باسم البراندينق. الخيار الجديد splashHideTitle ‏(branding.splash_hide_title، ‏owner-only) يخفي الاسم في AuthLoadingScreen عند وجود شعار مرفوع (h1.sr-only يبقى لقارئات الشاشة) — toggle بقسم «شاشة التحميل» في BrandingSettingsTab مترجم 9 لغات. اختبارات 18/18، build:client+server تمّا؛ يلزم pm2 restart nassaj-dev لتعديلات السيرفر"
+    },
+    {
+      "id": "T-79",
+      "kind": "bug",
+      "phase": "P1",
+      "sprint": null,
+      "issue": "B-31",
+      "owner": "backend-dev",
+      "status": "done",
+      "closed": "2026-06-12",
+      "title": "تشخيص وإصلاح خطأ زر إخفاء الاسم من شاشة التحميل في إعدادات الهوية",
+      "summary": "التشخيص مكتمل: لا خطأ في الكود. العملية القديمة PID 241903 (أقلعت 20:09 قبل commit 26e2b29) كانت ممسكة بالمنفذ 3004 وتتجاهل splashHideTitle بصمت، بينما pm2 يحاول الإقلاع بالكود الجديد ويفشل EADDRINUSE كل ~15ث. الحسم 2026-06-12: المالك نفّذ kill -INT 241903 ‏(drain ‏T-73 حرّر المنفذ والجلسات الأبناء بقيت)، pm2 التقط المنفذ بالكود الجديد، وGET /api/settings/branding الحي يعيد splashHideTitle والمفتاح يعمل (مفعّل true حالياً)"
+    },
+    {
+      "id": "T-80",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "issue": null,
+      "title": "تصحيح إملاء «Nasaj»→«Nassaj» في اسمي جلستين مخزّنين (custom_name) ظهرا في عناوين تنبيهات Push",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "ليست خللاً في الكود ولا البراندينق (لا وجود لـ Nasaj في المستودع، والمخزّن «نسَّاج» صحيح) — اسما جلستين مولّدان تلقائياً في db.sqlite. ‏UPDATE مستهدف بالـ session_id للسجلّين (2323c351 وa2b47c99) داخل معاملة BEGIN IMMEDIATE، تحقق: صفر بقايا في الجدول كله؛ backup: db.sqlite.bak-20260612-024721؛ لا restart. تكميل من موجة موازية (02:53): جلسة ثالثة 4afe223f ‏(Diwan-staging، عنوان مشتق «Troubleshoot Nasaj 502…») صُحّحت عبر المسار الرسمي PUT /api/providers/sessions/:id؛ وf57aa324 لا تحتاج (custom_name عربي يطغى). معلومة تشغيلية: القاعدة الحية DATABASE_PATH=/home/nassaj/.local/share/nassaj-dev/db.sqlite وليست ~/.cloudcli/auth.db المتقادمة (نسخة احتياطية زائدة أُخذت لها auth.db.bak-20260612-025353 — قابلة للحذف)"
+    },
+    {
+      "id": "T-81",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-31",
+      "title": "تحقق من وجود cwd على القرص قبل spawn وأي resume، مع خطأ صريح للواجهة عند غيابه",
+      "status": "todo",
+      "owner": "backend-dev"
+    },
+    {
+      "id": "T-82",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-32",
+      "title": "ترجمة أخطاء spawn (ENOENT/cwd مفقود) لرسائل مستخدم صحيحة بدل تمرير رسالة SDK الخام",
+      "status": "todo",
+      "owner": "backend-dev"
+    },
+    {
+      "id": "T-83",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-33",
+      "title": "عرض أخطاء الجلسة الجديدة (sessionId=null) بوضوح في الواجهة بدل الفشل الصامت",
+      "status": "todo",
+      "owner": "frontend-dev"
+    },
+    {
+      "id": "T-84",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "رفع الشعار في Branding على أندرويد يفتح معرض الوسائط بدل متصفح الملفات",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "محاولة أولى c2c344d (إضافة امتدادات صريحة إلى accept) لم تكفِ — كروميوم الحديث يحوّل الامتدادات إلى MIME ويصنّف أي accept صوري كـ media-only فيستدعي Photo Picker النظامي (لا يعرض SVG أصلاً). الحل النهائي d2b2919: إزالة accept كلياً من مدخلَي الشعار → منتقي المستندات العام على أندرويد، وتوسيع تحقق الواجهة إلى (MIME مقبول أو امتداد مقبول) لتغطية منتقيات تعيد application/octet-stream، والكلمة الأخيرة للسيرفر (magic bytes + تعقيم SVG). على iOS/سطح المكتب حوار ملفات عام غير مفلتر — مقصود. مدخل الأفاتار بقي image/* عمداً. build:client نُشر؛ لا restart. تحقق مستقل لاحق: فشل إعادة تجربة المستخدم بعد c2c344d سببه مركّب — bundle المنشور حينها (index-pQ3H3IQq، بناء 03:00) بُني قبل اكتمال التعديل (commit ‏03:01) فلم يحوِه أصلاً؛ الحزمة الحالية index-DvZN1w0c تحوي d2b2919 مؤكَّداً، وكاش sw.js سليم (index بلا كاش، الأصول مجزّأة الأسماء). درس عملي: build بعد commit، أو grep على dist قبل إبلاغ المستخدم بالنشر"
+    },
+    {
+      "id": "T-85",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "تشخيص: شعار الثيم الداكن لا يظهر — يبقى الفاتح في الوضع الداكن",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "ليس عطل كود — السلسلة سليمة طرفاً لطرف (BrandingSettingsTab→api?variant=dark→settings.js يكتب logo_dark، وSidebarHeader.tsx:58 يختار logoDarkUrl عند isDarkMode من نفس مصدر ThemeContext). السبب بيانات: الملف المرفوع للداكن مطابق بايت-ببايت للفاتح (نفس MD5/الحجم) وكلاهما SVG بلا أي لون (لا fill/stroke) فيُعرض أسود في الوضعين. الحل بيد المستخدم: رفع نسخة داكنة فعلية فاتحة الألوان. فخّ كامن مسجّل: svg-sanitizer يجرّد style (tag+attr) فأي SVG يلوّن عبر style=\"fill:#fff\" سيعود أسود — يجب وضع الألوان في خصائص presentation (fill=\"#fff\")؛ مرشّح إصلاح لاحق إن تكرر (B محتمل). لا تعديل/build/restart"
+    },
+    {
+      "id": "T-85",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "تعليم المحادثات بنجمة (Star/Favorite) — طبقة السيرفر",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "جدول starred_sessions(user_id,session_id,project_name,created_at) PK مركّب، migration idempotent تلقائي عند الإقلاع، نجمة لكل مستخدم مشتقّة من req.user. نقطتا API محميتان: GET /api/sessions/starred وPOST /api/sessions/star {sessionId,projectName,starred}. حقن حقل starred:boolean في كل جلسة ضمن GET /api/projects وarchived و/:projectId/sessions باستعلام دفعة (بلا N+1). typecheck+اختبارات (3 جديدة) وbuild:server نظيف. commit 0b8bb57. يتطلب pm2 restart يدوي من المالك ليلتقط البناء."
+    },
+    {
+      "id": "T-86",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "تعليم المحادثات بنجمة — أيقونة الشريط الجانبي + الفرز",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "أيقونة نجمة lucide على صف الجلسة (مملوءة amber عند starred، تظهر عند hover/التركيز لغير المعلَّمة على سطح المكتب، دائمة على الجوال)، تبديل عبر POST /api/sessions/star بـ optimistic update وتراجع عند الفشل وحارس تسلسل، stopPropagation كي لا تفتح المحادثة، فرز المعلَّمة أولاً في getAllSessions/getProjectSessions، RTL+i18n (starSession/unstarSession) وaria-pressed. tsc نظيف وbuild:client نجح. commit dd7570d. الواجهة حيّة من dist بلا restart. قيد: لا بثّ *_updated لنجمة الجلسة فالاستقرار النهائي عند أول refresh."
+    },
+    {
+      "id": "T-87",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "إعادة تصميم صف الجلسة في الشريط الجانبي بعد إضافة النجمة",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "إصلاح إخلال التخطيط الذي سببه إقحام زر النجمة بين أيقونة المزوّد والعنوان (dd7570d): النجمة كانت تُزيح العنوان وتترك فجوة. الحل (41e1ae3): هرمية أيقونة المزوّد ← العنوان flex-1 truncate ← أفاتار المالك ← منطقة ذيلية ثابتة w-8 تعرض النجمة الكهرمانية إن معلَّمة وإلا الطابع الزمني، وتتلاشى بـopacity عند hover (لا layout shift). التحكّم الفعلي بالنجمة انضمّ لعنقود الأكشنات (نجمة+تعديل+حذف) عند hover؛ المؤشّر الساكن aria-hidden. توحيد أحجام الأيقونات 3.5، خصائص منطقية RTL، حفظ stopPropagation والتبديل المتفائل وaria. build:client نجح. الملف: SidebarSessionItem.tsx."
+    },
+    {
+      "id": "T-88",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-34",
+      "title": "بوابة CI: ‏typecheck+test+audit قبل release/docker + dependabot",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "commit 2a718bd؛ 346/346 اختباراً"
+    },
+    {
+      "id": "T-89",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-36",
+      "title": "إغلاق ثغرات العزل الثلاث (/shell بفحص B-PRIV، ‏requireRole على system/update، ‏WORKSPACES_ROOT على /api/agent) + اختبارات",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "commit 6bf00d7؛ يسري بعد build+restart"
+    },
+    {
+      "id": "T-90",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "issue": null,
+      "title": "تحديثات أمنية (jsonwebtoken/dompurify) + مفاتيح i18n ‏opencode + تنظيف 582 صفاً يتيماً وindex زائد + gitignore لنسخ dist-server + logrotate",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "commits 781070e/e9183e2/87beef9؛ backup ‏db.sqlite.bak-20260612-quickwins"
+    },
+    {
+      "id": "T-91",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "chore",
+      "issue": null,
+      "title": "إصلاح zero-rule-guard (استثناء سكربتات الحصة + حارس بنية الجذر للجميع) + exit codes لـ claude-usage + بوابات AGENTS.md + بروتوكول git للجلسات المتوازية + قاعدة قرار=مهمة + hooks للمستخدمين 2و3",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "nassaj-core commit 4760d59؛ 18/18 اختبار حارس"
+    },
+    {
+      "id": "T-88",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-42",
+      "title": "شعار الوضع الداكن يظهر أسود: مُعقّم SVG ينزع الألوان من <style>/style",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "العَرَض: رفع شعار أبيض في DARK THEME LOGO يُحفظ (Logo updated) لكن يظهر أسود في الوضع الداكن. منطق العرض سليم (SidebarHeader.tsx:55-58 يختار logoDarkUrl حسب useTheme().isDarkMode، والـAPI يُرجِع logoDarkUrl صحيحاً). السبب الجذري في السيرفر: svg-sanitizer.js:95-96 يحذف <style> وstyle بالكامل، فشعار Inkscape الذي يلوّن مساراته بـCSS يفقد fill ويُرسَم بالأسود الافتراضي. الإصلاح 4b60dff: inlineSafeColors() قبل DOMPurify تنقل الألوان الآمنة فقط (fill/stroke/color/opacity بتحقق صارم hex/rgb/hsl/كلمة لونية؛ رفض url()/دوال/javascript:) إلى presentation attributes، و<style>/style تبقى محذوفة فحماية XSS بلا تغيير. 6 اختبارات. يحتاج: (1) pm2 restart ليُحمَّل sanitizeSvg الجديد، (2) إعادة رفع الشعار لأن البايتات الأصلية لم تُحفظ منزوعة اللون. تكميل من موجة موازية (frontend-dev، 17:09): حُلّ للمستخدم فوراً بلا انتظار restart — صُحّح ملف المستخدم يدوياً (style=\"fill:#ffffff\"→fill=\"#ffffff\" على g6-8-9-6 وعلى path، وحُذف xmlns:svg المكرّر من Inkscape الذي كان يجعل المُعقّم الحالي يُسلسل الجذر كـ<svg:svg> فيرفضه DOMPurify ويُعيد null — وهو سبب جذري ثانٍ لم يغطّه 4b60dff) ورُفع عبر POST /api/settings/branding/logo?variant=dark. تحقق حي: logoDarkUrl v=1781273379945 وlogo_dark.svg يحوي fill=\"#ffffff\" مرّتين بلا بادئة svg:. ملاحظة لـbackend: 4b60dff (inlineSafeColors) لا يكفي وحده لمخرجات Inkscape ذات xmlns:svg — يلزم تطبيع بادئة الجذر قبل DOMPurify (مرشّح متابعة على B-42)."
+    },
+    {
+      "id": "T-92",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "تفضيلات الواجهة مرتبطة بالمستخدم وتُزامَن عبر الأجهزة بدل localStorage لكل جهاز",
+      "status": "done",
+      "owner": "backend-dev,frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "قرار المستخدم: كل تفضيلات المستخدم تُزامَن، السيرفر هو المرجع دائماً، الحساب الجديد بالافتراضات (وترحيل لمرة واحدة من قيم جهاز المالك القائم عند فراغ السيرفر). الخادم (commit 17ff01a): جدول user_ui_preferences (بلوب preferences_json لكل user_id، FK cascade، idempotent في schema) + مستودع ui-preferences.ts (دمج سطحي لا استبدال، حرس 64KB ورفض غير الكائن) + GET/PUT /api/settings/ui-preferences خلف مصادقة /api/settings؛ 7 اختبارات (عزل بين المستخدمين، دمج، cascade) والحزمة 392/393 (الفشل الوحيد spawn-error من جلسة موازية). الواجهة (commit 84e1525): src/preferences/preferencesSync.ts سجلّ موحّد للمفاتيح المُزامَنة (18 تفضيلاً) مع إبقاء حالات الجهاز محلية؛ نقطة كتابة واحدة بترقيع localStorage.setItem/removeItem تدفع PUT جزئي بـdebounce 500ms؛ هيدرشن حيّ من AuthContext بعد المصادقة عبر حدث preferences:apply (Theme/RTL/Tasks/uiPreferences/provider/i18n تطبّق فوراً بلا reload)؛ تدهور رشيق صامت إلى localStorage عند 404/خطأ (قبل الـrestart يعمل كاليوم)؛ 11 اختبار وتحقق dist. التفعيل الكامل يحتاج pm2 restart (مسار السيرفر الجديد)"
+    },
+    {
+      "id": "T-93",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-31",
+      "title": "حزمة حادثة AlKindy: فحص cwd قبل spawn + تصنيف أخطاء SDK لكل المزودين + خطأ جلسة جديدة صريح + اختبارات",
+      "status": "done",
+      "owner": "workflow",
+      "closed": "2026-06-12",
+      "summary": "commit 8257190+191dcb1؛ 19 اختبار وحدة جديد"
+    },
+    {
+      "id": "T-94",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-38",
+      "title": "تصليب طبقة البيانات: FK CASCADE (rename-rebuild آمن) + WAL + busy_timeout + reconcile دوري + transaction + dirExists",
+      "status": "done",
+      "owner": "workflow",
+      "closed": "2026-06-12",
+      "summary": "commit e189233؛ 9 اختبارات؛ يسري بعد restart"
+    },
+    {
+      "id": "T-95",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-39",
+      "title": "إنهاء الفشل الصامت بالواجهة: مؤشر اتصال WS + تعطيل الإرسال + toast فشل + backoff أسي + عرض أخطاء مصنّفة",
+      "status": "done",
+      "owner": "workflow",
+      "closed": "2026-06-12",
+      "summary": "commit 191dcb1؛ 16 اختبار؛ يحتاج build:client"
+    },
+    {
+      "id": "T-96",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-40",
+      "title": "تنظيفات spawn-chain (B-40) + فك ترميز المسار (B-37) + حالة B-36 الحدية + إصلاحات المراجعة العدائية (double-send، fs.access متوازٍ، تسريبات مؤقتات)",
+      "status": "done",
+      "owner": "workflow",
+      "closed": "2026-06-12",
+      "summary": "commits 8257190/e189233؛ مراجعة عدائية approve_with_fixes ثم أُصلحت القضيتان الحرجتان"
     }
   ],
   "issues": [
@@ -934,8 +1223,9 @@
     },
     {
       "id": "B-24",
-      "severity": "medium",
+      "severity": "high",
       "status": "open",
+      "incident_20260611": "تحققت فعلياً (اكتُشفت أثناء تشخيص «مفتاح splashHideTitle لا يتحرك»): restart ‏20:09 ترك العملية القديمة (PID ‏241903) مالكةً للمنفذ 3004 بكود ما قبل T-78؛ خروج drain النظيف 20:17 عُومل انهياراً → حلقة EADDRINUSE كل ~15 ثانية (917+ إعادة)؛ restart المستخدم 23:56 طال العملية المنهارة المتتبَّعة فقط واليتيمة بقيت تخدم الكود القديم — الواجهة الحديثة ترسل splashHideTitle والسيرفر القديم يتجاهله ويرد 200. العلاج: kill -INT لليتيمة (drain ‏T-73 يحرر المنفذ فوراً والجلسات الأبناء تبقى حتى تكتمل) وpm2 المنهار يلتقط المنفذ تلقائياً. رُفعت الأولوية medium→high",
       "title": "خطر متبقٍّ بعد إصلاح B-23 (مكتشف أثناء T-73 من قراءة مصدر PM2 7.0.1): عند انتهاء drain النسخة القديمة وخروجها المتأخر بينما البديلة online، يستقبل PM2 حدث exit المتأخر على نفس pm_id ويطلق respawn زائفاً (God.handleExit بلا حارس pid) → النسخة الزائدة تفشل EADDRINUSE أمام البديلة الصحية وتفسد محاسبة PM2 (قد تصل errored بينما الخدمة فعلياً حية كـ ghost). ‏exp_backoff يلجم العاصفة لكنه لا يمنعها. كما أن PM2 يعتقد حالياً أن العملية ماتت فوراً بسبب _tree_pids قديمة في pm2_env — سلوك عرَضي قد يتغير بعد pm2 delete/start نظيف فيصير restart منتظِراً حتى kill_timeout (5min)",
       "found": "2026-06-11",
       "triage": "medium — بانتظار قرار المستخدم على ADR-028 (Proposed ‏2026-06-11): التوصية cluster-mode reload بـ instances:1 عبر pilot إلزامي (ESM shim، WAL، بقاء الأبناء، net.listen)، مؤقتاً runbook على fork-mode (restart عبر ecosystem في نافذة بلا جلسات، لا pm2 delete+start نظيف مع جلسات نشطة، restart تصالحي بعد drain طويل إن ظهرت errored)، وsystemd البسيط fallback؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي"
@@ -955,6 +1245,180 @@
       "status": "resolved",
       "title": "نقطة انشغال المشروع (T-59) لا تظهر بعد تحديث الصفحة: إشارة running تُبث مرة واحدة فقط وstore الذاكرة يُمسح — وليس بسبب dist-server القديم",
       "found": "2026-06-11"
+    },
+    {
+      "id": "B-26",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-06-11",
+      "area": "server",
+      "title": "cache أوامر السلاش الديناميكية مفتاحه provider فقط بينما probe الـ CLI يعمل بإعدادات المستخدم الطالب — عند تفعيل تعدد المستخدمين ستتسرب skills أول مستخدم لبقية المستخدمين",
+      "summary": "اكتُشف أثناء T-75 (commit 917e0ae). الفرز: medium → backlog؛ يُعالج ضمن مسار تعدد المستخدمين بجعل مفتاح الـ cache يشمل هوية المستخدم/CLAUDE_CONFIG_DIR"
+    },
+    {
+      "id": "B-27",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "وسم «Coordinator: <owner>» موضوع على فقاعة المستخدم الزرقاء وردود المساعد معاً (54faff9) فلا تمييز بصري بين ما كتبه المستخدم وما ردّ به المنسّق",
+      "found": "2026-06-11",
+      "triage": "medium → أُصلح فوراً في نفس الموجة (T-76)",
+      "fix": "T-76 (commit 1b58530): فصل الوسمين — فقاعة المستخدم تُنسب للمستخدم باسمه وردود المساعد وحدها تحمل وسم المنسّق"
+    },
+    {
+      "id": "B-28",
+      "severity": "medium",
+      "status": "fixed",
+      "title": "رسائل user منشأة خارج الواجهة (وكيل/CLI يشغّل claude -p في cwd المشروع) تُعرض بأيقونة مجهول عامة فتُحسب رسالة إنسان — حالة موثقة: رسالة hi في جلسة 3c4d9850 كتبها وكيل backend-dev لجلسة موازية أثناء اختبار T-75؛ التحقيق أثبت ألا ثغرة أمنية (كل مسارات الإدخال خلف JWT/توثيق، والوكيل يعمل داخل حدود الثقة)",
+      "found": "2026-06-11",
+      "triage": "medium → أُصلح فوراً في نفس الموجة (T-77)",
+      "fix": "T-77 (commit 98d1845): وسم صريح «أُنشئت خارج الواجهة» بأيقونة طرفية وأفاتار محايد لكل رسالة user بلا ختم userId"
+    },
+    {
+      "id": "B-29",
+      "severity": "medium",
+      "status": "open",
+      "title": "الجلسات اليتيمة قابلة للتبنّي وتلوّث القائمة: أي transcript يظهر في مجلد المشروع المشترك (وكيل/CLI/اختبار) يُزامَن للواجهة كجلسة، وأول من يكتب فيها عبر الخادم يصبح owner — مربك (حالة hi). مقترحان: اختبارات الوكلاء بـ cwd مؤقت، ووسم الجلسة «متبنّاة» حين يكون first_seen للمالك أحدث من أول رسالة",
+      "found": "2026-06-11",
+      "triage": "medium → backlog"
+    },
+    {
+      "id": "B-45",
+      "severity": "high",
+      "status": "resolved",
+      "title": "تكرار فخ B-23 بصمت بعد restart المالك 20:09 (ظهر للمستخدم كخطأ زر «إخفاء الاسم من شاشة التحميل»): العملية القديمة (pid 241903، كود سابق لـ 26e2b29) ماسكة 3004 في drain، وpm2 في حلقة EADDRINUSE (‏915+ restart) — الواجهة الجديدة تُقدَّم من القرص بينما API البراندينق القديم يتجاهل splashHideTitle ويرد 200، فبدا الباگ كأنه في الميزة. الوقائي المقترح: فحص صحة بعد كل نشر يقارن الكود الحي بالمنشور — متصل بـ B-24/ADR-028",
+      "found": "2026-06-11",
+      "triage": "high → أُغلق بإجراء المالك (kill -INT 241903) + تحرير المنفذ عبر drain T-73؛ الوقائي المقترح (فحص صحة بعد كل نشر يقارن الكود الحي بالمنشور) متصل بـ B-24/ADR-028. [ملاحظة: نُقل من B-31 لحل تصادم معرّفات مع خطأ فحص cwd الذي تستشهد به commits 8257190/B-32/B-33]",
+      "fix": "2026-06-12: المالك نفّذ kill -INT 241903 — ‏drain ‏T-73 حرّر المنفذ فوراً مع بقاء الجلسات الأبناء، وpm2 التقط 3004 بالكود الجديد؛ تحقق حي: GET /api/settings/branding يعيد splashHideTitle (راجع T-79). كان للبند نسختان مكررتان من جلستين متوازيتين — وُحّدتا هنا",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-30",
+      "severity": "medium",
+      "status": "open",
+      "title": "getSessionMessages في claude-sessions.provider.ts يبحث عن agent-*.jsonl في مجلد المشروع مباشرة بينما الصيغة الحالية تضعها في <sessionId>/subagents/ — قد لا تُلتقط أدوات الوكلاء الفرعية للجلسات الحديثة (ملاحظة عرضية من T-77، تحتاج تحققاً)",
+      "found": "2026-06-11",
+      "triage": "medium → backlog: مهمة تحقق وإصلاح تُجدول"
+    },
+    {
+      "id": "B-32",
+      "severity": "medium",
+      "status": "resolved",
+      "title": "رسالة خطأ SDK الخام تُمرَّر للمستخدم كما هي (server/claude-sdk.js:1168-1175) — ENOENT للـ cwd المفقود يصل كـ«native binary not found» بدل رسالة واضحة «مسار المشروع غير موجود»",
+      "found": "2026-06-12",
+      "triage": "commit 8257190 (mapSpawnError لكل المزودين الخمسة) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-33",
+      "severity": "medium",
+      "status": "resolved",
+      "title": "خطأ إنشاء جلسة جديدة يصل للواجهة بـ sessionId=null فلا يُعرض للمستخدم بوضوح (useChatRealtimeHandlers.ts:351) — الفشل يبدو صامتاً (توقف spinner فقط)",
+      "found": "2026-06-12",
+      "triage": "commits 8257190+191dcb1 (خطأ صريح للجلسة الجديدة + عرضه بالواجهة) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-34",
+      "severity": "critical",
+      "status": "resolved",
+      "title": "لا بوابة جودة في CI: ‏release.yml وdocker.yml ينشران بلا typecheck ولا الـ338 اختباراً ولا npm audit — مؤكد بتحقق عدائي. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "أُغلق: بوابة CI كاملة في release.yml وdocker.yml + dependabot + release-it (commit 2a718bd)",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-35",
+      "severity": "critical",
+      "status": "open",
+      "title": "جذر عاصفة EADDRINUSE (1006 خطأ): respawn زائف من PM2 بعد اكتمال drain (ADR-028) يطلقه OOM دوري من تسرب ذاكرة (~7MB/h مقيس) + سجلات PM2 ‏116MB بلا تدوير — النمط مضمون التكرار. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "critical → جزئي: logrotate ‏10M×7 مفعّل 2026-06-12؛ المتبقي (قياس التسرب، مرحلة 0 من ADR-028) في S-2"
+    },
+    {
+      "id": "B-36",
+      "severity": "high",
+      "status": "resolved",
+      "title": "ثلاث ثغرات عزل بين المستخدمين: /shell يفتح PTY بمشروع خاص لغير مالكه (بلا فحص B-PRIV)، /api/system/update بلا requireRole، /api/agent يقبل projectPath خارج WORKSPACES_ROOT. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "أُغلق بالكود (commit 6bf00d7) + اختبارات visibility — لا يسري على الخادم الحي قبل build+restart بطرفية المالك | حالة githubUrl الحدية أُغلقت commit 8257190 (validateWorkspacePath)",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-37",
+      "severity": "high",
+      "status": "resolved",
+      "title": "فك ترميز مسار المشروع الاحتياطي replace('-','/') يفسد المسارات الحاوية شرطات أصلية — هشاشة بنيوية في اشتقاق المسارات. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "commit e189233 (فك ترميز يشترط بادئة - لا يفسد الشرطات) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-38",
+      "severity": "high",
+      "status": "resolved",
+      "title": "لا مصالحة DB↔قرص: مشاريع منقولة تبقى نشطة بالواجهة وتقود لـENOENT؛ ‏577 صف كاش يتيم (session_agents_* بلا FK CASCADE)؛ صف Contacts مكرر بحساسية الأحرف — الجذر البياناتي لحادثة AlKindy BM. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "commit e189233 (FK CASCADE + WAL + reconcile + dirExists + transaction) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-39",
+      "severity": "high",
+      "status": "resolved",
+      "title": "فشل صامت بالواجهة: sendMessage تُسقط الرسائل عند انقطاع WS بلا أي مؤشر اتصال أو تعطيل زر الإرسال — spinner أبدي بلا تفسير (النمط الجذري وراء B-33). التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "commit 191dcb1 (مؤشر اتصال WS + تعطيل الإرسال + toast فشل + backoff) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-40",
+      "severity": "high",
+      "status": "resolved",
+      "title": "تسريبات سلسلة الجلسات: pending tool approvals لا تُلغى عند abort/error (تسرب عمليات)، وagy rekey() يرمي خطأ غير معالَج عند استئناف متزامن لنفس الجلسة. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
+      "found": "2026-06-12",
+      "triage": "commit 8257190 (cancelPendingApprovals + try/catch rekey + aborted/Cursor + tmpdir) — يسري بعد build+restart بطرفية المالك",
+      "resolved": "2026-06-12"
+    },
+    {
+      "id": "B-41",
+      "severity": "high",
+      "status": "open",
+      "found": "2026-06-12",
+      "title": "pm2 restart قتل كل جلسات claude الأخرى رغم treekill:false في ecosystem.config.cjs — الحماية المفترضة (ADR-021/022: الإشارات تصيب الأم فقط) لم تعمل فعلياً. يجب التحقق: هل PM2 يتتبّع شجرة العمليات بآلية أخرى؟ هل الجلسات أبناء مباشرون أم عبر PTY منفصل؟ هل kill_timeout/SIGKILL تسرّب للأبناء؟ المستخدم نفّذ env -u PORT pm2 restart ecosystem.config.cjs --update-env فقُتلت الجلسات. مرشّح لمراجعة devops+backend-dev.",
+      "triage": "high → السبرنت التالي"
+    },
+    {
+      "id": "B-42",
+      "severity": "medium",
+      "status": "resolved",
+      "found": "2026-06-12",
+      "title": "مُعقّم SVG ينزع ألوان <style>/style فتظهر الشعارات الملوّنة بالأسود الافتراضي (شعار الوضع الداكن غير مقروء). أُصلح بـ inlineSafeColors قبل DOMPurify (commit 4b60dff، T-88). يتطلب restart + إعادة رفع.",
+      "triage": "medium → أُصلح في نفس الجلسة"
+    },
+    {
+      "id": "B-43",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-12",
+      "title": "اختبارات wsConnectionBehavior.test.ts تكرّر منطق المصدر محلياً بدل استيراده (calcReconnectDelay، SERVER_ERROR_CODE_KEYS) — قد تمر بينما يكسر الإنتاج",
+      "triage": "low → backlog"
+    },
+    {
+      "id": "B-44",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-12",
+      "title": "restrictDatabasePermissions لا يضبط chmod لملفّي WAL ‏.db-wal/.db-shm بعد تفعيل WAL (B-38) — مشكلة قائمة سابقاً صارت أظهر",
+      "triage": "low → backlog"
+    },
+    {
+      "id": "B-31",
+      "severity": "high",
+      "status": "resolved",
+      "found": "2026-06-12",
+      "resolved": "2026-06-12",
+      "title": "لا تحقق من وجود cwd قبل spawn: مشروع مساره مفقود على القرص (نُقل/حُذف) يفشل بـ ENOENT يظهر كرسالة SDK مضللة «Claude Code native binary not found» — مسار WS (chat-websocket) وكل المزودين (حادثة AlKindy BM ‏2026-06-12)",
+      "triage": "high → أُغلق: نقطة فحص cwd مشتركة قبل spawn لكل المزودين (commit 8257190، ملف server/shared/cwd-check.ts) — يسري بعد build+restart بطرفية المالك"
     }
   ],
   "decisions": [
@@ -992,13 +1456,20 @@
       "id": "ADR-027",
       "title": "خصوصية المشروع مطلقة: owner المنصة لا يرى محتوى مشروع خاص ليس عضواً فيه؛ استرداد اليتيم عبر نقل ملكية/حذف لا عبر رؤية المحتوى",
       "path": "docs/decisions/027-private-projects.md",
-      "date": "2026-06-10"
+      "date": "2026-06-10",
+      "_note": "تدقيق مطلوب (low): الملف غير موجود على القرص رغم الإشارة إليه (لاحظه architect أثناء ADR-028، ‏2026-06-11) — استرداد من تاريخ git أو كتابته من واقع تنفيذ B-PRIV-* (T-45)"
     },
     {
       "id": "ADR-028",
       "title": "Restart overlap & supervisor ‏(B-24): معالجة respawn PM2 الزائف بعد drain طويل — Proposed بانتظار قرار المستخدم؛ التوصية cluster-mode reload (instances:1) عبر pilot، البديل المؤقت fork-mode بـ runbook، وfallback ‏systemd",
       "link": "docs/decisions/028-restart-overlap-supervisor.md",
       "date": "2026-06-11"
+    },
+    {
+      "id": "ADR-029",
+      "date": "2026-06-12",
+      "status": "proposed",
+      "title": "مسح شامل 2026-06-12: ‏128 نتيجة (24 مؤكدة حرجة/عالية) + 14 مقترح حوكمة + 7 قرارات تنتظر موافقة المالك — docs/audit-2026-06-12/REPORT.md"
     }
   ]
 }
