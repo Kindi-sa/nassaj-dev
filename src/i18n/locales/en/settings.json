@@ -286,15 +286,9 @@
     "recheck": "Re-check",
     "loadError": "Could not check subscription status. Please try again.",
     "banner": "Your Claude subscription is not linked yet. You need to link it before using Claude in your sessions.",
-    "bannerHint": "Click the button below to open the terminal and run",
+    "bannerHint": "Click the button below to open the terminal and complete the login flow using",
     "linkButton": "Link Claude account",
-    "ownerNote": "Your credential is linked automatically as the owner — no action required.",
-    "modal": {
-      "title": "Link Claude account",
-      "close": "Close link dialog",
-      "instructions": "In the terminal below, run",
-      "afterComplete": "Complete the OAuth login flow, then close this dialog and click \"Re-check\" to refresh the status."
-    }
+    "ownerNote": "Your credential is linked automatically as the owner — no action required."
   },
   "agyConnection": {
     "description": "Link your own Antigravity subscription to use it in your sessions. Each user has their own isolated credential.",

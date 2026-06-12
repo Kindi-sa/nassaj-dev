@@ -3,9 +3,9 @@ import { useCallback, useState } from 'react';
 import { useAuth } from '../../../../../../auth';
 import { useClaudeConnection } from '../../../../../hooks/useClaudeConnection';
 import type { AuthStatus } from '../../../../../types/types';
+import ProviderLoginModal from '../../../../../../provider-auth/view/ProviderLoginModal';
 
 import AccountContent, { type UserCredentialLink } from './AccountContent';
-import ClaudeSetupTokenModal from './ClaudeSetupTokenModal';
 
 type ClaudeConnectionSectionProps = {
   authStatus: AuthStatus;
@@ -15,15 +15,17 @@ type ClaudeConnectionSectionProps = {
 /**
  * Claude Account view with the per-user subscription link merged in
  * [C-MU-UX-AGENT-CREDS]. Thin stateful wrapper: it owns the
- * `useClaudeConnection` fetch (B-MU-ONBOARD) and the `claude setup-token`
- * terminal modal, and renders the single unified credential card
- * (`AccountContent`) so connection state appears exactly once per agent.
+ * `useClaudeConnection` fetch (B-MU-ONBOARD) and the `/login` terminal modal,
+ * and renders the single unified credential card (`AccountContent`) so
+ * connection state appears exactly once per agent.
  *
  * Onboarding flow (non-owner, not linked): the card shows a warning banner
- * with a "Link Claude account" CTA that opens the terminal modal running
- * `claude setup-token`; status is re-checked when the process exits and via
- * the explicit Re-check button. The owner is symbolically linked by the
- * backend and never forced through the flow.
+ * with a "Link Claude account" CTA that opens `ProviderLoginModal` running
+ * `claude --dangerously-skip-permissions /login` — the only command that writes
+ * `.credentials.json` into the user's isolated directory, allowing
+ * `getClaudeConnectionStatus` to detect a valid credential. Status is
+ * re-checked when the process exits and via the explicit Re-check button. The
+ * owner is symbolically linked by the backend and never forced through the flow.
  */
 export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeConnectionSectionProps) {
   const { user } = useAuth();
@@ -35,7 +37,7 @@ export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeC
   const openModal = useCallback(() => setIsModalOpen(true), []);
   const closeModal = useCallback(() => setIsModalOpen(false), []);
 
-  // Re-check status when the terminal process exits (setup-token finished).
+  // Re-check status when the /login process exits so the status badge updates.
   const handleProcessComplete = useCallback(() => {
     void refresh();
   }, [refresh]);
@@ -50,7 +52,7 @@ export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeC
     error,
     isOwner,
     i18nPrefix: 'claudeConnection',
-    command: 'claude setup-token',
+    command: 'claude --dangerously-skip-permissions /login',
     onLink: openModal,
     onRecheck: handleRecheck,
   };
@@ -64,9 +66,10 @@ export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeC
         userLink={userLink}
       />
 
-      <ClaudeSetupTokenModal
+      <ProviderLoginModal
         isOpen={isModalOpen}
         onClose={closeModal}
+        provider="claude"
         onComplete={handleProcessComplete}
       />
     </>
