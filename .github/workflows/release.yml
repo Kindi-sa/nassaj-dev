@@ -37,6 +37,14 @@ jobs:
 
       - run: npm ci
 
+      - name: Quality gate
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
       - name: Release
         run: |
           ARGS="--ci --increment=${{ inputs.increment }}"
