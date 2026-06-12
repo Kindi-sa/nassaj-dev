@@ -1,18 +1,21 @@
 // Pure helpers for rendering Claude usage. No React, no i18n side effects.
 
-// Bar color thresholds: blue < 50, orange < 75, red >= 75.
+// Bar color thresholds (matches TokenUsageSummary context-rot scale):
+// emerald < 50 (safe), amber < 75 (attention), orange < 90 (warning), red >= 90 (critical).
 // Returns Tailwind background classes so dark mode is handled by the palette.
 export function usageBarColorClass(utilization: number): string {
-  if (utilization < 50) return 'bg-blue-500';
+  if (utilization < 50) return 'bg-emerald-500';
   if (utilization < 75) return 'bg-amber-500';
+  if (utilization < 90) return 'bg-orange-500';
   return 'bg-red-500';
 }
 
 // Same thresholds as usageBarColorClass but returns text color classes
 // for use in compact inline indicators (e.g. the header usage row).
 export function usageTextColorClass(utilization: number): string {
-  if (utilization < 50) return 'text-blue-500';
+  if (utilization < 50) return 'text-emerald-500';
   if (utilization < 75) return 'text-amber-500';
+  if (utilization < 90) return 'text-orange-500';
   return 'text-red-500';
 }
 
