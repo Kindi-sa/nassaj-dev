@@ -223,8 +223,13 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
                           'text-sm font-semibold',
                           isSelected ? 'text-foreground' : 'text-foreground/85',
                         )}>
-                          {mode.id === 'none' ? t('effortMode.modes.none.name', { defaultValue: 'Standard' }) : mode.effortValue}
+                          {mode.displayName}
                         </span>
+                        {mode.id === 'auto' && (
+                          <span className="shrink-0 rounded border border-blue-300/50 bg-blue-50/60 px-1 py-px text-[9px] font-semibold text-blue-500 dark:border-blue-700/40 dark:bg-blue-900/20 dark:text-blue-400">
+                            default
+                          </span>
+                        )}
                         {/* Ultracode badge — always visible, subtle when inactive */}
                         {isUC && (
                           <span className={cn(

@@ -34,7 +34,8 @@ export const effortModes: EffortMode[] = [
   },
   {
     id: 'auto',
-    effortValue: 'auto',
+    /** Empty string = no effort field sent; model decides autonomously. */
+    effortValue: '',
     name: 'auto',
     description: '',
     icon: Wand2,

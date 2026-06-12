@@ -224,7 +224,7 @@ export function useChatComposerState({
   const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
-  const [thinkingMode, setThinkingMode] = useState('none');
+  const [thinkingMode, setThinkingMode] = useState('auto');
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
   // Non-null while a send failed due to WS disconnect; cleared on next attempt or after timeout.
   const [sendError, setSendError] = useState<string | null>(null);
@@ -830,7 +830,7 @@ export function useChatComposerState({
       setUploadingImages(new Map());
       setImageErrors(new Map());
       setIsTextareaExpanded(false);
-      setThinkingMode('none');
+      setThinkingMode('auto');
 
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
