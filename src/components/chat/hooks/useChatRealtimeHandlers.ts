@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
@@ -70,12 +71,21 @@ interface UseChatRealtimeHandlersArgs {
   onSessionNotProcessing?: (sessionId?: string | null) => void;
   onNavigateToSession?: (sessionId: string, options?: SessionNavigationOptions) => void;
   onWebSocketReconnect?: () => void;
+  /** Called when the server sends an error event with a recognised error code. */
+  onServerError?: (message: string) => void;
   sessionStore: SessionStore;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Hook                                                              */
 /* ------------------------------------------------------------------ */
+
+/** Map known server error codes to i18n keys in the 'chat' namespace. */
+const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
+  project_dir_missing: 'serverError.project_dir_missing',
+  cli_not_installed: 'serverError.cli_not_installed',
+  spawn_failed: 'serverError.spawn_failed',
+};
 
 export function useChatRealtimeHandlers({
   latestMessage,
@@ -97,9 +107,11 @@ export function useChatRealtimeHandlers({
   onSessionNotProcessing,
   onNavigateToSession,
   onWebSocketReconnect,
+  onServerError,
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   const paletteOps = usePaletteOps();
+  const { t } = useTranslation('chat');
   const lastProcessedMessageRef = useRef<LatestChatMessage | null>(null);
 
   useEffect(() => {
@@ -359,6 +371,15 @@ export function useChatRealtimeHandlers({
           setCanAbortSession(false);
           setClaudeStatus(null);
           pendingViewSessionRef.current = null;
+
+          // If the server attached a recognised error code, surface a human-
+          // readable, localised message via the onServerError callback.
+          const errorCode = typeof msg.code === 'string' ? msg.code : null;
+          if (errorCode) {
+            const i18nKey = SERVER_ERROR_CODE_KEYS[errorCode] ?? 'serverError.unknown';
+            const humanMessage = t(i18nKey, { defaultValue: t('serverError.unknown') });
+            onServerError?.(humanMessage);
+          }
         }
         break;
       }
@@ -442,7 +463,9 @@ export function useChatRealtimeHandlers({
     onSessionNotProcessing,
     onNavigateToSession,
     onWebSocketReconnect,
+    onServerError,
     sessionStore,
     paletteOps,
+    t,
   ]);
 }

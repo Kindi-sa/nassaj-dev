@@ -347,5 +347,21 @@
       "subagent": "وكيل فرعي"
     },
     "unknownAuthor": "مؤلف غير معروف"
+  },
+  "ws": {
+    "statusConnected": "متصل",
+    "statusReconnecting": "جارٍ إعادة الاتصال…",
+    "statusDisconnected": "منقطع",
+    "ariaConnected": "WebSocket متصل",
+    "ariaReconnecting": "WebSocket يعيد الاتصال",
+    "ariaDisconnected": "WebSocket منقطع",
+    "sendFailed": "لم تُرسل الرسالة — الاتصال منقطع",
+    "sendDisabledTitle": "تعذّر الإرسال — الاتصال منقطع"
+  },
+  "serverError": {
+    "project_dir_missing": "مجلد المشروع غير موجود على القرص",
+    "cli_not_installed": "الـ CLI غير مثبَّت — يرجى تثبيت أداة CLI المطلوبة",
+    "spawn_failed": "فشل تشغيل العملية — راجع سجلات الخادم للتفاصيل",
+    "unknown": "حدث خطأ غير متوقع في الخادم"
   }
 }

@@ -106,6 +106,10 @@ interface ChatComposerProps {
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
+  /** False while the WebSocket connection is not open; disables the send button. */
+  isWsConnected?: boolean;
+  /** Non-null error message to display when the last send failed (e.g. WS disconnected). */
+  sendError?: string | null;
 }
 
 export default function ChatComposer({
@@ -164,6 +168,8 @@ export default function ChatComposer({
   placeholder,
   isTextareaExpanded,
   sendByCtrlEnter,
+  isWsConnected = true,
+  sendError = null,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -204,7 +210,17 @@ export default function ChatComposer({
         </div>
       )}
 
+      {sendError && (
+        <div
+          role="alert"
+          className="mx-auto mb-2 max-w-4xl rounded-lg border border-red-300/60 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/15 dark:text-red-300"
+        >
+          {sendError}
+        </div>
+      )}
+
       {!hasQuestionPanel && <div className="relative mx-auto max-w-4xl">
+
         {isUserScrolledUp && hasMessages && (
           <div className="absolute -top-10 left-0 right-0 z-10 flex justify-center">
             <button
@@ -413,7 +429,8 @@ export default function ChatComposer({
               {sendByCtrlEnter ? t('input.hintText.ctrlEnter') : t('input.hintText.enter')}
             </div>
             <PromptInputSubmit
-              disabled={!input.trim() || isLoading}
+              disabled={!input.trim() || isLoading || !isWsConnected}
+              title={!isWsConnected ? t('ws.sendDisabledTitle', { defaultValue: 'Cannot send — connection lost' }) : undefined}
               className="h-10 w-10 shrink-0 sm:h-10 sm:w-10"
             />
           </div>

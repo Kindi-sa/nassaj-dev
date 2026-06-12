@@ -6,6 +6,7 @@ import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
+import { useWebSocket } from '../../../contexts/WebSocketContext';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
 import type { LLMProvider } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
@@ -17,6 +18,7 @@ import { useSessionProcessState } from '../../../stores/sessionProcessStateStore
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
+import WsConnectionBadge from './subcomponents/WsConnectionBadge';
 import { SessionParticipantsBar } from '../../participants';
 import CommandResultModal from './subcomponents/CommandResultModal';
 
@@ -95,6 +97,26 @@ function ChatInterface({
   const { t } = useTranslation('chat');
   const { showParticipantsBar, setShowParticipantsBar } = useParticipantsBar();
   const participantsBar = useCollapsibleMount(showParticipantsBar);
+  const { isConnected, wsStatus } = useWebSocket();
+
+  // Ephemeral error message surfaced from server error events with error codes.
+  const [serverError, setServerError] = useState<string | null>(null);
+  const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleServerError = useCallback((message: string) => {
+    setServerError(message);
+    if (serverErrorTimerRef.current) clearTimeout(serverErrorTimerRef.current);
+    serverErrorTimerRef.current = setTimeout(() => setServerError(null), 6000);
+  }, []);
+
+  // Clean up the server-error auto-dismiss timer on unmount. (memory-leak fix)
+  useEffect(() => {
+    return () => {
+      if (serverErrorTimerRef.current) {
+        clearTimeout(serverErrorTimerRef.current);
+        serverErrorTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const sessionStore = useSessionStore();
   const streamTimerRef = useRef<number | null>(null);
@@ -241,6 +263,7 @@ function ChatInterface({
     startFreshSession,
     commandModalPayload,
     closeCommandModal,
+    sendError,
   } = useChatComposerState({
     selectedProject,
     selectedSession,
@@ -309,6 +332,7 @@ function ChatInterface({
     onSessionNotProcessing,
     onNavigateToSession,
     onWebSocketReconnect: handleWebSocketReconnect,
+    onServerError: handleServerError,
     sessionStore,
   });
 
@@ -416,6 +440,12 @@ function ChatInterface({
             >
               <ChevronDown className="h-3.5 w-3.5" />
             </button>
+          </div>
+        )}
+        {/* WS connection status — only visible when not fully connected */}
+        {wsStatus !== 'connected' && (
+          <div className="flex justify-center px-4 pt-2">
+            <WsConnectionBadge status={wsStatus} />
           </div>
         )}
         <ChatMessagesPane
@@ -544,6 +574,8 @@ function ChatInterface({
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
+          isWsConnected={isConnected}
+          sendError={sendError ?? serverError}
         />
       </div>
 

@@ -2,11 +2,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
 
+export type WsConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+
+export type SendMessageResult = { ok: true } | { ok: false; reason: string };
+
 type WebSocketContextType = {
   ws: WebSocket | null;
-  sendMessage: (message: any) => void;
+  sendMessage: (message: any) => SendMessageResult;
   latestMessage: any | null;
   isConnected: boolean;
+  wsStatus: WsConnectionStatus;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -26,12 +31,25 @@ const buildWebSocketUrl = (token: string | null) => {
   return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
 
+// Exponential backoff constants (milliseconds).
+const RECONNECT_BASE_DELAY_MS = 1000;
+const RECONNECT_MAX_DELAY_MS = 30000;
+const RECONNECT_JITTER_MS = 500;
+
+/** Compute next reconnect delay with full-jitter exponential backoff. */
+function calcReconnectDelay(attempt: number): number {
+  const exp = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
+  return exp + Math.random() * RECONNECT_JITTER_MS;
+}
+
 const useWebSocketProviderState = (): WebSocketContextType => {
   const wsRef = useRef<WebSocket | null>(null);
   const unmountedRef = useRef(false); // Track if component is unmounted
   const hasConnectedRef = useRef(false); // Track if we've ever connected (to detect reconnects)
+  const reconnectAttemptRef = useRef(0); // Counts consecutive failures for backoff
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [wsStatus, setWsStatus] = useState<WsConnectionStatus>('disconnected');
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { token } = useAuth();
   // Always read the freshest token in the reconnect path so a token rotation
@@ -88,6 +106,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       websocket.onopen = () => {
         if (myEpoch !== connEpochRef.current) return; // superseded by a newer connect
         setIsConnected(true);
+        setWsStatus('connected');
+        reconnectAttemptRef.current = 0; // Reset backoff counter on successful connection
         wsRef.current = websocket;
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
@@ -114,11 +134,21 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         setIsConnected(false);
         wsRef.current = null;
 
-        // Attempt to reconnect after 3 seconds
+        // Only show "reconnecting" if we've successfully connected before;
+        // on the very first attempt a failure shows as "disconnected".
+        if (hasConnectedRef.current) {
+          setWsStatus('reconnecting');
+        } else {
+          setWsStatus('disconnected');
+        }
+
+        // Exponential backoff reconnect (avoids reconnect storm).
+        const delay = calcReconnectDelay(reconnectAttemptRef.current);
+        reconnectAttemptRef.current += 1;
         reconnectTimeoutRef.current = setTimeout(() => {
           if (unmountedRef.current) return; // Prevent reconnection if unmounted
           connect();
-        }, 3000);
+        }, delay);
       };
 
       websocket.onerror = (error) => {
@@ -131,13 +161,13 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   }, []); // stable: reads the live token from tokenRef, so the onclose
   //          reconnect timer never closes over a stale token/closure.
 
-  const sendMessage = useCallback((message: any) => {
+  const sendMessage = useCallback((message: any): SendMessageResult => {
     const socket = wsRef.current;
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket not connected');
+      return { ok: true };
     }
+    return { ok: false, reason: 'disconnected' };
   }, []);
 
   const value: WebSocketContextType = useMemo(() =>
@@ -145,8 +175,9 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     ws: wsRef.current,
     sendMessage,
     latestMessage,
-    isConnected
-  }), [sendMessage, latestMessage, isConnected]);
+    isConnected,
+    wsStatus,
+  }), [sendMessage, latestMessage, isConnected, wsStatus]);
 
   return value;
 };

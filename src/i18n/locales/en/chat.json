@@ -338,5 +338,21 @@
       "subagent": "Subagent"
     },
     "unknownAuthor": "Unknown author"
+  },
+  "ws": {
+    "statusConnected": "Connected",
+    "statusReconnecting": "Reconnecting…",
+    "statusDisconnected": "Disconnected",
+    "ariaConnected": "WebSocket connected",
+    "ariaReconnecting": "WebSocket reconnecting",
+    "ariaDisconnected": "WebSocket disconnected",
+    "sendFailed": "Message not sent — connection lost",
+    "sendDisabledTitle": "Cannot send — connection lost"
+  },
+  "serverError": {
+    "project_dir_missing": "Project folder not found on disk",
+    "cli_not_installed": "CLI not installed — please install the required CLI tool",
+    "spawn_failed": "Failed to start the process — check server logs for details",
+    "unknown": "An unexpected server error occurred"
   }
 }

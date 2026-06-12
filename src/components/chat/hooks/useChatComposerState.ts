@@ -10,6 +10,7 @@ import type {
   TouchEvent,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../utils/api';
 import { useAuth } from '../../auth/context/AuthContext';
@@ -52,7 +53,7 @@ interface UseChatComposerStateArgs {
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
-  sendMessage: (message: unknown) => void;
+  sendMessage: (message: unknown) => { ok: boolean; reason?: string } | void;
   sendByCtrlEnter?: boolean;
   onSessionActive?: (sessionId?: string | null) => void;
   onSessionProcessing?: (sessionId?: string | null) => void;
@@ -201,6 +202,7 @@ export function useChatComposerState({
   setPendingPermissionRequests,
 }: UseChatComposerStateArgs) {
   const { user } = useAuth();
+  const { t } = useTranslation('chat');
   // Numeric users.id of the signed-in sender, stamped on optimistic user
   // messages so the author avatar resolves locally before the server-stamped
   // echo/history rows arrive (B-MU-UX-FIX-MSG-AUTHOR). Undefined when the
@@ -224,6 +226,9 @@ export function useChatComposerState({
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [thinkingMode, setThinkingMode] = useState('none');
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
+  // Non-null while a send failed due to WS disconnect; cleared on next attempt or after timeout.
+  const [sendError, setSendError] = useState<string | null>(null);
+  const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -584,19 +589,21 @@ export function useChatComposerState({
   // `targetSessionId` is null/undefined for a brand-new conversation. Shared by
   // the composer submit and the explicit "start new session" retry action so
   // both paths stay in lockstep across providers.
+  // Returns false when the WS was not connected (message not sent).
   const dispatchProviderCommand = useCallback(
     (
       messageContent: string,
       targetSessionId: string | null | undefined,
       uploadedImages: unknown[] = [],
-    ) => {
+    ): boolean => {
       const toolsSettings = getToolsSettings();
       const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, messageContent);
       const resume = Boolean(targetSessionId);
 
+      let result: { ok: boolean } | void;
       if (provider === 'cursor') {
-        sendMessage({
+        result = sendMessage({
           type: 'cursor-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -607,7 +614,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'codex') {
-        sendMessage({
+        result = sendMessage({
           type: 'codex-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -618,7 +625,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'gemini') {
-        sendMessage({
+        result = sendMessage({
           type: 'gemini-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -628,7 +635,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'antigravity') {
-        sendMessage({
+        result = sendMessage({
           type: 'antigravity-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -638,7 +645,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'opencode') {
-        sendMessage({
+        result = sendMessage({
           type: 'opencode-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -648,7 +655,7 @@ export function useChatComposerState({
           },
         });
       } else {
-        sendMessage({
+        result = sendMessage({
           type: 'claude-command',
           command: messageContent,
           options: {
@@ -658,6 +665,8 @@ export function useChatComposerState({
           },
         });
       }
+      // If sendMessage returns void (legacy/compat callers), treat as ok.
+      return result == null ? true : result.ok;
     },
     [
       antigravityModel, claudeModel, codexModel, cursorModel, geminiModel, opencodeModel,
@@ -789,7 +798,25 @@ export function useChatComposerState({
         onSessionProcessing?.(effectiveSessionId);
       }
 
-      dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages);
+      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages);
+
+      if (!sent) {
+        // WS was not open — roll back optimistic UI state and surface error.
+        setIsLoading(false);
+        setCanAbortSession(false);
+        setClaudeStatus(null);
+        const errMsg = t('ws.sendFailed', { defaultValue: 'Message not sent — connection lost' });
+        setSendError(errMsg);
+        if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = setTimeout(() => setSendError(null), 6000);
+        return;
+      }
+
+      setSendError(null);
+      if (sendErrorTimerRef.current) {
+        clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = null;
+      }
 
       setInput('');
       inputValueRef.current = '';
@@ -868,6 +895,17 @@ export function useChatComposerState({
   useEffect(() => {
     inputValueRef.current = input;
   }, [input]);
+
+  // Clean up the send-error auto-dismiss timer on unmount to prevent setting
+  // state on an already-unmounted component. (memory-leak fix)
+  useEffect(() => {
+    return () => {
+      if (sendErrorTimerRef.current) {
+        clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -1134,5 +1172,6 @@ export function useChatComposerState({
     isInputFocused,
     commandModalPayload,
     closeCommandModal,
+    sendError,
   };
 }
