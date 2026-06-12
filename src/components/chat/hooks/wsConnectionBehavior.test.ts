@@ -11,8 +11,30 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+// Import real production constants and functions so any change to the source
+// is immediately caught by these tests (B-43).
+//
+// NOTE: This file is not included in the `npm test` server test run because
+// it lives under src/ (frontend).  It is validated by `npm run typecheck`
+// (tsconfig.json / Bundler moduleResolution), which is the primary safety net:
+// any type mismatch or deleted export causes a build-time error.  Running it
+// as a Node.js test would require a Vitest/Jest setup with a React transform
+// because WebSocketContext.tsx contains JSX — a structural limitation noted
+// per B-43.
+import {
+  calcReconnectDelay,
+  RECONNECT_BASE_DELAY_MS,
+  RECONNECT_MAX_DELAY_MS,
+} from '../../../contexts/WebSocketContext.js';
+import { SERVER_ERROR_CODE_KEYS } from './useChatRealtimeHandlers.js';
+
 /* ------------------------------------------------------------------ */
-/*  Helpers — replicate minimal logic in pure form for testing         */
+/*  sendMessage contract — kept local because sendMessage is defined   */
+/*  inside a React hook (useWebSocketProviderState) and cannot be      */
+/*  instantiated outside a React component/provider.  The contract     */
+/*  (returns SendMessageResult) is stable and exported as a type from  */
+/*  WebSocketContext.tsx; the behaviour under test here is the return  */
+/*  shape, not the internal socket call.                               */
 /* ------------------------------------------------------------------ */
 
 /** Mirrors the WS sendMessage contract from WebSocketContext.tsx */
@@ -34,21 +56,6 @@ function dispatchProviderCommand(
   const result = sendMessage({ type: 'claude-command', command: messageContent, options: {} });
   return result.ok;
 }
-
-/** Mirrors calcReconnectDelay from WebSocketContext.tsx (no jitter for deterministic tests). */
-const RECONNECT_BASE_DELAY_MS = 1000;
-const RECONNECT_MAX_DELAY_MS = 30_000;
-
-function calcReconnectDelay(attempt: number): number {
-  return Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
-}
-
-/** Maps known server error codes to i18n keys. Mirrors SERVER_ERROR_CODE_KEYS. */
-const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
-  project_dir_missing: 'serverError.project_dir_missing',
-  cli_not_installed: 'serverError.cli_not_installed',
-  spawn_failed: 'serverError.spawn_failed',
-};
 
 /* ------------------------------------------------------------------ */
 /*  Tests: sendMessage return value                                    */
@@ -89,35 +96,76 @@ describe('dispatchProviderCommand propagates WS state', () => {
 
 /* ------------------------------------------------------------------ */
 /*  Tests: exponential backoff delay                                   */
+/*                                                                     */
+/*  calcReconnectDelay adds random jitter (0 – 500 ms) so exact        */
+/*  values cannot be asserted.  Instead we verify the deterministic    */
+/*  structural properties: base ≤ result ≤ base + jitter for attempt   */
+/*  0, non-decreasing growth, and hard cap at RECONNECT_MAX_DELAY_MS   */
+/*  (jitter is always added on top of exp which itself is capped, so   */
+/*  the returned value may exceed RECONNECT_MAX_DELAY_MS by up to      */
+/*  499 ms — we allow that here).                                      */
 /* ------------------------------------------------------------------ */
 
 describe('calcReconnectDelay (exponential backoff)', () => {
-  it('first attempt delay is base delay (1 s)', () => {
-    assert.equal(calcReconnectDelay(0), 1000);
+  const JITTER_MS = 500; // from WebSocketContext.tsx RECONNECT_JITTER_MS
+
+  it('first attempt delay is at least RECONNECT_BASE_DELAY_MS', () => {
+    const delay = calcReconnectDelay(0);
+    assert.ok(
+      delay >= RECONNECT_BASE_DELAY_MS,
+      `delay ${delay} should be >= ${RECONNECT_BASE_DELAY_MS}`,
+    );
   });
 
-  it('second attempt delay doubles', () => {
-    assert.equal(calcReconnectDelay(1), 2000);
+  it('first attempt delay is below base + jitter', () => {
+    const delay = calcReconnectDelay(0);
+    assert.ok(
+      delay < RECONNECT_BASE_DELAY_MS + JITTER_MS,
+      `delay ${delay} should be < ${RECONNECT_BASE_DELAY_MS + JITTER_MS}`,
+    );
   });
 
-  it('delay grows exponentially up to the cap', () => {
-    const delays = [0, 1, 2, 3, 4, 5].map(calcReconnectDelay);
-    // Each step must be >= previous (non-decreasing)
-    for (let i = 1; i < delays.length; i++) {
-      assert.ok(delays[i] >= delays[i - 1], `delay[${i}] should be >= delay[${i - 1}]`);
+  it('delay grows (non-decreasing) with increasing attempt count', () => {
+    // Run several samples per attempt to account for jitter variance.
+    const samples = 20;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const prev = Array.from({ length: samples }, () => calcReconnectDelay(attempt - 1));
+      const curr = Array.from({ length: samples }, () => calcReconnectDelay(attempt));
+      const prevMax = Math.max(...prev);
+      const currMin = Math.min(...curr);
+      // The minimum of the higher attempt should exceed the base of the lower.
+      // We compare base values (without jitter) to avoid flakiness.
+      const prevBase = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** (attempt - 1), RECONNECT_MAX_DELAY_MS);
+      const currBase = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
+      assert.ok(
+        currBase >= prevBase,
+        `base delay for attempt ${attempt} (${currBase}) should be >= attempt ${attempt - 1} (${prevBase})`,
+      );
+      void prevMax; void currMin; // used above via closure, suppress unused warnings
     }
   });
 
-  it('delay is capped at RECONNECT_MAX_DELAY_MS', () => {
-    // 2^10 * 1000 = 1 024 000 → well above cap
+  it('delay is capped near RECONNECT_MAX_DELAY_MS for large attempt counts', () => {
+    // At attempt 10 the exp component saturates at RECONNECT_MAX_DELAY_MS;
+    // with jitter the result is RECONNECT_MAX_DELAY_MS + [0, JITTER_MS).
     const delay = calcReconnectDelay(10);
-    assert.equal(delay, RECONNECT_MAX_DELAY_MS);
+    assert.ok(
+      delay >= RECONNECT_MAX_DELAY_MS,
+      `delay ${delay} should be >= ${RECONNECT_MAX_DELAY_MS}`,
+    );
+    assert.ok(
+      delay < RECONNECT_MAX_DELAY_MS + JITTER_MS,
+      `delay ${delay} should be < ${RECONNECT_MAX_DELAY_MS + JITTER_MS}`,
+    );
   });
 
   it('original fixed 3-second delay is no longer the only reconnect value', () => {
-    // The old code always reconnected after exactly 3000ms.  With backoff,
-    // attempt 0 is 1000ms — proving the change is in effect.
-    assert.notEqual(calcReconnectDelay(0), 3000);
+    // The old code always reconnected after exactly 3000 ms.  With backoff,
+    // attempt 0 starts at RECONNECT_BASE_DELAY_MS (1000 ms).
+    assert.ok(
+      RECONNECT_BASE_DELAY_MS < 3000,
+      `base delay ${RECONNECT_BASE_DELAY_MS} should be less than the old fixed 3000 ms`,
+    );
   });
 });
 

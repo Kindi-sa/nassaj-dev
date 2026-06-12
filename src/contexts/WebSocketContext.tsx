@@ -32,12 +32,12 @@ const buildWebSocketUrl = (token: string | null) => {
 };
 
 // Exponential backoff constants (milliseconds).
-const RECONNECT_BASE_DELAY_MS = 1000;
-const RECONNECT_MAX_DELAY_MS = 30000;
+export const RECONNECT_BASE_DELAY_MS = 1000;
+export const RECONNECT_MAX_DELAY_MS = 30000;
 const RECONNECT_JITTER_MS = 500;
 
 /** Compute next reconnect delay with full-jitter exponential backoff. */
-function calcReconnectDelay(attempt: number): number {
+export function calcReconnectDelay(attempt: number): number {
   const exp = Math.min(RECONNECT_BASE_DELAY_MS * 2 ** attempt, RECONNECT_MAX_DELAY_MS);
   return exp + Math.random() * RECONNECT_JITTER_MS;
 }

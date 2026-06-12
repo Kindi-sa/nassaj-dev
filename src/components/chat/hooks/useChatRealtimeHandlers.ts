@@ -81,7 +81,7 @@ interface UseChatRealtimeHandlersArgs {
 /* ------------------------------------------------------------------ */
 
 /** Map known server error codes to i18n keys in the 'chat' namespace. */
-const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
+export const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
   project_dir_missing: 'serverError.project_dir_missing',
   cli_not_installed: 'serverError.cli_not_installed',
   spawn_failed: 'serverError.spawn_failed',
