@@ -1271,7 +1271,8 @@
       "status": "done",
       "owner": "frontend-dev",
       "note": "واجهة فقط — build:client نُشر بلا restart؛ commit بانتظار فصل عمل الجلسة الموازية على نفس الملفات",
-      "closed": "2026-06-12"
+      "closed": "2026-06-12",
+      "summary": "commit 78d9a4b: زر التحديث أُزيل من شريط الرأس ونُقل إلى الكتلة العائمة في ChatComposer كعمود flex-col (زر القفز أعلى/التحديث أسفله، كلاهما h-8 w-8 rounded-full، end-4 لـRTL)؛ كل سلوك T-103 محفوظ. WsConnectionBadge بقي شريطاً رفيعاً يظهر عند الانقطاع فقط"
     },
     {
       "id": "T-95",
@@ -1291,9 +1292,11 @@
       "kind": "bug",
       "issue": "B-48",
       "title": "إصلاح تكرار شعار الويكي مرتين في رأس التبويب",
-      "status": "todo",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "مع T-108 في موجة الواجهة بعد التجدد"
+      "note": "مع T-108 في موجة الواجهة بعد التجدد",
+      "closed": "2026-06-12",
+      "summary": "commit 78d9a4b: التكرار سببه عنوان wiki.title في MainContentTitle الخارجي + div عنوان داخلي في WikiPanel sidebar؛ حُذف الداخلي، BookOpen بقي في زر طي الفهرس فقط. عنوان واحد متّسق مع بقية التبويبات"
     },
     {
       "id": "T-111",
@@ -1302,9 +1305,9 @@
       "kind": "doc",
       "issue": "B-49",
       "title": "تقوية محتوى ويكي نسّاج وتصحيح علاقة الكِندِي↔نسّاج بدقة (تعميق 00-overview و01-alkindy و02-nassaj-core بأمثلة وحدود واضحة)",
-      "status": "todo",
+      "status": "in_progress",
       "owner": "content-writer",
-      "note": "بوابة: تثبيت العلاقة الصحيحة أولاً (researcher من alkindy/decisions+policies، ثم سؤال المالك عند الغموض) قبل الصياغة. سياق وكيل T-104: a7e1be03fc8643878"
+      "note": "العلاقة الصحيحة ثُبّتت (researcher): الكِندِي=الشركة/Branded House نقي، دار الكِندِي=ذراع الخدمات فقط، نسّاج=وحدة أدوات AI داخلية لا تُسوَّق، نسّاج كور=العقل/الإعدادات ونسّاج ديف=الواجهة. تحذير: ADR-0001 (Endorsed House+نورس) منسوخ بقرار 2026-05-24 ولا يُستشهد به. سياق T-104: a7e1be03fc8643878"
     },
     {
       "id": "T-112",
