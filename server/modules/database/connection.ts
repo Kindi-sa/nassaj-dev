@@ -145,6 +145,14 @@ export function getConnection(): Database.Database {
   // `nassaj` can read it under the shared system uid. Safe on a live handle.
   restrictDatabasePermissions(dbPath);
 
+  // WAL journal mode: concurrent readers never block writers; a single writer
+  // does not block readers. Safe to enable on an existing DB — SQLite converts
+  // transparently. busy_timeout lets concurrent writes retry for up to 5 s
+  // before returning SQLITE_BUSY, eliminating most race-condition errors under
+  // concurrent session creation and synchronizer activity. (B-38 / ADR-023.)
+  instance.pragma('journal_mode = WAL');
+  instance.pragma('busy_timeout = 5000');
+
   // app_config must exist immediately — the auth middleware reads
   // the JWT secret at module-load time, before initializeDatabase() runs.
   instance.exec(APP_CONFIG_TABLE_SCHEMA_SQL);

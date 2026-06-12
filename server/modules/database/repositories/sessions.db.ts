@@ -49,30 +49,36 @@ export const sessionsDb = {
     const updatedAtValue = normalizeTimestamp(updatedAt);
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
 
-    // First, ensure the project path is recorded in the projects table,
-    // since it's a foreign key in the sessions table.
-    projectsDb.createProjectPath(normalizedProjectPath);
+    // Wrap the project-upsert + session-upsert in a single transaction so a
+    // concurrent UNIQUE violation or mid-flight crash never leaves the sessions
+    // table with a dangling project_path reference or a partial row.  (B-38.)
+    const run = db.transaction(() => {
+      // Ensure the project path exists in the projects table before writing the
+      // session row that carries the FK reference.
+      projectsDb.createProjectPath(normalizedProjectPath);
 
-    db.prepare(
-      `INSERT INTO sessions (session_id, provider, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
-       ON CONFLICT(session_id) DO UPDATE SET
-         provider = excluded.provider,
-         updated_at = excluded.updated_at,
-         project_path = excluded.project_path,
-         jsonl_path = excluded.jsonl_path,
-         isArchived = 0,
-         custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
-    ).run(
-      sessionId,
-      provider,
-      customName ?? null,
-      normalizedProjectPath,
-      jsonlPath ?? null,
-      createdAtValue,
-      updatedAtValue
-    );
+      db.prepare(
+        `INSERT INTO sessions (session_id, provider, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+         ON CONFLICT(session_id) DO UPDATE SET
+           provider = excluded.provider,
+           updated_at = excluded.updated_at,
+           project_path = excluded.project_path,
+           jsonl_path = excluded.jsonl_path,
+           isArchived = 0,
+           custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
+      ).run(
+        sessionId,
+        provider,
+        customName ?? null,
+        normalizedProjectPath,
+        jsonlPath ?? null,
+        createdAtValue,
+        updatedAtValue
+      );
+    });
 
+    run();
     return sessionId;
   },
 

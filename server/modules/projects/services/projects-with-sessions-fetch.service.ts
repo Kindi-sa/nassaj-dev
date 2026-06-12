@@ -70,6 +70,18 @@ export type ProjectListItem = {
   // its members: the project creator, a project_members 'owner', or the platform
   // owner (an administrative capability, distinct from content visibility).
   canManageVisibility: boolean;
+  /**
+   * Whether the project directory currently exists on disk.
+   *
+   * `true`  — the directory is present and accessible on the server filesystem.
+   * `false` — the path is missing (deleted, unmounted, or never created). The
+   *           frontend uses this to render a "folder missing" warning badge next
+   *           to the project name. A false value does NOT archive the project
+   *           automatically — archival is performed by the reconcile service.
+   *
+   * CONTRACT (B-38): key name is `dirExists`, boolean, always present.
+   */
+  dirExists: boolean;
   sessions: SessionSummary[];
   cursorSessions: SessionSummary[];
   codexSessions: SessionSummary[];
@@ -139,10 +151,29 @@ const MAX_PROJECT_SESSIONS_PAGE_SIZE = 200;
 
 /**
  * Generate better display name from path.
+ *
+ * B-37: The legacy fallback that replaced all '-' with '/' was unreliable
+ * because it corrupts paths containing real hyphens (e.g. `nassaj-dev`,
+ * `my-app`). `actualProjectDir` (the on-disk cwd stored in the DB row) is
+ * now always the primary source. The slug-decode fallback is kept only for
+ * very old rows where the cwd column is absent, and even then it fires only
+ * when the slug starts with '-' (the encoding of a leading '/') — so project
+ * names containing hyphens are never accidentally decoded.
  */
 export async function generateDisplayName(projectName: string, actualProjectDir: string | null = null): Promise<string> {
-  // Use actual project directory if provided, otherwise decode from project name.
-  const projectPath = actualProjectDir || projectName.replace(/-/g, '/');
+  // Prefer the real on-disk path recorded in the DB row — it is authoritative
+  // and never needs reconstruction.
+  let projectPath: string;
+  if (actualProjectDir) {
+    projectPath = actualProjectDir;
+  } else if (projectName.startsWith('-')) {
+    // B-37 legacy slug: a string starting with '-' is an encoded absolute path
+    // (the leading '/' was stored as '-'). Reconstruct cautiously.
+    projectPath = projectName.replace(/-/g, '/');
+  } else {
+    // Modern or non-encoded name — use as-is to preserve real hyphens.
+    projectPath = projectName;
+  }
 
   // Try to read package.json from the project path.
   try {
@@ -369,7 +400,17 @@ export async function getProjectsWithSessions(
       ? new Set(projectMembersDb.listUserOwnedProjectIds(currentUserId))
       : new Set<string>();
 
-  for (const row of projectRows) {
+  // B-38 (parallelised): resolve all dirExists checks in one concurrent batch
+  // instead of awaiting each fs.access inside the loop (which serialises I/O
+  // across every project). Results are indexed by position to match projectRows.
+  const dirExistsResults = await Promise.all(
+    projectRows.map((row) =>
+      fs.access(row.project_path).then(() => true, () => false),
+    ),
+  );
+
+  for (let rowIdx = 0; rowIdx < projectRows.length; rowIdx++) {
+    const row = projectRows[rowIdx];
     processedProjects += 1;
 
     const projectId = row.project_id;
@@ -399,6 +440,8 @@ export async function getProjectsWithSessions(
     const canManageVisibility =
       isOwner || (currentUserId !== null && options.isPlatformOwner === true);
 
+    const dirExists = dirExistsResults[rowIdx];
+
     projects.push({
       projectId,
       path: projectPath,
@@ -410,6 +453,7 @@ export async function getProjectsWithSessions(
       isOwner,
       visibility,
       canManageVisibility,
+      dirExists,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,
       codexSessions: sessionsPage.sessionsByProvider.codex,
@@ -465,7 +509,15 @@ export async function getArchivedProjectsWithSessions(
 
   const archivedProjects: ArchivedProjectListItem[] = [];
 
-  for (const row of projectRows) {
+  // B-38 (parallelised): resolve all dirExists checks in one concurrent batch.
+  const archivedDirExistsResults = await Promise.all(
+    projectRows.map((row) =>
+      fs.access(row.project_path).then(() => true, () => false),
+    ),
+  );
+
+  for (let rowIdx = 0; rowIdx < projectRows.length; rowIdx++) {
+    const row = projectRows[rowIdx];
     const displayName =
       row.custom_project_name && row.custom_project_name.trim().length > 0
         ? row.custom_project_name
@@ -482,6 +534,8 @@ export async function getArchivedProjectsWithSessions(
     const canManageVisibility =
       isOwner || (currentUserId !== null && options.isPlatformOwner === true);
 
+    const archivedDirExists = archivedDirExistsResults[rowIdx];
+
     archivedProjects.push({
       projectId: row.project_id,
       path: row.project_path,
@@ -494,6 +548,7 @@ export async function getArchivedProjectsWithSessions(
       isOwner,
       visibility,
       canManageVisibility,
+      dirExists: archivedDirExists,
       isArchived: true,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,

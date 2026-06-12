@@ -637,6 +637,102 @@ const migrateStarredSessions = (db: Database): void => {
   db.exec('CREATE INDEX IF NOT EXISTS idx_starred_sessions_user ON starred_sessions(user_id)');
 };
 
+/**
+ * Adds ON DELETE CASCADE from session_agents_cache and session_agents_meta to
+ * sessions. SQLite does not support ALTER TABLE … ADD CONSTRAINT, so we use
+ * the safe rename-and-rebuild pattern inside an explicit transaction.
+ *
+ * Idempotent: checks whether the FK already carries the CASCADE action by
+ * inspecting `PRAGMA foreign_key_list` — a rebuild is only performed when
+ * needed, so this function is always safe to call during boot.
+ *
+ * Data preservation is guaranteed: all existing rows are copied to the new
+ * tables before the old ones are dropped. The operation runs under a single
+ * transaction so a partial failure leaves the original tables intact.
+ *
+ * (B-38 / ADR-023.)
+ */
+const migrateSessionAgentsCascade = (db: Database): void => {
+  type FkListRow = { table: string; on_delete: string };
+
+  const cascadeNeededFor = (tableName: string): boolean => {
+    if (!tableExists(db, tableName)) {
+      return false;
+    }
+    const fkList = db.prepare(`PRAGMA foreign_key_list(${tableName})`).all() as FkListRow[];
+    // Look for the FK that points at sessions — if it's already CASCADE we're done.
+    const sessionFk = fkList.find((row) => row.table === 'sessions');
+    return !sessionFk || sessionFk.on_delete !== 'CASCADE';
+  };
+
+  const needsCacheRebuild = cascadeNeededFor('session_agents_cache');
+  const needsMetaRebuild = cascadeNeededFor('session_agents_meta');
+
+  if (!needsCacheRebuild && !needsMetaRebuild) {
+    return;
+  }
+
+  console.log('Running migration: Adding ON DELETE CASCADE to session_agents tables');
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN TRANSACTION');
+
+    if (needsCacheRebuild) {
+      db.exec('DROP TABLE IF EXISTS session_agents_cache__new');
+      db.exec(`
+        CREATE TABLE session_agents_cache__new (
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          agent_kind TEXT NOT NULL,
+          invocation_count INTEGER DEFAULT 1,
+          PRIMARY KEY (session_id, agent_name, agent_kind),
+          FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+        )
+      `);
+      db.exec(`
+        INSERT INTO session_agents_cache__new
+          (session_id, agent_name, agent_kind, invocation_count)
+        SELECT session_id, agent_name, agent_kind, invocation_count
+        FROM session_agents_cache
+      `);
+      db.exec('DROP TABLE session_agents_cache');
+      db.exec('ALTER TABLE session_agents_cache__new RENAME TO session_agents_cache');
+      // Recreate the index that normally lives in migrateParticipantsAndAgents.
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_session_agents_cache_session ON session_agents_cache(session_id)'
+      );
+    }
+
+    if (needsMetaRebuild) {
+      db.exec('DROP TABLE IF EXISTS session_agents_meta__new');
+      db.exec(`
+        CREATE TABLE session_agents_meta__new (
+          session_id TEXT PRIMARY KEY,
+          transcript_mtime INTEGER NOT NULL,
+          parsed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+        )
+      `);
+      db.exec(`
+        INSERT INTO session_agents_meta__new
+          (session_id, transcript_mtime, parsed_at)
+        SELECT session_id, transcript_mtime, parsed_at
+        FROM session_agents_meta
+      `);
+      db.exec('DROP TABLE session_agents_meta');
+      db.exec('ALTER TABLE session_agents_meta__new RENAME TO session_agents_meta');
+    }
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -706,6 +802,10 @@ export const runMigrations = (db: Database) => {
 
     // Per-user session stars — after users exist so the FK resolves.
     migrateStarredSessions(db);
+
+    // FK CASCADE on session_agents tables — must run after sessions exist so
+    // the REFERENCES sessions(session_id) constraint is satisfiable. (B-38.)
+    migrateSessionAgentsCascade(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {
