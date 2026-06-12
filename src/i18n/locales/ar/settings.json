@@ -138,7 +138,8 @@
       "removeButton": "إزالة",
       "uploadAria": "رفع صورة شعار",
       "previewAlt": "معاينة الشعار الحالي",
-      "hint": "PNG أو JPEG أو WebP أو SVG. بحد أقصى 2 ميغابايت."
+      "hint": "PNG أو JPEG أو WebP أو SVG. بحد أقصى 2 ميغابايت.",
+      "uploadAria2": ""
     },
     "savedLogoOnly": "تم حفظ وضع العرض.",
     "savedSplash": "تم حفظ تفضيل شاشة التحميل.",
@@ -651,6 +652,9 @@
       },
       "antigravity": {
         "description": "Google AI Pro عبر أداة agy CLI"
+      },
+      "opencode": {
+        "description": "مساعد OpenCode عبر سطر الأوامر"
       }
     },
     "antigravity": {
@@ -760,7 +764,8 @@
     "description": {
       "claude": "خوادم Model Context Protocol توفّر لـ Claude أدوات ومصادر بيانات إضافية",
       "cursor": "خوادم Model Context Protocol توفّر لـ Cursor أدوات ومصادر بيانات إضافية",
-      "codex": "خوادم Model Context Protocol توفّر لـ Codex أدوات ومصادر بيانات إضافية"
+      "codex": "خوادم Model Context Protocol توفّر لـ Codex أدوات ومصادر بيانات إضافية",
+      "opencode": "خوادم Model Context Protocol توفّر لـ OpenCode أدوات ومصادر بيانات إضافية"
     },
     "addButton": "إضافة خادم MCP",
     "empty": "لا توجد خوادم MCP معدّة",

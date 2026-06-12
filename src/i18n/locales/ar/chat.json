@@ -33,7 +33,8 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "gemini": "Gemini",
-    "antigravity": "Antigravity"
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode"
   },
   "subagent": {
     "badge": "وكيل فرعي",
@@ -224,6 +225,7 @@
       "codex": "جاهز لاستخدام Codex مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "gemini": "جاهز لاستخدام Gemini مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
+      "opencode": "جاهز لاستخدام OpenCode مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "default": "اختر provider أعلاه للبدء"
     },
     "antigravity": {
