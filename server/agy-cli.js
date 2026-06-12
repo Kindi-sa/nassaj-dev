@@ -28,6 +28,8 @@ import {
 } from './modules/websocket/services/presence.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { userConfigDir } from './services/isolation/provision-user-dirs.js';
 import { isProviderIsolated } from './services/provider-sharing.js';
@@ -565,6 +567,22 @@ async function spawnAntigravity(command, options = {}, ws) {
         .replace(/[^\x20-\x7E]/g, '')
         .trim();
 
+    // B-31: verify the project directory exists before acquiring the discovery
+    // lock and spawning agy. Release the lock if already held (shouldn't be at
+    // this point, but guard defensively).
+    if (cwd || projectPath) {
+        const cwdCheck = await checkCwdExists(cleanCwd);
+        if (!cwdCheck.ok) {
+            freeDiscoveryLock();
+            if (ws) {
+                ws.send(createNormalizedMessage(
+                    buildCwdMissingPayload(cwdCheck.error, { sessionId: sessionId || null, provider: 'antigravity' })
+                ));
+            }
+            return { code: 1, sessionId };
+        }
+    }
+
     // agy in --print mode ignores the OS process cwd and defaults to its internal
     // scratch directory (~/.gemini/antigravity-cli/scratch). Without an explicit
     // workspace it wanders the home tree and latches onto unrelated projects
@@ -615,6 +633,13 @@ async function spawnAntigravity(command, options = {}, ws) {
         sessionManager.createSession(finalSessionId, cwd || projectPath || process.cwd());
     }
 
+    // B-40e: stamp sessionId on the writer as early as possible so SSE / API
+    // callers that read ws.sessionId before the first stdout chunk get the correct
+    // value rather than the temporary connectionId or a stale previous run's id.
+    if (ws && ws.setSessionId && typeof ws.setSessionId === 'function') {
+        ws.setSessionId(finalSessionId);
+    }
+
     // B-N-RESUME (clean buffer): a new run for a sessionId that carries a prior,
     // already-terminated entry must NOT inherit the previous run's transcript.
     // Drop the stale entry (and cancel its pending post-close drop) before the
@@ -640,9 +665,17 @@ async function spawnAntigravity(command, options = {}, ws) {
     // B-N5 rekey: hand the temporary connectionId buffer over to the real
     // sessionId. After this, registryKey is the sessionId and all subsequent
     // live payloads (and attach/isActive lookups) address the session directly.
+    // B-40b: wrap in try/catch so a concurrent rekey collision (simultaneous
+    // resume on the same socket) does not crash the spawn pipeline — fall back
+    // to a fresh open under the finalSessionId instead.
     if (connectionId && finalSessionId && connectionId !== finalSessionId) {
-        agySessionRegistry.rekey(connectionId, finalSessionId);
-        registryKey = finalSessionId;
+        try {
+            agySessionRegistry.rekey(connectionId, finalSessionId);
+            registryKey = finalSessionId;
+        } catch (rekeyErr) {
+            console.warn('[agy] rekey failed (concurrent resume?); opening fresh entry:', rekeyErr?.message || rekeyErr);
+            registryKey = finalSessionId;
+        }
     }
     // Mark the session active in the single source of truth (B-N7). open() also
     // re-initialises a fresh empty entry after a clean-buffer drop above, so the
@@ -723,7 +756,9 @@ async function spawnAntigravity(command, options = {}, ws) {
         });
     } catch (err) {
         freeDiscoveryLock();
-        safeSend({ kind: 'error', content: `Failed to launch agy: ${err.message}`, sessionId: finalSessionId });
+        // B-32: map spawn error to a structured code.
+        const mapped = mapSpawnError(err);
+        safeSend({ kind: 'error', code: mapped.code, content: mapped.fallbackMessage, sessionId: finalSessionId });
         notifyTerminal({ error: err });
         throw err;
     }

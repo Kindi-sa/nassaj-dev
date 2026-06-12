@@ -901,6 +901,16 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       }
 
       finalProjectPath = await cloneGitHubRepo(githubUrl.trim(), tokenToUse, targetPath);
+
+      // B-36 edge case: a githubUrl-only request generates its own clone path which
+      // bypassed the validateWorkspacePath pre-flight above (only projectPath was
+      // checked). Run the same containment gate on the post-clone path so the auto-
+      // generated clone target also stays inside WORKSPACES_ROOT and is never a
+      // system directory.
+      const clonePathValidation = await validateWorkspacePath(finalProjectPath);
+      if (!clonePathValidation.valid) {
+        return res.status(400).json({ error: clonePathValidation.error });
+      }
     } else {
       // Use existing project path
       finalProjectPath = normalizeProjectPath(path.resolve(projectPath));

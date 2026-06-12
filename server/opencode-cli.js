@@ -9,6 +9,8 @@ import { providerAuthService } from './modules/providers/services/provider-auth.
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createNormalizedMessage, getOpenCodeDatabasePath } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
@@ -83,6 +85,20 @@ function readOpenCodeTokenUsage(sessionId) {
 }
 
 async function spawnOpenCode(command, options = {}, ws) {
+  // B-31: verify the project directory exists before spawning OpenCode.
+  const cwdToCheck = options.cwd || options.projectPath;
+  if (cwdToCheck) {
+    const cwdCheck = await checkCwdExists(cwdToCheck);
+    if (!cwdCheck.ok) {
+      if (ws) {
+        ws.send(createNormalizedMessage(
+          buildCwdMissingPayload(cwdCheck.error, { sessionId: options.sessionId || null, provider: 'opencode' })
+        ));
+      }
+      return;
+    }
+  }
+
   return new Promise((resolve, reject) => {
     const { sessionId, projectPath, cwd, model, sessionSummary } = options;
     const workingDir = cwd || projectPath || process.cwd();
@@ -291,13 +307,22 @@ async function spawnOpenCode(command, options = {}, ws) {
         activeOpenCodeProcesses.delete(finalSessionId);
         activeOpenCodeProcesses.delete(processKey);
 
+        // B-32: map spawn errors to structured codes.
         const installed = await providerAuthService.isProviderInstalled('opencode');
-        const errorContent = !installed
-          ? 'OpenCode CLI is not installed. Install it from https://opencode.ai/docs/'
-          : error.message;
+        let errorCode;
+        let errorContent;
+        if (!installed) {
+          errorCode = 'cli_not_installed';
+          errorContent = 'OpenCode CLI is not installed. Install it from https://opencode.ai/docs/';
+        } else {
+          const mapped = mapSpawnError(error);
+          errorCode = mapped.code;
+          errorContent = mapped.fallbackMessage;
+        }
 
         ws.send(createNormalizedMessage({
           kind: 'error',
+          code: errorCode,
           content: errorContent,
           sessionId: finalSessionId,
           provider: 'opencode',

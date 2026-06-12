@@ -29,6 +29,8 @@ import {
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createNormalizedMessage } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
@@ -688,9 +690,10 @@ async function handleImages(command, images, cwd) {
   }
 
   try {
-    // Create temp directory in the project directory
-    const workingDir = cwd || process.cwd();
-    tempDir = path.join(workingDir, '.tmp', 'images', Date.now().toString());
+    // B-40f: use os.tmpdir() instead of a hard-coded project path so temp
+    // images never land inside the project tree (avoids accidental git tracking
+    // and works regardless of the project cwd).
+    tempDir = path.join(os.tmpdir(), 'nassaj-claude-images', Date.now().toString());
     await fs.mkdir(tempDir, { recursive: true });
 
     // Save each image to a temp file
@@ -834,6 +837,28 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   // the transcript). Updated to the image-annotated form after handleImages so
   // the authorship hash recorded below matches the transcript line.
   let promptTextForAuthorship = command;
+
+  // B-31: verify the project directory exists before attempting spawn.
+  // A missing cwd causes a confusing ENOENT after SDK init; surface it early
+  // with a classified error the frontend can translate via the error code.
+  const cwdToCheck = options.cwd || options.projectPath;
+  if (cwdToCheck) {
+    const cwdCheck = await checkCwdExists(cwdToCheck);
+    if (!cwdCheck.ok) {
+      // B-31/B-33: surface the cwd-missing error once, with the isNewSessionError
+      // flag set when there is no sessionId yet so the frontend can correlate the
+      // failure with the originating request. A second identical message is NOT
+      // sent — one classified error is sufficient.
+      ws.send(createNormalizedMessage(
+        buildCwdMissingPayload(cwdCheck.error, {
+          sessionId: sessionId || null,
+          provider: 'claude',
+          isNewSessionError: !sessionId,
+        })
+      ));
+      return { ok: false };
+    }
+  }
 
   // Record the authenticated human who spawned this run as a session
   // participant. Once per spawn (idempotent at the DB layer too) and only when
@@ -1150,6 +1175,12 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   } catch (error) {
     console.error('SDK query error:', error);
 
+    // B-40a: cancel dangling tool approvals so approval promises resolve
+    // immediately rather than leaking until TOOL_APPROVAL_TIMEOUT_MS.
+    if (capturedSessionId) {
+      cancelPendingApprovalsForSession(capturedSessionId);
+    }
+
     // Clean up session on error
     if (capturedSessionId) {
       removeSession(capturedSessionId);
@@ -1166,13 +1197,30 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     }
 
     // Check if Claude CLI is installed for a clearer error message
+    // B-32: map spawn/runtime errors to structured codes.
     const installed = await providerAuthService.isProviderInstalled('claude');
-    const errorContent = !installed
-      ? 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code'
-      : error.message;
+    let errorCode;
+    let errorContent;
+    if (!installed) {
+      errorCode = 'cli_not_installed';
+      errorContent = 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code';
+    } else {
+      const mapped = mapSpawnError(error);
+      errorCode = mapped.code;
+      errorContent = mapped.fallbackMessage;
+    }
 
-    // Send error to WebSocket
-    ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    // B-33: for a new session (no prior sessionId), include a requestId so the
+    // frontend can correlate the error with the originating spawn request.
+    const errorSessionId = capturedSessionId || sessionId || null;
+    ws.send(createNormalizedMessage({
+      kind: 'error',
+      code: errorCode,
+      content: errorContent,
+      sessionId: errorSessionId,
+      provider: 'claude',
+      ...(!errorSessionId ? { isNewSessionError: true } : {}),
+    }));
     notifyRunFailed({
       userId: ws?.userId || null,
       provider: 'claude',
@@ -1248,6 +1296,11 @@ async function abortClaudeSDKSession(sessionId) {
   try {
     console.log(`Aborting SDK session: ${sessionId}`);
 
+    // B-40a: cancel any tool approval that is waiting for user interaction
+    // so the approval promise resolves immediately instead of blocking for
+    // TOOL_APPROVAL_TIMEOUT_MS after the session is already aborted.
+    cancelPendingApprovalsForSession(sessionId);
+
     // Call interrupt() on the query instance
     await session.instance.interrupt();
 
@@ -1283,6 +1336,25 @@ function isClaudeSDKSessionActive(sessionId) {
  */
 function getActiveClaudeSDKSessions() {
   return getAllSessions();
+}
+
+/**
+ * B-40a: Cancel all pending tool-approval callbacks for a session and signal
+ * each one as cancelled. Called on abort and on session error so dangling
+ * approval promises are resolved instead of waiting for TOOL_APPROVAL_TIMEOUT_MS.
+ *
+ * @param {string} sessionId - The session ID whose approvals should be cancelled
+ */
+function cancelPendingApprovalsForSession(sessionId) {
+  for (const [requestId, resolver] of pendingToolApprovals.entries()) {
+    if (resolver._sessionId === sessionId) {
+      // Resolve with a cancelled decision so the permission_request flow
+      // returns a deny rather than blocking until the timeout fires.
+      resolver({ allow: false, cancelled: true });
+      // Note: resolver itself removes itself from pendingToolApprovals via the
+      // cleanup() registered in waitForToolApproval, so no manual delete here.
+    }
+  }
 }
 
 /**
@@ -1336,6 +1408,7 @@ export {
   getActiveClaudeSDKSessions,
   resolveToolApproval,
   getPendingApprovalsForSession,
+  cancelPendingApprovalsForSession,
   reconnectSessionWriter,
   resolveContextWindow,
   getClaudeBuiltInCommands,
