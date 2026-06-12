@@ -4,6 +4,7 @@ import { useClaudeUsage } from '../../../quick-settings-panel/hooks/useClaudeUsa
 import {
   clampUtilization,
   formatPercent,
+  formatResetTime,
   usageTextColorClass,
 } from '../../../quick-settings-panel/claudeUsageHelpers';
 import type { ClaudeUsage } from '../../../quick-settings-panel/claudeUsageTypes';
@@ -80,7 +81,7 @@ export default function HeaderUsageIndicator() {
     const win = data[key];
     if (win === null) return [];
     const clamped = clampUtilization(win.utilization);
-    return [{ letter, clamped }];
+    return [{ letter, clamped, resetsAt: win.resetsAt }];
   });
 
   // Nothing to show — all windows are null.
@@ -92,19 +93,31 @@ export default function HeaderUsageIndicator() {
       className="hidden xl:flex items-center gap-3 flex-shrink-0 select-none"
       aria-label={t('claudeUsage.title')}
     >
-      {items.map(({ letter, clamped }) => {
+      {items.map(({ letter, clamped, resetsAt }) => {
         const percent = formatPercent(clamped, i18n.language);
         const colorClass = usageTextColorClass(clamped);
         // Resolve the human-readable window label for aria/title.
         const windowKey = WINDOWS.find((w) => w.letter === letter)!.key;
         const label = t(`claudeUsage.windows.${windowKey}`);
+        // Build tooltip: show reset time when available, label-only otherwise.
+        const resetText = formatResetTime(resetsAt, i18n.language);
+        const tooltip = resetText
+          ? `${label} — ${t('claudeUsage.resetsIn', { time: resetText })}`
+          : label;
+        // aria-label carries both the percentage and optional reset time so
+        // screen-reader users receive the full context (the percentage is
+        // visually rendered but the tooltip alone omits it when no reset time
+        // is present, and even with it the percentage is buried).
+        const ariaLabel = resetText
+          ? `${label}: ${percent} — ${t('claudeUsage.resetsIn', { time: resetText })}`
+          : `${label}: ${percent}`;
 
         return (
           <span
             key={letter}
             className="flex items-baseline gap-0.5 text-xs"
-            title={`${label}: ${percent}`}
-            aria-label={`${label}: ${percent}`}
+            title={tooltip}
+            aria-label={ariaLabel}
           >
             <span className="font-semibold text-primary">{letter}</span>
             <span className={`tabular-nums ${colorClass}`}>{percent}</span>
