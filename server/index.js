@@ -93,7 +93,7 @@ import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
@@ -433,8 +433,9 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
 // /api/config endpoint removed - no longer needed
 // Frontend now uses window.location for WebSocket URLs
 
-// System update endpoint
-app.post('/api/system/update', authenticateToken, async (req, res) => {
+// System update endpoint (B-36: privileged — spawns npm/git on the host, so it
+// is restricted to admin-level roles, same gate as /api/admin).
+app.post('/api/system/update', authenticateToken, requireRole('owner', 'admin'), async (req, res) => {
     try {
         // Get the project root directory (parent of server directory)
         const projectRoot = APP_ROOT;

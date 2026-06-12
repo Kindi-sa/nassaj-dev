@@ -150,11 +150,26 @@ function isSpawnProjectVisible(
 ): boolean {
   const options = (data.options ?? {}) as { cwd?: unknown };
   const cwd = typeof options.cwd === 'string' ? options.cwd.trim() : '';
-  if (!cwd) {
+  return isProjectPathVisibleToUser(cwd, userId);
+}
+
+/**
+ * Path-based form of the B-PRIV spawn guard, shared with the `/shell` PTY
+ * handler (B-36): given a raw project path and the JWT-authenticated user id,
+ * returns true when a run/terminal may be started inside that path. Empty and
+ * unregistered paths are allowed (creation/first-run flow); a KNOWN private
+ * project is only visible to its members.
+ */
+export function isProjectPathVisibleToUser(
+  projectPath: string,
+  userId: string | number | null
+): boolean {
+  const trimmedPath = typeof projectPath === 'string' ? projectPath.trim() : '';
+  if (!trimmedPath) {
     return true;
   }
 
-  const projectRow = projectsDb.getProjectPath(cwd);
+  const projectRow = projectsDb.getProjectPath(trimmedPath);
   if (!projectRow) {
     // Path not yet registered as a project — creation/first-run flow.
     return true;

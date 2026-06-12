@@ -13,7 +13,7 @@ import { spawnOpenCode } from '../opencode-cli.js';
 import { Octokit } from '@octokit/rest';
 import { providerModelsService } from '../modules/providers/services/provider-models.service.js';
 import { IS_PLATFORM } from '../constants/config.js';
-import { normalizeProjectPath } from '../shared/utils.js';
+import { normalizeProjectPath, validateWorkspacePath } from '../shared/utils.js';
 import { buildTokenPushUrl } from '../utils/gitIdentity.js';
 
 const router = express.Router();
@@ -863,6 +863,17 @@ router.post('/', validateExternalApiKey, async (req, res) => {
 
   if (!['claude', 'cursor', 'codex', 'gemini', 'opencode'].includes(provider)) {
     return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "gemini", or "opencode"' });
+  }
+
+  // B-36: a client-supplied projectPath (existing project or clone target) must
+  // resolve (symlinks included) inside WORKSPACES_ROOT — same containment gate
+  // as project creation — so an API key cannot point the agent at arbitrary
+  // host directories (e.g. /etc, another user's tree).
+  if (projectPath) {
+    const workspaceValidation = await validateWorkspacePath(projectPath);
+    if (!workspaceValidation.valid) {
+      return res.status(400).json({ error: workspaceValidation.error });
+    }
   }
 
   // Validate GitHub branch/PR creation requirements

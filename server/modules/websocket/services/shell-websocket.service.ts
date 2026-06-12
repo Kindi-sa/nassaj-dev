@@ -5,7 +5,10 @@ import path from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
-import { readRequestUserId } from '@/modules/websocket/services/chat-websocket.service.js';
+import {
+  isProjectPathVisibleToUser,
+  readRequestUserId,
+} from '@/modules/websocket/services/chat-websocket.service.js';
 import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
@@ -301,6 +304,16 @@ export function handleShellConnection(
             );
           }
           ws.close(4401, 'Authentication required');
+          return;
+        }
+
+        // B-36 / B-PRIV: same spawn guard as chat — refuse to open a PTY inside
+        // a KNOWN private project the authenticated user is not a member of
+        // (404-equivalent), before any reattach or spawn. Unregistered paths
+        // pass (creation/first-run flow), mirroring the chat behavior.
+        if (!isProjectPathVisibleToUser(projectPath, userId)) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Project not found' }));
+          ws.close(4404, 'Project not found');
           return;
         }
 
