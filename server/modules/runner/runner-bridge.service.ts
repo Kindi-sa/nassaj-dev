@@ -261,21 +261,45 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
 
 // ---- CONTROL writes (atomic; one direction: bridge writes, runner reads) ----
 
-/** Atomically merge the `enabled` field of the matched registry entry only. */
+/**
+ * Atomically merge the `enabled` field of the matched registry entry only.
+ *
+ * Concurrency (finding B-runner-RMW): the runner also rewrites registry.json
+ * (registry_disable / fail_project) atomically under its global flock. Both
+ * writes are atomic (temp + rename) but neither side locks the read-modify-write
+ * window, so a stale read here could clobber a concurrent runner write to a
+ * DIFFERENT entry. We shrink that window to the minimum by re-reading the
+ * registry IMMEDIATELY before serializing the write and merging only the single
+ * `enabled` field onto the freshest snapshot — never the stale one. The window
+ * is now just (re-read -> JSON.stringify -> rename), microseconds wide, and the
+ * runner only writes registry on the rare fail path. ADR-RUNNER-BRIDGE-001
+ * accepts atomic-merge-on-fresh-read as sufficient here.
+ */
 async function setRegistryEnabled(name: string, enabled: boolean): Promise<boolean> {
-  const registry = await readJsonOrNull<Registry>(REGISTRY_FILE());
-  if (!registry?.projects) {
+  const probe = await readJsonOrNull<Registry>(REGISTRY_FILE());
+  if (!probe?.projects) {
     return false;
   }
-  const entry = registry.projects.find((p) => p.name === name);
-  if (!entry) {
+  const probeEntry = probe.projects.find((p) => p.name === name);
+  if (!probeEntry) {
     return false;
   }
-  if (entry.enabled === enabled) {
+  if (probeEntry.enabled === enabled) {
     return true; // idempotent no-op
   }
-  entry.enabled = enabled;
-  await atomicWrite(REGISTRY_FILE(), `${JSON.stringify(registry, null, 2)}\n`);
+
+  // Re-read the freshest registry right before writing so a runner write that
+  // landed during our resolution above is preserved; mutate only our one field.
+  const fresh = (await readJsonOrNull<Registry>(REGISTRY_FILE())) ?? probe;
+  const freshEntry = fresh.projects?.find((p) => p.name === name);
+  if (!freshEntry) {
+    return false; // entry vanished between reads (runner removed it) — abort.
+  }
+  if (freshEntry.enabled === enabled) {
+    return true; // someone already set our target value — no-op.
+  }
+  freshEntry.enabled = enabled;
+  await atomicWrite(REGISTRY_FILE(), `${JSON.stringify(fresh, null, 2)}\n`);
   return true;
 }
 
