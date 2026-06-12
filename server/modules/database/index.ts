@@ -1,4 +1,10 @@
 export { initializeDatabase } from '@/modules/database/init-db.js';
+export {
+  reconcileProjects,
+  startReconcileScheduler,
+  stopReconcileScheduler,
+} from '@/modules/database/project-reconcile.service.js';
+export type { ReconcileResult } from '@/modules/database/project-reconcile.service.js';
 export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
 export { appConfigDb } from '@/modules/database/repositories/app-config.js';
@@ -21,6 +27,8 @@ export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 export { starredSessionsDb } from '@/modules/database/repositories/starred-sessions.db.js';
 export type { StarredSessionRow } from '@/modules/database/repositories/starred-sessions.db.js';
+export { uiPreferencesDb } from '@/modules/database/repositories/ui-preferences.js';
+export type { UiPreferences } from '@/modules/database/repositories/ui-preferences.js';
 export { userDb } from '@/modules/database/repositories/users.js';
 export { vapidKeysDb } from '@/modules/database/repositories/vapid-keys.js';
 export { webauthnCredentialsDb } from '@/modules/database/repositories/webauthn-credentials.js';

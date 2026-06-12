@@ -87,6 +87,7 @@ mock.module(dbIndexUrl, {
     credentialsDb: {},
     githubTokensDb: {},
     notificationPreferencesDb: {},
+    uiPreferencesDb: {},
     participantsDb: {},
     projectsDb: {},
     sessionAgentsDb: {},

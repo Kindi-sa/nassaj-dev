@@ -5,7 +5,7 @@ import path from 'path';
 import express from 'express';
 import multer from 'multer';
 
-import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb, appConfigDb } from '../modules/database/index.js';
+import { apiKeysDb, credentialsDb, notificationPreferencesDb, pushSubscriptionsDb, appConfigDb, uiPreferencesDb } from '../modules/database/index.js';
 import { requireRole } from '../middleware/auth.js';
 import { getPublicKey } from '../services/vapid-keys.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '../services/notification-orchestrator.js';
@@ -535,6 +535,40 @@ router.put('/notification-preferences', async (req, res) => {
   } catch (error) {
     console.error('Error saving notification preferences:', error);
     res.status(500).json({ error: 'Failed to save notification preferences' });
+  }
+});
+
+// ===============================
+// UI Preferences (synced across devices, per user)
+// ===============================
+
+router.get('/ui-preferences', async (req, res) => {
+  try {
+    const preferences = uiPreferencesDb.getUiPreferences(req.user.id);
+    res.json({ preferences });
+  } catch (error) {
+    console.error('Error fetching UI preferences:', error);
+    res.status(500).json({ error: 'Failed to fetch UI preferences' });
+  }
+});
+
+router.put('/ui-preferences', async (req, res) => {
+  const body = req.body;
+  // Body must be a JSON object (not null, array, or primitive). express.json
+  // parses a bare array/string into a non-object body; reject those up front.
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return res.status(400).json({ error: 'UI preferences must be a JSON object' });
+  }
+  try {
+    const preferences = uiPreferencesDb.updateUiPreferences(req.user.id, body);
+    res.json({ preferences });
+  } catch (error) {
+    // Repository throws on oversized payloads / non-object input.
+    if (error instanceof TypeError || /too large/.test(String(error?.message))) {
+      return res.status(400).json({ error: 'Invalid UI preferences payload' });
+    }
+    console.error('Error saving UI preferences:', error);
+    res.status(500).json({ error: 'Failed to save UI preferences' });
   }
 });
 

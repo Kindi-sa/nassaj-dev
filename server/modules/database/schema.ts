@@ -89,6 +89,22 @@ CREATE TABLE IF NOT EXISTS user_notification_preferences (
 );
 `;
 
+/**
+ * user_ui_preferences — per-user UI preferences synced across devices (replaces
+ * localStorage-only storage). Stored as a single JSON blob (preferences_json)
+ * for forward-compatibility: the frontend owns the schema/contract, so new
+ * preference keys can be added without a server migration. Mirrors
+ * user_notification_preferences in shape and lifecycle.
+ */
+export const USER_UI_PREFERENCES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS user_ui_preferences (
+    user_id INTEGER PRIMARY KEY,
+    preferences_json TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const VAPID_KEYS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS vapid_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -354,6 +370,9 @@ CREATE INDEX IF NOT EXISTS idx_user_credentials_active ON user_credentials(is_ac
 
 ${USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON user_notification_preferences(user_id);
+
+${USER_UI_PREFERENCES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_user_ui_preferences_user_id ON user_ui_preferences(user_id);
 
 ${VAPID_KEYS_TABLE_SCHEMA_SQL}
 
