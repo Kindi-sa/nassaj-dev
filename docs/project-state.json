@@ -1092,6 +1092,97 @@
       "closed": "2026-06-12",
       "title": "توثيق ADR-022 (تسوية خصوصية المحادثات) + سياسة المجلدات والنسخ الاحتياطية",
       "summary": "nassaj-core commit 288fc7e"
+    },
+    {
+      "id": "T-89",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "عزو رسائل المساعد للمنسّق المُطلِق فعلاً — السيرفر",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-12",
+      "summary": "الجذر: رسائل assistant لا تحمل هوية مُطلِق الـrun فتُنسب لـowner الجلسة الثابت (أول منشئ)، فيظهر منسّق خاطئ (Jazari) لرسائل أطلقها آخر (Nawras). الإصلاح 9c61b60: حقل coordinatorId:number|null على NormalizedMessage = ws.userId مُطلِق الرun، يُختم لحظياً على مخرجات المساعد عبر كل المزوّدين (claude-sdk/agy/codex/cursor/gemini/opencode) ويمرّ عبر fan-out المرايا، وفي التاريخ عبر stampMessageAuthors (المستخدم يحدّث المنسّق الجاري، ورسائل المساعد التالية ترثه). توافق رجعي: اختياري، القديم null. typecheck نظيف، 402 اختبار (9 جديدة)، build:server ناجح. يتطلب restart (مؤجَّل، B-41)."
+    },
+    {
+      "id": "T-90",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "عرض المنسّق لكل رسالة + إعادة تصميم رأس المشاركين (المتحدث النشط)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "الواجهة كانت تنسب كل رسائل المساعد لـowner الجلسة. الإصلاح 6fa61cf: (1) سدّ فجوة whitelist في useChatMessages.normalizedToChatMessages بتمرير coordinatorId عبر sharedMetadata (الملفات المحظورة من جلسة أخرى لم تُلمس؛ الاستقبال اللحظي يمرّر الكائن كاملاً). (2) MessageComponent يحسم المنسّق من message.coordinatorId عبر الروستر مع سقوط متدرّج إلى owner. (3) إعادة تصميم SessionParticipantsBar: المتحدث النشط (activeCoordinatorId = أحدث coordinatorId) في شارة بارزة بنقطة حيّة نابضة وتسمية «نشط الآن»، وبقية المشاركين عنقود ثانوي باهت؛ ارتداد للعرض المسطّح عند غياب نشط. RTL+aria+i18n (activeNow/activeCoordinator). tsc نظيف، build:client ناجح. قيد معروف: الصف المتدفّق streaming بلا coordinatorId يرتد لـowner حتى وصول التاريخ."
+    },
+    {
+      "id": "T-91",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "عدّاد الجلسات المفتوحة الآن بجانب «المتصلين الآن»",
+      "status": "done",
+      "owner": "backend-dev+frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "السيرفر (343cdf0): خدمة open-sessions.service تحسب الجلسات التي لها run مزوّد جارٍ الآن (فريد بالsessionId عبر كل المستخدمين/المزوّدين)، مصدرها session-process-monitor.js + agy-cli (لأن session-registry no-op خلف علم مطفأ). بث WS open_sessions_count {count,timestamp}: unicast أولي عند الاتصال + broadcast عند التغيّر فقط (debounce بالمقارنة). 15 اختبار، build:server نظيف. الواجهة (commit التالي): WebSocketContext يعالج الرسالة في مسار منفصل (لا يلمس latestMessage فيتجنّب re-fetch للمشاركين) ويتيح openSessionsCount عبر useWebSocket؛ SessionParticipantsBar يعرض شارة Activity emerald + رقم + tooltip بجانب المتصلين الآن، تظهر فقط بعد أول رسالة (null=مخفي)، RTL+i18n (openSessionsNow/openSessionsNowCount). build:client نجح. يظهر حيّاً بعد restart المؤجَّل (B-41)."
+    },
+    {
+      "id": "T-92",
+      "phase": "P5",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "نقل زر الدخول بمفتاح أسفل حقلَي اسم المستخدم وكلمة المرور",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "إعادة ترتيب LoginForm.tsx: كان زر passkey أعلى الصفحة فوق الحقول؛ صار أسفلها (اسم المستخدم ← كلمة المرور ← الخطأ ← زر الدخول ← فاصل «أو» ← زر المفتاح). الزر نُقل إلى داخل <form> ملفوفاً في fragment (type=button لا يُفعّل submit). تخطيط بحت بلا تغيير منطق (useWebAuthn/showPasskeyButton/aria/i18n سليمة). build:client نجح، حيّ بلا restart."
+    },
+    {
+      "id": "T-93",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "موجّه المنسّق→وكيل فرعي يظهر كرسالة «المستخدم: Nawras»",
+      "status": "done",
+      "owner": "backend-dev+frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "الجذر: claude-sdk.js:1127 يختم userId=ws.userId على كل رسالة user-role من SDK بما فيها موجّهات المنسّق للوكلاء الفرعيين (origin.kind=coordinator)، فتُنسب للإنسان. الإصلاح السيرفر (91b8b39): حقل originKind على NormalizedMessage يُقرأ من raw.origin.kind في claude-sessions.provider normalizer (حي+تاريخ، والtranscripts تحفظ origin فعلاً)؛ stampHumanUserId الجديدة تختم userId فقط على user-text بلا originKind (origin غائب/human=بشري)؛ walker التاريخ يتخطى رسائل originKind ولا يتبنّاها coordinator. agy غير مصاب (لا يختم userId حياً، إسناده hash ضد أمر الإنسان فقط). 420+15 اختبار. الإصلاح الواجهة (ed2d169): تمرير originKind عبر sharedMetadata؛ MessageComponent يعرض coordinator كصف «موجّه المنسّق ← وكيل فرعي» (خلفية عنبرية+أيقونة تفويض، لا فقاعة مستخدم لا userId)، وpeer/channel/task-notification كسطر نظام محايد؛ البشري (originKind غائب) بلا تغيير. build:server+build:client نظيفان."
+    },
+    {
+      "id": "T-94",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "نقل عدّاد الجلسات المفتوحة إلى PresencePanel بجانب «المتصلون الآن» في الشريط الجانبي",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-12",
+      "summary": "كان العدّاد (T-91) موضوعاً خطأً في رأس الحوار SessionParticipantsBar؛ المستخدم أراده بجانب «المتصلون الآن» في الشريط الجانبي (مكوّن PresencePanel). النقل: شارة Activity emerald + رقم بجانب نص المتصلون الآن داخل PresencePanel.tsx، مخفية عند openSessionsCount===null؛ أُزيلت الكتلة + استيراد useWebSocket/Activity من SessionParticipantsBar (بقية الرأس سليمة). i18n نُقل إلى presence.json (المكوّن يستخدم namespace presence). build:client نجح. لا يظهر حتى يتعافى السيرفر (B-41) ويبثّ open_sessions_count."
+    },
+    {
+      "id": "T-101",
+      "sprint": "S-2",
+      "kind": "feature",
+      "title": "استبدال ThinkingModeSelector بنظام effort الحقيقي (low..max/ultracode/auto): تمرير Options.effort عبر SDK + allowlist + 13 اختباراً + شارة ULTRACODE وتأثير نبض بصري + ترجمات 9 لغات",
+      "status": "done",
+      "note": "مكتمل: backend (Options.effort + allowlist + 13 اختباراً) + frontend (قائمة effort 8 خيارات + شارة ULTRACODE ونبض بصري + ترجمات 9 لغات) + مراجعة qa-critic (مقبول، ملاحظاته نُفّذت) + build:client ناجح. 446/446 اختباراً. المتبقي خارج الأداة: restart السيرفر بيد المستخدم لتفعيل جانب السيرفر. | تحسين بصري لاحق: إعادة تصميم القائمة المنسدلة لتطابق نمط منتقي النموذج (CommandItem/cmdk، tokens الثيم، ✓ للمحدَّد، شارة UC مدمجة) + تصغير + تقوية التوهّج. build:client ناجح؛ بانتظار تأكيد بصري من المستخدم.",
+      "updated": "2026-06-12"
+    },
+    {
+      "id": "T-102",
+      "sprint": "S-2",
+      "kind": "feature",
+      "title": "مؤشّر استخدام Claude مختصر في الشريط العلوي (C/W/S/O %) يظهر فقط على نوافذ ≥1280px",
+      "status": "done",
+      "owner": "frontend-dev",
+      "note": "HeaderUsageIndicator.tsx جديد (hook useMediaQuery + useClaudeUsage مُفعَّل فقط عند الاتساع فلا يطلب الـAPI على الضيق) + usageTextColorClass في claudeUsageHelpers + دمج في MainContentHeader. الحرف بلون الثيم والنسبة بلون الاستهلاك. build:client ناجح؛ الواجهة فقط بلا restart.",
+      "closed": "2026-06-12"
     }
   ],
   "issues": [
@@ -1429,11 +1520,11 @@
     },
     {
       "id": "B-41",
-      "severity": "high",
+      "severity": "critical",
       "status": "open",
       "found": "2026-06-12",
-      "title": "pm2 restart قتل كل جلسات claude الأخرى رغم treekill:false في ecosystem.config.cjs — الحماية المفترضة (ADR-021/022: الإشارات تصيب الأم فقط) لم تعمل فعلياً. يجب التحقق: هل PM2 يتتبّع شجرة العمليات بآلية أخرى؟ هل الجلسات أبناء مباشرون أم عبر PTY منفصل؟ هل kill_timeout/SIGKILL تسرّب للأبناء؟ المستخدم نفّذ env -u PORT pm2 restart ecosystem.config.cjs --update-env فقُتلت الجلسات. مرشّح لمراجعة devops+backend-dev.",
-      "triage": "high → السبرنت التالي"
+      "title": "restart يترك السيرفر القديم يتيماً محتجزاً المنفذ 3004 فتنهار النسخة الجديدة بـEADDRINUSE في حلقة (waiting restart). مؤكَّد 2026-06-12: العملية القديمة 2961366 (dist-server/index.js) بقيت 2س+ ممسكة بالمنفذ رغم kill_timeout 5د وtreekill:false؛ pm2 فقد تتبّعها وأطلق نسخة جديدة تفشل بالحجز (464 محاولة). آلية الـdrain/handoff (B-N-DRAIN، ADR-021/022) فشلت في تحرير المنفذ وقتل/تسليم نظيف. الأثر: التطبيق يخدم كوداً قديماً (لا عدّاد، عزو قديم) والبناء الجديد لا يُفعَّل. التعافي: pm2 delete + تحرير المنفذ (kill اليتيمة) + pm2 start نظيف. الإصلاح الدائم: مراجعة devops+backend لتسلسل الإيقاف/الـhandoff ومنع تعدد المستمعين على نفس المنفذ.",
+      "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain"
     },
     {
       "id": "B-42",
@@ -1469,6 +1560,14 @@
       "resolved": "2026-06-12",
       "title": "لا تحقق من وجود cwd قبل spawn: مشروع مساره مفقود على القرص (نُقل/حُذف) يفشل بـ ENOENT يظهر كرسالة SDK مضللة «Claude Code native binary not found» — مسار WS (chat-websocket) وكل المزودين (حادثة AlKindy BM ‏2026-06-12)",
       "triage": "high → أُغلق: نقطة فحص cwd مشتركة قبل spawn لكل المزودين (commit 8257190، ملف server/shared/cwd-check.ts) — يسري بعد build+restart بطرفية المالك"
+    },
+    {
+      "id": "B-43",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-12",
+      "title": "الصف المتدفّق (streaming) لرسالة المساعد يُبنى في updateStreaming بلا coordinatorId فيُعزى مؤقتاً لـowner الجلسة حتى يصل التاريخ المُعاد من السيرفر. متابعة لـT-90: ختم coordinatorId على الصف المتدفّق (يلامس مسار realtime/store الذي كانت تعدّله جلسة أخرى — يُنسّق بعد التزامها).",
+      "triage": "low → backlog"
     }
   ],
   "decisions": [
