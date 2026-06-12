@@ -12,13 +12,30 @@ import {
 } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
-import { useRunner, type RunnerAction } from './useRunner';
+
+import type { RunnerAction, RunnerStatus } from './useRunner';
 import {
   UI_STATE_STYLES,
   deriveRunnerUiState,
   isPulsing,
   type RunnerUiState,
 } from './runnerStatus';
+
+/**
+ * The slice of useRunner's return value the bar consumes. The hook is lifted to
+ * ProjectBoardPanel and lives once per project (see finding: double useRunner) —
+ * this bar is a pure presentational consumer of that single instance.
+ */
+export type RunnerControlBarProps = {
+  runner: RunnerStatus | null;
+  registered: boolean;
+  actionPending: RunnerAction | null;
+  start: () => Promise<{ ok: boolean; status?: number }>;
+  stop: () => Promise<{ ok: boolean; status?: number }>;
+  pause: () => Promise<{ ok: boolean; status?: number }>;
+  resume: () => Promise<{ ok: boolean; status?: number }>;
+  approve: () => Promise<{ ok: boolean; status?: number }>;
+};
 
 /**
  * RunnerControlBar — live control strip injected on the Project Board header,
@@ -34,10 +51,17 @@ import {
  * No terminal: every control is a button. Multi-project: the bar appears
  * automatically for any project whose path matches a runner registry entry.
  */
-export default function RunnerControlBar({ projectId }: { projectId: string | null | undefined }) {
+export default function RunnerControlBar({
+  runner,
+  registered,
+  actionPending,
+  start,
+  stop,
+  pause,
+  resume,
+  approve,
+}: RunnerControlBarProps) {
   const { t } = useTranslation('projectBoard');
-  const { runner, registered, actionPending, start, stop, pause, resume, approve } =
-    useRunner(projectId);
   const [flash, setFlash] = useState<string | null>(null);
 
   // Additive overlay: nothing to show when the runner does not target this project.

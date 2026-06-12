@@ -92,9 +92,14 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
   const { t } = useTranslation('projectBoard');
   const [section, setSection] = useState<BoardSection>('overview');
   const { board, isLoading, loadError } = useProjectBoard(selectedProject?.projectId);
-  // Live runner overlay (ADR-RUNNER-BRIDGE-001). All values are null/false when
-  // the project is not registered with the runner, so the board is unchanged.
-  const { runner } = useRunner(selectedProject?.projectId);
+  // Live runner overlay (ADR-RUNNER-BRIDGE-001). Lifted once here and passed down
+  // to RunnerControlBar as props — a single fetch + WS subscription per project,
+  // one shared snapshot for both the control bar and the per-task/phase dots. All
+  // values are null/false when the project is not registered with the runner, so
+  // the board is unchanged.
+  const { runner, registered, actionPending, start, stop, pause, resume, approve } = useRunner(
+    selectedProject?.projectId,
+  );
   const runnerRunning = runner?.cycle?.status === 'running';
   const runnerActiveTaskId = runnerRunning ? runner?.activity?.active_task_id ?? null : null;
   const runnerActivePhaseId = runnerRunning ? runner?.activity?.active_phase_id ?? null : null;
@@ -178,7 +183,16 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
         {/* Runner control overlay — renders nothing unless the project is
             registered with the runner (ADR-RUNNER-BRIDGE-001). */}
         <div className="ms-auto">
-          <RunnerControlBar projectId={selectedProject?.projectId} />
+          <RunnerControlBar
+            runner={runner}
+            registered={registered}
+            actionPending={actionPending}
+            start={start}
+            stop={stop}
+            pause={pause}
+            resume={resume}
+            approve={approve}
+          />
         </div>
       </div>
 
