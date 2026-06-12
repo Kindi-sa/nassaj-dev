@@ -19,9 +19,11 @@ export type RunnerUiState =
   | 'disabled';
 
 // Stage groupings cover both the legacy (review/fix/critique/phase) and the
-// current (build/verify/gate) runner stage vocabularies.
+// current (build/verify/verdict/gate) runner stage vocabularies. `verdict` is
+// the binding clean/unclean judgment stage (Fable + ultracode) between verify
+// and the phase-boundary gate — surfaced as a verifying-class state.
 const BUILD_STAGES = new Set(['phase', 'build', 'fix', 'review']);
-const VERIFY_STAGES = new Set(['critique', 'verify', 'gate']);
+const VERIFY_STAGES = new Set(['critique', 'verify', 'verdict', 'gate']);
 
 export function deriveRunnerUiState(runner: RunnerStatus | null): RunnerUiState {
   if (!runner || !runner.registered) {
