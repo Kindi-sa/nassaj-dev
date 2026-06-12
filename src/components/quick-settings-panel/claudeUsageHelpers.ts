@@ -8,6 +8,14 @@ export function usageBarColorClass(utilization: number): string {
   return 'bg-red-500';
 }
 
+// Same thresholds as usageBarColorClass but returns text color classes
+// for use in compact inline indicators (e.g. the header usage row).
+export function usageTextColorClass(utilization: number): string {
+  if (utilization < 50) return 'text-blue-500';
+  if (utilization < 75) return 'text-amber-500';
+  return 'text-red-500';
+}
+
 // Clamp utilization into the 0-100 range the bar expects.
 export function clampUtilization(value: number): number {
   if (!Number.isFinite(value)) return 0;
