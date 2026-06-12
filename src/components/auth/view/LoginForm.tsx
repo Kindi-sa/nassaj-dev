@@ -31,6 +31,16 @@ const initialState: LoginFormState = {
  * a secondary "sign in with a passkey" button is offered below the password
  * form (C-PK-2). Password sign-in remains the default path; user-cancelled
  * passkey prompts are silent by design.
+ *
+ * Passkey button visibility rules:
+ *  - IS_PLATFORM: button is hidden entirely (platform does not use passkeys).
+ *  - Insecure context (window.isSecureContext === false): button is shown but
+ *    disabled with a tooltip and hint text explaining that HTTPS is required.
+ *    This covers HTTP deployments where browserSupportsWebAuthn() returns false
+ *    not because the browser lacks support, but because the context is unsafe.
+ *  - Secure context + WebAuthn not supported (rare): button is hidden entirely,
+ *    as there is nothing actionable the user can do.
+ *  - Secure context + WebAuthn supported: button is shown and active.
  */
 export default function LoginForm() {
   const { t } = useTranslation('auth');
@@ -46,7 +56,13 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPasskeySubmitting, setIsPasskeySubmitting] = useState(false);
 
-  const showPasskeyButton = isPasskeySupported && !IS_PLATFORM;
+  // isSecureContext is a stable browser property — no state needed.
+  const isSecureContext = window.isSecureContext;
+  // Insecure context (plain HTTP, not localhost): show the button disabled with
+  // a hint so users understand why it is unavailable. This is distinct from a
+  // browser that genuinely does not implement WebAuthn (where hiding is correct).
+  const showPasskeyDisabled = !IS_PLATFORM && !isSecureContext;
+  const showPasskeyButton = !IS_PLATFORM && (isPasskeySupported || showPasskeyDisabled);
   const isBusy = isSubmitting || isPasskeySubmitting;
 
   const updateField = useCallback((field: keyof LoginFormState, value: string) => {
@@ -136,13 +152,21 @@ export default function LoginForm() {
 
             <button
               type="button"
-              onClick={handlePasskeyLogin}
-              disabled={isBusy}
-              className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2 font-medium text-foreground transition-colors duration-200 hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+              onClick={showPasskeyDisabled ? undefined : handlePasskeyLogin}
+              disabled={isBusy || showPasskeyDisabled}
+              title={showPasskeyDisabled ? t('passkey.requiresSecureContext') : undefined}
+              aria-disabled={showPasskeyDisabled || undefined}
+              className="flex w-full items-center justify-center gap-2 rounded-md border border-border bg-background px-4 py-2 font-medium text-foreground transition-colors duration-200 hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
             >
               <KeyRound className="h-4 w-4" aria-hidden />
               {isPasskeySubmitting ? t('passkey.loginLoading') : t('passkey.loginButton')}
             </button>
+
+            {showPasskeyDisabled && (
+              <p className="text-center text-xs text-muted-foreground" role="note">
+                {t('passkey.requiresSecureContext')}
+              </p>
+            )}
           </>
         )}
       </form>
