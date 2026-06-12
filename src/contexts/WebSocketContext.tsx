@@ -12,6 +12,12 @@ type WebSocketContextType = {
   latestMessage: any | null;
   isConnected: boolean;
   wsStatus: WsConnectionStatus;
+  /**
+   * Number of open sessions on the server right now (global activity counter,
+   * not scoped to the current session's viewers). Updated via the
+   * `open_sessions_count` WS message. `null` until the first message arrives.
+   */
+  openSessionsCount: number | null;
 };
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -42,6 +48,9 @@ export function calcReconnectDelay(attempt: number): number {
   return exp + Math.random() * RECONNECT_JITTER_MS;
 }
 
+/** WS message type for the server-wide open-sessions counter. */
+const OPEN_SESSIONS_MESSAGE_TYPE = 'open_sessions_count';
+
 const useWebSocketProviderState = (): WebSocketContextType => {
   const wsRef = useRef<WebSocket | null>(null);
   const unmountedRef = useRef(false); // Track if component is unmounted
@@ -50,6 +59,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [wsStatus, setWsStatus] = useState<WsConnectionStatus>('disconnected');
+  const [openSessionsCount, setOpenSessionsCount] = useState<number | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { token } = useAuth();
   // Always read the freshest token in the reconnect path so a token rotation
@@ -120,6 +130,16 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         if (myEpoch !== connEpochRef.current) return; // ignore stale socket
         try {
           const data = JSON.parse(event.data);
+          // The open_sessions_count message is a background counter update.
+          // It updates its own slice of state without touching latestMessage so
+          // that hooks watching latestMessage (e.g. useSessionParticipants) do
+          // not trigger unnecessary re-fetches on every counter broadcast.
+          if (data && data.type === OPEN_SESSIONS_MESSAGE_TYPE) {
+            if (typeof data.count === 'number') {
+              setOpenSessionsCount(data.count);
+            }
+            return;
+          }
           setLatestMessage(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -177,7 +197,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     latestMessage,
     isConnected,
     wsStatus,
-  }), [sendMessage, latestMessage, isConnected, wsStatus]);
+    openSessionsCount,
+  }), [sendMessage, latestMessage, isConnected, wsStatus, openSessionsCount]);
 
   return value;
 };

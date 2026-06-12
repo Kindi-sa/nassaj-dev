@@ -333,6 +333,8 @@
     "barAria": "مشاركو المحادثة",
     "activeNow": "نشط الآن",
     "activeCoordinator": "المنسّق النشط الآن: {{username}}",
+    "openSessionsNow": "الجلسات المفتوحة الآن",
+    "openSessionsNowCount": "{{count}} جلسة مفتوحة الآن",
     "andMore_one": "وآخر",
     "andMore_two": "وآخران",
     "andMore_few": "و{{count}} آخرين",

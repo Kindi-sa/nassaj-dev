@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, Activity } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
 import { Button } from '../../shared/view/ui';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 import AgentChipRow from './AgentChipRow';
 import ParticipantAvatar from './ParticipantAvatar';
@@ -62,6 +63,7 @@ export default function SessionParticipantsBar({
   const { t, i18n } = useTranslation('chat');
   const locale = i18n.language;
   const { status, participants, agents, load } = useSessionParticipants(sessionId);
+  const { openSessionsCount } = useWebSocket();
 
   useEffect(() => {
     if (sessionId) {
@@ -191,6 +193,33 @@ export default function SessionParticipantsBar({
                 })}
               </span>
             )}
+          </span>
+        </div>
+      )}
+
+      {/* Open sessions counter: server-wide active sessions badge.
+        * Semantically distinct from "viewers of this session" (restParticipants).
+        * Hidden until the first WS message arrives (openSessionsCount !== null). */}
+      {openSessionsCount !== null && (
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-full border border-border/60 bg-muted/40',
+            'px-2 py-0.5 text-xs text-muted-foreground',
+            'ms-auto sm:ms-0',
+          )}
+          title={t('participants.openSessionsNowCount', {
+            count: openSessionsCount,
+            defaultValue: '{{count}} open sessions now',
+          })}
+          aria-label={t('participants.openSessionsNowCount', {
+            count: openSessionsCount,
+            defaultValue: '{{count}} open sessions now',
+          })}
+        >
+          <Activity className="h-3 w-3 flex-shrink-0 text-emerald-500/80" aria-hidden="true" />
+          <span className="tabular-nums font-medium">{openSessionsCount}</span>
+          <span className="hidden sm:inline">
+            {t('participants.openSessionsNow', { defaultValue: 'open sessions now' })}
           </span>
         </div>
       )}

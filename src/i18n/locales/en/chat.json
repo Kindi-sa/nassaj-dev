@@ -327,6 +327,8 @@
     "barAria": "Conversation participants",
     "activeNow": "Active now",
     "activeCoordinator": "Active now: {{username}}",
+    "openSessionsNow": "Open sessions now",
+    "openSessionsNowCount": "{{count}} open sessions now",
     "andMore_one": "and {{count}} more",
     "andMore_other": "and {{count}} more",
     "projectSummary": "{{users}} users · {{agents}} agents",
