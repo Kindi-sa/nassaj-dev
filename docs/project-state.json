@@ -1191,6 +1191,17 @@
       "closed": "2026-06-12"
     },
     {
+      "id": "T-109",
+      "phase": "P5",
+      "sprint": "S-2",
+      "kind": "feature",
+      "title": "زر passkey في صفحة الدخول: عرضه معطّلاً مع تلميح HTTPS في السياقات غير الآمنة بدل الاختفاء الصامت",
+      "status": "done",
+      "owner": "frontend-dev",
+      "note": "تشخيص بلاغ المستخدم «الزر غائب»: السبب browserSupportsWebAuthn()=false على HTTP غير آمن (الكود والحزمة سليمان). الحل: زر disabled + مفتاح passkey.requiresSecureContext في 9 لغات + aria-disabled. الإخفاء الكامل باقٍ لـIS_PLATFORM ولمتصفح بلا WebAuthn في سياق آمن. commit ‏1d79338؛ واجهة فقط بلا restart.",
+      "closed": "2026-06-12"
+    },
+    {
       "id": "T-103",
       "phase": "P6",
       "sprint": null,
