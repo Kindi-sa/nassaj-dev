@@ -175,7 +175,30 @@ const wss = createWebSocketServer(server, {
 // Make WebSocket server available to routes
 app.locals.wss = wss;
 
-app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
+// CORS — restrict to known production and development origins.
+// Set ALLOWED_ORIGINS (comma-separated) in .env to add further origins without
+// code changes.  Falls back to a safe default list when the variable is absent.
+// This middleware must remain before all route mounts.
+const _corsDefaultOrigins = [
+  'https://nassaj-dev.alkindy.tech',
+  'https://nassaj.alkindy.tech',
+  'http://localhost:3004',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
+const _corsAllowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : _corsDefaultOrigins;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser tool calls (e.g. curl, server-to-server) that send no Origin.
+    if (!origin) return callback(null, true);
+    if (_corsAllowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin '${origin}' not allowed`));
+  },
+  exposedHeaders: ['X-Refreshed-Token'],
+}));
 app.use(express.json({
     limit: '50mb',
     type: (req) => {
