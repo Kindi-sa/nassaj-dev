@@ -57,7 +57,8 @@
     "cancel": "إلغاء",
     "clearSearch": "مسح البحث",
     "openCommandPalette": "فتح لوحة الأوامر",
-    "openWiki": "فتح ويكي نسّاج"
+    "openWiki": "فتح ويكي نسّاج",
+    "goHome": "الرئيسية"
   },
   "navigation": {
     "chat": "محادثة",
@@ -69,6 +70,8 @@
   "actions": {
     "refresh": "تحديث",
     "settings": "الإعدادات",
+    "logout": "تسجيل الخروج",
+    "logoutConfirm": "تسجيل الخروج من حسابك؟",
     "collapseAll": "طيّ الكل",
     "expandAll": "توسيع الكل",
     "cancel": "إلغاء",

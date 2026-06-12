@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { KeyRound, Loader2, UserPlus } from 'lucide-react';
+import { KeyRound, Loader2, Trash2, UserPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../shared/view/ui';
 import { useAuth } from '../../../../auth';
@@ -36,11 +36,14 @@ export default function UsersSettingsTab() {
     createInvite,
     revokeInvite,
     resetPassword,
+    deleteUser,
   } = useUsersAdmin(true);
 
   const [actionError, setActionError] = useState('');
   const [isInviteOpen, setInviteOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<ManagedUser | null>(null);
+  // Two-click confirmation: store the id of the user pending deletion.
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   // Reset visibility: owner may reset anyone (but self), admin may reset only
   // non-owners (but self). Mirrors the server-side authorization.
@@ -96,6 +99,24 @@ export default function UsersSettingsTab() {
       }
     },
     [revokeInvite],
+  );
+
+  const handleDeleteUser = useCallback(
+    async (id: number) => {
+      if (deleteConfirmId !== id) {
+        // First click: ask for confirmation.
+        setDeleteConfirmId(id);
+        return;
+      }
+      // Second click: proceed.
+      setDeleteConfirmId(null);
+      setActionError('');
+      const result = await deleteUser(id);
+      if (!result.success) {
+        setActionError(result.error);
+      }
+    },
+    [deleteConfirmId, deleteUser],
   );
 
   const roleBadgeVariant = (r: ManagedUserRole) =>
@@ -209,6 +230,27 @@ export default function UsersSettingsTab() {
                         >
                           <KeyRound className="h-4 w-4" />
                           <span className="ms-1.5">{t('users.resetPassword')}</span>
+                        </Button>
+                      )}
+
+                      {/* Delete user: owner-only, not on self. Two-click confirmation. */}
+                      {isOwner && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => void handleDeleteUser(managedUser.id)}
+                          aria-label={
+                            deleteConfirmId === managedUser.id
+                              ? t('users.deleteUserConfirm', { username: managedUser.username, defaultValue: 'Permanently delete {{username}}? This cannot be undone.' })
+                              : t('users.deleteUser', 'Delete user')
+                          }
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {deleteConfirmId === managedUser.id && (
+                            <span className="ms-1.5">
+                              {t('users.deleteUserConfirm', { username: managedUser.username, defaultValue: 'Permanently delete {{username}}? This cannot be undone.' })}
+                            </span>
+                          )}
                         </Button>
                       )}
                     </div>

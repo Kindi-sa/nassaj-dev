@@ -323,6 +323,8 @@
     "suspend": "Suspend",
     "activate": "Activate",
     "resetPassword": "Reset password",
+    "deleteUser": "Delete user",
+    "deleteUserConfirm": "Permanently delete {{username}}? This cannot be undone.",
     "reset": {
       "title": "Reset password",
       "confirm": "Reset the password for {{username}}?",

@@ -7,5 +7,9 @@
   "more_one": "{{count}} more",
   "more_other": "{{count}} more",
   "openSessionsNow": "Open sessions now",
-  "openSessionsNowCount": "{{count}} open sessions now"
+  "openSessionsNowCount": "{{count}} open sessions now",
+  "connectedCount": "{{count}} online",
+  "connectedUsers": "{{count}} users",
+  "connectedAgents": "{{count}} agents",
+  "connectedUsersAndAgents": "{{users}} users · {{agents}} agents"
 }

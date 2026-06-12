@@ -50,7 +50,8 @@
     "cancel": "Abbrechen",
     "clearSearch": "Suche leeren",
     "openCommandPalette": "Befehlspalette öffnen",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Chat",
@@ -66,6 +67,8 @@
     "expandAll": "Alle ausklappen",
     "cancel": "Abbrechen",
     "save": "Speichern",
+    "logout": "Abmelden",
+    "logoutConfirm": "Von Ihrem Konto abmelden?",
     "delete": "Löschen",
     "rename": "Umbenennen",
     "starOnGithub": "Stern auf GitHub"

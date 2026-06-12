@@ -175,6 +175,22 @@ export function useUsersAdmin(enabled: boolean) {
     [refresh],
   );
 
+  const deleteUser = useCallback(
+    async (id: number): Promise<MutationResult> => {
+      try {
+        const res = await api.auth.deleteUser(id);
+        if (!res.ok) {
+          return { success: false, error: await readError(res, 'Failed to delete user') };
+        }
+        await refresh();
+        return { success: true };
+      } catch {
+        return { success: false, error: 'Network error' };
+      }
+    },
+    [refresh],
+  );
+
   return {
     users,
     invites,
@@ -186,5 +202,6 @@ export function useUsersAdmin(enabled: boolean) {
     createInvite,
     revokeInvite,
     resetPassword,
+    deleteUser,
   };
 }

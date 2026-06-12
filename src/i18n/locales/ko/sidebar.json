@@ -49,7 +49,8 @@
     "save": "저장",
     "cancel": "취소",
     "openCommandPalette": "명령 팔레트 열기",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "채팅",
@@ -61,6 +62,8 @@
   "actions": {
     "refresh": "새로고침",
     "settings": "설정",
+    "logout": "로그아웃",
+    "logoutConfirm": "계정에서 로그아웃하시겠습니까?",
     "collapseAll": "모두 접기",
     "expandAll": "모두 펼치기",
     "cancel": "취소",

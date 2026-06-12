@@ -151,6 +151,11 @@ export const api = {
       authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}/reset-password`, {
         method: 'POST',
       }),
+    // Permanently delete a user account (owner-only). Cannot delete self or last owner.
+    deleteUser: (id) =>
+      authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
   },
 
   // App-wide branding (custom logo + title). Read is available to any

@@ -321,7 +321,7 @@ const MANAGED_KEYS = [
 /* ──────────────────────── State persistence ────────────────────── */
 
 const DEFAULT_STATE: ThemePresetState = {
-  preset: 'default',
+  preset: 'alkindy',
   custom: { ...DEFAULT_CUSTOM_COLORS },
 };
 
@@ -334,7 +334,7 @@ export function loadThemePresetState(): ThemePresetState {
     const raw = localStorage.getItem(THEME_PRESET_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_STATE, custom: { ...DEFAULT_STATE.custom } };
     const parsed = JSON.parse(raw) as Partial<ThemePresetState>;
-    const preset = parsed.preset && KNOWN_PRESETS.has(parsed.preset) ? parsed.preset : 'default';
+    const preset = parsed.preset && KNOWN_PRESETS.has(parsed.preset) ? parsed.preset : 'alkindy';
     return {
       preset,
       custom: { ...DEFAULT_CUSTOM_COLORS, ...(parsed.custom || {}) },

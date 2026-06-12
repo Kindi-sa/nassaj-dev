@@ -50,7 +50,8 @@
     "cancel": "Annulla",
     "clearSearch": "Cancella ricerca",
     "openCommandPalette": "Apri tavolozza comandi",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Chat",
@@ -66,6 +67,8 @@
     "expandAll": "Espandi tutto",
     "cancel": "Annulla",
     "save": "Salva",
+    "logout": "Esci",
+    "logoutConfirm": "Disconnettersi dal tuo account?",
     "delete": "Elimina",
     "rename": "Rinomina",
     "starOnGithub": "Metti stella su GitHub"

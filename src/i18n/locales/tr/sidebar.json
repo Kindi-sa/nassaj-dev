@@ -50,7 +50,8 @@
     "cancel": "İptal",
     "clearSearch": "Aramayı temizle",
     "openCommandPalette": "Komut paletini aç",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Sohbet",
@@ -62,6 +63,8 @@
   "actions": {
     "refresh": "Yenile",
     "settings": "Ayarlar",
+    "logout": "Çıkış Yap",
+    "logoutConfirm": "Hesabınızdan çıkış yapılsın mı?",
     "collapseAll": "Tümünü Daralt",
     "expandAll": "Tümünü Genişlet",
     "cancel": "İptal",

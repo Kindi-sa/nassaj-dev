@@ -1,5 +1,6 @@
 import { Archive, BookOpen, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
+import { useNavigate } from 'react-router-dom';
 
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
@@ -54,6 +55,7 @@ export default function SidebarHeader({
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
+  const navigate = useNavigate();
   const { title: brandingTitle, logoUrl, logoDarkUrl, logoOnly: brandingLogoOnly } = useBranding();
   const { isDarkMode } = useTheme();
   // Dark theme prefers the dedicated dark logo and falls back to the main one.
@@ -163,7 +165,15 @@ export default function SidebarHeader({
               <LogoBlock />
             </a>
           ) : (
-            <LogoBlock />
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              aria-label={t('tooltips.goHome', displayTitle)}
+              title={t('tooltips.goHome', displayTitle)}
+            >
+              <LogoBlock />
+            </button>
           )}
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
@@ -256,7 +266,15 @@ export default function SidebarHeader({
               <LogoBlock />
             </a>
           ) : (
-            <LogoBlock />
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              aria-label={t('tooltips.goHome', displayTitle)}
+              title={t('tooltips.goHome', displayTitle)}
+            >
+              <LogoBlock />
+            </button>
           )}
 
           <div className="flex flex-shrink-0 gap-1.5">

@@ -1,4 +1,3 @@
-import { Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../auth/context/AuthContext';
@@ -6,7 +5,6 @@ import { cn } from '../../lib/utils';
 import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
 import { Tooltip } from '../../shared/view/ui';
-import { useWebSocket } from '../../contexts/WebSocketContext';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
@@ -69,7 +67,6 @@ export default function PresencePanel() {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
   const presenceUsers = usePresence();
-  const { openSessionsCount } = useWebSocket();
 
   if (presenceUsers.length === 0) {
     return null;
@@ -97,44 +94,63 @@ export default function PresencePanel() {
       : presenceUser.username;
   };
 
-  const visible = presenceUsers.slice(0, MAX_VISIBLE);
-  const overflow = presenceUsers.slice(MAX_VISIBLE);
+  // Sort: current user first, then active users, then idle — for a stable,
+  // meaningful stack order (leftmost = most relevant).
+  const sorted = [...presenceUsers].sort((a, b) => {
+    const aSelf = currentUserId !== null && a.userId === currentUserId ? 1 : 0;
+    const bSelf = currentUserId !== null && b.userId === currentUserId ? 1 : 0;
+    if (aSelf !== bSelf) return bSelf - aSelf; // self first
+    if (a.active !== b.active) return (b.active ? 1 : 0) - (a.active ? 1 : 0); // active before idle
+    return a.since - b.since; // earlier join first
+  });
+
+  const visible = sorted.slice(0, MAX_VISIBLE);
+  const overflow = sorted.slice(MAX_VISIBLE);
+
+  // Badge: derive counts from the same presenceUsers list shown by the avatars.
+  // All entries in the list are human users (the server sends one entry per
+  // connected brother, not per agent/session).
+  const totalConnected = presenceUsers.length;
+  const activeCount = presenceUsers.filter((u) => u.active).length;
+
+  const badgeLabel = t('connectedCount', {
+    count: totalConnected,
+    defaultValue: '{{count}} online',
+  });
+  const badgeTooltip = activeCount > 0
+    ? t('connectedUsersAndAgents', {
+        users: totalConnected,
+        agents: activeCount,
+        defaultValue: '{{users}} users · {{agents}} agents',
+      })
+    : t('connectedUsers', { count: totalConnected, defaultValue: '{{count}} users' });
 
   return (
     <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
-      {/* "Online now" label + open-sessions badge, grouped so they read as one unit. */}
+      {/* "Online now" label + count badge, both derived from presenceUsers. */}
       <div className="flex flex-shrink-0 items-center gap-1.5">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
           {t('title', { defaultValue: 'Online now' })}
         </span>
 
-        {openSessionsCount !== null && (
-          <Tooltip
-            content={t('openSessionsNowCount', {
-              count: openSessionsCount,
-              defaultValue: '{{count}} open sessions now',
-            })}
+        <Tooltip content={badgeTooltip}>
+          <span
+            className={cn(
+              'inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40',
+              'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
+            )}
+            aria-label={badgeTooltip}
           >
-            <span
-              className={cn(
-                'inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40',
-                'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
-              )}
-              aria-label={t('openSessionsNowCount', {
-                count: openSessionsCount,
-                defaultValue: '{{count}} open sessions now',
-              })}
-            >
-              <Activity className="h-2.5 w-2.5 flex-shrink-0 text-emerald-500/80" aria-hidden="true" />
-              <span className="font-medium">{openSessionsCount}</span>
-            </span>
-          </Tooltip>
-        )}
+            {/* Emerald dot instead of Activity icon — matches the per-avatar dot style. */}
+            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
+            <span className="font-medium">{badgeLabel}</span>
+          </span>
+        </Tooltip>
       </div>
 
       <ul
         className="flex min-w-0 items-center"
-        aria-label={`${t('title', { defaultValue: 'Online now' })} (${presenceUsers.length})`}
+        aria-label={`${t('title', { defaultValue: 'Online now' })} (${totalConnected})`}
       >
         {visible.map((presenceUser) => {
           const status = statusText(presenceUser);

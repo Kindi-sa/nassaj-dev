@@ -50,7 +50,8 @@
     "cancel": "Отмена",
     "clearSearch": "Очистить поиск",
     "openCommandPalette": "Открыть палитру команд",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Чат",
@@ -62,6 +63,8 @@
   "actions": {
     "refresh": "Обновить",
     "settings": "Настройки",
+    "logout": "Выйти",
+    "logoutConfirm": "Выйти из аккаунта?",
     "collapseAll": "Свернуть все",
     "expandAll": "Развернуть все",
     "cancel": "Отмена",

@@ -323,6 +323,8 @@
     "suspend": "تعليق",
     "activate": "تفعيل",
     "resetPassword": "إعادة تعيين كلمة المرور",
+    "deleteUser": "حذف المستخدم",
+    "deleteUserConfirm": "حذف {{username}} نهائياً؟ لا يمكن التراجع عن هذا الإجراء.",
     "reset": {
       "title": "إعادة تعيين كلمة المرور",
       "confirm": "إعادة تعيين كلمة مرور {{username}}؟",

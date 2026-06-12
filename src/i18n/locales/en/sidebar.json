@@ -57,7 +57,8 @@
     "cancel": "Cancel",
     "clearSearch": "Clear search",
     "openCommandPalette": "Open command palette",
-    "openWiki": "Open Nassaj Wiki"
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Go to home"
   },
   "navigation": {
     "chat": "Chat",
@@ -69,6 +70,8 @@
   "actions": {
     "refresh": "Refresh",
     "settings": "Settings",
+    "logout": "Sign out",
+    "logoutConfirm": "Sign out of your account?",
     "collapseAll": "Collapse All",
     "expandAll": "Expand All",
     "cancel": "Cancel",
