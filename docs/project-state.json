@@ -1177,8 +1177,8 @@
       "kind": "feature",
       "title": "استبدال ThinkingModeSelector بنظام effort الحقيقي (low..max/ultracode/auto): تمرير Options.effort عبر SDK + allowlist + 13 اختباراً + شارة ULTRACODE وتأثير نبض بصري + ترجمات 9 لغات",
       "status": "done",
-      "note": "مكتمل: backend (Options.effort + allowlist + 13 اختباراً) + frontend (قائمة effort 8 خيارات + شارة ULTRACODE ونبض بصري + ترجمات 9 لغات) + مراجعة qa-critic (مقبول، ملاحظاته نُفّذت) + build:client ناجح. 446/446 اختباراً. المتبقي خارج الأداة: restart السيرفر بيد المستخدم لتفعيل جانب السيرفر. | تحسين بصري لاحق: إعادة تصميم القائمة المنسدلة لتطابق نمط منتقي النموذج (CommandItem/cmdk، tokens الثيم، ✓ للمحدَّد، شارة UC مدمجة) + تصغير + تقوية التوهّج. build:client ناجح؛ بانتظار تأكيد بصري من المستخدم.",
-      "updated": "2026-06-12"
+      "note": "مكتمل: backend (Options.effort + allowlist + 13 اختباراً) + frontend (قائمة effort 8 خيارات + شارة ULTRACODE ونبض بصري + ترجمات 9 لغات) + مراجعة qa-critic (مقبول، ملاحظاته نُفّذت) + build:client ناجح. 446/446 اختباراً. المتبقي خارج الأداة: restart السيرفر بيد المستخدم لتفعيل جانب السيرفر. | تحسين بصري لاحق: إعادة تصميم القائمة المنسدلة لتطابق نمط منتقي النموذج (CommandItem/cmdk، tokens الثيم، ✓ للمحدَّد، شارة UC مدمجة) + تصغير + تقوية التوهّج. build:client ناجح؛ بانتظار تأكيد بصري من المستخدم. | متابعة: Auto صار الوضع الافتراضي بدل Standard (يُسقط حقل effort = افتراضي النموذج)، مع شارة default. مدفوع 4bd3fe4.",
+      "updated": "2026-06-13"
     },
     {
       "id": "T-102",
@@ -1305,9 +1305,111 @@
       "status": "todo",
       "owner": "content-writer",
       "note": "بوابة: تثبيت العلاقة الصحيحة أولاً (researcher من alkindy/decisions+policies، ثم سؤال المالك عند الغموض) قبل الصياغة. سياق وكيل T-104: a7e1be03fc8643878"
+    },
+    {
+      "id": "T-112",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "جعل ثيم «الكندي/AlKindy» الافتراضي في كامل الموقع: DEFAULT_STATE.preset='alkindy' وfallback الافتراضي في theme-presets.ts/ThemeContext — يطبَّق على كل صفحة وواجهة لمن لم يختر ثيماً صراحةً",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #2)"
+    },
+    {
+      "id": "T-113",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-50",
+      "title": "إصلاح لوحة الحضور «المتصلون الآن»: ترتيب الأفاتارات + عدّاد دقيق يطابق عدد الفقاعات (الصورة تُظهر 3 فقاعات مقابل «1 users · 1 agents»)",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #1)؛ PresencePanel.tsx/usePresence.ts"
+    },
+    {
+      "id": "T-114",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-51",
+      "title": "إضافة زر تسجيل الخروج (logout) في الواجهة: دالة useAuth().logout موجودة وendpoint /api/auth/logout موجود لكن لا زر يستدعيهما",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #3)"
+    },
+    {
+      "id": "T-115",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-52",
+      "title": "تشخيص وإصلاح فشل المستخدم «Alrazi» في إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح — تشخيص أولاً (سجلات + سلسلة سببية) قبل أي إصلاح",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #4)؛ تدفّق ProviderLoginModal→.credentials.json→getClaudeConnectionStatus؛ مشتبه: CLAUDE_CONFIG_DIR للمستخدم المعزول"
+    },
+    {
+      "id": "T-116",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "حذف مستخدم من صفحة إدارة المستخدمين في الإعدادات: DELETE /api/auth/users/:id (owner-only، منع حذف الذات) + deleteUser في users repo + زر حذف بتأكيد في UsersSettingsTab",
+      "status": "in_progress",
+      "owner": "backend-dev+frontend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #5)"
+    },
+    {
+      "id": "T-117",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-53",
+      "title": "جعل شعار نسّاج في رأس الشريط الجانبي قابلاً للنقر (يعود للرئيسية): LogoBlock غير ملفوف برابط/onClick إلا في IS_PLATFORM",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "بلاغ المالك 2026-06-13 (طلب #6)؛ SidebarHeader.tsx — مختلف عن B-48 (تكرار شعار الويكي)"
     }
   ],
   "issues": [
+    {
+      "id": "B-50",
+      "title": "لوحة «المتصلون الآن»: الأفاتارات ليست بالترتيب المطلوب والعدّاد لا يطابق عدد الفقاعات (3 فقاعات مقابل «1 users · 1 agents»)",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-06-13",
+      "triage": "medium → S-2 (سبرنت التثبيت الجاري)",
+      "note": "بلاغ المالك بصورة؛ PresencePanel.tsx/usePresence.ts — مهمة T-113"
+    },
+    {
+      "id": "B-51",
+      "title": "لا يوجد زر تسجيل خروج في الواجهة رغم وجود دالة logout وendpoint /api/auth/logout",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-06-13",
+      "triage": "medium → S-2",
+      "note": "بلاغ المالك — مهمة T-114"
+    },
+    {
+      "id": "B-52",
+      "title": "المستخدم Alrazi لم يستطع إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح",
+      "severity": "high",
+      "status": "open",
+      "found": "2026-06-13",
+      "triage": "high → S-2 (يحجب مستخدماً عن استخدام المنتج)",
+      "note": "بلاغ المالك بصورة (التوكن في الصورة ملغى)؛ تشخيص أولاً — مهمة T-115"
+    },
+    {
+      "id": "B-53",
+      "title": "شعار نسّاج في رأس الشريط الجانبي غير قابل للنقر (لا يعود للرئيسية)",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-13",
+      "triage": "low → S-2",
+      "note": "بلاغ المالك — مهمة T-117؛ مختلف عن B-48 (شعار الويكي)"
+    },
     {
       "id": "B-1",
       "title": "agy -p --conversation يعيد طباعة الردّ السابق عند الاستئناف",
@@ -1645,7 +1747,7 @@
       "severity": "critical",
       "status": "open",
       "found": "2026-06-12",
-      "title": "restart يترك السيرفر القديم يتيماً محتجزاً المنفذ 3004 فتنهار النسخة الجديدة بـEADDRINUSE في حلقة (waiting restart). مؤكَّد 2026-06-12: العملية القديمة 2961366 (dist-server/index.js) بقيت 2س+ ممسكة بالمنفذ رغم kill_timeout 5د وtreekill:false؛ pm2 فقد تتبّعها وأطلق نسخة جديدة تفشل بالحجز (464 محاولة). آلية الـdrain/handoff (B-N-DRAIN، ADR-021/022) فشلت في تحرير المنفذ وقتل/تسليم نظيف. الأثر: التطبيق يخدم كوداً قديماً (لا عدّاد، عزو قديم) والبناء الجديد لا يُفعَّل. التعافي: pm2 delete + تحرير المنفذ (kill اليتيمة) + pm2 start نظيف. الإصلاح الدائم: مراجعة devops+backend لتسلسل الإيقاف/الـhandoff ومنع تعدد المستمعين على نفس المنفذ.",
+      "title": "B-41 (جذر مؤكَّد 2026-06-12 مساءً — «فخّ الاستضافة الذاتية»): العملية اليتيمة 2961366 (dist-server/index.js، أبوها PM2 God Daemon) تحتجز المنفذ 3004 منذ 9.5س وترفض الموت، والنسخة الجديدة تنهار EADDRINUSE في حلقة (117+ محاولة، waiting restart مع exp_backoff). السبب أن جلسات claude/طرفيات التطبيق هي أبناء مباشرون لعملية السيرفر (3818462=claude ابن 2961366)، فأي محاولة قتل/restart من طرفية داخل التطبيق تقتل الطرفية الآمرة نفسها قبل اكتمال التعافي، والسيرفر ينجو. fuser -k/kill من الداخل لا يكتمل. الحل التشغيلي: التعافي من طرفية SSH خارجية (لا يستضيفها نفس السيرفر): kill -9 2961366 ثم pm2 يلتقط أو pm2 restart. الإصلاح الجذري (T-95): فصل دورة حياة جلسات claude عن عملية السيرفر (ألا تكون أبناءه المباشرين أو handoff نظيف عبر SESSION_REGISTRY)، وتقليم drain بلا سقف، ومنع تعدد المستمعين. مرتبط: project_session_service_separation، feedback_restart_kills_own_session.",
       "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain"
     },
     {
