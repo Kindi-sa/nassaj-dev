@@ -30,7 +30,7 @@
     "server": "node dist-server/server/index.js",
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.js",
     "server:dev-watch": "tsx watch --tsconfig server/tsconfig.json server/index.js",
-    "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" && tsx --tsconfig server/tsconfig.json --test \"server/claude-sdk.model.test.js\"",
+    "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" && tsx --tsconfig server/tsconfig.json --test \"server/claude-sdk.model.test.js\" \"server/claude-sdk.effort.test.js\"",
     "client": "vite",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",

@@ -385,7 +385,17 @@ export default function ChatComposer({
             </button>
 
             {provider === 'claude' && (
-              <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
+              <>
+                <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
+                {thinkingMode === 'ultracode' && (
+                  <span
+                    className="hidden items-center rounded border border-red-400 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-700 shadow-[0_0_8px_rgba(239,68,68,0.40)] dark:border-red-600 dark:bg-red-950 dark:text-red-300 dark:shadow-[0_0_10px_rgba(239,68,68,0.55)] sm:flex"
+                    aria-label={t('effortMode.ultracodeActive')}
+                  >
+                    ULTRACODE
+                  </span>
+                )}
+              </>
             )}
 
             <TokenUsageSummary usage={tokenBudget} />

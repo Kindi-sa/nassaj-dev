@@ -181,41 +181,49 @@
     "clearInput": "مسح الإدخال",
     "scrollToBottom": "التمرير إلى الأسفل"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "وضع التفكير",
-      "description": "التفكير الممتد يمنح Claude وقتاً إضافياً لتقييم البدائل",
+      "title": "مستوى الجهد",
+      "description": "يتحكم في مقدار الحوسبة التي يخصصها Claude لطلبك",
       "active": "نشط",
-      "tip": "أوضاع التفكير الأعلى تستغرق وقتاً أكثر لكنها توفّر تحليلاً أعمق"
+      "tip": "ultracode يُفعّل أقصى عمق مع تنسيق متعدد الوكلاء — ultracode وmax يُضيفان إشارات لونية"
     },
     "modes": {
       "none": {
         "name": "قياسي",
-        "description": "استجابة Claude العادية",
-        "prefix": ""
+        "description": "بلا معامل effort — السلوك الافتراضي"
       },
-      "think": {
-        "name": "تفكير",
-        "description": "تفكير ممتد أساسي",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "النموذج يختار الجهد بحسب تعقيد الطلب"
       },
-      "thinkHard": {
-        "name": "تفكير عميق",
-        "description": "تقييم أعمق",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "سريع وخفيف — للأسئلة البسيطة"
       },
-      "thinkHarder": {
-        "name": "تفكير أعمق",
-        "description": "تحليل عميق مع البدائل",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "توازن بين العمق والسرعة"
       },
-      "ultrathink": {
-        "name": "تفكير أقصى",
-        "description": "أقصى ميزانية تفكير",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "تفكير أعمق للمهام المعقدة"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "جهد عالٍ جداً للمشكلات الصعبة"
+      },
+      "max": {
+        "name": "max",
+        "description": "أقصى جهد — ميزانية حوسبة كاملة"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "أقصى عمق + تنسيق متعدد الوكلاء"
       }
     },
-    "buttonTitle": "وضع التفكير: {{mode}}"
+    "buttonTitle": "الجهد: {{mode}}",
+    "ultracodeActive": "مستوى الجهد: Ultracode نشط"
   },
   "providerSelection": {
     "title": "اختر مساعدك الذكي",

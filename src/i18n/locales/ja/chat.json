@@ -120,41 +120,49 @@
     "clickToChangeMode": "クリックで権限モードを変更（または入力欄でTab）",
     "showAllCommands": "すべてのコマンドを表示"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "思考モード",
-      "description": "拡張思考によりClaudeがより多くの選択肢を検討できます",
+      "title": "努力レベル",
+      "description": "Claudeがリクエストに費やす計算量を制御します",
       "active": "有効",
-      "tip": "高い思考モードは時間がかかりますが、より深い分析が得られます"
+      "tip": "ultracodeはマルチエージェント形式の最大深度を有効にします"
     },
     "modes": {
       "none": {
         "name": "標準",
-        "description": "通常のClaudeの応答",
-        "prefix": ""
+        "description": "effortパラメータなし — Claudeのデフォルト動作"
       },
-      "think": {
-        "name": "Think",
-        "description": "基本的な拡張思考",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "モデルが複雑さに基づいて自動的に努力を選択"
       },
-      "thinkHard": {
-        "name": "Think Hard",
-        "description": "より深い検討",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "高速で軽量な応答 — 簡単な質問に最適"
       },
-      "thinkHarder": {
-        "name": "Think Harder",
-        "description": "代替案を含む深い分析",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "深さと速度のバランス"
       },
-      "ultrathink": {
-        "name": "Ultrathink",
-        "description": "最大限の思考予算",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "複雑なタスクのより深い推論"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "要求の高い問題への非常に高い努力"
+      },
+      "max": {
+        "name": "max",
+        "description": "最大努力 — フル計算バジェット"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "マルチエージェント出力形式の最大深度 — 大規模コードベース向け"
       }
     },
-    "buttonTitle": "思考モード: {{mode}}"
+    "buttonTitle": "努力: {{mode}}",
+    "ultracodeActive": "Ultracodeエフォートが有効です"
   },
   "providerSelection": {
     "title": "AIアシスタントを選択",

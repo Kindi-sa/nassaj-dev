@@ -181,41 +181,49 @@
     "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Thinking Mode",
-      "description": "Extended thinking gives Claude more time to evaluate alternatives",
+      "title": "Effort Level",
+      "description": "Controls how much compute Claude dedicates to your request",
       "active": "Active",
-      "tip": "Higher thinking modes take more time but provide more thorough analysis"
+      "tip": "ultracode activates maximum depth with multi-agent formatting — ultracode and max add color cues"
     },
     "modes": {
       "none": {
-        "name": "Standard",
-        "description": "Regular Claude response",
-        "prefix": ""
+        "name": "standard",
+        "description": "No effort parameter — default behavior"
       },
-      "think": {
-        "name": "Think",
-        "description": "Basic extended thinking",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "Model picks effort by request complexity"
       },
-      "thinkHard": {
-        "name": "Think Hard",
-        "description": "More thorough evaluation",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "Fast, light — best for simple questions"
       },
-      "thinkHarder": {
-        "name": "Think Harder",
-        "description": "Deep analysis with alternatives",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "Balanced depth and speed"
       },
-      "ultrathink": {
-        "name": "Ultrathink",
-        "description": "Maximum thinking budget",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "Deeper reasoning for complex tasks"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Extra-high effort for demanding problems"
+      },
+      "max": {
+        "name": "max",
+        "description": "Maximum effort — full compute budget"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Peak depth + multi-agent formatting"
       }
     },
-    "buttonTitle": "Thinking mode: {{mode}}"
+    "buttonTitle": "Effort: {{mode}}",
+    "ultracodeActive": "Ultracode effort active"
   },
   "providerSelection": {
     "title": "Choose Your AI Assistant",

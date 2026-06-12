@@ -14,7 +14,7 @@ import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../utils/api';
 import { useAuth } from '../../auth/context/AuthContext';
-import { thinkingModes } from '../constants/thinkingModes';
+import { effortModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
 import type {
@@ -595,6 +595,7 @@ export function useChatComposerState({
       messageContent: string,
       targetSessionId: string | null | undefined,
       uploadedImages: unknown[] = [],
+      effortValue?: string,
     ): boolean => {
       const toolsSettings = getToolsSettings();
       const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
@@ -655,14 +656,19 @@ export function useChatComposerState({
           },
         });
       } else {
+        // Anthropic / Claude provider. Attach `effort` only when a non-empty value is chosen.
+        const claudeOptions: Record<string, unknown> = {
+          projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
+          resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
+          images: uploadedImages,
+        };
+        if (effortValue) {
+          claudeOptions.effort = effortValue;
+        }
         result = sendMessage({
           type: 'claude-command',
           command: messageContent,
-          options: {
-            projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
-            resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
-            images: uploadedImages,
-          },
+          options: claudeOptions,
         });
       }
       // If sendMessage returns void (legacy/compat callers), treat as ok.
@@ -727,11 +733,10 @@ export function useChatComposerState({
         }
       }
 
-      let messageContent = currentInput;
-      const selectedThinkingMode = thinkingModes.find((mode: { id: string; prefix?: string }) => mode.id === thinkingMode);
-      if (selectedThinkingMode && selectedThinkingMode.prefix) {
-        messageContent = `${selectedThinkingMode.prefix}: ${currentInput}`;
-      }
+      const messageContent = currentInput;
+      // Resolve the effort value for the selected mode (empty string = no effort field).
+      const selectedEffortMode = effortModes.find(m => m.id === thinkingMode);
+      const effortValue = selectedEffortMode?.effortValue ?? '';
 
       let uploadedImages: unknown[] = [];
       if (attachedImages.length > 0) {
@@ -798,7 +803,7 @@ export function useChatComposerState({
         onSessionProcessing?.(effectiveSessionId);
       }
 
-      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages);
+      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages, effortValue);
 
       if (!sent) {
         // WS was not open — roll back optimistic UI state and surface error.

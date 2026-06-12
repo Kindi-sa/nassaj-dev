@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Ultracode effort mode: terminal glow ring ──────────────────────────── */
+@keyframes ultracode-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.70),
+      0 0 10px 3px rgba(239, 68, 68, 0.35),
+      0 0 20px 6px rgba(249, 115, 22, 0.20);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(220, 38, 38, 0.90),
+      0 0 16px 5px rgba(220, 38, 38, 0.55),
+      0 0 30px 10px rgba(239, 68, 68, 0.25);
+  }
+}
+
+.ultracode-ring {
+  border-radius: 9999px;
+  animation: ultracode-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ultracode-ring {
+    animation: none;
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.75),
+      0 0 12px 4px rgba(239, 68, 68, 0.40),
+      0 0 22px 7px rgba(249, 115, 22, 0.20);
+  }
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /* Global spinner animation - defined early to ensure it loads */
 @keyframes spin {
   0% {

@@ -842,7 +842,7 @@ class ResponseCollector {
  *   }
  */
 router.post('/', validateExternalApiKey, async (req, res) => {
-  const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
+  const { githubUrl, projectPath, message, provider = 'claude', model, effort, githubToken, branchName, sessionId } = req.body;
 
   // Parse stream and cleanup as booleans (handle string "true"/"false" from curl)
   const stream = req.body.stream === undefined ? true : (req.body.stream === true || req.body.stream === 'true');
@@ -977,6 +977,10 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
+        // Structured effort field (low|medium|high|xhigh|max|ultracode|auto).
+        // Validated against the allowlist in mapCliOptionsToSDK; unknown values
+        // are safely ignored there.
+        effort: effort,
         permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
       }, writer);
 

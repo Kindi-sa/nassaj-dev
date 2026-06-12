@@ -141,41 +141,49 @@
     "clearInput": "Eingabe leeren",
     "scrollToBottom": "Nach unten scrollen"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Denkmodus",
-      "description": "Erweitertes Denken gibt Claude mehr Zeit, Alternativen zu evaluieren",
+      "title": "Aufwandsstufe",
+      "description": "Steuert, wie viel Rechenleistung Claude für Ihre Anfrage einsetzt",
       "active": "Aktiv",
-      "tip": "Höhere Denkmodi brauchen mehr Zeit, liefern aber eine gründlichere Analyse"
+      "tip": "ultracode aktiviert maximale Tiefe mit Multi-Agenten-Formatierung"
     },
     "modes": {
       "none": {
         "name": "Standard",
-        "description": "Reguläre Claude-Antwort",
-        "prefix": ""
+        "description": "Kein Effort-Parameter — Standard-Claude-Verhalten"
       },
-      "think": {
-        "name": "Denken",
-        "description": "Grundlegendes erweitertes Denken",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "Das Modell wählt den Aufwand automatisch basierend auf der Komplexität"
       },
-      "thinkHard": {
-        "name": "Intensiv denken",
-        "description": "Gründlichere Auswertung",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "Schnelle, leichte Antworten — am besten für einfache Fragen"
       },
-      "thinkHarder": {
-        "name": "Sehr intensiv denken",
-        "description": "Tiefgehende Analyse mit Alternativen",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "Ausgewogenes Verhältnis von Tiefe und Geschwindigkeit"
       },
-      "ultrathink": {
-        "name": "Ultradenken",
-        "description": "Maximales Denkbudget",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "Tieferes Nachdenken für komplexe Aufgaben"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Sehr hoher Aufwand für anspruchsvolle Probleme"
+      },
+      "max": {
+        "name": "max",
+        "description": "Maximaler Aufwand — volles Rechenbudget"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Maximale Tiefe mit Multi-Agenten-Formatierung — für große Codebasen"
       }
     },
-    "buttonTitle": "Denkmodus: {{mode}}"
+    "buttonTitle": "Aufwand: {{mode}}",
+    "ultracodeActive": "Ultracode-Aufwand aktiv"
   },
   "providerSelection": {
     "title": "KI-Assistent wählen",

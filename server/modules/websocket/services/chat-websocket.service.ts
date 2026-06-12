@@ -219,6 +219,7 @@ async function dispatchProviderCommand(
     console.log(
       `[INFO] Re-routing resumed session ${resumeSessionId} from `
       + `${requestedProvider} to persisted provider ${persistedProvider}`
+      + (data.options?.effort ? ` (effort=${data.options.effort} will be dropped)` : '')
     );
   }
 

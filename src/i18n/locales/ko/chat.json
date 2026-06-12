@@ -123,41 +123,49 @@
     "clearInput": "입력 지우기",
     "scrollToBottom": "맨 아래로 스크롤"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Thinking 모드",
-      "description": "확장된 thinking은 Claude에게 대안을 평가할 시간을 더 줍니다",
+      "title": "노력 수준",
+      "description": "Claude가 요청에 투입하는 컴퓨팅 양을 제어합니다",
       "active": "활성",
-      "tip": "높은 thinking 모드는 시간이 더 걸리지만 더 철저한 분석을 제공합니다"
+      "tip": "ultracode는 멀티 에이전트 형식으로 최대 깊이를 활성화합니다"
     },
     "modes": {
       "none": {
-        "name": "Standard",
-        "description": "일반 Claude 응답",
-        "prefix": ""
+        "name": "표준",
+        "description": "effort 매개변수 없음 — 기본 Claude 동작"
       },
-      "think": {
-        "name": "Think",
-        "description": "기본 확장 thinking",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "모델이 복잡도에 따라 자동으로 노력 선택"
       },
-      "thinkHard": {
-        "name": "Think Hard",
-        "description": "더 철저한 평가",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "빠르고 가벼운 응답 — 간단한 질문에 최적"
       },
-      "thinkHarder": {
-        "name": "Think Harder",
-        "description": "대안을 포함한 심층 분석",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "깊이와 속도의 균형"
       },
-      "ultrathink": {
-        "name": "Ultrathink",
-        "description": "최대 thinking 예산",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "복잡한 작업을 위한 더 깊은 추론"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "까다로운 문제에 대한 매우 높은 노력"
+      },
+      "max": {
+        "name": "max",
+        "description": "최대 노력 — 전체 컴퓨팅 예산"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "멀티 에이전트 출력 형식의 최대 깊이 — 대규모 코드베이스용"
       }
     },
-    "buttonTitle": "Thinking 모드: {{mode}}"
+    "buttonTitle": "노력: {{mode}}",
+    "ultracodeActive": "Ultracode 노력 수준 활성화"
   },
   "providerSelection": {
     "title": "AI 어시스턴트 선택",

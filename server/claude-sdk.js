@@ -210,6 +210,54 @@ function buildValidClaudeModelValues(catalog) {
 }
 
 /**
+ * Effort levels natively accepted by the Agent SDK `Options.effort` field
+ * (EffortLevel in @anthropic-ai/claude-agent-sdk sdk.d.ts). The SDK forwards
+ * the value verbatim to the CLI as `--effort <level>`.
+ */
+const SDK_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+
+/**
+ * UI-contract values that are NOT SDK effort levels but are part of the
+ * terminal `/effort` vocabulary:
+ *  - 'auto'      → "use the model's default effort" → omit the SDK option.
+ *  - 'ultracode' → CLI-only session mode ("xhigh effort + dynamic-workflow
+ *    orchestration", gated behind the dynamic-workflows config). The SDK
+ *    Options.effort type does not accept it, so we map it to its effort
+ *    component 'xhigh' (documented downgrade, logged non-silently).
+ */
+const EFFORT_ALIASES = new Map([
+  ['auto', null],
+  ['ultracode', 'xhigh'],
+]);
+
+/**
+ * Validates a UI-supplied effort value against the allowlist and resolves it
+ * to an SDK-compatible level.
+ *
+ * @param {unknown} value - Raw `effort` field from the chat message options.
+ * @returns {{ level: string|null, alias: string|null, rejected: string|null }}
+ *   level    - SDK effort level to apply, or null to omit the option.
+ *   alias    - The original alias when a mapping occurred (e.g. 'ultracode').
+ *   rejected - The original value when it was not in the allowlist (safe-ignore).
+ */
+function resolveEffortLevel(value) {
+  if (typeof value !== 'string') {
+    return { level: null, alias: null, rejected: null };
+  }
+  const requested = value.trim().toLowerCase();
+  if (requested === '') {
+    return { level: null, alias: null, rejected: null };
+  }
+  if (SDK_EFFORT_LEVELS.has(requested)) {
+    return { level: requested, alias: null, rejected: null };
+  }
+  if (EFFORT_ALIASES.has(requested)) {
+    return { level: EFFORT_ALIASES.get(requested), alias: requested, rejected: null };
+  }
+  return { level: null, alias: null, rejected: requested };
+}
+
+/**
  * Maps CLI options to SDK-compatible options format
  * @param {Object} options - CLI options
  * @param {Set<string>} [validModelValues] - Set of accepted model values. When
@@ -302,6 +350,28 @@ function mapCliOptionsToSDK(options = {}, validModelValues) {
     }
   }
   // Model logged at query start below
+
+  // Map effort (B: structured effort field from the UI, same path as model).
+  // Allowlist: low|medium|high|xhigh|max (SDK EffortLevel) plus the UI aliases
+  // 'auto' (omit → model default) and 'ultracode' (mapped to 'xhigh'; the
+  // dynamic-workflow half of ultracode is a CLI session setting the SDK
+  // Options.effort cannot express). Anything else is ignored safely with a
+  // non-silent warning — never forwarded to the SDK.
+  const { level: effortLevel, alias: effortAlias, rejected: rejectedEffort } =
+    resolveEffortLevel(options.effort);
+  if (effortLevel) {
+    sdkOptions.effort = effortLevel;
+    if (effortAlias) {
+      console.warn(
+        `effort "${effortAlias}" mapped to SDK level "${effortLevel}" (alias outside SDK EffortLevel)`
+      );
+    }
+  } else if (rejectedEffort) {
+    const sessionTag = sessionId ? ` [session=${sessionId}]` : '';
+    console.warn(
+      `effort "${rejectedEffort}" not in allowlist (low|medium|high|xhigh|max|ultracode|auto); ignoring${sessionTag}`
+    );
+  }
 
   // Map system prompt configuration
   sdkOptions.systemPrompt = {
@@ -1420,5 +1490,6 @@ export {
   resolveContextWindow,
   getClaudeBuiltInCommands,
   mapCliOptionsToSDK,
-  buildValidClaudeModelValues
+  buildValidClaudeModelValues,
+  resolveEffortLevel
 };
