@@ -287,5 +287,9 @@
   "participants": {
     "hide": "Katılımcı çubuğunu gizle",
     "show": "Katılımcı çubuğunu göster"
+  },
+  "refreshChat": {
+    "button": "Sohbeti yenile",
+    "refreshing": "Yenileniyor…"
   }
 }

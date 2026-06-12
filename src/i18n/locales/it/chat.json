@@ -287,5 +287,9 @@
   "participants": {
     "hide": "Nascondi barra partecipanti",
     "show": "Mostra barra partecipanti"
+  },
+  "refreshChat": {
+    "button": "Aggiorna chat",
+    "refreshing": "Aggiornamento…"
   }
 }

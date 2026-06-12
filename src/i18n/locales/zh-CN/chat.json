@@ -269,5 +269,9 @@
   "participants": {
     "hide": "隐藏参与者栏",
     "show": "显示参与者栏"
+  },
+  "refreshChat": {
+    "button": "刷新聊天",
+    "refreshing": "刷新中…"
   }
 }

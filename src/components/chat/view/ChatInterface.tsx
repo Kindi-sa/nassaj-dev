@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -98,6 +98,9 @@ function ChatInterface({
   const { showParticipantsBar, setShowParticipantsBar } = useParticipantsBar();
   const participantsBar = useCollapsibleMount(showParticipantsBar);
   const { isConnected, wsStatus } = useWebSocket();
+
+  // Manual refresh state — prevents double-clicks and shows a spinner.
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Ephemeral error message surfaced from server error events with error codes.
   const [serverError, setServerError] = useState<string | null>(null);
@@ -312,6 +315,19 @@ function ChatInterface({
     setCanAbortSession(false);
   }, [selectedProject, selectedSession, sessionStore, setIsLoading, setCanAbortSession]);
 
+  // Manual refresh: re-fetches messages from the server and, if the WebSocket
+  // is not connected, the auto-reconnect mechanism will handle it on its own —
+  // we only need to trigger the message fetch here.
+  const handleManualRefresh = useCallback(async () => {
+    if (isRefreshing || !selectedProject || !selectedSession) return;
+    setIsRefreshing(true);
+    try {
+      await handleWebSocketReconnect();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, selectedProject, selectedSession, handleWebSocketReconnect]);
+
   useChatRealtimeHandlers({
     latestMessage,
     provider,
@@ -456,10 +472,32 @@ function ChatInterface({
             </button>
           </div>
         )}
-        {/* WS connection status — only visible when not fully connected */}
-        {wsStatus !== 'connected' && (
-          <div className="flex justify-center px-4 pt-2">
-            <WsConnectionBadge status={wsStatus} />
+        {/* Chat header bar — refresh button (always shown when a session is open)
+            and WS status badge (only when not fully connected). */}
+        {(selectedSession || currentSessionId) && (
+          <div className="flex items-center justify-end gap-2 px-3 pt-1.5 pb-0.5">
+            {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              aria-label={
+                isRefreshing
+                  ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' })
+                  : t('refreshChat.button', { defaultValue: 'Refresh chat' })
+              }
+              title={
+                isRefreshing
+                  ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' })
+                  : t('refreshChat.button', { defaultValue: 'Refresh chat' })
+              }
+              className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            >
+              <RefreshCw
+                className={['h-3.5 w-3.5', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         )}
         <ChatMessagesPane

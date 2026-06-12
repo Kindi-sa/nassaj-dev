@@ -269,5 +269,9 @@
   "participants": {
     "hide": "참가자 표시줄 숨기기",
     "show": "참가자 표시줄 보기"
+  },
+  "refreshChat": {
+    "button": "채팅 새로고침",
+    "refreshing": "새로고침 중…"
   }
 }

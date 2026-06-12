@@ -287,5 +287,9 @@
   "participants": {
     "hide": "Teilnehmerleiste ausblenden",
     "show": "Teilnehmerleiste anzeigen"
+  },
+  "refreshChat": {
+    "button": "Chat aktualisieren",
+    "refreshing": "Wird aktualisiert…"
   }
 }

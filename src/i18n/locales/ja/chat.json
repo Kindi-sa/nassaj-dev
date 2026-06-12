@@ -254,5 +254,9 @@
   "participants": {
     "hide": "参加者バーを非表示",
     "show": "参加者バーを表示"
+  },
+  "refreshChat": {
+    "button": "チャットを更新",
+    "refreshing": "更新中…"
   }
 }

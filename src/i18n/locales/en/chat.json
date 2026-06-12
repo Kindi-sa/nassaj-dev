@@ -374,5 +374,9 @@
     "cli_not_installed": "CLI not installed — please install the required CLI tool",
     "spawn_failed": "Failed to start the process — check server logs for details",
     "unknown": "An unexpected server error occurred"
+  },
+  "refreshChat": {
+    "button": "Refresh chat",
+    "refreshing": "Refreshing…"
   }
 }
