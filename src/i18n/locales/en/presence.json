@@ -5,5 +5,7 @@
   "idle": "Idle",
   "workingOn": "Working on: {{target}}",
   "more_one": "{{count}} more",
-  "more_other": "{{count}} more"
+  "more_other": "{{count}} more",
+  "openSessionsNow": "Open sessions now",
+  "openSessionsNowCount": "{{count}} open sessions now"
 }

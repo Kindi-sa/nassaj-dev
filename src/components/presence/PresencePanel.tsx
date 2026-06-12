@@ -1,3 +1,4 @@
+import { Activity } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../auth/context/AuthContext';
@@ -5,6 +6,7 @@ import { cn } from '../../lib/utils';
 import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
 import { Tooltip } from '../../shared/view/ui';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
@@ -67,6 +69,7 @@ export default function PresencePanel() {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
   const presenceUsers = usePresence();
+  const { openSessionsCount } = useWebSocket();
 
   if (presenceUsers.length === 0) {
     return null;
@@ -99,9 +102,35 @@ export default function PresencePanel() {
 
   return (
     <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
-      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {t('title', { defaultValue: 'Online now' })}
-      </span>
+      {/* "Online now" label + open-sessions badge, grouped so they read as one unit. */}
+      <div className="flex flex-shrink-0 items-center gap-1.5">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('title', { defaultValue: 'Online now' })}
+        </span>
+
+        {openSessionsCount !== null && (
+          <Tooltip
+            content={t('openSessionsNowCount', {
+              count: openSessionsCount,
+              defaultValue: '{{count}} open sessions now',
+            })}
+          >
+            <span
+              className={cn(
+                'inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40',
+                'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
+              )}
+              aria-label={t('openSessionsNowCount', {
+                count: openSessionsCount,
+                defaultValue: '{{count}} open sessions now',
+              })}
+            >
+              <Activity className="h-2.5 w-2.5 flex-shrink-0 text-emerald-500/80" aria-hidden="true" />
+              <span className="font-medium">{openSessionsCount}</span>
+            </span>
+          </Tooltip>
+        )}
+      </div>
 
       <ul
         className="flex min-w-0 items-center"

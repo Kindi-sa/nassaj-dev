@@ -9,5 +9,7 @@
   "more_two": "واثنان آخران",
   "more_few": "و{{count}} آخرون",
   "more_many": "و{{count}} آخرين",
-  "more_other": "و{{count}} آخرين"
+  "more_other": "و{{count}} آخرين",
+  "openSessionsNow": "الجلسات المفتوحة الآن",
+  "openSessionsNowCount": "{{count}} جلسة مفتوحة الآن"
 }
