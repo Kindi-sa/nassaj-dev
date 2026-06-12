@@ -241,33 +241,35 @@ export default function SidebarSessionItem({
               </div>
             </div>
 
-            <button
-              type="button"
-              aria-label={starLabel}
-              aria-pressed={isStarred}
-              title={starLabel}
-              className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md transition-transform active:scale-95',
-                isStarred
-                  ? 'text-amber-500'
-                  : 'text-muted-foreground/60 hover:text-amber-500',
-              )}
-              onClick={handleToggleStar}
-            >
-              <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
-            </button>
-
-            {!sessionView.isCursorSession && (
+            <div className="flex flex-shrink-0 items-center gap-1">
               <button
-                className="ms-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestDeleteSession();
-                }}
+                type="button"
+                aria-label={starLabel}
+                aria-pressed={isStarred}
+                title={starLabel}
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded-md transition-transform active:scale-95',
+                  isStarred
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground/60 hover:text-amber-500',
+                )}
+                onClick={handleToggleStar}
               >
-                <Trash2 className="h-2.5 w-2.5 text-red-600 dark:text-red-400" />
+                <Star className={cn('h-3.5 w-3.5', isStarred && 'fill-current')} />
               </button>
-            )}
+
+              {!sessionView.isCursorSession && (
+                <button
+                  className="flex h-6 w-6 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestDeleteSession();
+                  }}
+                >
+                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -282,25 +284,12 @@ export default function SidebarSessionItem({
           )}
         >
           <div className="flex w-full min-w-0 items-start gap-2">
-            <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3 w-3 flex-shrink-0" />
+            <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-label={starLabel}
-                  aria-pressed={isStarred}
-                  title={starLabel}
-                  className={cn(
-                    'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded transition-colors',
-                    isStarred
-                      ? 'text-amber-500'
-                      : 'text-muted-foreground/40 opacity-0 hover:text-amber-500 focus-visible:opacity-100 group-hover:opacity-100',
-                  )}
-                  onClick={handleToggleStar}
-                >
-                  <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
-                </button>
-                <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
+                <div className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                  {sessionView.sessionName}
+                </div>
                 {ownerParticipant && (
                   <ParticipantAvatar
                     participant={ownerParticipant}
@@ -311,16 +300,25 @@ export default function SidebarSessionItem({
                     avatarUrl={ownerParticipant.avatarUrl ?? undefined}
                   />
                 )}
-                {compactSessionAge && (
-                  <span
-                    className={cn(
-                      'ms-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
-                  >
-                    {compactSessionAge}
-                  </span>
-                )}
+                {/* Resting trailing indicator (fixed width so it never shifts
+                    the title): shows the amber star when starred, else the
+                    compact age. Fades out on hover, when the action cluster
+                    (which carries its own star toggle) slides in. */}
+                <div
+                  className={cn(
+                    'flex h-4 w-8 flex-shrink-0 items-center justify-end transition-opacity duration-200',
+                    isEditing ? 'opacity-0' : 'group-hover:opacity-0',
+                  )}
+                  aria-hidden="true"
+                >
+                  {isStarred ? (
+                    <Star className="h-3.5 w-3.5 fill-current text-amber-500" />
+                  ) : (
+                    compactSessionAge && (
+                      <span className="text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                    )
+                  )}
+                </div>
               </div>
               <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
@@ -378,6 +376,21 @@ export default function SidebarSessionItem({
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  aria-label={starLabel}
+                  aria-pressed={isStarred}
+                  title={starLabel}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded transition-colors',
+                    isStarred
+                      ? 'bg-amber-50 text-amber-500 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40'
+                      : 'bg-gray-50 text-muted-foreground hover:bg-amber-50 hover:text-amber-500 dark:bg-gray-900/20 dark:hover:bg-amber-900/20',
+                  )}
+                  onClick={handleToggleStar}
+                >
+                  <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
+                </button>
                 <button
                   className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
                   onClick={(event) => {
