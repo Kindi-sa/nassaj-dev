@@ -51,6 +51,14 @@
   "externalOrigin": {
     "label": "أُنشئت خارج الواجهة"
   },
+  "coordinatorPrompt": {
+    "label": "موجّه المنسّق ← وكيل فرعي",
+    "ariaLabel": "موجّه المنسّق إلى وكيل فرعي"
+  },
+  "systemMessage": {
+    "label": "رسالة نظام",
+    "ariaLabel": "رسالة آلية من النظام"
+  },
   "sessionNotResumable": {
     "message": "تعذّر استئناف هذه الجلسة — لم تعد موجودة لدى المزوّد.",
     "startNew": "بدء جلسة جديدة"

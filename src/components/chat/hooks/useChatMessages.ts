@@ -52,6 +52,11 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       // against the participant roster, falling back to the session owner when
       // null/absent.
       coordinatorId: msg.coordinatorId,
+      // Machine-origin discriminator (server commit 91b8b39). Present only on
+      // kind:'text' role:'user' rows that were written programmatically (no
+      // userId). MessageComponent uses this to render coordinator-to-subagent
+      // prompts distinctly from human input.
+      originKind: msg.originKind,
     };
 
     switch (msg.kind) {

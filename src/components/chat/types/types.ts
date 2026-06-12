@@ -44,6 +44,17 @@ export interface ChatMessage {
    * (they use `userId`).
    */
   coordinatorId?: number | null;
+  /**
+   * Machine origin discriminator for a `type:'user'` message (server commit
+   * 91b8b39). Absent = genuine human input (userId present).
+   * Present = programmatic / machine-authored row with no userId:
+   *   'coordinator' — coordinator prompting a sub-agent (Task/Agent tool).
+   *   'peer'        — inter-agent peer message.
+   *   'channel'     — broadcast channel injection.
+   *   'task-notification' — automated task status update.
+   * Rule: type:'user' + originKind present ⇒ machine-authored; absent ⇒ human.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | string;
   timestamp: string | number | Date;
   images?: ChatImage[];
   reasoning?: string;

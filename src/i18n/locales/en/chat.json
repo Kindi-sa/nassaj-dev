@@ -51,6 +51,14 @@
   "externalOrigin": {
     "label": "Created outside the UI"
   },
+  "coordinatorPrompt": {
+    "label": "Coordinator → Sub-agent",
+    "ariaLabel": "Coordinator prompt to sub-agent"
+  },
+  "systemMessage": {
+    "label": "System message",
+    "ariaLabel": "Automated system message"
+  },
   "sessionNotResumable": {
     "message": "This session could not be resumed — it no longer exists at the provider.",
     "startNew": "Start a new session"

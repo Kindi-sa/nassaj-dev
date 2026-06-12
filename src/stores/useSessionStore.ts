@@ -78,6 +78,18 @@ export interface NormalizedMessage {
   code?: string;
   /** Stale resume target reported alongside a 'conversation_not_found' error. */
   staleSessionId?: string;
+  /**
+   * Machine origin discriminator for a kind:'text' role:'user' message (server
+   * commit 91b8b39). Absent = genuine human input (has a userId stamp).
+   * Present = the row was written programmatically, not by a human:
+   *   'coordinator' — the coordinator (main agent) prompted a sub-agent via
+   *                   Task/Agent tool; never has a userId.
+   *   'peer'        — inter-agent peer message.
+   *   'channel'     — broadcast channel injection.
+   *   'task-notification' — automated task status update.
+   * Rule: role:'user' + originKind present ⇒ machine-authored; absent ⇒ human.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | string;
   /** Original command that failed to resume, used to retry as a new session. */
   command?: string;
   text?: string;

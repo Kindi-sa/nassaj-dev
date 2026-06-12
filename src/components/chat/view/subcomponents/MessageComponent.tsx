@@ -176,16 +176,29 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
   // there is no message_authors row to resolve. Rendered with an explicit
   // "Created outside the UI" caption and a terminal-icon avatar — never a
   // person icon — so viewers cannot mistake machine-injected prompts for a
-  // human sender. (Coordinator→agent sidechain prompts never reach this
-  // stream: they live in subagents/agent-*.jsonl files which the server only
-  // mines for tool calls.)
-  const isExternalOriginMessage = message.type === 'user' && messageUserId === undefined;
+  // human sender.
+  // Note: originKind rows are excluded from this bucket — they are handled by
+  // isCoordinatorPrompt / isSystemOriginMessage below.
+  const messageOriginKind = typeof message.originKind === 'string' ? message.originKind : undefined;
+  const isCoordinatorPrompt = message.type === 'user' && messageOriginKind === 'coordinator';
+  const isSystemOriginMessage =
+    message.type === 'user' &&
+    messageOriginKind !== undefined &&
+    messageOriginKind !== 'coordinator';
+  // Pure external: no userId AND no originKind (legacy CLI / direct injection)
+  const isExternalOriginMessage =
+    message.type === 'user' &&
+    messageUserId === undefined &&
+    messageOriginKind === undefined;
 
-  // Consecutive user messages only group when they share an author, so a
-  // different sender's bubble never hides behind the previous author's avatar.
+  // Consecutive user messages only group when they share an author AND origin
+  // kind, so coordinator prompts never merge visually with human bubbles and
+  // vice-versa.
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
-      (prevMessage.type === 'user' && prevMessage.userId === message.userId) ||
+      (prevMessage.type === 'user' &&
+        prevMessage.userId === message.userId &&
+        (prevMessage.originKind ?? undefined) === messageOriginKind) ||
       (prevMessage.type === 'tool') ||
       (prevMessage.type === 'error'));
   const messageRef = useRef<HTMLDivElement | null>(null);
@@ -272,10 +285,76 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     <div
       ref={messageRef}
       data-message-timestamp={message.timestamp || undefined}
-      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${message.type === 'user' ? 'flex justify-end px-3 sm:px-0' : 'px-3 sm:px-0'}`}
+      className={`chat-message ${message.type} ${isGrouped ? 'grouped' : ''} ${
+        message.type === 'user' && !isCoordinatorPrompt && !isSystemOriginMessage
+          ? 'flex justify-end px-3 sm:px-0'
+          : 'px-3 sm:px-0'
+      }`}
     >
-      {message.type === 'user' ? (
-        /* User message bubble on the right */
+      {isCoordinatorPrompt ? (
+        /* ── Coordinator → Sub-agent prompt ─────────────────────────────────
+         * A user-role row carrying originKind:'coordinator': the main agent
+         * (coordinator) directed a sub-agent via Task/Agent tool. Never a
+         * blue human bubble. Rendered on the LEFT as a distinct machine row
+         * with an amber/orange accent so it is visually unambiguous. */
+        <div
+          className="w-full"
+          aria-label={t('coordinatorPrompt.ariaLabel', { defaultValue: 'Coordinator prompt to sub-agent' })}
+        >
+          {!isGrouped && (
+            <div className="mb-1.5 flex items-center gap-2">
+              {/* Agent delegation icon */}
+              <span className="inline-flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400" aria-hidden="true">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5 4.5 4.5m0 0L16.5 12M21 3H7.5" />
+                </svg>
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                {t('coordinatorPrompt.label', { defaultValue: 'Coordinator → Sub-agent' })}
+              </span>
+            </div>
+          )}
+          <div className="ms-9 rounded-lg border border-amber-200/60 bg-amber-50/50 px-3 py-2 dark:border-amber-700/40 dark:bg-amber-900/10">
+            <div className="whitespace-pre-wrap break-words text-sm text-gray-800 dark:text-gray-200" dir="auto">
+              {message.content}
+            </div>
+            <div className="mt-1 flex items-center justify-end gap-1 text-[11px] text-amber-500 dark:text-amber-400">
+              {shouldShowUserCopyControl && (
+                <MessageCopyControl content={userCopyContent} messageType="user" />
+              )}
+              {formattedTime && (
+                <time dateTime={isoTimestamp} title={fullDateTime} className="cursor-default">
+                  {formattedTime}
+                </time>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : isSystemOriginMessage ? (
+        /* ── System / automated message (peer / channel / task-notification) ─
+         * Other machine-originated originKind values. Rendered as a neutral
+         * inline system note — no bubble, no human attribution. */
+        <div
+          className="w-full"
+          aria-label={t('systemMessage.ariaLabel', { defaultValue: 'Automated system message' })}
+        >
+          <div className="flex items-center gap-2 py-0.5">
+            <span className="inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" aria-hidden="true" />
+            <span className="text-xs italic text-gray-500 dark:text-gray-400" dir="auto">
+              <span className="me-1 font-medium not-italic text-gray-400 dark:text-gray-500">
+                [{t('systemMessage.label', { defaultValue: 'System message' })}]
+              </span>
+              {message.content}
+            </span>
+            {formattedTime && (
+              <time dateTime={isoTimestamp} title={fullDateTime} className="ms-auto cursor-default text-[10px] text-gray-400 dark:text-gray-500">
+                {formattedTime}
+              </time>
+            )}
+          </div>
+        </div>
+      ) : message.type === 'user' ? (
+        /* ── Human user bubble on the right ─────────────────────────────── */
         <div className="flex w-full items-end space-x-0 sm:w-auto sm:max-w-[85%] sm:space-x-3 md:max-w-md lg:max-w-lg xl:max-w-xl">
           <div className="group flex-1 rounded-2xl rounded-br-md bg-blue-600 px-3 py-2 text-white shadow-sm sm:flex-initial sm:px-4">
             {/* Owner-authored prompt: a "User: <owner>" caption attributing
