@@ -41,6 +41,12 @@
       "title": "الدخول بمفتاح مرور (Passkey/WebAuthn)",
       "status": "done",
       "progress": 100
+    },
+    {
+      "id": "P6",
+      "title": "ويكي نسّاج للفريق + زر تحديث نافذة المحادثة",
+      "status": "pending",
+      "progress": 0
     }
   ],
   "sprints": [
@@ -1181,8 +1187,64 @@
       "title": "مؤشّر استخدام Claude مختصر في الشريط العلوي (C/W/S/O %) يظهر فقط على نوافذ ≥1280px",
       "status": "done",
       "owner": "frontend-dev",
-      "note": "HeaderUsageIndicator.tsx جديد (hook useMediaQuery + useClaudeUsage مُفعَّل فقط عند الاتساع فلا يطلب الـAPI على الضيق) + usageTextColorClass في claudeUsageHelpers + دمج في MainContentHeader. الحرف بلون الثيم والنسبة بلون الاستهلاك. build:client ناجح؛ الواجهة فقط بلا restart.",
+      "note": "HeaderUsageIndicator.tsx جديد (hook useMediaQuery + useClaudeUsage مُفعَّل فقط عند الاتساع فلا يطلب الـAPI على الضيق) + usageTextColorClass في claudeUsageHelpers + دمج في MainContentHeader. الحرف بلون الثيم والنسبة بلون الاستهلاك. لاحقاً: توحيد الألوان مع شريط التوكنز (emerald/amber/orange/red، ‏b1e56b4) + موعد تجديد الحصة في tooltip دون تكرار النسبة، وaria-label كامل لقارئات الشاشة (c4e7e77). build:client ناجح؛ الواجهة فقط بلا restart.",
       "closed": "2026-06-12"
+    },
+    {
+      "id": "T-103",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "زر تحديث نافذة المحادثة في رأس المحادثة: إعادة جلب رسائل الجلسة الحالية (sessionStore.refreshFromServer — نفس مسار handleWebSocketReconnect) + فحص/إعادة اتصال WS، بديلاً عن تحديث الصفحة كاملة عند تعليق الردود",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "اعتمد المالك الخطة 2026-06-12؛ الموجة 1 قيد التنفيذ"
+    },
+    {
+      "id": "T-104",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "doc",
+      "issue": null,
+      "title": "تأليف محتوى ويكي نسّاج المبسّط للفريق: ‏7 صفحات Markdown عربية في docs/team-wiki/ (نظرة عامة، الكِندِي، نسّاج كور، نسّاج ديف، رحلة المهمة، أسئلة شائعة ~30 سؤالاً من المحادثات الفعلية، مسرد) + مخططات Mermaid",
+      "status": "done",
+      "owner": "content-writer",
+      "note": "مكتملة 2026-06-12: 7 ملفات .md + index.json، 901 سطر، مخططات Mermaid (3: flowchart، sequence، graph)؛ 30 سؤال في FAQ + 120 مصطلح في Glossary؛ 2 placeholder لقطات شاشة (board-live-update + interface-rtl)؛ commit ad48a02",
+      "closed": "2026-06-12"
+    },
+    {
+      "id": "T-105",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "تبويب «الويكي» في الواجهة: عارض Markdown+Mermaid (المكتبتان مثبّتتان) يقرأ docs/team-wiki/ عبر file API القائم بفهرس جانبي، ومدخل الويكي مكان زر تحديث المشاريع في SidebarHeader (التحديث ينتقل لرأس المحادثة بـ T-103)",
+      "status": "todo",
+      "owner": "frontend-dev",
+      "note": "واجهة فقط بلا تغيير سيرفر = build:client بلا restart؛ بانتظار اعتماد الخطة"
+    },
+    {
+      "id": "T-106",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "doc",
+      "issue": null,
+      "title": "لقطات شاشة حقيقية للواجهة (Playwright) للشريط الجانبي والمحادثة ولوحة المشروع والإعدادات وإدراجها في صفحات الويكي",
+      "status": "todo",
+      "owner": "end-user-tester",
+      "note": "بعد T-104/T-105؛ بانتظار اعتماد الخطة"
+    },
+    {
+      "id": "T-107",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "review",
+      "issue": null,
+      "title": "مراجعة الويكي: end-user-tester يقرأه بعين موظف جديد (هل يُفهم دون شرح شفهي؟) + design-reviewer للتبويب، ثم اعتماد المالك ونشر build:client",
+      "status": "todo",
+      "owner": "end-user-tester",
+      "note": "بوابة الإغلاق: موافقة المالك على المحتوى؛ بانتظار اعتماد الخطة"
     }
   ],
   "issues": [
