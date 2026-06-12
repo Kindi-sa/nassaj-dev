@@ -1044,6 +1044,54 @@
       "owner": "workflow",
       "closed": "2026-06-12",
       "summary": "commits 8257190/e189233؛ مراجعة عدائية approve_with_fixes ثم أُصلحت القضيتان الحرجتان"
+    },
+    {
+      "id": "T-97",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "owner": "devops",
+      "status": "done",
+      "closed": "2026-06-12",
+      "title": "تفعيل تدرّج النماذج (ADR-019): haiku لـ scribe/tester/content-writer، sonnet لـ frontend-dev/devops/researcher، fable للقرارات الحسّاسة",
+      "summary": "nassaj-core commit 04b898e؛ البوابتان سليمتان؛ ملحق ADR-019"
+    },
+    {
+      "id": "T-98",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "owner": "devops",
+      "status": "done",
+      "closed": "2026-06-12",
+      "title": "استرجاع ~5GB قرص: حذف صورة Playwright وnode_modules (claudecodeui-official/AlNuman) وأرشيف قديم؛ القرار مفوَّض للوكيل",
+      "summary": "47G→42G؛ كلها regenerable/يتيمة موثّقة؛ آلية حذف المحادثات passive (Claude CLI، 4 ملفات قديمة هامشية)"
+    },
+    {
+      "id": "T-99",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-43",
+      "owner": "backend-dev",
+      "status": "done",
+      "closed": "2026-06-12",
+      "title": "تقييد CORS لقائمة أصول معروفة (ALLOWED_ORIGINS) + إصلاح B-43/تأكيد B-44",
+      "summary": "commits 9c979ed/32cde37؛ 417 اختباراً؛ يسري بعد restart"
+    },
+    {
+      "id": "T-100",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "doc",
+      "issue": null,
+      "owner": "scribe",
+      "status": "done",
+      "closed": "2026-06-12",
+      "title": "توثيق ADR-022 (تسوية خصوصية المحادثات) + سياسة المجلدات والنسخ الاحتياطية",
+      "summary": "nassaj-core commit 288fc7e"
     }
   ],
   "issues": [
@@ -1398,18 +1446,20 @@
     {
       "id": "B-43",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-12",
       "title": "اختبارات wsConnectionBehavior.test.ts تكرّر منطق المصدر محلياً بدل استيراده (calcReconnectDelay، SERVER_ERROR_CODE_KEYS) — قد تمر بينما يكسر الإنتاج",
-      "triage": "low → backlog"
+      "triage": "أُغلق: استيراد calcReconnectDelay/SERVER_ERROR_CODE_KEYS من المصدر (commit 32cde37)",
+      "resolved": "2026-06-12"
     },
     {
       "id": "B-44",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-12",
       "title": "restrictDatabasePermissions لا يضبط chmod لملفّي WAL ‏.db-wal/.db-shm بعد تفعيل WAL (B-38) — مشكلة قائمة سابقاً صارت أظهر",
-      "triage": "low → backlog"
+      "triage": "لا عمل: restrictDatabasePermissions تغطي .db-wal/.db-shm أصلاً منذ e189233 (تحقق devops)",
+      "resolved": "2026-06-12"
     },
     {
       "id": "B-31",
@@ -1470,6 +1520,19 @@
       "date": "2026-06-12",
       "status": "proposed",
       "title": "مسح شامل 2026-06-12: ‏128 نتيجة (24 مؤكدة حرجة/عالية) + 14 مقترح حوكمة + 7 قرارات تنتظر موافقة المالك — docs/audit-2026-06-12/REPORT.md"
+    },
+    {
+      "id": "ADR-019-ACT",
+      "date": "2026-06-12",
+      "status": "accepted",
+      "title": "تفعيل تدرّج النماذج — منفَّذ (commit 04b898e). قاعدة تراجع: رفض qa-critic مخرجات وكيل مخفَّض مرتين = إعادة ترقيته"
+    },
+    {
+      "id": "ADR-028-CLUSTER",
+      "date": "2026-06-12",
+      "status": "proposed",
+      "title": "cluster-mode: توصية GO مشروط (docs/cluster-mode-readiness.md) — تنتظر go/no-go صريح من المالك؛ 3 مخاطر (instances>1، treekill للـworkers، تسلسل إشارات drain)",
+      "due": "2026-06-20"
     }
   ]
 }
