@@ -69,22 +69,32 @@ function resolveProjectDisplayName(
 }
 
 /**
- * Stamps the sender identity (`userId`) onto user-authored text messages
- * loaded from provider history (B-MU-UX-FIX-MSG-AUTHOR).
+ * Stamps sender identity onto messages loaded from provider history
+ * (B-MU-UX-FIX-MSG-AUTHOR + B-MU-UX-FIX-ASSISTANT-AUTHOR).
  *
  * The run path records one message_authors row per sent prompt (sidecar
  * attribution — the transcript itself is written by the provider CLI/SDK and
- * carries no user identity). Here each kind:'text' role:'user' message is
- * matched back to a recorded row by content hash; when the same text was
- * recorded more than once (e.g. two users sent identical prompts) the row
- * closest in time wins and is consumed so the next identical message matches
- * the next row. Messages with no matching row (recorded before attribution
- * existed, provider-rewritten prompts) keep no userId — clients fall back.
+ * carries no identity). This pass walks the transcript in order and:
+ *
+ * 1. user messages — each kind:'text' role:'user' message is matched back to a
+ *    recorded row by content hash; when the same text was recorded more than
+ *    once (e.g. two users sent identical prompts) the row closest in time wins
+ *    and is consumed so the next identical message maps to the next row. The
+ *    matched author is stamped as `userId`.
+ * 2. assistant messages — every assistant-authored message inherits the
+ *    coordinator of the most recent preceding attributed user prompt as
+ *    `coordinatorId`. A run's assistant output always follows the prompt that
+ *    spawned it in transcript order, so the running "current coordinator"
+ *    correctly attributes the reply without a second sidecar table.
+ *
+ * Messages with no resolvable author (recorded before attribution existed,
+ * provider-rewritten prompts, or assistant output before the first attributed
+ * prompt) keep no userId/coordinatorId — clients fall back to the session owner.
  *
  * Mutates `messages` in place; never throws (attribution is best-effort and
  * must not break history loading).
  */
-function stampUserMessageAuthors(sessionId: string, messages: NormalizedMessage[]): void {
+function stampMessageAuthors(sessionId: string, messages: NormalizedMessage[]): void {
   let authorRows: MessageAuthorRow[];
   try {
     authorRows = messageAuthorsDb.listBySession(sessionId);
@@ -96,7 +106,19 @@ function stampUserMessageAuthors(sessionId: string, messages: NormalizedMessage[
   if (authorRows.length === 0) {
     return;
   }
+  applyMessageAuthorAttribution(messages, authorRows);
+}
 
+/**
+ * Pure transcript-walk that applies user/coordinator attribution given the
+ * session's recorded author rows. Separated from the DB read so it can be unit
+ * tested in isolation. Mutates `messages` in place. See stampMessageAuthors for
+ * the full attribution contract.
+ */
+export function applyMessageAuthorAttribution(
+  messages: NormalizedMessage[],
+  authorRows: MessageAuthorRow[],
+): void {
   const candidatesByHash = new Map<string, MessageAuthorRow[]>();
   for (const row of authorRows) {
     const list = candidatesByHash.get(row.contentHash);
@@ -107,43 +129,61 @@ function stampUserMessageAuthors(sessionId: string, messages: NormalizedMessage[
     }
   }
 
+  // Coordinator carried forward in transcript order: assistant output is
+  // attributed to whoever spawned the most recent attributed user prompt.
+  let currentCoordinator: number | null = null;
+
   for (const message of messages) {
-    if (message.kind !== 'text' || message.role !== 'user' || message.userId != null) {
-      continue;
-    }
-    const content = typeof message.content === 'string' ? message.content : '';
-    if (!content.trim()) {
-      continue;
-    }
+    if (message.kind === 'text' && message.role === 'user') {
+      if (message.userId != null) {
+        // Already attributed (live-stamped echo) — adopt it as the coordinator
+        // for any assistant output that follows.
+        currentCoordinator = message.userId;
+        continue;
+      }
+      const content = typeof message.content === 'string' ? message.content : '';
+      if (!content.trim()) {
+        continue;
+      }
 
-    const candidates = candidatesByHash.get(hashMessageAuthorContent(content));
-    if (!candidates || candidates.length === 0) {
-      continue;
-    }
+      const candidates = candidatesByHash.get(hashMessageAuthorContent(content));
+      if (!candidates || candidates.length === 0) {
+        continue;
+      }
 
-    // Closest recorded timestamp wins when several rows share the hash.
-    let bestIndex = 0;
-    const messageTime = Date.parse(message.timestamp);
-    if (candidates.length > 1 && Number.isFinite(messageTime)) {
-      let bestDelta = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < candidates.length; index++) {
-        const rowTime = Date.parse(candidates[index].createdAt);
-        const delta = Number.isFinite(rowTime)
-          ? Math.abs(rowTime - messageTime)
-          : Number.POSITIVE_INFINITY;
-        if (delta < bestDelta) {
-          bestDelta = delta;
-          bestIndex = index;
+      // Closest recorded timestamp wins when several rows share the hash.
+      let bestIndex = 0;
+      const messageTime = Date.parse(message.timestamp);
+      if (candidates.length > 1 && Number.isFinite(messageTime)) {
+        let bestDelta = Number.POSITIVE_INFINITY;
+        for (let index = 0; index < candidates.length; index++) {
+          const rowTime = Date.parse(candidates[index].createdAt);
+          const delta = Number.isFinite(rowTime)
+            ? Math.abs(rowTime - messageTime)
+            : Number.POSITIVE_INFINITY;
+          if (delta < bestDelta) {
+            bestDelta = delta;
+            bestIndex = index;
+          }
         }
       }
+
+      message.userId = candidates[bestIndex].userId;
+      currentCoordinator = candidates[bestIndex].userId;
+      // Consume the matched row (but always keep the last one) so repeated
+      // identical texts map one-to-one while a lone row still covers transcript
+      // echoes of the same prompt.
+      if (candidates.length > 1) {
+        candidates.splice(bestIndex, 1);
+      }
+      continue;
     }
 
-    message.userId = candidates[bestIndex].userId;
-    // Consume the matched row (but always keep the last one) so repeated
-    // identical texts map one-to-one while a lone row still covers transcript
-    // echoes of the same prompt.
-    if (candidates.length > 1) {
-      candidates.splice(bestIndex, 1);
+    // Assistant-authored output: inherit the active coordinator. Only stamp when
+    // known and not already present, so a future live-stamped coordinatorId
+    // (should one ever reach this path) is never overwritten.
+    if (message.role !== 'user' && currentCoordinator != null && message.coordinatorId == null) {
+      message.coordinatorId = currentCoordinator;
     }
   }
 }
@@ -202,7 +242,7 @@ export const sessionsService = {
     // Sender attribution for multi-user sessions: providers normalize history
     // without identity (the transcript has none), so the sidecar stamping runs
     // here — the single choke point every history read flows through.
-    stampUserMessageAuthors(sessionId, result.messages);
+    stampMessageAuthors(sessionId, result.messages);
 
     return result;
   },

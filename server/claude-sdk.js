@@ -28,7 +28,7 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
@@ -1127,6 +1127,12 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         if (msg.kind === 'text' && msg.role === 'user' && Number.isInteger(ws?.userId)) {
           msg.userId = ws.userId;
         }
+        // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): every
+        // assistant-driven payload this run emits was spawned by the human on
+        // this socket. Stamp the JWT-sourced coordinatorId so live viewers (and
+        // the spawner's mirrors) attribute the reply to the real participant
+        // instead of the session owner. No-op for the user echo handled above.
+        stampCoordinatorId(msg, ws?.userId);
         ws.send(msg);
       }
 

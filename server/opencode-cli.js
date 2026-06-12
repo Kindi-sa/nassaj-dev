@@ -8,7 +8,7 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
-import { createNormalizedMessage, getOpenCodeDatabasePath } from './shared/utils.js';
+import { createNormalizedMessage, getOpenCodeDatabasePath, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 
@@ -174,12 +174,13 @@ async function spawnOpenCode(command, options = {}, ws) {
       try {
         response = JSON.parse(line);
       } catch {
-        ws.send(createNormalizedMessage({
+        // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+        ws.send(stampCoordinatorId(createNormalizedMessage({
           kind: 'stream_delta',
           content: line,
           sessionId: capturedSessionId || sessionId || null,
           provider: 'opencode',
-        }));
+        }), ws?.userId));
         return;
       }
 
@@ -191,6 +192,9 @@ async function spawnOpenCode(command, options = {}, ws) {
           capturedSessionId || sessionId || null,
         );
         for (const msg of normalized) {
+          // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): tag assistant
+          // output with the JWT-sourced spawner so viewers attribute it correctly.
+          stampCoordinatorId(msg, ws?.userId);
           ws.send(msg);
         }
       } catch (error) {

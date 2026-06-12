@@ -4,7 +4,7 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
@@ -227,7 +227,8 @@ async function spawnCursor(command, options = {}, ws) {
               // Accumulate assistant message chunks
               if (response.message && response.message.content && response.message.content.length > 0) {
                 const normalized = sessionsService.normalizeMessage('cursor', response, capturedSessionId || sessionId || null);
-                for (const msg of normalized) ws.send(msg);
+                // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+                for (const msg of normalized) ws.send(stampCoordinatorId(msg, ws?.userId));
               }
               break;
 
@@ -254,7 +255,8 @@ async function spawnCursor(command, options = {}, ws) {
 
           // If not JSON, send as stream delta via adapter
           const normalized = sessionsService.normalizeMessage('cursor', line, capturedSessionId || sessionId || null);
-          for (const msg of normalized) ws.send(msg);
+          // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+          for (const msg of normalized) ws.send(stampCoordinatorId(msg, ws?.userId));
         }
       };
 

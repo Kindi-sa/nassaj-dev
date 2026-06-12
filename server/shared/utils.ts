@@ -346,6 +346,34 @@ export function createNormalizedMessage(fields: NormalizedMessageInput): Normali
   };
 }
 
+/**
+ * Coordinator attribution for live assistant output (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+ *
+ * Stamps `coordinatorId` (the users.id of the participant who spawned the run,
+ * sourced from the JWT-authenticated socket) onto an assistant-authored
+ * normalized message before it is forwarded. Mutates and returns `msg`.
+ *
+ * The rule mirrors the user-attribution one (which stamps `userId` on
+ * kind:'text' role:'user' echoes): every message that is NOT a user-role one is
+ * assistant-turn output (text/thinking/tool_use/tool_result), so it carries the
+ * coordinator instead. No-op when the socket has no integer userId
+ * (anonymous/single-user runs) or when the message is user-authored — those
+ * keep `userId` only and never receive a coordinatorId.
+ */
+export function stampCoordinatorId(
+  msg: NormalizedMessage,
+  userId: unknown,
+): NormalizedMessage {
+  if (!Number.isInteger(userId)) {
+    return msg;
+  }
+  if (msg.role === 'user') {
+    return msg;
+  }
+  msg.coordinatorId = userId as number;
+  return msg;
+}
+
 // ---------------------------
 //----------------- MCP CONFIG PARSING UTILITIES ------------
 /**

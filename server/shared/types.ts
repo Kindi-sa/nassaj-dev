@@ -217,6 +217,24 @@ export type NormalizedMessage = {
    */
   userId?: number;
   /**
+   * Coordinator attribution for assistant output in multi-user sessions
+   * (B-MU-UX-FIX-ASSISTANT-AUTHOR). The users.id of the participant who spawned
+   * the run that produced this assistant message — sourced from the
+   * JWT-authenticated socket (ws.userId) on the live run path, and derived from
+   * the message_authors sidecar (the author of the preceding user prompt) on
+   * history loads.
+   *
+   * Present only on assistant-authored messages (role:'assistant') whose
+   * coordinator is known. Absent (treated as null) for:
+   * - user-authored messages (those carry `userId` instead),
+   * - provider-internal/status events,
+   * - assistant messages recorded before coordinator tracking existed or whose
+   *   originating prompt was not attributed.
+   * Clients MUST treat a missing/null value as "coordinator unknown" and fall
+   * back to the session owner (never assume the viewing user spawned the run).
+   */
+  coordinatorId?: number | null;
+  /**
    * Optional display-oriented metadata used by providers that need to expose
    * richer transcript artifacts without introducing a brand-new message kind.
    *

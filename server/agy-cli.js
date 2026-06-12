@@ -698,7 +698,18 @@ async function spawnAntigravity(command, options = {}, ws) {
     const stdoutDecoder = new StringDecoder('utf8');
 
     const safeSend = (payload) => {
-        const normalized = createNormalizedMessage({ ...payload, provider: 'antigravity' });
+        // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): agy streams its
+        // reply as stream_delta chunks (live deltas for new sessions, and the
+        // transcript-derived final reply at close). Stamp the JWT-sourced
+        // coordinatorId of the human who spawned this run so live viewers and
+        // the spawner's mirrors attribute the reply to the real participant
+        // instead of the session owner. Control events (session_created,
+        // complete, error) carry no coordinatorId.
+        const withCoordinator =
+            payload.kind === 'stream_delta' && Number.isInteger(userId)
+                ? { ...payload, coordinatorId: userId }
+                : payload;
+        const normalized = createNormalizedMessage({ ...withCoordinator, provider: 'antigravity' });
         // RingBuffer injection point (ADR-021): buffer the live payload under the
         // current registry key BEFORE forwarding, so a reconnecting socket can be
         // brought up to date via differential replay even if the original ws has

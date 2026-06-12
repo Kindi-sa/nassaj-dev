@@ -1,6 +1,6 @@
 // Gemini Response Handler - JSON Stream processing
 import { sessionsService } from './modules/providers/services/sessions.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 
 function buildGeminiTokenBudget(tokens) {
   if (!tokens || typeof tokens !== 'object') {
@@ -85,6 +85,9 @@ class GeminiResponseHandler {
     // Normalize via adapter and send all resulting messages
     const normalized = sessionsService.normalizeMessage('gemini', event, sid);
     for (const msg of normalized) {
+      // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): tag assistant
+      // output with the JWT-sourced spawner so viewers attribute it correctly.
+      stampCoordinatorId(msg, this.ws?.userId);
       this.ws.send(msg);
     }
 
