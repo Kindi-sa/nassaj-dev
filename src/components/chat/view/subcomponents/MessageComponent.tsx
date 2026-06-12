@@ -95,7 +95,6 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
       avatarUrl: owner.avatarUrl ?? null,
     };
   }, [owner]);
-  const ownerColorClass = owner ? avatarColorForUser(owner.userId) : null;
 
   // Real author of this user message (B-MU-UX-FIX-MSG-AUTHOR). `message.userId`
   // is the numeric users.id stamped by the server on live WS payloads and
@@ -122,6 +121,40 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
       message_count: 0,
     };
   }, [messageUserId, isOwnMessage, currentUserParticipant, participantsById]);
+
+  // Per-message coordinator attribution (server commit 9c61b60). An assistant
+  // reply carries `coordinatorId` = the participant who LAUNCHED the run that
+  // produced it, which may differ from the session owner (the brother who
+  // *created* the session). Resolution:
+  //   1. coordinatorId resolves in the roster → that participant (name/colour);
+  //   2. coordinatorId === the viewer        → the viewer's participant view;
+  //   3. coordinatorId set, roster not loaded → minimal view (deterministic id
+  //      colour) so the right brother's colour still shows;
+  //   4. no coordinatorId (legacy/unknown)   → fall back to the session owner.
+  // COLOR still = which brother; only the *source* of identity changes so the
+  // header names the brother actually replying, not whoever opened the session.
+  const messageCoordinatorId =
+    typeof message.coordinatorId === 'number' ? message.coordinatorId : undefined;
+  const coordinatorParticipant = useMemo<SessionParticipant | null>(() => {
+    if (messageCoordinatorId === undefined) {
+      return ownerParticipant;
+    }
+    if (user?.id !== undefined && Number(user.id) === messageCoordinatorId) {
+      return currentUserParticipant;
+    }
+    const known = participantsById?.get(String(messageCoordinatorId));
+    if (known) return known;
+    return {
+      userId: messageCoordinatorId,
+      username: '',
+      role: 'owner',
+      first_seen: '',
+      last_seen: '',
+      message_count: 0,
+    };
+  }, [messageCoordinatorId, ownerParticipant, participantsById, currentUserParticipant, user?.id]);
+  const coordinatorColorClass =
+    coordinatorParticipant != null ? avatarColorForUser(coordinatorParticipant.userId) : null;
 
   // Owner-authored user prompt. The HUMAN side of the conversation: a user
   // (blue-bubble) message whose userId stamp matches the session owner is
@@ -369,20 +402,22 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                 </div>
               ) : (
                 /* Coordinator (main assistant): provider logo plus, when the
-                 * session owner is known, the owner's coloured avatar so the
-                 * brother behind this session is obvious at a glance (no hover). */
+                 * coordinator of THIS reply is known, that brother's coloured
+                 * avatar — resolved per-message from `coordinatorId`, falling
+                 * back to the session owner — so the brother actually replying
+                 * is obvious at a glance (no hover), even mid-handover. */
                 <div className="flex flex-shrink-0 items-center gap-1.5">
                   <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full p-1 text-sm text-white">
                     <SessionProviderLogo provider={provider} className="h-full w-full" />
                   </div>
-                  {ownerParticipant && (
+                  {coordinatorParticipant && (
                     <ParticipantAvatar
-                      participant={ownerParticipant}
+                      participant={coordinatorParticipant}
                       size="sm"
                       locale={i18n.language}
                       t={t}
                       stacked={false}
-                      avatarUrl={ownerParticipant.avatarUrl ?? undefined}
+                      avatarUrl={coordinatorParticipant.avatarUrl ?? undefined}
                     />
                   )}
                 </div>
@@ -392,8 +427,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                   ? t('messageTypes.error')
                   : message.type === 'tool'
                     ? t('messageTypes.tool')
-                    : ownerParticipant
-                      ? t('coordinator.withName', { username: ownerParticipant.username, defaultValue: 'Coordinator: {{username}}' })
+                    : coordinatorParticipant && coordinatorParticipant.username
+                      ? t('coordinator.withName', { username: coordinatorParticipant.username, defaultValue: 'Coordinator: {{username}}' })
                       : (provider === 'cursor'
                         ? t('messageTypes.cursor')
                         : provider === 'codex'
@@ -436,20 +471,21 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                  */}
                 {message.toolName === 'Task' && (
                   <div className="mb-1.5 flex">
-                    {ownerParticipant && ownerColorClass ? (
-                      /* Sub-agent of a known owner: tint the pill with the owner
-                       * colour (COLOR = which brother) while the pill SHAPE keeps
-                       * it distinct from the coordinator's owner avatar. */
+                    {coordinatorParticipant && coordinatorParticipant.username && coordinatorColorClass ? (
+                      /* Sub-agent launched within a coordinator's run: tint the
+                       * pill with that brother's colour (COLOR = which brother),
+                       * resolved per-message from `coordinatorId`, while the pill
+                       * SHAPE keeps it distinct from the coordinator avatar. */
                       <span
                         className={cn(
                           'inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white',
-                          ownerColorClass,
+                          coordinatorColorClass,
                         )}
                         aria-label={t('subagent.badgeLabel', { defaultValue: 'Sub-agent task' })}
                       >
                         <span className="h-1.5 w-1.5 rounded-full bg-white/80" aria-hidden="true" />
                         {t('subagent.shortBadge', { defaultValue: 'Sub-agent' })}
-                        <span className="font-normal normal-case opacity-90">· {ownerParticipant.username}</span>
+                        <span className="font-normal normal-case opacity-90">· {coordinatorParticipant.username}</span>
                       </span>
                     ) : (
                       <span

@@ -46,6 +46,12 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
+      // Per-message coordinator attribution (server commit 9c61b60). Carried on
+      // every converted row via the shared spread; only assistant rows ever
+      // hold a value (user rows use `userId`), and MessageComponent resolves it
+      // against the participant roster, falling back to the session owner when
+      // null/absent.
+      coordinatorId: msg.coordinatorId,
     };
 
     switch (msg.kind) {

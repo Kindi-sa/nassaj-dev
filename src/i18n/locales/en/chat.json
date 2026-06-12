@@ -325,6 +325,8 @@
     "usersAria_one": "{{count}} participant",
     "usersAria_other": "{{count}} participants",
     "barAria": "Conversation participants",
+    "activeNow": "Active now",
+    "activeCoordinator": "Active now: {{username}}",
     "andMore_one": "and {{count}} more",
     "andMore_other": "and {{count}} more",
     "projectSummary": "{{users}} users · {{agents}} agents",

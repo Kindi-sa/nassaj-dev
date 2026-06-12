@@ -48,6 +48,13 @@ export interface NormalizedMessage {
    */
   userId?: number;
   /**
+   * Coordinator attribution for a kind:'text' role:'assistant' message (server
+   * commit 9c61b60): the users.id of the participant who launched the run that
+   * produced this reply. Stamped live and on reloaded history. Absent/null =
+   * unknown coordinator (legacy rows) — clients fall back to the session owner.
+   */
+  coordinatorId?: number | null;
+  /**
    * Mirrors optional transcript metadata from the server.
    *
    * These fields are currently used by Claude history normalization so local

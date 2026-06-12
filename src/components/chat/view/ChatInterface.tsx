@@ -383,6 +383,19 @@ function ChatInterface({
     return null;
   }, [chatMessages]);
 
+  // Coordinator speaking *now*: the `coordinatorId` of the most recent assistant
+  // message (live or streaming). Drives the participants bar's active-speaker
+  // highlight so the strip names the brother actually replying, not whoever
+  // opened the session. `null` until an attributed assistant reply exists.
+  const activeCoordinatorId = useMemo<number | null>(() => {
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+      const message = chatMessages[i];
+      if (message.type !== 'assistant') continue;
+      if (typeof message.coordinatorId === 'number') return message.coordinatorId;
+    }
+    return null;
+  }, [chatMessages]);
+
   if (!selectedProject) {
     const selectedProviderLabel =
       provider === 'cursor'
@@ -424,6 +437,7 @@ function ChatInterface({
           >
             <SessionParticipantsBar
               sessionId={currentSessionId ?? selectedSession?.id ?? null}
+              activeCoordinatorId={activeCoordinatorId}
               onHide={() => setShowParticipantsBar(false)}
             />
           </div>

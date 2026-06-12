@@ -35,6 +35,15 @@ export interface ChatMessage {
    * neutral avatar, never the viewing user's.
    */
   userId?: number;
+  /**
+   * Coordinator attribution for an `assistant` message (server commit 9c61b60):
+   * the users.id of the participant who launched the run that produced this
+   * reply — same id space as the participants API. Stamped live and on
+   * reloaded history. `null`/absent = unknown coordinator (legacy rows); the
+   * renderer falls back to the session owner. User messages never carry it
+   * (they use `userId`).
+   */
+  coordinatorId?: number | null;
   timestamp: string | number | Date;
   images?: ChatImage[];
   reasoning?: string;
