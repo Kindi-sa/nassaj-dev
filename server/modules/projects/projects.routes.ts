@@ -148,7 +148,11 @@ router.get(
     assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 20);
     const offset = parseNonNegativeIntQuery(req.query.offset, 'offset', 0);
-    const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset });
+    const sessionsPage = await getProjectSessionsPage(projectId, {
+      limit,
+      offset,
+      currentUserId: readAuthenticatedUserId(req),
+    });
     res.json(sessionsPage);
   }),
 );

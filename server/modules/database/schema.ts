@@ -279,6 +279,33 @@ CREATE TABLE IF NOT EXISTS webauthn_credentials (
 );
 `;
 
+/**
+ * starred_sessions — per-user "favorite/pin" flag for a session, so a user can
+ * mark sessions they want to return to. Star is PER USER (composite primary key
+ * user_id + session_id): the same session may be starred by some users and not
+ * others. project_name records the providerless project identifier the frontend
+ * already uses for the session, stored alongside so the starred list can be
+ * rendered without re-joining through projects/sessions.
+ *
+ * No FK on session_id on purpose (mirrors message_authors): the session row may
+ * be synchronized lazily and stars must survive transient absence; a star whose
+ * session no longer exists is harmless and filtered at read time by the caller.
+ * user_id keeps its FK with ON DELETE CASCADE so deleting a user clears stars.
+ *
+ * NOTE: created via migration (migrateStarredSessions), NOT in INIT_SCHEMA_SQL.
+ * Its index likewise lives only in the migration (see the 502 lesson).
+ */
+export const STARRED_SESSIONS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS starred_sessions (
+    user_id INTEGER NOT NULL,
+    session_id TEXT NOT NULL,
+    project_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, session_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),

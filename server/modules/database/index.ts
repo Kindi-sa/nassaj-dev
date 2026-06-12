@@ -19,6 +19,8 @@ export type { AgentKind, SessionAgentRow } from '@/modules/database/repositories
 export { pushSubscriptionsDb } from '@/modules/database/repositories/push-subscriptions.js';
 export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+export { starredSessionsDb } from '@/modules/database/repositories/starred-sessions.db.js';
+export type { StarredSessionRow } from '@/modules/database/repositories/starred-sessions.db.js';
 export { userDb } from '@/modules/database/repositories/users.js';
 export { vapidKeysDb } from '@/modules/database/repositories/vapid-keys.js';
 export { webauthnCredentialsDb } from '@/modules/database/repositories/webauthn-credentials.js';

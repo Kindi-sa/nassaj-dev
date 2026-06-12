@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectMembersDb, projectsDb, sessionsDb, starredSessionsDb } from '@/modules/database/index.js';
 import type { ProjectVisibility } from '@/shared/types.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
@@ -30,6 +30,10 @@ type SessionSummary = {
   createdAt: string | null;
   lastActivity: string;
   owner: SessionOwner | null;
+  // True when the requesting user has starred this session (per-user favorite).
+  // Resolved from starred_sessions scoped to currentUserId; defaults to false
+  // for anonymous reads or sessions the user has not starred.
+  starred: boolean;
 };
 
 type SessionsByProvider = Record<'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity' | 'opencode', SessionSummary[]>;
@@ -174,7 +178,11 @@ function normalizeSessionPagination(options: SessionPaginationOptions = {}): { l
   };
 }
 
-function mapSessionRowToSummary(row: SessionRepositoryRow, owner: SessionOwner | null): SessionSummary {
+function mapSessionRowToSummary(
+  row: SessionRepositoryRow,
+  owner: SessionOwner | null,
+  starred: boolean,
+): SessionSummary {
   return {
     id: row.session_id,
     summary: row.custom_name || '',
@@ -182,7 +190,26 @@ function mapSessionRowToSummary(row: SessionRepositoryRow, owner: SessionOwner |
     createdAt: row.created_at ?? null,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
     owner,
+    starred,
   };
+}
+
+/**
+ * Batched star resolution for a page of session rows: a single query returns the
+ * subset of these sessions the requesting user has starred (avoids N+1). Returns
+ * an empty Set for anonymous reads (no currentUserId).
+ */
+function resolveStarsForRows(
+  rows: SessionRepositoryRow[],
+  currentUserId: number | null,
+): Set<string> {
+  if (currentUserId === null) {
+    return new Set<string>();
+  }
+  return starredSessionsDb.getStarredSessionIds(
+    currentUserId,
+    rows.map((row) => row.session_id),
+  );
 }
 
 /**
@@ -209,7 +236,10 @@ function resolveOwnersForRows(rows: SessionRepositoryRow[]): Map<string, Session
   return owners;
 }
 
-function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByProvider {
+function bucketSessionRowsByProvider(
+  rows: SessionRepositoryRow[],
+  currentUserId: number | null,
+): SessionsByProvider {
   const byProvider: SessionsByProvider = {
     claude: [],
     cursor: [],
@@ -220,6 +250,7 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
   };
 
   const owners = resolveOwnersForRows(rows);
+  const stars = resolveStarsForRows(rows, currentUserId);
 
   for (const row of rows) {
     const provider = row.provider as keyof SessionsByProvider;
@@ -228,17 +259,26 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
       continue;
     }
 
-    bucket.push(mapSessionRowToSummary(row, owners.get(row.session_id) ?? null));
+    bucket.push(
+      mapSessionRowToSummary(
+        row,
+        owners.get(row.session_id) ?? null,
+        stars.has(row.session_id),
+      ),
+    );
   }
 
   return byProvider;
 }
 
-function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessionsPageResult {
+function readProjectSessionsIncludingArchived(
+  projectPath: string,
+  currentUserId: number | null,
+): ProjectSessionsPageResult {
   const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
 
   return {
-    sessionsByProvider: bucketSessionRowsByProvider(rows),
+    sessionsByProvider: bucketSessionRowsByProvider(rows, currentUserId),
     total: rows.length,
     hasMore: false,
   };
@@ -249,6 +289,7 @@ function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessi
  */
 function readProjectSessionsPageByPath(
   projectPath: string,
+  currentUserId: number | null,
   options: SessionPaginationOptions = {},
 ): ProjectSessionsPageResult {
   const pagination = normalizeSessionPagination(options);
@@ -260,7 +301,7 @@ function readProjectSessionsPageByPath(
   const total = sessionsDb.countSessionsByProjectPath(projectPath);
 
   return {
-    sessionsByProvider: bucketSessionRowsByProvider(rows),
+    sessionsByProvider: bucketSessionRowsByProvider(rows, currentUserId),
     total,
     hasMore: pagination.offset + rows.length < total,
   };
@@ -346,7 +387,7 @@ export async function getProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(projectPath) || projectPath, projectPath);
 
-    const sessionsPage = readProjectSessionsPageByPath(projectPath, {
+    const sessionsPage = readProjectSessionsPageByPath(projectPath, currentUserId, {
       limit: options.sessionsLimit,
       offset: options.sessionsOffset,
     });
@@ -430,7 +471,7 @@ export async function getArchivedProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(row.project_path) || row.project_path, row.project_path);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
+    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path, currentUserId);
 
     const visibility: ProjectVisibility = row.visibility === 'private' ? 'private' : 'public';
     const ownerId = typeof row.created_by === 'number' ? row.created_by : null;
@@ -475,7 +516,7 @@ export async function getArchivedProjectsWithSessions(
  */
 export async function getProjectSessionsPage(
   projectId: string,
-  options: SessionPaginationOptions = {},
+  options: SessionPaginationOptions & { currentUserId?: number | null } = {},
 ): Promise<ProjectSessionsPageApiView> {
   const projectRow = projectsDb.getProjectById(projectId);
   if (!projectRow) {
@@ -485,7 +526,12 @@ export async function getProjectSessionsPage(
     });
   }
 
-  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, options);
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, currentUserId, {
+    limit: options.limit,
+    offset: options.offset,
+  });
   return {
     projectId: projectRow.project_id,
     sessions: sessionsPage.sessionsByProvider.claude,

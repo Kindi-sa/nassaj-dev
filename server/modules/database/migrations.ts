@@ -13,6 +13,7 @@ import {
   SESSION_AGENTS_META_TABLE_SCHEMA_SQL,
   SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  STARRED_SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
   WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL,
@@ -624,6 +625,18 @@ const migrateWebAuthnCredentials = (db: Database): void => {
   );
 };
 
+/**
+ * Per-user session stars/favorites (B-STAR). Creates the starred_sessions table
+ * and its user lookup index (index lives here, never in INIT_SCHEMA_SQL — see
+ * the 502 lesson). Idempotent (IF NOT EXISTS); no backfill — stars are an
+ * explicit user action, so existing sessions start unstarred for everyone. Must
+ * run AFTER users exists so the user_id FK resolves.
+ */
+const migrateStarredSessions = (db: Database): void => {
+  db.exec(STARRED_SESSIONS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_starred_sessions_user ON starred_sessions(user_id)');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -690,6 +703,9 @@ export const runMigrations = (db: Database) => {
 
     // Passkeys (WebAuthn) — after users exist so the FK resolves.
     migrateWebAuthnCredentials(db);
+
+    // Per-user session stars — after users exist so the FK resolves.
+    migrateStarredSessions(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {
