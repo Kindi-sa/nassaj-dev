@@ -12,6 +12,8 @@ type SidebarProjectSessionsProps = {
   isExpanded: boolean;
   sessions: SessionWithProvider[];
   selectedSession: ProjectSession | null;
+  isSessionStarred: (session: SessionWithProvider) => boolean;
+  onToggleStarSession: (session: SessionWithProvider, projectName: string) => void;
   initialSessionsLoaded: boolean;
   hasMoreSessions: boolean;
   isLoadingMoreSessions: boolean;
@@ -58,6 +60,8 @@ export default function SidebarProjectSessions({
   isExpanded,
   sessions,
   selectedSession,
+  isSessionStarred,
+  onToggleStarSession,
   initialSessionsLoaded,
   hasMoreSessions,
   isLoadingMoreSessions,
@@ -120,6 +124,8 @@ export default function SidebarProjectSessions({
               project={project}
               session={session}
               selectedSession={selectedSession}
+              isStarred={isSessionStarred(session)}
+              onToggleStar={onToggleStarSession}
               currentTime={currentTime}
               editingSession={editingSession}
               editingSessionName={editingSessionName}

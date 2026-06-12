@@ -197,11 +197,17 @@ export const getAllSessions = (project: Project): SessionWithProvider[] => {
     ...geminiSessions,
     ...antigravitySessions,
     ...opencodeSessions,
-  ].sort(
-    // Sidebar order: by creation date (newest first), NOT last activity, so a
-    // session keeps its position while it is being worked on.
-    (a, b) => getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime(),
-  );
+  ].sort((a, b) => {
+    // Starred (per-user favourite) sessions float to the top within the
+    // project; among equal star state, newest-created first (NOT last
+    // activity, so a session keeps its position while it is being worked on).
+    const aStarred = Boolean(a.starred);
+    const bStarred = Boolean(b.starred);
+    if (aStarred !== bStarred) {
+      return aStarred ? -1 : 1;
+    }
+    return getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime();
+  });
 };
 
 export const getProjectLastActivity = (project: Project): Date => {

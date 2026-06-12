@@ -315,6 +315,14 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
+  // Per-user session star/favorite. Idempotent — `starred` is the desired
+  // absolute state, not a toggle. The user is taken from the auth token server-side.
+  // Returns { success, data: { sessionId, projectName, starred } }.
+  starSession: (sessionId, projectName, starred) =>
+    authenticatedFetch('/api/sessions/star', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, projectName, starred }),
+    }),
   readFile: (projectId, filePath) =>
     authenticatedFetch(`/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`),
   readFileBlob: (projectId, filePath) =>

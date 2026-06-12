@@ -42,6 +42,9 @@ export interface ProjectSession {
   messageCount?: number;
   // Owning human of this session, or null for legacy sessions (B-MU-UX-API).
   owner?: SessionOwner | null;
+  // Per-user favourite flag for the current user (server-stamped on session
+  // list responses). Starred sessions sort to the top within their project.
+  starred?: boolean;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
   // (session switching, sidebar focus, etc.) can match against selectedProject.

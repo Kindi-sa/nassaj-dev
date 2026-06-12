@@ -19,6 +19,7 @@ import {
   filterProjects,
   filterProjectsByMembership,
   getAllSessions,
+  getSessionCreationDate,
   readLegacyStarredProjectIds,
   readProjectMembershipFilter,
   readProjectSortOrder,
@@ -106,6 +107,12 @@ export function useSidebarController({
     Map<string, 'public' | 'private'>
   >(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
+  // Optimistic per-session star state, keyed by sessionId. Flip locally on
+  // click, then reconcile to the server's authoritative `starred` once it
+  // responds (POST /api/sessions/star returns the new value). The map is
+  // pruned whenever the projects payload already reflects the optimistic value.
+  const [optimisticStarBySessionId, setOptimisticStarBySessionId] = useState<Map<string, boolean>>(new Map());
+  const starToggleSequenceBySessionRef = useRef<Map<string, number>>(new Map());
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const visibilityToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
@@ -288,6 +295,42 @@ export function useSidebarController({
     });
   }, [projects]);
 
+  // Drop optimistic session stars once the projects payload (which carries the
+  // per-session `starred` flag) already reflects the optimistic value, so the
+  // server stays the source of truth after a refresh.
+  useEffect(() => {
+    setOptimisticStarBySessionId((previous) => {
+      if (previous.size === 0) {
+        return previous;
+      }
+
+      const serverStarBySessionId = new Map<string, boolean>();
+      for (const project of projects) {
+        for (const session of getAllSessions(project)) {
+          serverStarBySessionId.set(session.id, Boolean(session.starred));
+        }
+      }
+
+      const next = new Map(previous);
+      let changed = false;
+
+      for (const [sessionId, optimisticValue] of previous.entries()) {
+        // Keep the optimistic value while the session is absent from the
+        // current payload (e.g. not yet loaded), since the user just acted on it.
+        if (!serverStarBySessionId.has(sessionId)) {
+          continue;
+        }
+
+        if (serverStarBySessionId.get(sessionId) === optimisticValue) {
+          next.delete(sessionId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
+  }, [projects]);
+
   // Debounce search text updates so project and archive filtering avoid
   // running on every keypress.
   useEffect(() => {
@@ -394,6 +437,78 @@ export function useSidebarController({
     [resolveProjectStarState],
   );
 
+  // Resolve a session's star state: optimistic value wins while a toggle is in
+  // flight, otherwise fall back to the server-stamped `starred` field.
+  const resolveSessionStarState = useCallback(
+    (session: SessionWithProvider): boolean => {
+      if (optimisticStarBySessionId.has(session.id)) {
+        return Boolean(optimisticStarBySessionId.get(session.id));
+      }
+      return Boolean(session.starred);
+    },
+    [optimisticStarBySessionId],
+  );
+
+  // Toggle a session's per-user star. Flip optimistically (so the icon fills and
+  // the row floats to the top immediately), call the idempotent endpoint, then
+  // reconcile to the server's returned value. Errors roll the value back.
+  // `projectName` is the owning project's DB id, used by the server to scope the row.
+  const toggleStarSession = useCallback(
+    (session: SessionWithProvider, projectName: string) => {
+      const previousStarState = resolveSessionStarState(session);
+      const optimisticStarState = !previousStarState;
+      const sessionId = session.id;
+      const latestSequence = (starToggleSequenceBySessionRef.current.get(sessionId) ?? 0) + 1;
+      starToggleSequenceBySessionRef.current.set(sessionId, latestSequence);
+
+      setOptimisticStarBySessionId((previous) => {
+        const next = new Map(previous);
+        next.set(sessionId, optimisticStarState);
+        return next;
+      });
+
+      const run = async () => {
+        try {
+          const response = await api.starSession(sessionId, projectName, optimisticStarState);
+          if (!response.ok) {
+            throw new Error(`star request failed (${response.status})`);
+          }
+
+          const payload = (await response.json()) as { data?: { starred?: boolean } };
+          if (starToggleSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+            return;
+          }
+
+          const confirmedStar = Boolean(payload.data?.starred ?? optimisticStarState);
+          setOptimisticStarBySessionId((previous) => {
+            const next = new Map(previous);
+            next.set(sessionId, confirmedStar);
+            return next;
+          });
+        } catch (error) {
+          if (starToggleSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+            return;
+          }
+
+          setOptimisticStarBySessionId((previous) => {
+            const next = new Map(previous);
+            next.set(sessionId, previousStarState);
+            return next;
+          });
+          console.error('[Sidebar] Failed to toggle session star:', error);
+        }
+      };
+
+      void run();
+    },
+    [resolveSessionStarState],
+  );
+
+  const isSessionStarred = useCallback(
+    (session: SessionWithProvider) => resolveSessionStarState(session),
+    [resolveSessionStarState],
+  );
+
   // C-PRIV-6: flip project visibility. Update optimistically, call the server,
   // then drop the optimistic value once the authoritative `projects_updated`
   // broadcast (or a manual refresh) lands. Errors roll the value back.
@@ -467,7 +582,44 @@ export function useSidebarController({
     [optimisticVisibilityByProjectId, projects, t],
   );
 
-  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
+  // Build the project's session list, then overlay any optimistic star state so
+  // a just-clicked session fills its icon and floats to the top without waiting
+  // for the next refresh. getAllSessions already sorts starred-first by `starred`.
+  const getProjectSessions = useCallback(
+    (project: Project) => {
+      const sessions = getAllSessions(project);
+      if (optimisticStarBySessionId.size === 0) {
+        return sessions;
+      }
+
+      let mutated = false;
+      const overlaid = sessions.map((session) => {
+        if (!optimisticStarBySessionId.has(session.id)) {
+          return session;
+        }
+        const optimisticStar = Boolean(optimisticStarBySessionId.get(session.id));
+        if (Boolean(session.starred) === optimisticStar) {
+          return session;
+        }
+        mutated = true;
+        return { ...session, starred: optimisticStar };
+      });
+
+      if (!mutated) {
+        return sessions;
+      }
+
+      return overlaid.sort((a, b) => {
+        const aStarred = Boolean(a.starred);
+        const bStarred = Boolean(b.starred);
+        if (aStarred !== bStarred) {
+          return aStarred ? -1 : 1;
+        }
+        return getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime();
+      });
+    },
+    [optimisticStarBySessionId],
+  );
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
@@ -890,6 +1042,8 @@ export function useSidebarController({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleStarSession,
+    isSessionStarred,
     setProjectVisibility,
     getProjectSessions,
     loadMoreSessionsForProject,

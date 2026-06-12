@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Check, Edit2, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Star, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -28,6 +28,8 @@ type SidebarSessionItemProps = {
   project: Project;
   session: SessionWithProvider;
   selectedSession: ProjectSession | null;
+  isStarred: boolean;
+  onToggleStar: (session: SessionWithProvider, projectName: string) => void;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -94,6 +96,8 @@ export default function SidebarSessionItem({
   project,
   session,
   selectedSession,
+  isStarred,
+  onToggleStar,
   currentTime,
   editingSession,
   editingSessionName,
@@ -152,6 +156,16 @@ export default function SidebarSessionItem({
   const requestDeleteSession = () => {
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
+
+  // The star toggles a per-user favourite. stopPropagation/preventDefault keep
+  // the click from opening the conversation (the row is a link / clickable card).
+  const handleToggleStar = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleStar(session, project.projectId);
+  };
+
+  const starLabel = isStarred ? t('tooltips.unstarSession') : t('tooltips.starSession');
 
   // The row is a real anchor so the browser's native context menu offers
   // "Open in new tab/window". A plain left-click stays an in-app SPA
@@ -227,9 +241,25 @@ export default function SidebarSessionItem({
               </div>
             </div>
 
+            <button
+              type="button"
+              aria-label={starLabel}
+              aria-pressed={isStarred}
+              title={starLabel}
+              className={cn(
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md transition-transform active:scale-95',
+                isStarred
+                  ? 'text-amber-500'
+                  : 'text-muted-foreground/60 hover:text-amber-500',
+              )}
+              onClick={handleToggleStar}
+            >
+              <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
+            </button>
+
             {!sessionView.isCursorSession && (
               <button
-                className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
+                className="ms-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
                 onClick={(event) => {
                   event.stopPropagation();
                   requestDeleteSession();
@@ -254,7 +284,22 @@ export default function SidebarSessionItem({
           <div className="flex w-full min-w-0 items-start gap-2">
             <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3 w-3 flex-shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-label={starLabel}
+                  aria-pressed={isStarred}
+                  title={starLabel}
+                  className={cn(
+                    'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded transition-colors',
+                    isStarred
+                      ? 'text-amber-500'
+                      : 'text-muted-foreground/40 opacity-0 hover:text-amber-500 focus-visible:opacity-100 group-hover:opacity-100',
+                  )}
+                  onClick={handleToggleStar}
+                >
+                  <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
+                </button>
                 <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
                 {ownerParticipant && (
                   <ParticipantAvatar

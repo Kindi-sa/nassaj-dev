@@ -21,6 +21,8 @@ type SidebarProjectItemProps = {
   isExpanded: boolean;
   isDeleting: boolean;
   isStarred: boolean;
+  isSessionStarred: (session: SessionWithProvider) => boolean;
+  onToggleStarSession: (session: SessionWithProvider, projectName: string) => void;
   editingProject: string | null;
   editingName: string;
   sessions: SessionWithProvider[];
@@ -68,6 +70,8 @@ export default function SidebarProjectItem({
   isExpanded,
   isDeleting,
   isStarred,
+  isSessionStarred,
+  onToggleStarSession,
   editingProject,
   editingName,
   sessions,
@@ -504,6 +508,8 @@ export default function SidebarProjectItem({
         isExpanded={isExpanded}
         sessions={sessions}
         selectedSession={selectedSession}
+        isSessionStarred={isSessionStarred}
+        onToggleStarSession={onToggleStarSession}
         initialSessionsLoaded={initialSessionsLoaded}
         hasMoreSessions={Boolean(project.sessionMeta?.hasMore)}
         isLoadingMoreSessions={isLoadingMoreSessions}

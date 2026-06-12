@@ -48,6 +48,8 @@
     "deleteProject": "إزالة المشروع من الشريط الجانبي (Delete)",
     "addToFavorites": "إضافة إلى المفضلة",
     "removeFromFavorites": "إزالة من المفضلة",
+    "starSession": "تعليم المحادثة",
+    "unstarSession": "إلغاء تعليم المحادثة",
     "editSessionName": "تعديل اسم الجلسة يدوياً",
     "deleteSession": "حذف هذه الجلسة نهائياً",
     "activeSessionIndicator": "جلسة نشطة مؤخراً (آخر 10 دقائق)",

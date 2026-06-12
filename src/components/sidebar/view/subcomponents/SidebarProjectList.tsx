@@ -28,6 +28,8 @@ export type SidebarProjectListProps = {
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectName: string) => boolean;
+  isSessionStarred: (session: SessionWithProvider) => boolean;
+  onToggleStarSession: (session: SessionWithProvider, projectName: string) => void;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
@@ -73,6 +75,8 @@ export default function SidebarProjectList({
   onLoadMoreSessions,
   loadingMoreProjects,
   isProjectStarred,
+  isSessionStarred,
+  onToggleStarSession,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
@@ -127,6 +131,8 @@ export default function SidebarProjectList({
               isExpanded={expandedProjects.has(project.projectId)}
               isDeleting={deletingProjects.has(project.projectId)}
               isStarred={isProjectStarred(project.projectId)}
+              isSessionStarred={isSessionStarred}
+              onToggleStarSession={onToggleStarSession}
               editingProject={editingProject}
               editingName={editingName}
               sessions={getProjectSessions(project)}
