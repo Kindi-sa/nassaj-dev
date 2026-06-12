@@ -214,6 +214,13 @@ export const api = {
   // Project Board — live projection of docs/project-state.json + ARCHITECTURE files.
   projectBoard: (projectId) =>
     authenticatedFetch(`/api/project-board/${encodeURIComponent(projectId)}`),
+  // Runner Bridge — read runner state + write control files (ADR-RUNNER-BRIDGE-001).
+  runnerStatus: (projectId) =>
+    authenticatedFetch(`/api/runner/${encodeURIComponent(projectId)}`),
+  runnerControl: (projectId, action) =>
+    authenticatedFetch(`/api/runner/${encodeURIComponent(projectId)}/${action}`, {
+      method: 'POST',
+    }),
   // Multi-user participation (Phase-MU): humans + agents seen in a session/project.
   // Lazy endpoints — fetched on demand (hover/open), never in the initial load.
   sessionParticipants: (sessionId) =>

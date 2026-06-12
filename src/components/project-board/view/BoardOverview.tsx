@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
+import { RunnerPhaseBadge, RunnerTaskDot } from '../../runner/RunnerOverlayBits';
 import type {
   BoardDecision,
   BoardIssue,
@@ -27,6 +28,12 @@ type BoardOverviewProps = {
   state: ProjectBoardState;
   /** Opens a project file (root-relative path) in the app's editor sidebar. */
   onFileOpen?: (filePath: string) => void;
+  /** Runner overlay (ADR-RUNNER-BRIDGE-001): the task/phase the running session
+   *  currently targets, from the runner's activity.json. All optional → the
+   *  board is unchanged when the runner is idle or absent. */
+  runnerActiveTaskId?: string | null;
+  runnerActivePhaseId?: string | null;
+  runnerRunning?: boolean;
 };
 
 const SEVERITY_STYLES: Record<IssueSeverity, string> = {
@@ -91,7 +98,15 @@ function sprintTaskStats(state: ProjectBoardState, sprintId: string) {
   return { done, total, progress: total ? Math.round((done / total) * 100) : 0 };
 }
 
-function PhaseTimeline({ state }: { state: ProjectBoardState }) {
+function PhaseTimeline({
+  state,
+  runnerActivePhaseId,
+  runnerRunning,
+}: {
+  state: ProjectBoardState;
+  runnerActivePhaseId?: string | null;
+  runnerRunning?: boolean;
+}) {
   const { t } = useTranslation('projectBoard');
 
   if (!state.phases?.length) {
@@ -140,6 +155,11 @@ function PhaseTimeline({ state }: { state: ProjectBoardState }) {
                     {t('phases.current')}
                   </span>
                 )}
+                <RunnerPhaseBadge
+                  phaseId={phase.id}
+                  activePhaseId={runnerActivePhaseId}
+                  running={Boolean(runnerRunning)}
+                />
               </div>
 
               <div className="mt-2 flex max-w-md items-center gap-2">
@@ -265,9 +285,10 @@ type TaskCardProps = {
   task: BoardTask;
   currentSprintId: string | null;
   onIssueClick: (issueId: string) => void;
+  runnerActiveTaskId?: string | null;
 };
 
-function TaskCard({ task, currentSprintId, onIssueClick }: TaskCardProps) {
+function TaskCard({ task, currentSprintId, onIssueClick, runnerActiveTaskId }: TaskCardProps) {
   const { t } = useTranslation('projectBoard');
   const kindStyle = task.kind ? KIND_STYLES[task.kind] : null;
 
@@ -277,7 +298,10 @@ function TaskCard({ task, currentSprintId, onIssueClick }: TaskCardProps) {
         <p className={cn('text-xs text-foreground', task.status === 'done' && 'text-muted-foreground')}>
           {task.title}
         </p>
-        <span className="flex-shrink-0 font-mono text-[10px] text-muted-foreground">{task.id}</span>
+        <span className="flex flex-shrink-0 items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+          {task.id}
+          <RunnerTaskDot taskId={task.id} activeTaskId={runnerActiveTaskId} />
+        </span>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
         {kindStyle && (
@@ -328,9 +352,11 @@ function taskSprintWeight(task: BoardTask, currentSprintId: string | null): numb
 function TasksBoard({
   state,
   onIssueClick,
+  runnerActiveTaskId,
 }: {
   state: ProjectBoardState;
   onIssueClick: (issueId: string) => void;
+  runnerActiveTaskId?: string | null;
 }) {
   const { t } = useTranslation('projectBoard');
   const tasks = state.tasks ?? [];
@@ -370,6 +396,7 @@ function TasksBoard({
                       task={task}
                       currentSprintId={currentSprintId}
                       onIssueClick={onIssueClick}
+                      runnerActiveTaskId={runnerActiveTaskId}
                     />
                   ))
                 ) : (
@@ -539,7 +566,13 @@ function DecisionsList({
   );
 }
 
-export default function BoardOverview({ state, onFileOpen }: BoardOverviewProps) {
+export default function BoardOverview({
+  state,
+  onFileOpen,
+  runnerActiveTaskId,
+  runnerActivePhaseId,
+  runnerRunning,
+}: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
   const overall = overallProgress(state);
   const [highlightedIssue, setHighlightedIssue] = useState<string | null>(null);
@@ -606,9 +639,17 @@ export default function BoardOverview({ state, onFileOpen }: BoardOverviewProps)
           )}
         </header>
 
-        <PhaseTimeline state={state} />
+        <PhaseTimeline
+          state={state}
+          runnerActivePhaseId={runnerActivePhaseId}
+          runnerRunning={runnerRunning}
+        />
         <SprintsSection state={state} />
-        <TasksBoard state={state} onIssueClick={handleIssueClick} />
+        <TasksBoard
+          state={state}
+          onIssueClick={handleIssueClick}
+          runnerActiveTaskId={runnerActiveTaskId}
+        />
         <IssuesList state={state} highlightedIssue={highlightedIssue} />
         <DecisionsList state={state} onFileOpen={onFileOpen} />
       </div>

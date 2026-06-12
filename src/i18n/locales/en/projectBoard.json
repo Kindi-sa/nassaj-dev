@@ -116,5 +116,47 @@
     "simplified": "Simplified",
     "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
     "variantMissing": "This version of the architecture document does not exist."
+  },
+  "runner": {
+    "label": "Auto-runner",
+    "cycle": "Cycle {{n}}",
+    "stage": "Stage",
+    "model": "Model",
+    "quota": "Quota",
+    "task": "Task",
+    "phase": "Phase",
+    "verdict": "Last verdict",
+    "clean": "clean",
+    "unclean": "unclean",
+    "pendingTick": "Pending next tick…",
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "building": "Building",
+      "verifying": "Verifying",
+      "interrupted": "Interrupted (quota)",
+      "failed": "Failed",
+      "blocked": "Blocked",
+      "awaiting_approval": "Awaiting approval",
+      "disabled": "Disabled"
+    },
+    "stages": {
+      "review": "Review",
+      "fix": "Fix",
+      "critique": "Critique",
+      "phase": "Build phase",
+      "awaiting_approval": "Awaiting approval"
+    },
+    "actions": {
+      "start": "Start",
+      "stop": "Stop",
+      "pause": "Pause",
+      "resume": "Resume",
+      "approve": "Approve phase"
+    },
+    "errors": {
+      "notAwaiting": "The runner is not awaiting phase approval right now.",
+      "generic": "Could not perform the action."
+    }
   }
 }

@@ -116,5 +116,47 @@
     "simplified": "مبسّط",
     "missing": "لا توجد وثائق هيكلة (docs/ARCHITECTURE.md أو docs/ARCHITECTURE_AR.md).",
     "variantMissing": "هذه النسخة من وثيقة الهيكلة غير موجودة."
+  },
+  "runner": {
+    "label": "المشغّل التلقائي",
+    "cycle": "الدورة {{n}}",
+    "stage": "الطور",
+    "model": "النموذج",
+    "quota": "الحصة",
+    "task": "المهمة",
+    "phase": "المرحلة",
+    "verdict": "آخر حكم",
+    "clean": "نظيف",
+    "unclean": "غير نظيف",
+    "pendingTick": "بانتظار الدورة التالية…",
+    "status": {
+      "idle": "خامل",
+      "running": "قيد التشغيل",
+      "building": "بناء",
+      "verifying": "تحقّق",
+      "interrupted": "متوقّف (حصة)",
+      "failed": "فشل",
+      "blocked": "محجوب",
+      "awaiting_approval": "بانتظار الاعتماد",
+      "disabled": "معطّل"
+    },
+    "stages": {
+      "review": "مراجعة",
+      "fix": "إصلاح",
+      "critique": "تدقيق",
+      "phase": "بناء المرحلة",
+      "awaiting_approval": "بانتظار الاعتماد"
+    },
+    "actions": {
+      "start": "ابدأ",
+      "stop": "أوقِف",
+      "pause": "علّق",
+      "resume": "استأنف",
+      "approve": "اعتمد المرحلة"
+    },
+    "errors": {
+      "notAwaiting": "المشغّل ليس بانتظار اعتماد المرحلة الآن.",
+      "generic": "تعذّر تنفيذ الإجراء."
+    }
   }
 }

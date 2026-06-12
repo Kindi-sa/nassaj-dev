@@ -79,6 +79,7 @@ import commandsRoutes from './routes/commands.js';
 import settingsRoutes, { getBrandingHandler } from './routes/settings.js';
 import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
+import { runnerRoutes } from './modules/runner/index.js';
 import userRoutes from './routes/user.js';
 import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
@@ -223,6 +224,10 @@ app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
 
 // Project Board API Routes (protected) — live view of docs/project-state.json
 app.use('/api/project-board', authenticateToken, projectBoardRoutes);
+
+// Runner Bridge API Routes (protected) — read runner state, write control files
+// (ADR-RUNNER-BRIDGE-001). The board overlay's only contact surface with the runner.
+app.use('/api/runner', authenticateToken, runnerRoutes);
 
 // MCP utilities
 app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);

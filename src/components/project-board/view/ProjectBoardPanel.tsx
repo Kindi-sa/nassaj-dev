@@ -6,6 +6,8 @@ import { Pill, PillBar } from '../../../shared/view/ui';
 import type { Project } from '../../../types/app';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { useProjectBoard } from '../hooks/useProjectBoard';
+import RunnerControlBar from '../../runner/RunnerControlBar';
+import { useRunner } from '../../runner/useRunner';
 
 import ArchitectureView from './ArchitectureView';
 import BoardOverview from './BoardOverview';
@@ -90,6 +92,12 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
   const { t } = useTranslation('projectBoard');
   const [section, setSection] = useState<BoardSection>('overview');
   const { board, isLoading, loadError } = useProjectBoard(selectedProject?.projectId);
+  // Live runner overlay (ADR-RUNNER-BRIDGE-001). All values are null/false when
+  // the project is not registered with the runner, so the board is unchanged.
+  const { runner } = useRunner(selectedProject?.projectId);
+  const runnerRunning = runner?.cycle?.status === 'running';
+  const runnerActiveTaskId = runnerRunning ? runner?.activity?.active_task_id ?? null : null;
+  const runnerActivePhaseId = runnerRunning ? runner?.activity?.active_phase_id ?? null : null;
 
   if (isLoading) {
     return (
@@ -167,6 +175,11 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
             <span>{t('sections.architecture')}</span>
           </Pill>
         </PillBar>
+        {/* Runner control overlay — renders nothing unless the project is
+            registered with the runner (ADR-RUNNER-BRIDGE-001). */}
+        <div className="ms-auto">
+          <RunnerControlBar projectId={selectedProject?.projectId} />
+        </div>
       </div>
 
       {board.stateError && (
@@ -179,7 +192,13 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
       <div className="min-h-0 flex-1">
         {activeSection === 'overview' &&
           (board.state ? (
-            <BoardOverview state={board.state} onFileOpen={onFileOpen} />
+            <BoardOverview
+              state={board.state}
+              onFileOpen={onFileOpen}
+              runnerActiveTaskId={runnerActiveTaskId}
+              runnerActivePhaseId={runnerActivePhaseId}
+              runnerRunning={runnerRunning}
+            />
           ) : (
             <BoardEmptyState projectName={projectName} />
           ))}
