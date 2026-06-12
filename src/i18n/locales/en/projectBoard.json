@@ -118,7 +118,9 @@
     "variantMissing": "This version of the architecture document does not exist."
   },
   "runner": {
-    "label": "Auto-runner",
+    "label": "al-Minwāl",
+    "description": "Autonomous Runner",
+    "fullName": "al-Minwāl (Autonomous Runner)",
     "cycle": "Cycle {{n}}",
     "stage": "Stage",
     "model": "Model",

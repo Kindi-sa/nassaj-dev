@@ -81,6 +81,8 @@ export default function RunnerControlBar({
   const lastError = runner.cycle?.last_error || null;
   const verdict = runner.verdict;
 
+  const shortName = t('runner.label');
+  const fullName = t('runner.fullName');
   const statusLabel = t(`runner.status.${uiState}`, { defaultValue: uiState });
   const stageLabel = stage
     ? t(`runner.stages.${stage}`, { defaultValue: stage })
@@ -108,7 +110,8 @@ export default function RunnerControlBar({
           'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium',
           UI_STATE_STYLES[uiState],
         )}
-        title={lastError ?? undefined}
+        title={lastError ?? fullName}
+        aria-label={fullName}
       >
         <span
           className={cn(
@@ -117,6 +120,8 @@ export default function RunnerControlBar({
           )}
         />
         <Bot className="h-3 w-3" />
+        <span className="font-semibold">{shortName}</span>
+        <span className="opacity-50">·</span>
         <span>{statusLabel}</span>
         {stageLabel && uiState !== 'idle' && uiState !== 'awaiting_approval' && (
           <span className="opacity-80">· {stageLabel}</span>
