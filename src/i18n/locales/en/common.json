@@ -105,7 +105,9 @@
     "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "projectFiles": "Project Files",
+    "sessionIdTooltip": "Session ID: {{id}} — click to copy",
+    "sessionIdCopy": "Copy session ID {{id}}"
   },
   "fileTree": {
     "loading": "Loading files...",

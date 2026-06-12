@@ -733,6 +733,26 @@ const migrateSessionAgentsCascade = (db: Database): void => {
   }
 };
 
+/**
+ * Adds the `agent_model` column to `session_agents_cache` so that the
+ * transcript parser can record the resolved model string for each agent
+ * (coordinator model and per-subagent model when recoverable from subagent
+ * JSONL files). Idempotent — uses `addColumnToTableIfNotExists`.
+ *
+ * Fresh installs already have this column from SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL;
+ * this migration handles existing databases that were created before the column
+ * was added.
+ */
+const migrateSessionAgentsModel = (db: Database): void => {
+  if (!tableExists(db, 'session_agents_cache')) {
+    return;
+  }
+  const cols = (db.prepare('PRAGMA table_info(session_agents_cache)').all() as { name: string }[]).map(
+    (r) => r.name
+  );
+  addColumnToTableIfNotExists(db, 'session_agents_cache', cols, 'agent_model', 'TEXT DEFAULT NULL');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -806,6 +826,10 @@ export const runMigrations = (db: Database) => {
     // FK CASCADE on session_agents tables — must run after sessions exist so
     // the REFERENCES sessions(session_id) constraint is satisfiable. (B-38.)
     migrateSessionAgentsCascade(db);
+
+    // agent_model column on session_agents_cache — stores the resolved model
+    // string for each agent row so the UI can display per-agent model badges.
+    migrateSessionAgentsModel(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {

@@ -35,6 +35,10 @@ export type SessionAgent = {
   agent_name: string;
   agent_kind: AgentKind;
   invocation_count: number;
+  /** Resolved model string (e.g. 'claude-fable-5', 'claude-sonnet-4-6').
+   * Available for the coordinator model and for subagents whose model was
+   * recoverable from their sidecar JSONL transcript. Null otherwise. */
+  agent_model?: string | null;
 };
 
 export type ProjectParticipants = {

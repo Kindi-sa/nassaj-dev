@@ -105,7 +105,9 @@
     "createProjectDesktop": "أنشئ مشروعاً جديداً بالضغط على أيقونة المجلد في الشريط الجانبي",
     "newSession": "جلسة جديدة",
     "untitledSession": "جلسة بدون عنوان",
-    "projectFiles": "ملفات المشروع"
+    "projectFiles": "ملفات المشروع",
+    "sessionIdTooltip": "معرّف الجلسة: {{id}} — انقر للنسخ",
+    "sessionIdCopy": "نسخ معرّف الجلسة {{id}}"
   },
   "fileTree": {
     "loading": "جارٍ تحميل الملفات...",

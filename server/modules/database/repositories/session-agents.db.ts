@@ -17,6 +17,10 @@ export type SessionAgentRow = {
   agent_name: string;
   agent_kind: AgentKind;
   invocation_count: number;
+  /** Resolved model string for this agent (e.g. 'claude-fable-5', 'claude-sonnet-4-6').
+   * Present for the coordinator model and for subagents whose model was recoverable
+   * from their sidecar JSONL transcript. Null when not available. */
+  agent_model?: string | null;
 };
 
 type AgentMetaRow = {
@@ -38,7 +42,7 @@ export const sessionAgentsDb = {
     const db = getConnection();
     return db
       .prepare(
-        `SELECT agent_name, agent_kind, invocation_count
+        `SELECT agent_name, agent_kind, invocation_count, agent_model
          FROM session_agents_cache
          WHERE session_id = ?
          ORDER BY CASE agent_kind WHEN 'model' THEN 0 ELSE 1 END, agent_name ASC`
@@ -59,10 +63,11 @@ export const sessionAgentsDb = {
     const db = getConnection();
     const clear = db.prepare('DELETE FROM session_agents_cache WHERE session_id = ?');
     const insert = db.prepare(
-      `INSERT INTO session_agents_cache (session_id, agent_name, agent_kind, invocation_count)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO session_agents_cache (session_id, agent_name, agent_kind, invocation_count, agent_model)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(session_id, agent_name, agent_kind) DO UPDATE SET
-         invocation_count = excluded.invocation_count`
+         invocation_count = excluded.invocation_count,
+         agent_model = COALESCE(excluded.agent_model, agent_model)`
     );
     const upsertMeta = db.prepare(
       `INSERT INTO session_agents_meta (session_id, transcript_mtime, parsed_at)
@@ -75,7 +80,7 @@ export const sessionAgentsDb = {
     const run = db.transaction((rows: SessionAgentRow[]) => {
       clear.run(sessionId);
       for (const a of rows) {
-        insert.run(sessionId, a.agent_name, a.agent_kind, a.invocation_count);
+        insert.run(sessionId, a.agent_name, a.agent_kind, a.invocation_count, a.agent_model ?? null);
       }
       upsertMeta.run(sessionId, transcriptMtime);
     });
@@ -96,7 +101,8 @@ export const sessionAgentsDb = {
     const placeholders = sessionIds.map(() => '?').join(', ');
     return db
       .prepare(
-        `SELECT agent_name, agent_kind, SUM(invocation_count) AS invocation_count
+        `SELECT agent_name, agent_kind, SUM(invocation_count) AS invocation_count,
+                MAX(agent_model) AS agent_model
          FROM session_agents_cache
          WHERE session_id IN (${placeholders})
          GROUP BY agent_name, agent_kind

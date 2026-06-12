@@ -249,6 +249,7 @@ CREATE TABLE IF NOT EXISTS session_agents_cache (
     agent_name TEXT NOT NULL,
     agent_kind TEXT NOT NULL,
     invocation_count INTEGER DEFAULT 1,
+    agent_model TEXT DEFAULT NULL,
     PRIMARY KEY (session_id, agent_name, agent_kind)
 );
 `;
