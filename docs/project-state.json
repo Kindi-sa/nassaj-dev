@@ -1352,9 +1352,10 @@
       "kind": "bug",
       "issue": "B-52",
       "title": "تشخيص وإصلاح فشل المستخدم «Alrazi» في إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح — تشخيص أولاً (سجلات + سلسلة سببية) قبل أي إصلاح",
-      "status": "in_progress",
-      "owner": "backend-dev",
-      "note": "بلاغ المالك 2026-06-13 (طلب #4). التشخيص مكتمل (commit 1be6c83): السبب الجذري أن مسار المستخدم غير المالك يستخدم `claude setup-token` الذي يطبع التوكن ولا يكتب .credentials.json (تعليق الواجهة 'writes the credential' خاطئ)؛ مسار /login (الذي استخدمه Razi id=5) يكتبه فيعمل. سُدّت فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN في claude-auth + logging. ⏳ الإصلاح الجذري قرار منتج بانتظار المالك: (أ) تحويل المودال إلى /login، أو (ب) حقل لصق توكن يُحفظ في settings.json env"
+      "status": "done",
+      "owner": "backend-dev+frontend-dev",
+      "closed": "2026-06-13",
+      "note": "بلاغ المالك 2026-06-13 (طلب #4). التشخيص (1be6c83): setup-token يطبع التوكن ولا يكتب .credentials.json. قرار المالك: مسار /login. الإصلاح (d9351fe): ClaudeConnectionSection يعيد استخدام ProviderLoginModal (claude /login) الذي يكتب الاعتماد، وحُذف ClaudeSetupTokenModal؛ + سدّ فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN. build:client منشور. مسار المالك لم يُمَس"
     },
     {
       "id": "T-116",
@@ -1379,6 +1380,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "note": "بلاغ المالك 2026-06-13 (طلب #6)؛ commit 4d74f4b منشور — navigate('/') + focus ring + aria. مختلف عن B-48 (شعار الويكي)"
+    },
+    {
+      "id": "T-96",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "إظهار معرّف الجلسة بجانب اسم المشروع + نموذج كل وكيل في الرأس",
+      "status": "done",
+      "owner": "frontend-dev+backend-dev",
+      "closed": "2026-06-12",
+      "summary": "(1) SessionIdBadge في MainContentTitle.tsx: «nassaj-dev · 36456b8f» (أول 8 أحرف monospace + نسخ بنقرة + tooltip بالID الكامل)، RTL، i18n في common.json. (2) نماذج الوكلاء كانت غير متاحة (transcript-parser يستخرج subagent_type فقط) — تعديل خادمي: transcript-parser يربط Agent tool_use_id↔subagent_type ثم يستخرج agentId من tool_result ويقرأ النموذج من subagents/agent-<id>.jsonl (async fail-safe)؛ عمود agent_model في session_agents_cache + migration migrateSessionAgentsModel + COALESCE في UPSERT؛ AgentView.agent_model. الواجهة: AgentChip يعرض «frontend-dev · sonnet-4-6» inline + tooltip، shortModelName للإيجاز. build:client+build:server نظيفان. التعديل الخادمي يُفعَّل بعد restart (B-41)."
     }
   ],
   "issues": [
@@ -1404,10 +1417,10 @@
       "id": "B-52",
       "title": "المستخدم Alrazi لم يستطع إكمال ربط حساب Claude رغم إنشاء OAuth token بنجاح",
       "severity": "high",
-      "status": "diagnosed",
+      "status": "fixed",
       "found": "2026-06-13",
       "triage": "high → S-2 (يحجب مستخدماً عن استخدام المنتج)",
-      "note": "السبب الجذري مثبت (T-115): مسار المستخدم غير المالك يستخدم `claude setup-token` الذي يطبع التوكن فقط ولا يكتبه في .credentials.json الذي يقرؤه getStatus؛ مسار /login يكتبه فيعمل (Razi id=5 نجح به). سُدّت فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN. الإصلاح الجذري قرار منتج بانتظار المالك (أ /login أم ب حقل لصق توكن). حلّ فوري لـAlRazi id=4: وضع توكن جديد في settings.json env بعد restart"
+      "fix": "T-115، قرار المالك مسار /login: ClaudeConnectionSection يستخدم ProviderLoginModal (claude --dangerously-skip-permissions /login) الذي يكتب .credentials.json؛ حُذف ClaudeSetupTokenModal؛ + سدّ فجوة قراءة CLAUDE_CODE_OAUTH_TOKEN. commits 1be6c83+d9351fe، build:client منشور. على AlRazi إعادة الربط من الواجهة بالمسار الجديد"
     },
     {
       "id": "B-53",
