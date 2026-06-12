@@ -14,13 +14,15 @@ const TITLE_MAX_LENGTH = 60;
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — must match the server limit.
 // Raster formats are validated by magic bytes on the server; SVG is detected by
 // XML content and sanitized server-side (DOMPurify) before storage, then served
-// under a strict CSP + nosniff. This client list only gates the file picker.
+// under a strict CSP + nosniff. These client lists only pre-check the selection.
+//
+// The logo inputs deliberately carry NO `accept` attribute: modern Chromium on
+// Android maps any image-flavoured accept (MIME types AND extensions alike) to
+// the system Photo Picker, which cannot show SVG files at all. Omitting accept
+// is the only reliable way to get the general document picker on Android; on
+// iOS/desktop it merely shows an unfiltered file dialog, which is acceptable.
 const ACCEPTED_MIME = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
-// Explicit extensions alongside the MIME types: an image-only `accept` makes
-// Android open the media gallery (which cannot show SVG at all); mixing in
-// extensions switches it to the system document picker instead.
 const ACCEPTED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
-const ACCEPT_ATTR = [...ACCEPTED_MIME, ...ACCEPTED_EXTENSIONS].join(',');
 
 type Status = { kind: 'idle' | 'success' | 'error'; message?: string };
 
@@ -85,12 +87,13 @@ export default function BrandingSettingsTab() {
     event.target.value = '';
     if (!file) return;
 
-    // Some Android document pickers report an empty MIME type; fall back to the
-    // extension then. The server still validates by magic bytes / XML content.
+    // Document pickers may report an empty or generic MIME type (e.g.
+    // application/octet-stream) for perfectly valid files, so accept when
+    // EITHER the MIME type OR the extension matches. The server has the final
+    // word: it validates raster formats by magic bytes and SVG by XML content.
     const hasAcceptedType =
       ACCEPTED_MIME.includes(file.type) ||
-      (!file.type &&
-        ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext)));
+      ACCEPTED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
     if (!hasAcceptedType) {
       setStatus({ kind: 'error', message: t('brandingSettings.errorType') });
       return;
@@ -263,7 +266,6 @@ export default function BrandingSettingsTab() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleLogoSelected('light')}
                   aria-label={t('brandingSettings.logoSection.uploadAria')}
@@ -329,7 +331,6 @@ export default function BrandingSettingsTab() {
                 <input
                   ref={darkFileInputRef}
                   type="file"
-                  accept={ACCEPT_ATTR}
                   className="hidden"
                   onChange={handleLogoSelected('dark')}
                   aria-label={t('brandingSettings.logoDarkSection.uploadAria')}
