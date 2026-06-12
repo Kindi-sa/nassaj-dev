@@ -37,6 +37,10 @@
 import fs from 'fs';
 
 import {
+  openSessionStarted,
+  openSessionStopped,
+} from '../modules/websocket/services/open-sessions.service.js';
+import {
   presenceRunStarted,
   presenceRunStopped,
 } from '../modules/websocket/services/presence.service.js';
@@ -187,6 +191,10 @@ function registerSessionProcess(sessionId, { provider, writer, pid = null, runTa
         provider,
     });
 
+    // Open-sessions counter: this session has a running provider command.
+    // Idempotent — the re-register that refreshes the writer changes nothing.
+    openSessionStarted(sessionId);
+
     const existing = runs.get(sessionId);
     if (existing) {
         existing.writer = writer;
@@ -213,6 +221,8 @@ function unregisterSessionProcess(sessionId) {
     // Live presence (B-MU-UX-PRESENCE): the user is no longer active on this
     // session. Read the userId from the run's writer (JWT-sourced).
     presenceRunStopped({ userId: run.writer?.userId ?? null, sessionId });
+    // Open-sessions counter: the run reached a terminal state.
+    openSessionStopped(sessionId);
     broadcastState(sessionId, run, 'idle');
     if (runs.size === 0) stopPolling();
 }

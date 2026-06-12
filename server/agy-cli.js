@@ -23,6 +23,10 @@ import {
     registerAntigravityProjectPath,
 } from './modules/providers/list/antigravity/antigravity-project-registry.js';
 import {
+    openSessionStarted,
+    openSessionStopped,
+} from './modules/websocket/services/open-sessions.service.js';
+import {
     presenceRunStarted,
     presenceRunStopped,
 } from './modules/websocket/services/presence.service.js';
@@ -733,6 +737,9 @@ async function spawnAntigravity(command, options = {}, ws) {
         // the session. agy does not flow through the process monitor, so the run
         // start/stop are reported to presence directly here.
         presenceRunStopped({ userId: ws?.userId ?? null, sessionId: finalSessionId });
+        // Open-sessions counter: terminal state for this run. Safe even on the
+        // spawn-failure path where the started call below never executed.
+        openSessionStopped(finalSessionId);
 
         if (code === 0 && !error) {
             notifyRunStopped({
@@ -785,6 +792,11 @@ async function spawnAntigravity(command, options = {}, ws) {
         projectPath: cleanCwd,
         provider: 'antigravity',
     });
+
+    // Open-sessions counter: agy does not flow through the process monitor, so
+    // the run is reported here directly; paired with the openSessionStopped in
+    // notifyTerminal. Counted regardless of userId — the counter is global.
+    openSessionStarted(finalSessionId);
 
     // Record the authenticated human who spawned this agy run. Idempotent at the
     // DB layer; skipped for unauthenticated (single-user) runs with no userId.

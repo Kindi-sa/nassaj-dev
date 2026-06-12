@@ -1,6 +1,7 @@
 import type { WebSocket } from 'ws';
 
 import { projectsDb } from '@/modules/database/index.js';
+import { sendOpenSessionsCount } from '@/modules/websocket/services/open-sessions.service.js';
 import {
   presenceConnect,
   presenceDisconnect,
@@ -289,6 +290,10 @@ export function handleChatConnection(
   // the sessions watcher's `projects_updated`) can compute per-user fields like
   // `isMember` for each client (B-MU-UX-FIX-WSMEMBER).
   (ws as RealtimeClientConnection).userId = presenceUserId;
+
+  // Open-sessions counter: push the initial server-wide count to this client
+  // immediately; afterwards it only receives change broadcasts.
+  sendOpenSessionsCount(ws as RealtimeClientConnection);
 
   const writer = new WebSocketWriter(ws, presenceUserId);
 

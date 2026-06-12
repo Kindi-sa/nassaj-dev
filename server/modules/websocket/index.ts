@@ -7,3 +7,10 @@ export {
   presenceRunStarted,
   presenceRunStopped,
 } from './services/presence.service.js';
+export {
+  OPEN_SESSIONS_MESSAGE_TYPE,
+  openSessionsCount,
+  openSessionStarted,
+  openSessionStopped,
+  sendOpenSessionsCount,
+} from './services/open-sessions.service.js';
