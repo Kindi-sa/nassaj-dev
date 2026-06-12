@@ -23,7 +23,16 @@
     "files": "파일",
     "git": "소스 관리",
     "tasks": "작업",
-    "board": "Project Board"
+    "board": "Project Board",
+    "wiki": "위키"
+  },
+  "wiki": {
+    "title": "Nassaj 위키",
+    "panelAriaLabel": "Nassaj 위키",
+    "sidebarAriaLabel": "위키 목차",
+    "closeSidebar": "목차 숨기기",
+    "openSidebar": "목차 표시",
+    "pageNotFound": "페이지를 찾을 수 없습니다"
   },
   "status": {
     "loading": "로딩 중...",

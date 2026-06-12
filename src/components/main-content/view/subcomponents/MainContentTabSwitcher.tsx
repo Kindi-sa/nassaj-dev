@@ -1,4 +1,4 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, KanbanSquare, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, KanbanSquare, BookOpen, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +36,7 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
   { kind: 'builtin', id: 'board', labelKey: 'tabs.board', icon: KanbanSquare },
+  { kind: 'builtin', id: 'wiki',  labelKey: 'tabs.wiki',  icon: BookOpen },
 ];
 
 const TASKS_TAB: BuiltInTab = {

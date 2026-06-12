@@ -6,7 +6,7 @@
     "renameProject": "Rename Project",
     "noProjects": "No projects found",
     "loadingProjects": "Loading projects...",
-    "searchPlaceholder": "Search projects...",
+    "searchPlaceholder": "Search projects & sessions...",
     "projectNamePlaceholder": "Project name",
     "privateProject": "Private project",
     "makePrivate": "Make private",
@@ -56,7 +56,8 @@
     "save": "Save",
     "cancel": "Cancel",
     "clearSearch": "Clear search",
-    "openCommandPalette": "Open command palette"
+    "openCommandPalette": "Open command palette",
+    "openWiki": "Open Nassaj Wiki"
   },
   "navigation": {
     "chat": "Chat",

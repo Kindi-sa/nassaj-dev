@@ -23,7 +23,16 @@
     "files": "Dateien",
     "git": "Quellcodeverwaltung",
     "tasks": "Aufgaben",
-    "board": "Project Board"
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wiki-Index",
+    "closeSidebar": "Index ausblenden",
+    "openSidebar": "Index anzeigen",
+    "pageNotFound": "Seite nicht gefunden"
   },
   "status": {
     "loading": "Lädt...",

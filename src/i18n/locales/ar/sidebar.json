@@ -6,7 +6,7 @@
     "renameProject": "إعادة تسمية المشروع",
     "noProjects": "لا توجد مشاريع",
     "loadingProjects": "جارٍ تحميل المشاريع...",
-    "searchPlaceholder": "ابحث في المشاريع...",
+    "searchPlaceholder": "ابحث في المشاريع والمحادثات...",
     "projectNamePlaceholder": "اسم المشروع",
     "privateProject": "مشروع خاص",
     "makePrivate": "اجعله خاصاً",
@@ -56,7 +56,8 @@
     "save": "حفظ",
     "cancel": "إلغاء",
     "clearSearch": "مسح البحث",
-    "openCommandPalette": "فتح لوحة الأوامر"
+    "openCommandPalette": "فتح لوحة الأوامر",
+    "openWiki": "فتح ويكي نسّاج"
   },
   "navigation": {
     "chat": "محادثة",

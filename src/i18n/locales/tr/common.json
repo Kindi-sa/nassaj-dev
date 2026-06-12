@@ -23,7 +23,16 @@
     "files": "Dosyalar",
     "git": "Kaynak Kontrolü",
     "tasks": "Görevler",
-    "board": "Project Board"
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wiki İçindekiler",
+    "closeSidebar": "İçindekileri gizle",
+    "openSidebar": "İçindekileri göster",
+    "pageNotFound": "Sayfa bulunamadı"
   },
   "status": {
     "loading": "Yükleniyor...",

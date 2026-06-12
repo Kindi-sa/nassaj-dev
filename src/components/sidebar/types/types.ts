@@ -59,6 +59,7 @@ export type SidebarProps = {
   isLoading: boolean;
   loadingProgress: LoadingProgress | null;
   onRefresh: () => Promise<void> | void;
+  onOpenWiki?: () => void;
   onShowSettings: () => void;
   showSettings: boolean;
   settingsInitialTab: string;

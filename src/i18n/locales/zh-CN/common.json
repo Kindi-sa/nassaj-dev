@@ -23,7 +23,16 @@
     "files": "文件",
     "git": "源代码管理",
     "tasks": "任务",
-    "board": "Project Board"
+    "board": "Project Board",
+    "wiki": "维基"
+  },
+  "wiki": {
+    "title": "Nassaj 维基",
+    "panelAriaLabel": "Nassaj 维基",
+    "sidebarAriaLabel": "维基目录",
+    "closeSidebar": "隐藏目录",
+    "openSidebar": "显示目录",
+    "pageNotFound": "页面未找到"
   },
   "status": {
     "loading": "加载中...",

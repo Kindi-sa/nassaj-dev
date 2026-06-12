@@ -23,7 +23,16 @@
     "files": "الملفات",
     "git": "إدارة المصدر",
     "tasks": "المهام",
-    "board": "لوحة المشروع"
+    "board": "لوحة المشروع",
+    "wiki": "الويكي"
+  },
+  "wiki": {
+    "title": "ويكي نسّاج",
+    "panelAriaLabel": "ويكي نسّاج",
+    "sidebarAriaLabel": "فهرس الويكي",
+    "closeSidebar": "إخفاء الفهرس",
+    "openSidebar": "إظهار الفهرس",
+    "pageNotFound": "الصفحة غير موجودة"
   },
   "status": {
     "loading": "جارٍ التحميل...",

@@ -34,6 +34,7 @@ function Sidebar({
   isLoading,
   loadingProgress,
   onRefresh,
+  onOpenWiki,
   onShowSettings,
   showSettings,
   settingsInitialTab,
@@ -260,6 +261,7 @@ function Sidebar({
               void refreshProjects();
             }}
             isRefreshing={isRefreshing}
+            onOpenWiki={onOpenWiki}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}

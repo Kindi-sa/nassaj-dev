@@ -17,7 +17,7 @@ export type ProviderModelsCacheInfo = {
   source: 'memory' | 'disk' | 'fresh';
 };
 
-export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'preview' | `plugin:${string}`;
+export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'preview' | 'wiki' | `plugin:${string}`;
 
 // Owner attribution for a session (B-MU-UX-API). Resolved server-side from the
 // session_participants row flagged 'owner'. `null` for legacy / pre-multi-user

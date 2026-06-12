@@ -106,6 +106,7 @@ type SidebarContentProps = {
   onDeleteArchivedSession: (session: ArchivedSessionListItem) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onOpenWiki?: () => void;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
   updateAvailable: boolean;
@@ -140,6 +141,7 @@ export default function SidebarContent({
   onDeleteArchivedSession,
   onRefresh,
   isRefreshing,
+  onOpenWiki,
   onCreateProject,
   onCollapseSidebar,
   updateAvailable,
@@ -174,6 +176,7 @@ export default function SidebarContent({
         onMembershipFilterChange={onMembershipFilterChange}
         onRefresh={onRefresh}
         isRefreshing={isRefreshing}
+        onOpenWiki={onOpenWiki}
         onCreateProject={onCreateProject}
         onCollapseSidebar={onCollapseSidebar}
         t={t}

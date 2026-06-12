@@ -23,7 +23,16 @@
     "files": "Файлы",
     "git": "Система контроля версий",
     "tasks": "Задачи",
-    "board": "Project Board"
+    "board": "Project Board",
+    "wiki": "Вики"
+  },
+  "wiki": {
+    "title": "Вики Nassaj",
+    "panelAriaLabel": "Вики Nassaj",
+    "sidebarAriaLabel": "Содержание вики",
+    "closeSidebar": "Скрыть содержание",
+    "openSidebar": "Показать содержание",
+    "pageNotFound": "Страница не найдена"
   },
   "status": {
     "loading": "Загрузка...",

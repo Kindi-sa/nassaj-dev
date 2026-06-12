@@ -33,6 +33,10 @@ function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: st
     return t('tabs.board');
   }
 
+  if (activeTab === 'wiki') {
+    return t('wiki.title');
+  }
+
   return 'Project';
 }
 
