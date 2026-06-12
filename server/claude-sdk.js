@@ -28,7 +28,7 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
-import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId, stampHumanUserId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
@@ -1119,14 +1119,15 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
           msg.parentToolUseId = transformedMessage.parentToolUseId;
         }
-        // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): every user-authored
-        // text echoed by this run was typed by the human who spawned it, so
-        // stamp the JWT-sourced socket userId on the live payload. Mirrors
-        // (other viewers) receive the same stamped copy via the writer
-        // fan-out and can render the true author instead of themselves.
-        if (msg.kind === 'text' && msg.role === 'user' && Number.isInteger(ws?.userId)) {
-          msg.userId = ws.userId;
-        }
+        // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): user-authored text
+        // echoed by this run is stamped with the JWT-sourced socket userId so
+        // mirrors (other viewers) can render the true author — but ONLY for
+        // human-origin text. SDK user messages whose origin is non-human
+        // (origin.kind 'coordinator' = coordinator → subagent prompt via the
+        // Task tool, also 'peer'/'channel'/'task-notification') carry
+        // `originKind` from the adapter and are never attributed to the
+        // human, otherwise agent directives render as user bubbles.
+        stampHumanUserId(msg, ws?.userId);
         // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): every
         // assistant-driven payload this run emits was spawned by the human on
         // this socket. Stamp the JWT-sourced coordinatorId so live viewers (and

@@ -135,6 +135,13 @@ export function applyMessageAuthorAttribution(
 
   for (const message of messages) {
     if (message.kind === 'text' && message.role === 'user') {
+      if (message.originKind) {
+        // Machine-routed prompt (coordinator → subagent, peer, channel…):
+        // never attribute it to a human — even if its text coincidentally
+        // hash-matches a recorded human prompt — and never adopt it as the
+        // running coordinator for subsequent assistant output.
+        continue;
+      }
       if (message.userId != null) {
         // Already attributed (live-stamped echo) — adopt it as the coordinator
         // for any assistant output that follows.

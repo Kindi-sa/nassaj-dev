@@ -309,6 +309,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const baseId = raw.uuid || generateMessageId('claude');
 
     if (raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
+      /**
+       * Provenance of the user-role message (SDKMessageOrigin): absent or
+       * 'human' means keyboard input from the user; any other kind
+       * (coordinator → subagent prompts via the Task tool, peer, channel,
+       * task-notification) is machine-routed and must not be displayed or
+       * attributed as the human's own message. Present on both live SDK
+       * stream events and persisted JSONL transcript rows.
+       */
+      const rawOriginKind = (raw.origin as AnyRecord | undefined)?.kind;
+      const originKind = typeof rawOriginKind === 'string' && rawOriginKind !== 'human'
+        ? rawOriginKind
+        : undefined;
+
       if (Array.isArray(raw.message.content)) {
         for (let partIndex = 0; partIndex < raw.message.content.length; partIndex++) {
           const part = raw.message.content[partIndex];
@@ -445,6 +458,16 @@ export class ClaudeSessionsProvider implements IProviderSessions {
             role: 'user',
             content: text,
           }));
+        }
+      }
+      // Mark non-human user text with its origin kind so downstream consumers
+      // (live userId stamping, history attribution, frontend rendering) can
+      // distinguish coordinator/peer-routed prompts from the human's own input.
+      if (originKind) {
+        for (const message of messages) {
+          if (message.kind === 'text' && message.role === 'user') {
+            message.originKind = originKind;
+          }
         }
       }
       return messages;

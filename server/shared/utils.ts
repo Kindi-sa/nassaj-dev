@@ -374,6 +374,38 @@ export function stampCoordinatorId(
   return msg;
 }
 
+/**
+ * Human-sender attribution for live user echoes (B-MU-UX-FIX-MSG-AUTHOR).
+ *
+ * Stamps `userId` (the users.id of the human on the JWT-authenticated socket)
+ * onto a kind:'text' role:'user' normalized message — but ONLY when the
+ * message is of human origin. The Claude adapter stamps `originKind` on
+ * user-role text whose SDK origin is non-human (coordinator → subagent
+ * prompts from the Task tool, peer/channel/task-notification injections);
+ * those are machine-routed and must never be attributed to the human, or the
+ * UI renders an agent directive as a message the user typed. Origin absent
+ * (legacy messages, plain keyboard input) = human, stamped as before.
+ *
+ * Mutates and returns `msg`. No-op when the socket has no integer userId
+ * (anonymous/single-user runs).
+ */
+export function stampHumanUserId(
+  msg: NormalizedMessage,
+  userId: unknown,
+): NormalizedMessage {
+  if (!Number.isInteger(userId)) {
+    return msg;
+  }
+  if (msg.kind !== 'text' || msg.role !== 'user') {
+    return msg;
+  }
+  if (msg.originKind) {
+    return msg;
+  }
+  msg.userId = userId as number;
+  return msg;
+}
+
 // ---------------------------
 //----------------- MCP CONFIG PARSING UTILITIES ------------
 /**

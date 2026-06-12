@@ -217,6 +217,21 @@ export type NormalizedMessage = {
    */
   userId?: number;
   /**
+   * Provenance of a kind:'text' role:'user' message that was NOT typed by a
+   * human (mirrors SDKMessageOrigin.kind from the Claude Agent SDK):
+   * - 'coordinator'       — coordinator → subagent prompt (Task/Agent tool)
+   * - 'peer'              — message routed from a peer session
+   * - 'channel'           — message injected from a channel
+   * - 'task-notification' — background-task completion notification
+   *
+   * Absent = human keyboard input. All messages recorded before this field
+   * existed are also absent and MUST keep being treated as human-authored
+   * (no regression). When present, the message never carries `userId` and the
+   * UI must render it as a machine-routed prompt (e.g. coordinator→agent
+   * directive), never as a message the viewing user wrote.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | (string & {});
+  /**
    * Coordinator attribution for assistant output in multi-user sessions
    * (B-MU-UX-FIX-ASSISTANT-AUTHOR). The users.id of the participant who spawned
    * the run that produced this assistant message — sourced from the
