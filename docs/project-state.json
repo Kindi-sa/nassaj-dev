@@ -1235,9 +1235,9 @@
       "kind": "doc",
       "issue": null,
       "title": "لقطات شاشة حقيقية للواجهة (Playwright) للشريط الجانبي والمحادثة ولوحة المشروع والإعدادات وإدراجها في صفحات الويكي",
-      "status": "in_progress",
+      "status": "blocked",
       "owner": "end-user-tester",
-      "note": "الموجة 2ب قيد التنفيذ؛ يشمل التحقق من مسارات الصور داخل العارض"
+      "note": "معلّقة على بوابة دخول: لا حساب اختباري — يلزم من المالك حساب اختبار أو دعوة /join?token. التجهيز جاهز لإعادة فورية (سكربتات /tmp/eut-t106). عائق بيئة جانبي: Playwright MCP يطلب chrome النظامي غير المثبت — تجاوُز موثّق بـ chromium المخزّن؛ يُستحسن ضبط --browser chromium"
     },
     {
       "id": "T-107",
@@ -1248,7 +1248,7 @@
       "title": "مراجعة الويكي: end-user-tester يقرأه بعين موظف جديد (هل يُفهم دون شرح شفهي؟) + design-reviewer للتبويب، ثم اعتماد المالك ونشر build:client",
       "status": "todo",
       "owner": "end-user-tester",
-      "note": "بوابة الإغلاق: موافقة المالك على المحتوى؛ بانتظار اعتماد الخطة"
+      "note": "بوابة الإغلاق: موافقة المالك على المحتوى؛ معلّقة على نفس بوابة دخول T-106"
     },
     {
       "id": "T-108",
@@ -1261,6 +1261,17 @@
       "owner": "frontend-dev",
       "note": "واجهة فقط — build:client نُشر بلا restart؛ commit بانتظار فصل عمل الجلسة الموازية على نفس الملفات",
       "closed": "2026-06-12"
+    },
+    {
+      "id": "T-95",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-41",
+      "title": "إصلاح B-41 جذرياً: تسلسل إيقاف/handoff نظيف للمنفذ 3004 عند restart",
+      "status": "pending",
+      "owner": "devops+backend-dev",
+      "summary": "معتمدة من المالك 2026-06-12. المطلوب: تحقيق لماذا السيرفر القديم لا يحرّر المنفذ ولا يموت بعد kill_timeout (بقي 2س+ يتيماً، وpm2 فقد تتبّعه فدخلت النسخة الجديدة حلقة EADDRINUSE 460+ محاولة)، ولماذا قتل restart جلسات claude رغم treekill:false. مراجعة shutdown-drain.service.ts وecosystem.config.cjs (kill_timeout/exp_backoff) وآلية الـdrain (B-N-DRAIN). الهدف: restart يُنهي القديم نظيفاً (يحرّر المنفذ فوراً ويموت خلال مهلة محدودة) دون قتل عمليات claude الأبناء، والجديد يقلع من أول محاولة. البدء بعد تجدّد الحصة."
     }
   ],
   "issues": [
@@ -1646,6 +1657,14 @@
       "found": "2026-06-12",
       "title": "الصف المتدفّق (streaming) لرسالة المساعد يُبنى في updateStreaming بلا coordinatorId فيُعزى مؤقتاً لـowner الجلسة حتى يصل التاريخ المُعاد من السيرفر. متابعة لـT-90: ختم coordinatorId على الصف المتدفّق (يلامس مسار realtime/store الذي كانت تعدّله جلسة أخرى — يُنسّق بعد التزامها).",
       "triage": "low → backlog"
+    },
+    {
+      "id": "B-46",
+      "title": "شاشة الدخول إنجليزية بالكامل (lang=en/LTR) رغم i18n التسع لغات، ولا إرشاد لطلب حساب/دعوة لمن لا يملك حساباً",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-12",
+      "note": "رصد end-user-tester أثناء T-106: خلط اتجاهين في سطر Sign in to your نسَّاج account، ومصطلح self-hosted تقني؛ مقترح سطر «لا تملك حساباً؟ اطلب دعوة من مديرك»"
     }
   ],
   "decisions": [
