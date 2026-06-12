@@ -274,4 +274,21 @@ i18n.on('languageChanged', (lng) => {
   }
 });
 
+// Apply an account-sourced language live when the preferences sync layer
+// hydrates it after sign-in (server is authoritative — no reload). The
+// localStorage value is already written by the time this fires; changeLanguage
+// only re-renders the UI. Guarded against unsupported values and no-op changes.
+if (typeof window !== 'undefined') {
+  window.addEventListener('preferences:apply', (event) => {
+    const detail = event.detail;
+    if (!detail || detail.storageKey !== 'userLanguage') {
+      return;
+    }
+    const next = detail.rawValue;
+    if (next && languages.some((lang) => lang.value === next) && i18n.language !== next) {
+      i18n.changeLanguage(next);
+    }
+  });
+}
+
 export default i18n;

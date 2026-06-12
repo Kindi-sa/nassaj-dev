@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 import { api } from '../utils/api';
 import { TASKMASTER_ENABLED } from '../constants/features';
+import { onApplyServerPreference } from '../preferences/preferencesSync';
 
 const TasksSettingsContext = createContext({
   tasksEnabled: true,
@@ -86,6 +87,21 @@ export const TasksSettingsProvider = ({ children }) => {
 
     // Run check asynchronously without blocking initial render
     setTimeout(checkInstallation, 0);
+  }, []);
+
+  // Apply an account-sourced value live after sign-in (server is authoritative).
+  // The kill-switch still wins: when the feature is off, tasks stay disabled.
+  useEffect(() => {
+    if (!TASKMASTER_ENABLED) {
+      return undefined;
+    }
+    return onApplyServerPreference('tasks-enabled', (raw) => {
+      try {
+        setTasksEnabled(raw === null ? true : JSON.parse(raw));
+      } catch {
+        // Ignore malformed server value; keep current state.
+      }
+    });
   }, []);
 
   const toggleTasksEnabled = () => {

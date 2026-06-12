@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
+import { onApplyServerPreference } from '../preferences/preferencesSync';
 
 type UiPreferences = {
   autoExpandTools: boolean;
@@ -210,9 +211,22 @@ export function useUiPreferences(storageKey = 'uiPreferences') {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
 
+    // Reflect an account-sourced value live after sign-in (server authoritative).
+    const offApply = onApplyServerPreference(storageKey, (raw) => {
+      if (raw === null) {
+        return;
+      }
+      try {
+        applyExternalUpdate(JSON.parse(raw));
+      } catch {
+        // Ignore malformed server value.
+      }
+    });
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+      offApply();
     };
   }, [storageKey]);
 

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { onApplyServerPreference } from '../preferences/preferencesSync';
 
 const RtlContext = createContext(null);
 
@@ -47,6 +48,13 @@ export const RtlProvider = ({ children }) => {
       // Storage unavailable (private mode, quota).
     }
   }, [rtlLayout]);
+
+  // Apply an account-sourced value live after sign-in (server is authoritative).
+  useEffect(() => {
+    return onApplyServerPreference(STORAGE_KEY, (raw) => {
+      setRtlLayout(raw === 'true');
+    });
+  }, []);
 
   const toggleRtlLayout = () => setRtlLayout((prev) => !prev);
 

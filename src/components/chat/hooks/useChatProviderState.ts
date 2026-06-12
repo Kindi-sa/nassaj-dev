@@ -13,6 +13,7 @@ import {
   sanitizeStoredModel,
   sanitizeStoredProvider,
 } from '../../../constants/providerModelFallbacks';
+import { onApplyServerPreference } from '../../../preferences/preferencesSync';
 import { pickStoredOrCurrent } from './normalizeProviderModel';
 
 const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
@@ -209,6 +210,42 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   useEffect(() => {
     void loadProviderModels();
   }, [loadProviderModels]);
+
+  // Reflect account-sourced provider/model selections live after sign-in. The
+  // sync layer has already written localStorage; we refresh React state and let
+  // the per-provider reconcile effects above re-validate against the catalog.
+  useEffect(() => {
+    const offProvider = onApplyServerPreference('selected-provider', (raw) => {
+      setProvider(sanitizeStoredProvider(raw));
+    });
+    const offClaude = onApplyServerPreference('claude-model', (raw) => {
+      setClaudeModel(sanitizeStoredModel('claude', raw));
+    });
+    const offCursor = onApplyServerPreference('cursor-model', (raw) => {
+      setCursorModel(sanitizeStoredModel('cursor', raw));
+    });
+    const offCodex = onApplyServerPreference('codex-model', (raw) => {
+      setCodexModel(sanitizeStoredModel('codex', raw));
+    });
+    const offGemini = onApplyServerPreference('gemini-model', (raw) => {
+      setGeminiModel(sanitizeStoredModel('gemini', raw));
+    });
+    const offOpencode = onApplyServerPreference('opencode-model', (raw) => {
+      setOpenCodeModel(sanitizeStoredModel('opencode', raw));
+    });
+    const offAntigravity = onApplyServerPreference('antigravity-model', (raw) => {
+      setAntigravityModel(sanitizeStoredModel('antigravity', raw));
+    });
+    return () => {
+      offProvider();
+      offClaude();
+      offCursor();
+      offCodex();
+      offGemini();
+      offOpencode();
+      offAntigravity();
+    };
+  }, []);
 
   // Normalize a stored/current model against the authoritative catalog entry
   // and persist the result. The catalog is always populated (live or fallback),

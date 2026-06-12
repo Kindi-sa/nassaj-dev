@@ -12,6 +12,13 @@ import './i18n/config.js'
 import { applyStoredThemePreset } from './lib/theme-presets'
 applyStoredThemePreset()
 
+// Mirror synced UI preferences to the user's account. Patching setItem here —
+// before any preference owner runs — ensures every synced write is captured.
+// Stays dormant until a token exists and the server route proves reachable, so
+// pre-login and pre-restart behaviour is unchanged (localStorage only).
+import { installPreferenceWriteMirror } from './preferences/preferencesSync'
+installPreferenceWriteMirror()
+
 // Register service worker for PWA + Web Push support
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(err => {
