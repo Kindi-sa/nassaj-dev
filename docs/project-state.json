@@ -1197,9 +1197,11 @@
       "kind": "feature",
       "issue": null,
       "title": "زر تحديث نافذة المحادثة في رأس المحادثة: إعادة جلب رسائل الجلسة الحالية (sessionStore.refreshFromServer — نفس مسار handleWebSocketReconnect) + فحص/إعادة اتصال WS، بديلاً عن تحديث الصفحة كاملة عند تعليق الردود",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "اعتمد المالك الخطة 2026-06-12؛ الموجة 1 قيد التنفيذ"
+      "note": "اعتمد المالك الخطة 2026-06-12",
+      "closed": "2026-06-12",
+      "summary": "commit bb5aa63: زر RefreshCw في شريط علوي خفيف برأس منطقة المحادثة (يظهر فقط مع جلسة مفتوحة)، handleManualRefresh يلفّ handleWebSocketReconnect (نفس مسار refreshFromServer) بـ try/finally، isRefreshing يدير الدوران والتعطيل ضد النقر المزدوج، شارة WS انتقلت لنفس الشريط، ترجمات 9 لغات. tsc نظيف وbuild:client نُشر — حيّ بلا restart"
     },
     {
       "id": "T-104",
@@ -1220,9 +1222,9 @@
       "kind": "feature",
       "issue": null,
       "title": "تبويب «الويكي» في الواجهة: عارض Markdown+Mermaid (المكتبتان مثبّتتان) يقرأ docs/team-wiki/ عبر file API القائم بفهرس جانبي، ومدخل الويكي مكان زر تحديث المشاريع في SidebarHeader (التحديث ينتقل لرأس المحادثة بـ T-103)",
-      "status": "todo",
+      "status": "in_progress",
       "owner": "frontend-dev",
-      "note": "واجهة فقط بلا تغيير سيرفر = build:client بلا restart؛ بانتظار اعتماد الخطة"
+      "note": "واجهة فقط بلا تغيير سيرفر = build:client بلا restart؛ الموجة 2 قيد التنفيذ"
     },
     {
       "id": "T-106",
