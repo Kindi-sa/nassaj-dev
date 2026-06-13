@@ -1473,9 +1473,10 @@
       "kind": "bug",
       "issue": "B-54",
       "title": "إصلاح تكرار أيقونة الويكي: تغيير أيقونة زر طيّ الفهرس في WikiPanel من BookOpen إلى PanelLeft",
-      "status": "todo",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "الجلسة الموازية بريئة من هذا التكرار"
+      "closed": "2026-06-13",
+      "summary": "commit 1eee987: أيقونة زر طيّ الفهرس في WikiPanel.tsx:208 غُيّرت BookOpen→PanelLeft (والاستيراد) فزالت ازدواجية أيقونة الكتاب مع تبويب الويكي. PanelLeft رمز قياسي لطيّ القائمة الجانبية بصرف النظر عن الاتجاه. build:client نُشر بلا restart"
     }
   ],
   "issues": [
