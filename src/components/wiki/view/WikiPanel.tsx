@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
-import { BookOpen, ChevronRight } from 'lucide-react';
+import { ChevronRight, PanelLeft } from 'lucide-react';
 import MermaidDiagram from '../../project-board/view/MermaidDiagram';
 
 // ---------------------------------------------------------------------------
@@ -205,7 +205,7 @@ export default function WikiPanel() {
             aria-expanded={sidebarOpen}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            <BookOpen className="h-4 w-4" aria-hidden="true" />
+            <PanelLeft className="h-4 w-4" aria-hidden="true" />
           </button>
           <h2 className="truncate text-sm font-semibold text-foreground">{activeTitle}</h2>
         </div>
