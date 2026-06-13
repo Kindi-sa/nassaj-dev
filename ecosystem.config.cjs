@@ -59,21 +59,27 @@ module.exports = {
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
 
-        // ── B-41 (self-hosting trap) — bounded drain + single-listener guard ──
-        // T-95 (2026-06-13) proved a 7.5h EADDRINUSE crash-loop: an UNBOUNDED
-        // drain (old default) let one long claude session pin port 3004 while
-        // PM2 respawned a replacement that crash-looped on bind. Two bounds now
-        // close the trap from both ends:
+        // ── B-41 (self-hosting trap) — single-listener bind guard ────────────
+        // T-95 (2026-06-13) diagnosed a 7.5h EADDRINUSE crash-loop (2026-06-12
+        // 17:14 → 2026-06-13 03:13). The running build ALREADY had B-23 (port
+        // released on stop via server.close()), proven by the
+        //   "[DRAIN] SIGTERM: listener closed — port released"
+        // line that ended the loop at 03:13:39. So the predecessor was holding
+        // the port simply because it had never been signaled to stop — PM2
+        // fork-mode lost its pid under treekill:false (ADR-028/B-24) and spawned
+        // a replacement beside the still-live original. The loop is broken by
+        // the bind guard below, NOT by capping the drain. The owner-mandated
+        // unbounded drain (B-N-DRAIN, 2026-06-09: roles may run for hours) is
+        // therefore preserved.
         //
-        // DRAIN_TIMEOUT_MS: cap on how long a stopping instance waits for active
-        //   sessions before exiting anyway (releasing the slot). Must stay
-        //   <= kill_timeout (300000ms) so PM2 never SIGKILLs mid-drain. Set 0 to
-        //   opt back into the old no-deadline drain.
-        DRAIN_TIMEOUT_MS: '300000',
+        // DRAIN_TIMEOUT_MS=0: drain with NO deadline (owner decision). A wedged
+        //   drain still has two escape hatches: a second stop signal and PM2's
+        //   kill_timeout. A positive value would opt a single run into a cap.
+        DRAIN_TIMEOUT_MS: '0',
         // LISTEN_BIND_WINDOW_MS: how long a STARTING instance tolerates
-        //   EADDRINUSE (a draining predecessor) before exiting cleanly (0)
-        //   instead of crash-looping. A healthy handoff binds in <1s; 10s
-        //   absorbs slow ones.
+        //   EADDRINUSE (a draining/ghost predecessor still on the socket) before
+        //   exiting cleanly (0) instead of crash-looping. A healthy handoff
+        //   binds in <1s; 10s absorbs slow ones. THIS is what breaks the loop.
         LISTEN_BIND_WINDOW_MS: '10000',
 
         // ── Phase-MU multi-user auth (B-AUTH) ──────────────────────────────

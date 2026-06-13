@@ -213,10 +213,16 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Public health check endpoint (no authentication required)
+// Public health check endpoint (no authentication required).
+// `service: 'nassaj-server'` is a stable fingerprint the B-41 listen guard
+// probes after a bind window expires: a port held by one of OUR instances
+// (a draining/ghost predecessor) reports this marker, so the starting instance
+// gives up cleanly (PM2 reschedules). A port held by something FOREIGN does not
+// report it, so the guard surfaces a crash (errored) instead of dying silently.
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
+        service: 'nassaj-server',
         timestamp: new Date().toISOString(),
         installMode
     });

@@ -4,7 +4,6 @@ import test from 'node:test';
 import {
   createShutdownDrain,
   resolveDrainTimeoutMs,
-  DEFAULT_DRAIN_TIMEOUT_MS,
   WS_CLOSE_GOING_AWAY,
   type ShutdownDrainDeps,
 } from './shutdown-drain.service.js';
@@ -52,19 +51,17 @@ function buildHarness(overrides: Partial<ShutdownDrainDeps> & {
 
 // ---- resolveDrainTimeoutMs -------------------------------------------------
 
-test('resolveDrainTimeoutMs (B-41): bounded default unless an explicit value is given', () => {
-  // Explicit positive integer is honoured.
+test('resolveDrainTimeoutMs: positive integers pass through, everything else means no deadline (B-N-DRAIN owner default)', () => {
+  // An explicit positive integer opts into a bounded drain.
   assert.equal(resolveDrainTimeoutMs('300000'), 300000);
-  // Explicit "0" is an opt-in to the old no-deadline behaviour.
+  // Everything else — unset, blank, non-numeric, zero, negative — is the
+  // owner-mandated unbounded drain (0 = no deadline). The EADDRINUSE crash-loop
+  // is broken by the listen guard, not by capping the drain (see B-41 / T-95).
   assert.equal(resolveDrainTimeoutMs('0'), 0);
-  // Everything invalid/unset now falls back to the SAFE bounded default,
-  // never to an unbounded drain (the root of B-41).
-  assert.equal(resolveDrainTimeoutMs('-5'), DEFAULT_DRAIN_TIMEOUT_MS);
-  assert.equal(resolveDrainTimeoutMs('abc'), DEFAULT_DRAIN_TIMEOUT_MS);
-  assert.equal(resolveDrainTimeoutMs(undefined), DEFAULT_DRAIN_TIMEOUT_MS);
-  assert.equal(resolveDrainTimeoutMs(''), DEFAULT_DRAIN_TIMEOUT_MS);
-  assert.equal(resolveDrainTimeoutMs('   '), DEFAULT_DRAIN_TIMEOUT_MS);
-  assert.ok(DEFAULT_DRAIN_TIMEOUT_MS > 0, 'the default must be a finite positive bound');
+  assert.equal(resolveDrainTimeoutMs('-5'), 0);
+  assert.equal(resolveDrainTimeoutMs('abc'), 0);
+  assert.equal(resolveDrainTimeoutMs(undefined), 0);
+  assert.equal(resolveDrainTimeoutMs(''), 0);
 });
 
 // ---- port release (B-23) ---------------------------------------------------

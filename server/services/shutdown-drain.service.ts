@@ -27,25 +27,18 @@
  * sessions finish (the whole point of the drain), and PM2 must keep
  * `treekill: false` so its eventual SIGKILL never propagates to them.
  *
- * drainTimeoutMs bounds how long the drain waits for in-flight sessions before
- * exiting anyway. B-41 (T-95, 2026-06-13): an UNBOUNDED drain (the old default
- * of 0) let a single long-running session pin the process for 7.5 hours while
- * PM2 crash-looped a replacement on EADDRINUSE. The default is now a finite cap
- * (DEFAULT_DRAIN_TIMEOUT_MS) so a wedged or very long session can no longer hold
- * the supervisor slot indefinitely. Operators can still opt back into the
- * no-deadline behaviour by setting DRAIN_TIMEOUT_MS=0 explicitly. The other
- * escape hatches remain: a second stop signal (immediate exit) and PM2's
- * kill_timeout.
+ * drainTimeoutMs = 0 (the default) waits WITHOUT a deadline — owner decision
+ * B-N-DRAIN (2026-06-09): "drain with no ceiling, roles may run for hours". The
+ * EADDRINUSE crash-loop that motivated B-41 was NOT caused by the unbounded
+ * drain: the T-95 diagnosis proved the predecessor held the port because it had
+ * never received a stop signal (PM2 fork-mode lost its pid under treekill:false,
+ * ADR-028/B-24), not because the drain deliberately kept the listener open
+ * (B-23 already releases it on the first stop signal). The loop is broken by the
+ * listen guard (listen-with-guard.service.ts), which makes a starting instance
+ * tolerate a held port instead of crash-looping — so no time cap on the drain is
+ * needed. The escape hatches for a genuinely wedged drain remain: a second stop
+ * signal (immediate exit) and PM2's kill_timeout.
  */
-
-/**
- * Default drain ceiling (30 min) when DRAIN_TIMEOUT_MS is unset. Long enough
- * for almost any legitimate agent run to finish, short enough that a wedged
- * predecessor frees the slot well within an operator's patience. Pairs with the
- * listen guard (listen-with-guard.service.ts) so the overlap window is finite
- * from both ends.
- */
-export const DEFAULT_DRAIN_TIMEOUT_MS = 1_800_000;
 
 /** WebSocket close code sent to clients when the server is going away. */
 export const WS_CLOSE_GOING_AWAY = 1001;
@@ -81,7 +74,7 @@ export type ShutdownDrainDeps = {
   stopAllPlugins: () => Promise<unknown>;
   /** process.exit in production; injectable for tests. */
   exit: (code: number) => void;
-  /** 0 = wait with no deadline (default). */
+  /** 0 = wait with no deadline (the owner-mandated default, B-N-DRAIN). */
   drainTimeoutMs?: number;
   pollMs?: number;
   logger?: DrainLogger;
@@ -90,19 +83,14 @@ export type ShutdownDrainDeps = {
 };
 
 /**
- * Parses DRAIN_TIMEOUT_MS from the environment.
- *   - A positive integer is honoured as an explicit deadline.
- *   - An explicit "0" means "no deadline" (opt-in to the old unbounded drain).
- *   - Anything else (unset, blank, non-numeric, negative) falls back to the
- *     bounded default — this is the B-41 fix: the SAFE default is now finite.
+ * Parses DRAIN_TIMEOUT_MS from the environment. Anything that is not a
+ * positive finite integer means "no deadline" (0) — the owner-mandated default
+ * (B-N-DRAIN, 2026-06-09: drain with no ceiling). An explicit positive integer
+ * opts a single operator into a bounded drain for that run.
  */
 export function resolveDrainTimeoutMs(raw: string | undefined): number {
-  const trimmed = (raw ?? '').trim();
-  const parsed = parseInt(trimmed, 10);
-  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_DRAIN_TIMEOUT_MS;
-  // An explicit 0 is an intentional opt-out (wait with no deadline).
-  if (parsed === 0) return trimmed === '0' ? 0 : DEFAULT_DRAIN_TIMEOUT_MS;
-  return parsed;
+  const parsed = parseInt(raw ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 /**
