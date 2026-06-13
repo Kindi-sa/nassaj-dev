@@ -3,6 +3,7 @@ import { Check, ChevronDown, RefreshCw, Settings } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel";
+import { usePaletteOps } from "../../../../contexts/PaletteOpsContext";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import type {
   ProjectSession,
@@ -138,6 +139,7 @@ export default function ProviderSelectionEmptyState({
   setInput,
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
+  const { openSettings } = usePaletteOps();
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // in-flight guard for the combined refresh button (models + auth status)
@@ -413,10 +415,8 @@ export default function ProviderSelectionEmptyState({
                             <button
                               type="button"
                               onClick={() => {
-                                // Navigate to Settings — no auth logic here, just redirect.
                                 setDialogOpen(false);
-                                // Dispatch a custom event that App/ChatInterface can catch to open settings.
-                                window.dispatchEvent(new CustomEvent("nassaj:open-settings"));
+                                openSettings('agents');
                               }}
                               className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/40 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                               aria-label={t("providerSelection.signIn", { defaultValue: "Sign in" })}

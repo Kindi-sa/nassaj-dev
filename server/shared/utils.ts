@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
 
+import spawn from 'cross-spawn';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import { parseFrontMatter } from '@/shared/frontmatter.js';
@@ -1218,5 +1219,102 @@ export async function extractFirstValidJsonlData<T>(
   }
 
   return null;
+}
+
+// ---------------------------
+//----------------- CLI INSTALLATION DETECTION UTILITIES ------------
+/**
+ * Shared CLI installation detector (B-56 follow-up).
+ *
+ * THE BUG THIS FIXES: `spawn.sync` (cross-spawn) does NOT throw when the binary
+ * is missing — it returns an object with `error.code === 'ENOENT'` and
+ * `status === null`. The previous per-provider pattern was:
+ *
+ *   try { spawn.sync('codex', ['--version'], {...}); return true; }
+ *   catch { return false; }
+ *
+ * The try/catch caught nothing, so EVERY provider reported installed=true even
+ * when the binary was absent. The frontend trusts `installed` and shows
+ * uninstalled providers as disabled rows instead of hiding them.
+ *
+ * CORRECT DETECTION: a `--version` probe is "installed" only when the spawn
+ * itself succeeded (`error == null`) AND the process exited cleanly
+ * (`status === 0`).
+ *
+ * TIMEOUT NUANCE: a missing binary fails INSTANTLY with ENOENT. A `--version`
+ * call that runs long enough to hit the timeout almost certainly means the
+ * binary EXISTS but was slow to respond. Because the frontend treats
+ * `installed === false` as a hard hide, we deliberately DO NOT report a slow
+ * (ETIMEDOUT) probe as uninstalled — that would hide a real, runnable provider
+ * on a transient hiccup. Only a genuine spawn failure (ENOENT and friends)
+ * yields `false`.
+ *
+ * PATH NOTE: this resolves the command through the SAME mechanism (cross-spawn /
+ * process PATH) that the real provider spawn uses, so "detected" == "runnable".
+ * The nassaj-dev pm2 process inherits the operator's PATH (verified to include
+ * ~/.local/bin), so claude/gemini/agy resolve correctly here.
+ */
+const DEFAULT_VERSION_PROBE_TIMEOUT_MS = 5000;
+
+export type CliInstalledCheckDependencies = {
+  /** Injectable spawn.sync for tests. Defaults to cross-spawn's sync. */
+  spawnSync?: typeof spawn.sync;
+};
+
+export type CliInstalledCheckOptions = {
+  /** Probe arguments. Defaults to ['--version']. */
+  args?: string[];
+  /** Per-probe timeout in ms. Defaults to 5000. */
+  timeoutMs?: number;
+};
+
+/**
+ * Detects whether a spawn.sync result represents a timeout kill rather than a
+ * normal exit or a missing binary. Node sets error.code === 'ETIMEDOUT' and
+ * terminates the child with SIGTERM when `timeout` elapses.
+ */
+function isTimeoutResult(result: ReturnType<typeof spawn.sync>): boolean {
+  const errCode = (result.error as NodeJS.ErrnoException | undefined)?.code;
+  return errCode === 'ETIMEDOUT' || result.signal === 'SIGTERM';
+}
+
+/**
+ * Returns true when `command` is present and runnable on this host.
+ *
+ * @param command  The CLI command or absolute path to probe.
+ * @param options  Probe args / timeout overrides.
+ * @param deps     Injectable dependencies (test seam for spawnSync).
+ */
+export function isCliInstalled(
+  command: string,
+  options: CliInstalledCheckOptions = {},
+  deps: CliInstalledCheckDependencies = {},
+): boolean {
+  const spawnSync = deps.spawnSync ?? spawn.sync;
+  const args = options.args ?? ['--version'];
+  const timeout = options.timeoutMs ?? DEFAULT_VERSION_PROBE_TIMEOUT_MS;
+
+  let result: ReturnType<typeof spawn.sync>;
+  try {
+    result = spawnSync(command, args, { stdio: 'ignore', timeout });
+  } catch {
+    // spawn.sync normally signals failure via the returned object rather than
+    // throwing, but guard anyway: an unexpected throw means we could not run it.
+    return false;
+  }
+
+  // A slow probe that hit the timeout (SIGTERM/ETIMEDOUT) means the binary
+  // exists but was slow — treat as installed to avoid hiding a real provider.
+  if (isTimeoutResult(result)) {
+    return true;
+  }
+
+  // Any other spawn error (ENOENT = not found, EACCES, etc.) = not runnable.
+  if (result.error) {
+    return false;
+  }
+
+  // No error: installed only when the version command exited cleanly.
+  return result.status === 0;
 }
 
