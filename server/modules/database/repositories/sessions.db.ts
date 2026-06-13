@@ -34,6 +34,24 @@ function normalizeProjectPathForProvider(provider: string, projectPath: string):
   return normalizeProjectPath(projectPath);
 }
 
+/**
+ * "Native" session predicate (B-29): a session is shown in the conversations
+ * list only when it was actually started through this server — i.e. the server
+ * run path recorded a participant row (`recordSpawn`) or a message-author row
+ * (`recordUserMessage`) for it. Both are written exclusively on the spawn path
+ * and never by an external `claude -p` invocation, so any transcript dropped
+ * into the project folder by an out-of-band CLI/agent run (an "orphan" session)
+ * is excluded from the list instead of being silently adopted.
+ *
+ * Applied as a correlated EXISTS so it never duplicates session rows and stays a
+ * pure visibility filter — it does not touch ownership, deletion, or archival
+ * paths, which must still see every row.
+ */
+const NATIVE_SESSION_PREDICATE_SQL = `(
+  EXISTS (SELECT 1 FROM session_participants sp WHERE sp.session_id = sessions.session_id)
+  OR EXISTS (SELECT 1 FROM message_authors ma WHERE ma.session_id = sessions.session_id)
+)`;
+
 export const sessionsDb = {
   createSession(
     sessionId: string,
@@ -175,6 +193,7 @@ export const sessionsDb = {
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0
+           AND ${NATIVE_SESSION_PREDICATE_SQL}
          ORDER BY datetime(COALESCE(created_at, updated_at)) DESC, session_id DESC
          LIMIT ? OFFSET ?`
       )
@@ -189,7 +208,8 @@ export const sessionsDb = {
         `SELECT COUNT(*) AS count
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
+           AND isArchived = 0
+           AND ${NATIVE_SESSION_PREDICATE_SQL}`
       )
       .get(normalizedProjectPath) as { count: number } | undefined;
 
