@@ -1620,6 +1620,17 @@
       "closed": "2026-06-13",
       "title": "tooltip بأسماء المشاريع النشطة وعدد محادثاتها على علامة المحادثات النشطة (PresencePanel)",
       "summary": "commit b8ca8d2: عند المرور على علامة المحادثات النشطة (MessagesSquare) يظهر tooltip يسرد كل مشروع نشط (له جلسة 'running') وعدد محادثاته النشطة. معيار «نشط» = تشغّل أمر مزوّد الآن (قرار المالك)، نفس مصدر ProjectBusyDot. useRunningSessionIds جديد في sessionProcessStateStore (Set مكاش referentially-stable، running فقط لا frozen)؛ الربط client-side: projects (مُمرَّرة من SidebarContent) × runningSessionIds بتسطيح كل مصفوفات مزوّدي الجلسات، تجميع per-project، ترتيب الأعلى عدداً ثم أبجدياً، fallback للنص البسيط عند لا نشاط. يحترم خصوصية المشاريع (العميل يرى المرئي له فقط). RTL+i18n(ar/en). build:client منشور بلا restart. ملاحظة اتساق: openSessionsCount عام (server-wide) بينما الـbreakdown يعكس جلسات المستخدم المرئية — قد يقلّ المجموع في بيئة متعددة المستخدمين (مقبول، كنقاط الانشغال)."
+    },
+    {
+      "id": "T-133",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "doc",
+      "issue": null,
+      "title": "تحسين هيكلة الويكي وسهولة الوصول: عناوين رئيسية/فرعية منظّمة (H2/H3) + فهرس محتويات لكل صفحة + جدول الوكلاء الـ22 كاملاً بأسمائهم العربية والفِرَق والنماذج + روابط وصول سريع",
+      "status": "in_progress",
+      "owner": "content-writer",
+      "note": "روستر مثبّت من nassaj-core/agents (INDEX.md+بطاقات name_ar+_models.yaml): 22 وكيلاً، 3 فِرَق. سياق T-104: a7e1be03fc8643878"
     }
   ],
   "issues": [
