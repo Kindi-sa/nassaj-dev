@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AlertTriangle, CalendarRange, Check, Copy, KanbanSquare, Network, Target } from 'lucide-react';
+import {
+  AlertTriangle,
+  CalendarRange,
+  Check,
+  ClipboardCheck,
+  Copy,
+  KanbanSquare,
+  Network,
+  Target,
+} from 'lucide-react';
 
 import { Pill, PillBar } from '../../../shared/view/ui';
 import type { Project } from '../../../types/app';
@@ -13,6 +22,7 @@ import ArchitectureView from './ArchitectureView';
 import BoardOverview from './BoardOverview';
 import ObjectivesView from './ObjectivesView';
 import ScheduleView from './ScheduleView';
+import VisualChecksView from './VisualChecksView';
 
 type ProjectBoardPanelProps = {
   selectedProject: Project | null;
@@ -20,7 +30,7 @@ type ProjectBoardPanelProps = {
   onFileOpen?: (filePath: string) => void;
 };
 
-type BoardSection = 'overview' | 'schedule' | 'objectives' | 'architecture';
+type BoardSection = 'overview' | 'schedule' | 'objectives' | 'visual' | 'architecture';
 
 /** Minimal valid docs/project-state.json (schema v1, spec: ~/.claude/wiki/project-board.md). */
 function buildStarterTemplate(projectName: string): string {
@@ -132,10 +142,13 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
   // (spec: ~/.claude/wiki/project-board.md). Agile-only files are unaffected.
   const hasSchedule = Boolean(board.state?.schedule?.length);
   const hasObjectives = Boolean(board.state?.objectives?.length || board.state?.kpis?.length);
+  const hasVisualChecks = Boolean(board.state?.visual_checks?.length);
 
   // The selection can outlive its tab (project switch, file edit) — fall back.
   const activeSection =
-    (section === 'schedule' && !hasSchedule) || (section === 'objectives' && !hasObjectives)
+    (section === 'schedule' && !hasSchedule) ||
+    (section === 'objectives' && !hasObjectives) ||
+    (section === 'visual' && !hasVisualChecks)
       ? 'overview'
       : section;
 
@@ -169,6 +182,16 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
             >
               <Target className="h-3.5 w-3.5" />
               <span>{t('sections.objectives')}</span>
+            </Pill>
+          )}
+          {hasVisualChecks && (
+            <Pill
+              isActive={activeSection === 'visual'}
+              onClick={() => setSection('visual')}
+              className="px-2.5 py-[5px]"
+            >
+              <ClipboardCheck className="h-3.5 w-3.5" />
+              <span>{t('sections.visual')}</span>
             </Pill>
           )}
           <Pill
@@ -220,6 +243,7 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
           ))}
         {activeSection === 'schedule' && board.state && <ScheduleView state={board.state} />}
         {activeSection === 'objectives' && board.state && <ObjectivesView state={board.state} />}
+        {activeSection === 'visual' && board.state && <VisualChecksView state={board.state} />}
         {activeSection === 'architecture' && (
           <ArchitectureView
             technical={board.architecture.technical}

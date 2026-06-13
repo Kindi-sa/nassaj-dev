@@ -2,8 +2,9 @@
  * Project Board types — mirror of docs/project-state.json (schema v1 + 1.1
  * additions: `sprints` array and tasks[].sprint/kind/issue + 1.2 optional
  * sections: `schedule`/`deliverables` (waterfall) and `objectives`/`kpis`
- * (execution plan). All 1.1/1.2 fields are optional so v1 files keep
- * rendering unchanged.
+ * (execution plan). Schema 1.3 adds the optional `visual_checks` section
+ * (read-only owner visual checklist). All 1.1/1.2/1.3 fields are optional so
+ * v1 files keep rendering unchanged.
  * Spec: ~/.claude/wiki/project-board.md
  */
 
@@ -16,6 +17,7 @@ export type IssueStatus = 'open' | 'fixed' | 'wontfix';
 export type DeliverableStatus = 'pending' | 'in_progress' | 'delivered' | 'accepted' | 'rejected';
 export type ObjectiveStatus = 'on_track' | 'at_risk' | 'off_track' | 'done';
 export type KpiDirection = 'up' | 'down';
+export type VisualCheckStatus = 'pending' | 'verified' | 'failed';
 
 export type BoardPhase = {
   id: string;
@@ -133,6 +135,35 @@ export type BoardKpi = {
   linked?: string | null;
 };
 
+/**
+ * Read-only visual-verification item (schema 1.3) — one row of the owner's
+ * "visual checklist": a step + what the owner should see, linked back to the
+ * task/sprint/issue that created it. Authored by an agent into
+ * docs/project-state.json; the board only renders it.
+ */
+export type BoardVisualCheck = {
+  id: string;
+  /** Phase id this check belongs to (group key). */
+  phase: string;
+  /** Originating task id (e.g. "GATE-x"/"WI-x") or null. */
+  task?: string | null;
+  /** Linked issue id (e.g. "R-*"/"I-*") or null. */
+  issue?: string | null;
+  /** Originating sprint id or null. */
+  sprint?: string | null;
+  /** The step/route the owner performs. */
+  step: string;
+  /** What the owner should see for this step to pass. */
+  expect: string;
+  /** "Broken if…" hint shown as secondary amber text, or null. */
+  warning?: string | null;
+  status: VisualCheckStatus;
+  /** Owner's note after verification, or null. */
+  result?: string | null;
+  created?: string;
+  verified?: string | null;
+};
+
 export type ProjectBoardState = {
   $version: number;
   project: string;
@@ -149,6 +180,8 @@ export type ProjectBoardState = {
   /** Schema 1.2 execution-plan sections — non-empty shows the objectives tab. */
   objectives?: BoardObjective[];
   kpis?: BoardKpi[];
+  /** Schema 1.3 read-only visual-checklist section — non-empty shows the tab. */
+  visual_checks?: BoardVisualCheck[];
 };
 
 export type ProjectBoardResponse = {

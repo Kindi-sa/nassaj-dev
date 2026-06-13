@@ -3,6 +3,7 @@
     "overview": "Overview",
     "schedule": "Timeline",
     "objectives": "Objectives",
+    "visual": "Visual Checks",
     "architecture": "Architecture"
   },
   "updated": "Updated {{date}}",
@@ -110,6 +111,19 @@
   "kpis": {
     "title": "KPIs",
     "target": "Target: {{value}}"
+  },
+  "visualChecks": {
+    "title": "Visual Checks",
+    "empty": "No visual checks yet.",
+    "step": "Step",
+    "expect": "Expected",
+    "result": "Owner note",
+    "counter": "Verified {{verified}} / {{total}}",
+    "status": {
+      "pending": "Awaiting check",
+      "verified": "Verified",
+      "failed": "Failed"
+    }
   },
   "architecture": {
     "technical": "Technical",

@@ -3,6 +3,7 @@
     "overview": "نظرة عامة",
     "schedule": "الجدول الزمني",
     "objectives": "الأهداف",
+    "visual": "التحقق البصري",
     "architecture": "الهيكلة"
   },
   "updated": "آخر تحديث {{date}}",
@@ -110,6 +111,19 @@
   "kpis": {
     "title": "مؤشرات الأداء (KPIs)",
     "target": "الهدف: {{value}}"
+  },
+  "visualChecks": {
+    "title": "التحقق البصري",
+    "empty": "لا توجد بنود تحقق بصري بعد.",
+    "step": "الخطوة",
+    "expect": "المتوقَّع",
+    "result": "ملاحظة المالك",
+    "counter": "متحقَّق {{verified}} / {{total}}",
+    "status": {
+      "pending": "بانتظار التحقق",
+      "verified": "متحقَّق",
+      "failed": "فشل"
+    }
   },
   "architecture": {
     "technical": "تقني",
