@@ -105,3 +105,18 @@ test('buildCwdMissingPayload omits requestId when not provided', () => {
   const payload = buildCwdMissingPayload(error, { provider: 'claude' });
   assert.equal('requestId' in payload, false);
 });
+
+test('buildCwdMissingPayload sets isNewSessionError flag for a new (no-sessionId) spawn', () => {
+  const error = { code: 'project_dir_missing' as const, fallbackMessage: 'x' };
+  const payload = buildCwdMissingPayload(error, { provider: 'claude', isNewSessionError: true });
+  assert.equal(payload['isNewSessionError'], true);
+});
+
+test('buildCwdMissingPayload omits isNewSessionError on a resume (sessionId present)', () => {
+  // Resume path: cwd check runs with an existing sessionId and no isNewSessionError
+  // flag, so the frontend correlates the failure with the existing session.
+  const error = { code: 'project_dir_missing' as const, fallbackMessage: 'x' };
+  const payload = buildCwdMissingPayload(error, { sessionId: 'sess-resume', provider: 'claude' });
+  assert.equal('isNewSessionError' in payload, false);
+  assert.equal(payload['sessionId'], 'sess-resume');
+});

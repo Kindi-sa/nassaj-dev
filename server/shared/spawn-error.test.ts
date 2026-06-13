@@ -54,11 +54,17 @@ test('mapSpawnError with context=binary returns cli_not_installed', () => {
   assert.equal(result.code, 'cli_not_installed');
 });
 
-test('mapSpawnError non-ENOENT error returns spawn_failed', () => {
-  const err = makeNodeError('EACCES', 'permission denied');
+test('mapSpawnError EACCES returns permission_denied (distinct from cwd/binary)', () => {
+  const err = makeNodeError('EACCES', 'spawn EACCES');
   const result = mapSpawnError(err);
-  assert.equal(result.code, 'spawn_failed');
-  assert.ok(result.fallbackMessage.includes('permission denied'));
+  assert.equal(result.code, 'permission_denied');
+  assert.ok(result.fallbackMessage.toLowerCase().includes('permission'));
+});
+
+test('mapSpawnError EPERM returns permission_denied', () => {
+  const err = makeNodeError('EPERM', 'operation not permitted');
+  const result = mapSpawnError(err);
+  assert.equal(result.code, 'permission_denied');
 });
 
 test('mapSpawnError unknown error code returns spawn_failed', () => {

@@ -9,12 +9,14 @@
  * Recognised codes:
  *   project_dir_missing  — cwd (project directory) does not exist on disk (B-31)
  *   cli_not_installed    — the provider binary was not found (ENOENT on the exe)
+ *   permission_denied    — the OS refused execution/access (EACCES / EPERM) (T-82)
  *   spawn_failed         — any other spawn-time failure
  */
 
 export type SpawnErrorCode =
   | 'project_dir_missing'
   | 'cli_not_installed'
+  | 'permission_denied'
   | 'spawn_failed';
 
 export type MappedSpawnError = {
@@ -31,7 +33,9 @@ export type MappedSpawnError = {
  *      → `project_dir_missing`
  *   2. ENOENT (binary not found) or exit code 127
  *      → `cli_not_installed`
- *   3. Everything else
+ *   3. EACCES / EPERM (OS refused execution or directory access)
+ *      → `permission_denied`
+ *   4. Everything else
  *      → `spawn_failed`
  *
  * The caller decides which rule applies to `cwd` vs binary ENOENT by passing
@@ -96,6 +100,17 @@ export function mapSpawnError(
     return {
       code: 'cli_not_installed',
       fallbackMessage: `Provider CLI not installed or not found in PATH. ${message}`,
+    };
+  }
+
+  // EACCES (access denied) / EPERM (operation not permitted): the path exists
+  // but the OS refused to execute the binary or enter the directory. Distinct
+  // from a missing cwd and from a missing binary — surfaced so the frontend
+  // can prompt the user to check file/dir permissions rather than re-install.
+  if (errCode === 'EACCES' || errCode === 'EPERM') {
+    return {
+      code: 'permission_denied',
+      fallbackMessage: `Permission denied while starting the provider. Check file and directory permissions. ${message}`,
     };
   }
 
