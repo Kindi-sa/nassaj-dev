@@ -1666,9 +1666,10 @@
       "kind": "feature",
       "issue": null,
       "title": "تلميع عارض الويكي المؤجّل: تكبير مخططات Mermaid (overlay، مشترك مع project-board→مراجعة qa-critic)، فهرس overlay/drawer على الجوال، إبراز نتيجة البحث داخل الصفحة بعد الانتقال",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "تسلسلياً بعد T-137"
+      "closed": "2026-06-13",
+      "summary": "commit 8bff462 (src/components/wiki حصراً): (1) فهرس drawer على الجوال <md مع backdrop وإغلاق بالنقر/التمرير/Escape، عمود جانبي على سطح المكتب (wiki-panel.css منفصل لا style مضمّن)؛ (2) إبراز نتيجة البحث داخل الصفحة — matchedTerm يُمرّر، scrollToMatchedTerm يمشي DOM المقال بتطبيع عربي ويبرز مؤقتاً 2s بتلاشٍ؛ (3) تكبير Mermaid عبر غلاف WikiMermaidDiagram.tsx جديد (الخيار ب) يفتح overlay aria-modal بحجم كامل — MermaidDiagram المشترك لم يُمسّ. tsc نظيف، build:client نجح"
     },
     {
       "id": "T-137",
