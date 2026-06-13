@@ -40,5 +40,11 @@
   "activeConversationsElsewhere_two": "واثنتان أخريان",
   "activeConversationsElsewhere_few": "و{{count}} أخرى",
   "activeConversationsElsewhere_many": "و{{count}} أخرى",
-  "activeConversationsElsewhere_other": "و{{count}} أخرى"
+  "activeConversationsElsewhere_other": "و{{count}} أخرى",
+  "collapsedRailTooltip_zero": "لا محادثات مفتوحة",
+  "collapsedRailTooltip_one": "محادثة مفتوحة واحدة",
+  "collapsedRailTooltip_two": "محادثتان مفتوحتان",
+  "collapsedRailTooltip_few": "{{count}} محادثات مفتوحة",
+  "collapsedRailTooltip_many": "{{count}} محادثة مفتوحة",
+  "collapsedRailTooltip_other": "{{count}} محادثة مفتوحة"
 }

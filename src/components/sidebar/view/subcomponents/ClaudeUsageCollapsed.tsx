@@ -85,6 +85,8 @@ export function ClaudeUsageCollapsed() {
     // CSS double-guard: JS hides on wide viewports; xl:hidden covers any
     // SSR/hydration timing gap. flex flex-col items-center matches the
     // surrounding rail layout so the div is transparent to positioning.
+    <>
+    <div className="nav-divider my-1 w-6 xl:hidden" />
     <div className="flex flex-col items-center xl:hidden">
       {visible.map(({ letter, key }) => {
         const window = data[key]!;
@@ -116,5 +118,6 @@ export function ClaudeUsageCollapsed() {
         );
       })}
     </div>
+    </>
   );
 }

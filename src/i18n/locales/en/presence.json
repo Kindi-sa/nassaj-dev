@@ -20,5 +20,7 @@
   "activeConversationsAriaLabel_one": "Active conversations: {{count}} across {{projects}}",
   "activeConversationsAriaLabel_other": "Active conversations: {{count}} across {{projects}}",
   "activeConversationsElsewhere_one": "{{count}} elsewhere",
-  "activeConversationsElsewhere_other": "{{count}} elsewhere"
+  "activeConversationsElsewhere_other": "{{count}} elsewhere",
+  "collapsedRailTooltip_one": "{{count}} open conversation",
+  "collapsedRailTooltip_other": "{{count}} open conversations"
 }
