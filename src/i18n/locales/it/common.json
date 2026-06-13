@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "Indice Wiki",
     "closeSidebar": "Nascondi indice",
     "openSidebar": "Mostra indice",
-    "pageNotFound": "Pagina non trovata"
+    "pageNotFound": "Pagina non trovata",
+    "searchPlaceholder": "Cerca nel wiki…",
+    "searchAriaLabel": "Cerca nelle pagine wiki",
+    "searchClear": "Cancella ricerca",
+    "searchNoResults": "Nessun risultato",
+    "searchResultsCount": "{{count}} risultato/i",
+    "searchResultsAriaLabel": "Risultati della ricerca"
   },
   "status": {
     "loading": "Caricamento...",

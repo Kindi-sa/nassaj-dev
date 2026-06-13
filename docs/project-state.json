@@ -1607,6 +1607,18 @@
       "status": "in_progress",
       "owner": "frontend-dev",
       "note": "المحتوى مدمج بالحزمة عبر import.meta.glob في WikiPanel؛ بحث عميل خالص بلا سيرفر = build:client بلا restart"
+    },
+    {
+      "id": "T-132",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "owner": "frontend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "tooltip بأسماء المشاريع النشطة وعدد محادثاتها على علامة المحادثات النشطة (PresencePanel)",
+      "summary": "commit b8ca8d2: عند المرور على علامة المحادثات النشطة (MessagesSquare) يظهر tooltip يسرد كل مشروع نشط (له جلسة 'running') وعدد محادثاته النشطة. معيار «نشط» = تشغّل أمر مزوّد الآن (قرار المالك)، نفس مصدر ProjectBusyDot. useRunningSessionIds جديد في sessionProcessStateStore (Set مكاش referentially-stable، running فقط لا frozen)؛ الربط client-side: projects (مُمرَّرة من SidebarContent) × runningSessionIds بتسطيح كل مصفوفات مزوّدي الجلسات، تجميع per-project، ترتيب الأعلى عدداً ثم أبجدياً، fallback للنص البسيط عند لا نشاط. يحترم خصوصية المشاريع (العميل يرى المرئي له فقط). RTL+i18n(ar/en). build:client منشور بلا restart. ملاحظة اتساق: openSessionsCount عام (server-wide) بينما الـbreakdown يعكس جلسات المستخدم المرئية — قد يقلّ المجموع في بيئة متعددة المستخدمين (مقبول، كنقاط الانشغال)."
     }
   ],
   "issues": [

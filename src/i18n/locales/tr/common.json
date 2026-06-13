@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "Wiki İçindekiler",
     "closeSidebar": "İçindekileri gizle",
     "openSidebar": "İçindekileri göster",
-    "pageNotFound": "Sayfa bulunamadı"
+    "pageNotFound": "Sayfa bulunamadı",
+    "searchPlaceholder": "Wiki'de ara…",
+    "searchAriaLabel": "Wiki sayfalarında ara",
+    "searchClear": "Aramayı temizle",
+    "searchNoResults": "Sonuç bulunamadı",
+    "searchResultsCount": "{{count}} sonuç",
+    "searchResultsAriaLabel": "Arama sonuçları"
   },
   "status": {
     "loading": "Yükleniyor...",

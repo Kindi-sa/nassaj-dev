@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "위키 목차",
     "closeSidebar": "목차 숨기기",
     "openSidebar": "목차 표시",
-    "pageNotFound": "페이지를 찾을 수 없습니다"
+    "pageNotFound": "페이지를 찾을 수 없습니다",
+    "searchPlaceholder": "위키 검색…",
+    "searchAriaLabel": "위키 페이지 검색",
+    "searchClear": "검색 지우기",
+    "searchNoResults": "결과 없음",
+    "searchResultsCount": "{{count}}개 결과",
+    "searchResultsAriaLabel": "검색 결과"
   },
   "status": {
     "loading": "로딩 중...",

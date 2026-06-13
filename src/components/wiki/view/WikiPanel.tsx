@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, PanelLeft } from 'lucide-react';
 import MermaidDiagram from '../../project-board/view/MermaidDiagram';
+import WikiSearchField from '../WikiSearchField';
+import { useWikiSearch } from '../useWikiSearch';
 
 // ---------------------------------------------------------------------------
 // Wiki content loaded at build-time via Vite import.meta.glob (?raw).
@@ -28,10 +30,17 @@ type WikiPage = {
 
 const PAGES: WikiPage[] = (indexJson as { pages: WikiPage[] }).pages;
 
+// Build a raw-content map keyed by page.file (not the full glob path) so the
+// search hook and getPageContent share the same simple key format.
+const RAW_BY_FILE: Record<string, string> = {};
+for (const page of PAGES) {
+  const raw = RAW_PAGES[`/docs/team-wiki/${page.file}`];
+  if (typeof raw === 'string') RAW_BY_FILE[page.file] = raw;
+}
+
 // Resolve a page slug into its raw Markdown string (or null if not found)
 function getPageContent(file: string): string | null {
-  const key = `/docs/team-wiki/${file}`;
-  const raw = RAW_PAGES[key];
+  const raw = RAW_BY_FILE[file];
   return typeof raw === 'string' ? raw : null;
 }
 
@@ -128,16 +137,35 @@ export default function WikiPanel() {
   const { t } = useTranslation();
   const [activeFile, setActiveFile] = useState<string>(PAGES[0]?.file ?? '');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const searchInputRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>;
 
-  // Keyboard: Escape closes sidebar on mobile
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') setSidebarOpen(false);
-  }, []);
+  const { query, setQuery, clearQuery, results, isSearching } = useWikiSearch({
+    pages: PAGES,
+    rawContents: RAW_BY_FILE,
+  });
+
+  // Keyboard: Escape — clears search first if query is non-empty, then closes sidebar
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (query.trim()) {
+          clearQuery();
+        } else {
+          setSidebarOpen(false);
+        }
+      }
+    },
+    [query, clearQuery],
+  );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  const handleSelectResult = useCallback((file: string) => {
+    setActiveFile(file);
+  }, []);
 
   const content = useMemo(() => getPageContent(activeFile), [activeFile]);
   const activeTitle = PAGES.find((p) => p.file === activeFile)?.title ?? '';
@@ -156,35 +184,49 @@ export default function WikiPanel() {
           sidebarOpen ? 'w-56 sm:w-64' : 'w-0 overflow-hidden'
         }`}
       >
-        <div className="px-2 pb-4 pt-3">
-          <ul role="list" className="space-y-0.5">
-            {PAGES.map((page) => {
-              const isActive = page.file === activeFile;
-              return (
-                <li key={page.file}>
-                  <button
-                    type="button"
-                    onClick={() => setActiveFile(page.file)}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
-                      isActive
-                        ? 'bg-primary/10 font-medium text-primary'
-                        : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                    }`}
-                  >
-                    {isActive && (
-                      <ChevronRight
-                        className="h-3 w-3 flex-shrink-0 rotate-180"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <span className={isActive ? '' : 'ps-5'}>{page.title}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+        {/* Search field — sits at the top of the nav before the page list */}
+        <WikiSearchField
+          query={query}
+          onQueryChange={setQuery}
+          onClear={clearQuery}
+          results={results}
+          isSearching={isSearching}
+          onSelectResult={handleSelectResult}
+          inputRef={searchInputRef}
+        />
+
+        {/* Page list — hidden while a search is active */}
+        {!isSearching && (
+          <div className="px-2 pb-4">
+            <ul role="list" className="space-y-0.5">
+              {PAGES.map((page) => {
+                const isActive = page.file === activeFile;
+                return (
+                  <li key={page.file}>
+                    <button
+                      type="button"
+                      onClick={() => setActiveFile(page.file)}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
+                        isActive
+                          ? 'bg-primary/10 font-medium text-primary'
+                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                      }`}
+                    >
+                      {isActive && (
+                        <ChevronRight
+                          className="h-3 w-3 flex-shrink-0 rotate-180"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className={isActive ? '' : 'ps-5'}>{page.title}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
       </nav>
 
       {/* Content area */}

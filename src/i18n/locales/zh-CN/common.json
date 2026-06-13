@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "维基目录",
     "closeSidebar": "隐藏目录",
     "openSidebar": "显示目录",
-    "pageNotFound": "页面未找到"
+    "pageNotFound": "页面未找到",
+    "searchPlaceholder": "搜索维基…",
+    "searchAriaLabel": "搜索维基页面",
+    "searchClear": "清除搜索",
+    "searchNoResults": "无结果",
+    "searchResultsCount": "{{count}} 个结果",
+    "searchResultsAriaLabel": "搜索结果"
   },
   "status": {
     "loading": "加载中...",

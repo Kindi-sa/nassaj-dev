@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "Содержание вики",
     "closeSidebar": "Скрыть содержание",
     "openSidebar": "Показать содержание",
-    "pageNotFound": "Страница не найдена"
+    "pageNotFound": "Страница не найдена",
+    "searchPlaceholder": "Поиск в вики…",
+    "searchAriaLabel": "Поиск по страницам вики",
+    "searchClear": "Очистить поиск",
+    "searchNoResults": "Нет результатов",
+    "searchResultsCount": "{{count}} результат(ов)",
+    "searchResultsAriaLabel": "Результаты поиска"
   },
   "status": {
     "loading": "Загрузка...",

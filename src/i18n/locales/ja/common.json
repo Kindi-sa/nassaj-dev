@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "Wikiインデックス",
     "closeSidebar": "インデックスを非表示",
     "openSidebar": "インデックスを表示",
-    "pageNotFound": "ページが見つかりません"
+    "pageNotFound": "ページが見つかりません",
+    "searchPlaceholder": "Wikiを検索…",
+    "searchAriaLabel": "Wikiページを検索",
+    "searchClear": "検索をクリア",
+    "searchNoResults": "結果なし",
+    "searchResultsCount": "{{count}}件の結果",
+    "searchResultsAriaLabel": "検索結果"
   },
   "status": {
     "loading": "読み込み中...",

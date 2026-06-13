@@ -32,7 +32,13 @@
     "sidebarAriaLabel": "فهرس الويكي",
     "closeSidebar": "إخفاء الفهرس",
     "openSidebar": "إظهار الفهرس",
-    "pageNotFound": "الصفحة غير موجودة"
+    "pageNotFound": "الصفحة غير موجودة",
+    "searchPlaceholder": "ابحث في الويكي…",
+    "searchAriaLabel": "بحث في صفحات الويكي",
+    "searchClear": "مسح البحث",
+    "searchNoResults": "لا نتائج",
+    "searchResultsCount": "{{count}} نتيجة",
+    "searchResultsAriaLabel": "نتائج البحث"
   },
   "status": {
     "loading": "جارٍ التحميل...",
