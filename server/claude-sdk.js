@@ -220,15 +220,58 @@ const SDK_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
  * UI-contract values that are NOT SDK effort levels but are part of the
  * terminal `/effort` vocabulary:
  *  - 'auto'      → "use the model's default effort" → omit the SDK option.
- *  - 'ultracode' → CLI-only session mode ("xhigh effort + dynamic-workflow
- *    orchestration", gated behind the dynamic-workflows config). The SDK
- *    Options.effort type does not accept it, so we map it to its effort
- *    component 'xhigh' (documented downgrade, logged non-silently).
+ *  - 'ultracode' → the UI's maximum-intensity mode (intensity 4). It is NOT a
+ *    value the SDK `Options.effort` type accepts, and the underlying CLI does
+ *    not recognize 'ultracode' as an effort level either (its effort vocabulary
+ *    is low|medium|high|xhigh|max). 'ultracode' is two things at once:
+ *      1. Maximum reasoning effort — mapped here to the SDK level 'max' (the
+ *         true ceiling, intensity 4; previously this was downgraded to 'xhigh',
+ *         which made ultracode indistinguishable from the xhigh mode).
+ *      2. The CLI's prompt-keyword super-modes ("deeper reasoning" + "multi-agent
+ *         workflow orchestration"), which the SDK `effort` field cannot express.
+ *         The CLI activates these from magic keywords in the prompt text (it
+ *         scans for /\bultrathink\b/i and /\bultrawork\b/i). That half is applied
+ *         in runClaudeSDKQuery via maybeApplyUltracodeKeywords(), keyed off
+ *         resolveEffortLevel(...).alias === 'ultracode'.
  */
 const EFFORT_ALIASES = new Map([
   ['auto', null],
-  ['ultracode', 'xhigh'],
+  ['ultracode', 'max'],
 ]);
+
+/**
+ * Magic keywords the Claude Code CLI scans for in the prompt text to activate
+ * its highest-tier session behaviors — the half of "ultracode" that the SDK
+ * `Options.effort` field cannot carry:
+ *   - 'ultrathink' → "Deeper reasoning requested for this turn" (max extended thinking).
+ *   - 'ultrawork'  → "Multi-agent workflow requested for this turn" (the CLI is
+ *     instructed to use the Workflow tool / dynamic-workflow orchestration).
+ * Verified against the bundled CLI binary's keyword detectors (`/\bultrathink\b/i`,
+ * `/\bultrawork\b/i`). Both are appended on their own line, separated from the
+ * user's prompt, so the words are detected without colliding with prompt text.
+ */
+const ULTRACODE_PROMPT_KEYWORDS = 'ultrathink ultrawork';
+
+/**
+ * Appends the ultracode CLI keywords to the prompt when the UI requested the
+ * 'ultracode' effort mode. Mirrors how the terminal `/effort ultracode` flow
+ * surfaces those keywords to the CLI. No-op (returns the command unchanged) for
+ * every other effort value, so normal prompts are never mutated.
+ *
+ * @param {string} command - The (possibly image-annotated) prompt text.
+ * @param {unknown} effortValue - Raw `effort` field from the chat options.
+ * @returns {string} The prompt, with the ultracode keywords appended when applicable.
+ */
+function maybeApplyUltracodeKeywords(command, effortValue) {
+  const { alias } = resolveEffortLevel(effortValue);
+  if (alias !== 'ultracode') {
+    return command;
+  }
+  const base = typeof command === 'string' ? command : '';
+  // Separate the keywords onto their own line so word-boundary detection in the
+  // CLI fires cleanly regardless of how the user's prompt ends.
+  return base ? `${base}\n\n${ULTRACODE_PROMPT_KEYWORDS}` : ULTRACODE_PROMPT_KEYWORDS;
+}
 
 /**
  * Validates a UI-supplied effort value against the allowlist and resolves it
@@ -353,10 +396,11 @@ function mapCliOptionsToSDK(options = {}, validModelValues) {
 
   // Map effort (B: structured effort field from the UI, same path as model).
   // Allowlist: low|medium|high|xhigh|max (SDK EffortLevel) plus the UI aliases
-  // 'auto' (omit → model default) and 'ultracode' (mapped to 'xhigh'; the
-  // dynamic-workflow half of ultracode is a CLI session setting the SDK
-  // Options.effort cannot express). Anything else is ignored safely with a
-  // non-silent warning — never forwarded to the SDK.
+  // 'auto' (omit → model default) and 'ultracode' (mapped to 'max' — the SDK
+  // ceiling, intensity 4). The "deeper reasoning + multi-agent workflow" half of
+  // ultracode is applied separately in runClaudeSDKQuery via prompt keywords,
+  // because the SDK Options.effort field cannot express it. Anything else is
+  // ignored safely with a non-silent warning — never forwarded to the SDK.
   const { level: effortLevel, alias: effortAlias, rejected: rejectedEffort } =
     resolveEffortLevel(options.effort);
   if (effortLevel) {
@@ -1011,11 +1055,17 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Handle images - save to temp files and modify prompt
     const imageResult = await handleImages(command, options.images, options.cwd);
-    const finalCommand = imageResult.modifiedCommand;
+    // Ultracode (UI intensity 4): besides the SDK effort='max' set above, the
+    // CLI's "deeper reasoning + multi-agent workflow" super-modes are activated
+    // by magic keywords in the prompt text. Append them here so ultracode takes
+    // real effect (no-op for every other effort value). Applied after the image
+    // annotation so the keywords ride along on the exact text the CLI receives.
+    const finalCommand = maybeApplyUltracodeKeywords(imageResult.modifiedCommand, options.effort);
     tempImagePaths = imageResult.tempImagePaths;
     tempDir = imageResult.tempDir;
-    // The transcript stores the image-annotated prompt, so authorship must
-    // hash the same text (recordParticipant runs only after this point).
+    // The transcript stores the prompt exactly as handed to the SDK, so
+    // authorship must hash the same text (recordParticipant runs only after
+    // this point).
     promptTextForAuthorship = finalCommand;
 
     sdkOptions.hooks = {
@@ -1491,5 +1541,6 @@ export {
   getClaudeBuiltInCommands,
   mapCliOptionsToSDK,
   buildValidClaudeModelValues,
-  resolveEffortLevel
+  resolveEffortLevel,
+  maybeApplyUltracodeKeywords
 };

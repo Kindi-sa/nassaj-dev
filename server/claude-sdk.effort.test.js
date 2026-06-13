@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { mapCliOptionsToSDK, resolveEffortLevel } from './claude-sdk.js';
+import {
+  mapCliOptionsToSDK,
+  resolveEffortLevel,
+  maybeApplyUltracodeKeywords,
+} from './claude-sdk.js';
 
 /**
  * Runs mapCliOptionsToSDK while capturing console.warn output, returning the
@@ -30,9 +34,9 @@ test('resolveEffortLevel accepts every native SDK level verbatim', () => {
   }
 });
 
-test('resolveEffortLevel maps "ultracode" to the SDK level "xhigh" (alias)', () => {
+test('resolveEffortLevel maps "ultracode" to the SDK ceiling "max" (alias)', () => {
   assert.deepEqual(resolveEffortLevel('ultracode'), {
-    level: 'xhigh',
+    level: 'max',
     alias: 'ultracode',
     rejected: null,
   });
@@ -69,12 +73,12 @@ test('mapCliOptionsToSDK forwards a valid effort level to sdkOptions.effort with
   }
 });
 
-test('mapCliOptionsToSDK maps "ultracode" to effort "xhigh" with a non-silent warning', () => {
+test('mapCliOptionsToSDK maps "ultracode" to effort "max" with a non-silent warning', () => {
   const { result, warnings } = mapAndCaptureWarn({ effort: 'ultracode' });
-  assert.equal(result.effort, 'xhigh');
+  assert.equal(result.effort, 'max');
   assert.equal(warnings.length, 1, 'alias mapping must be logged (no silent substitution)');
   assert.match(warnings[0], /"ultracode"/);
-  assert.match(warnings[0], /"xhigh"/);
+  assert.match(warnings[0], /"max"/);
 });
 
 test('mapCliOptionsToSDK omits effort entirely for "auto" (model default)', () => {
@@ -97,4 +101,30 @@ test('mapCliOptionsToSDK omits effort silently when the field is absent or non-s
     assert.equal('effort' in result, false);
     assert.equal(warnings.length, 0, 'absence is not a rejected value, so no warning');
   }
+});
+
+// --- maybeApplyUltracodeKeywords (the CLI prompt-keyword half of ultracode) ---
+
+test('maybeApplyUltracodeKeywords appends ultrathink + ultrawork only for ultracode', () => {
+  const out = maybeApplyUltracodeKeywords('refactor the parser', 'ultracode');
+  assert.match(out, /\bultrathink\b/i, 'must include ultrathink so the CLI enables deep reasoning');
+  assert.match(out, /\bultrawork\b/i, 'must include ultrawork so the CLI enables workflow orchestration');
+  assert.ok(out.startsWith('refactor the parser'), 'user prompt is preserved as the prefix');
+});
+
+test('maybeApplyUltracodeKeywords is a no-op for non-ultracode effort values', () => {
+  for (const effort of ['max', 'xhigh', 'high', 'medium', 'low', 'auto', '', undefined, null, 3, 'bogus']) {
+    assert.equal(
+      maybeApplyUltracodeKeywords('do the thing', effort),
+      'do the thing',
+      `effort ${String(effort)} must not mutate the prompt`,
+    );
+  }
+});
+
+test('maybeApplyUltracodeKeywords handles an empty prompt without leading whitespace', () => {
+  const out = maybeApplyUltracodeKeywords('', 'ultracode');
+  assert.match(out, /\bultrathink\b/i);
+  assert.match(out, /\bultrawork\b/i);
+  assert.equal(out.trimStart(), out, 'no leading whitespace when the base prompt is empty');
 });
