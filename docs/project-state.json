@@ -1501,6 +1501,30 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "summary": "commit a87af8a: حُذف زر BookOpen من SidebarHeader (ديسكتوب+جوال) ونُظّف prop onOpenWiki عبر السلسلة كاملة (SidebarHeader/SidebarContent/Sidebar/types/useProjectsState) — صفر مرجع متبقٍ، setActiveTab سليمة. الويكي الآن مدخل واحد: تبويب Wiki. ملفا الجلسة الأخرى لم يُمسّا. build:client نُشر بلا restart"
+    },
+    {
+      "id": "T-123",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-41",
+      "owner": "backend-dev",
+      "status": "review",
+      "closed": null,
+      "title": "الإصلاح الجذري لـB-41 («فخّ الاستضافة الذاتية»): حارس bind أحادي المستمع + probe صحة على /health، مع إبقاء drain بلا سقف",
+      "summary": "commits ecafb22→58436b6. تشخيص مصحَّح بالدليل: B-23 (4cc4bd6، سلف للإصلاح) يحرّر المنفذ فوراً عبر server.close()، فحلقة EADDRINUSE ~7.5س (2026-06-12 17:14→2026-06-13 03:13، 767 حدثاً) لم تكن احتجاز drain متعمّداً بل أن النسخة القديمة لم تتلقَّ SIGTERM أصلاً (PM2 fork-mode فقد pid تحت treekill:false — ADR-028/B-24) فبقيت حيّة محتجزةً المنفذ بينما تنهار البديلة. الإصلاح: listen-with-guard.service.ts يتسامح مع EADDRINUSE ضمن LISTEN_BIND_WINDOW_MS=10000 ثم probe على /health (بصمة service:nassaj-server): holder بعلامتنا أو غير حاسم→exit(0)، أجنبي→exit(1) (لا موت صامت)؛ أخطاء bind الأخرى تبقى fatal. أُلغي سقف drain الذي أُدخل مؤقتاً في ecafb22 (DRAIN_TIMEOUT_MS=0) احتراماً لقرار المالك B-N-DRAIN ولمنع قتل الجلسات الطويلة. اختبارات منفذ حقيقي 18/18 + suite كامل 434+26، tsc/build نظيفان. qa-critic APPROVE بعد جولتين. ينتظر نشر المالك عبر SSH (pm2 restart محجوب بحارس العميل). ملفات الجلسة الموازية لم تُمسّ."
+    },
+    {
+      "id": "T-124",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "task",
+      "issue": null,
+      "owner": "frontend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "زر تحديث المحادثة: إعادته لزر صغير أعلى يمين النافذة (قرار المالك النهائي) — يلغي «الدائري تحت سهم القفز» (T-100/ca8e62b)",
+      "summary": "commit c94d88c: ChatInterface.tsx — أُزيل بناء العمود العائم h-0/absolute الذي أدخله ca8e62b، وأُعيد الزر لصف flex items-center justify-end أعلى النافذة (rounded border، h-6 w-6)؛ ChatComposer.tsx — أُعيد السهم النازل لموضعه المتمركز (left-0 right-0 justify-center)؛ حُذف import ChevronDown غير المستخدم. build:client نجح. تحقّقات مرافقة: أفاتارات SessionParticipantsBar متساوية أصلاً (ParticipantAvatar يحمل h-6 w-6 inline-flex مباشرة) فلا تعديل؛ الشعار الأبيض logo_dark.svg موجود ويُوصَّل سليماً (تحقّق curl) فلا تعديل."
     }
   ],
   "issues": [
@@ -1875,10 +1899,10 @@
     {
       "id": "B-41",
       "severity": "critical",
-      "status": "open",
+      "status": "in_progress",
       "found": "2026-06-12",
       "title": "B-41 (جذر مؤكَّد 2026-06-12 مساءً — «فخّ الاستضافة الذاتية»): العملية اليتيمة 2961366 (dist-server/index.js، أبوها PM2 God Daemon) تحتجز المنفذ 3004 منذ 9.5س وترفض الموت، والنسخة الجديدة تنهار EADDRINUSE في حلقة (117+ محاولة، waiting restart مع exp_backoff). السبب أن جلسات claude/طرفيات التطبيق هي أبناء مباشرون لعملية السيرفر (3818462=claude ابن 2961366)، فأي محاولة قتل/restart من طرفية داخل التطبيق تقتل الطرفية الآمرة نفسها قبل اكتمال التعافي، والسيرفر ينجو. fuser -k/kill من الداخل لا يكتمل. الحل التشغيلي: التعافي من طرفية SSH خارجية (لا يستضيفها نفس السيرفر): kill -9 2961366 ثم pm2 يلتقط أو pm2 restart. الإصلاح الجذري (T-95): فصل دورة حياة جلسات claude عن عملية السيرفر (ألا تكون أبناءه المباشرين أو handoff نظيف عبر SESSION_REGISTRY)، وتقليم drain بلا سقف، ومنع تعدد المستمعين. مرتبط: project_session_service_separation، feedback_restart_kills_own_session.",
-      "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain"
+      "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain | 2026-06-13: الإصلاح الجذري مُلتزَم (58436b6) وqa-critic APPROVE — ينتظر نشر المالك عبر SSH ثم يُغلق بعد تحقق ما بعد النشر (T-123)."
     },
     {
       "id": "B-42",
@@ -2041,6 +2065,12 @@
       "date": "2026-06-13",
       "status": "accepted",
       "title": "معيار «المزوّد المفعّل لدى المستخدم» في نافذة اختيار النماذج (قرار المالك): معيار مزدوج — installed=false يُخفى كلياً؛ installed=true&authenticated=false يظهر معطّلاً بصرياً مع CTA توجيه لـSettings (لا يُخفى)؛ fail-open: لا إخفاء إلا بإشارة installed===false قاطعة (loading/error يبقى ظاهراً). qualified لإعادة ضبط selected-provider عند المصدر = installed وحده. منفَّذ في T-121"
+    },
+    {
+      "id": "ADR-031",
+      "date": "2026-06-13",
+      "status": "accepted",
+      "title": "الإصلاح الجذري لـB-41: حارس bind أحادي المستمع + probe صحة على /health، مع الإبقاء على drain بلا سقف. الجذر المصحَّح: ليس احتجاز drain (B-23 يحرّر المنفذ فوراً) بل أن النسخة القديمة لم تتلقَّ SIGTERM لفقد PM2 fork-mode للـpid تحت treekill:false (ADR-028/B-24). السقف الزمني المؤقت في ecafb22 أُلغي في 58436b6 لأنه يقتل الجلسات الطويلة ويقلب قرار المالك «drain بلا سقف» (B-N-DRAIN) دون اعتماد. القصور البنيوي في PM2 fork-mode (ghost-respawn) يبقى جذراً أعمق مؤجّلاً في ADR-028؛ هذا الإصلاح يحيّد أثره (لا crash-loop ولا احتجاز لا نهائي ولا موت صامت). منفَّذ في T-123. مرتبط: project_session_service_separation، feedback_restart_kills_own_session."
     }
   ]
 }
