@@ -1,6 +1,7 @@
 import { Settings, Sparkles, PanelLeftOpen } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { SystemStatsCollapsed } from './SystemStats';
+import { ClaudeUsageCollapsed } from './ClaudeUsageCollapsed';
 
 type SidebarCollapsedProps = {
   onExpand: () => void;
@@ -43,6 +44,10 @@ export default function SidebarCollapsed({
 
       {/* Live CPU/RAM stats */}
       <SystemStatsCollapsed t={t} />
+
+      {/* Claude usage windows */}
+      <div className="nav-divider my-1 w-6" />
+      <ClaudeUsageCollapsed />
 
       {/* Update indicator */}
       {updateAvailable && (
