@@ -13,6 +13,10 @@
  *  4. Expired cache entry -> served STALE immediately (no regression to the
  *     static-only list) while a background refresh updates the cache.
  *  5. Single-flight: concurrent cold requests share one probe.
+ *  6. (B-26) The cache is keyed by the probe CONTEXT (effective Claude config
+ *     dir), not the provider alone: two users with different config dirs never
+ *     share a cache entry (no cross-user leak), while callers sharing a config
+ *     dir DO reuse the cache.
  *
  * The SDK probe (getClaudeBuiltInCommands in server/claude-sdk.js) is replaced
  * with node:test module mocking — registered BEFORE commands.js is imported —
@@ -28,8 +32,11 @@ import { pathToFileURL } from 'node:url';
 // Must be set before commands.js loads (the constant is read at module scope).
 process.env.COMMANDS_COLD_PROBE_WAIT_MS = '120';
 
-// Controllable stand-in for the SDK probe. Each test assigns probeImpl.
-let probeImpl: () => Promise<unknown> = async () => null;
+// Controllable stand-in for the SDK probe. Each test assigns probeImpl. The
+// probe receives the same context object resolveDynamicBuiltIns forwards, so a
+// test can make the result depend on context.configDir (B-26 keying).
+type ProbeContext = { userId?: unknown; cwd?: unknown; configDir?: unknown };
+let probeImpl: (ctx: ProbeContext) => Promise<unknown> = async () => null;
 let probeCalls = 0;
 
 const claudeSdkUrl = pathToFileURL(
@@ -40,9 +47,9 @@ const claudeSdkUrl = pathToFileURL(
 // export commands.js consumes needs a real implementation.
 mock.module(claudeSdkUrl, {
   namedExports: {
-    getClaudeBuiltInCommands: (..._args: unknown[]) => {
+    getClaudeBuiltInCommands: (ctx: ProbeContext = {}) => {
       probeCalls += 1;
-      return probeImpl();
+      return probeImpl(ctx);
     },
   },
 });
@@ -63,7 +70,8 @@ const {
   _seedDynamicBuiltInsForTests: (
     provider: string,
     commands: unknown[],
-    expiresAt: number
+    expiresAt: number,
+    context?: Record<string, unknown>
   ) => void;
 };
 
@@ -75,6 +83,86 @@ test.beforeEach(() => {
   _resetDynamicBuiltInsForTests();
   probeCalls = 0;
   probeImpl = async () => null;
+});
+
+// --- B-26: cache keyed by probe context (effective Claude config dir) ---
+
+// Two users under multi-user isolation get distinct CLAUDE_CONFIG_DIRs.
+const USER_A = { userId: 1, cwd: '/tmp', configDir: '/home/nassaj/.nassaj-users/1/.claude' };
+const USER_B = { userId: 2, cwd: '/tmp', configDir: '/home/nassaj/.nassaj-users/2/.claude' };
+
+test('B-26: different config dirs do NOT share a cache entry (no cross-user leak)', async () => {
+  // The probe returns a per-config command set, so a leak would be observable.
+  probeImpl = async (ctx) => {
+    if (ctx.configDir === USER_A.configDir) {
+      return [{ name: 'user-a-only', description: 'A private command' }];
+    }
+    if (ctx.configDir === USER_B.configDir) {
+      return [{ name: 'user-b-only', description: 'B private command' }];
+    }
+    return [];
+  };
+
+  const listA = await resolveDynamicBuiltIns('claude', USER_A);
+  assert.ok(
+    listA.some((c) => c.name === '/user-a-only'),
+    "user A must see A's own commands"
+  );
+
+  const listB = await resolveDynamicBuiltIns('claude', USER_B);
+  assert.ok(
+    listB.some((c) => c.name === '/user-b-only'),
+    "user B must see B's own commands"
+  );
+  // The decisive assertion: B never receives A's cached set, and vice-versa.
+  assert.ok(
+    !listB.some((c) => c.name === '/user-a-only'),
+    "user B must NOT inherit user A's cached commands"
+  );
+  assert.ok(
+    !listA.some((c) => c.name === '/user-b-only'),
+    "user A must NOT inherit user B's cached commands"
+  );
+  // Each context cold-probed exactly once: two distinct cache keys.
+  assert.equal(probeCalls, 2, 'each distinct config dir must probe separately');
+});
+
+test('B-26: the SAME config dir reuses the cache (no second probe)', async () => {
+  probeImpl = async () => [{ name: 'shared-cmd', description: 'Shared command' }];
+
+  const first = await resolveDynamicBuiltIns('claude', USER_A);
+  assert.ok(first.some((c) => c.name === '/shared-cmd'));
+  assert.equal(probeCalls, 1, 'cold request probes once');
+
+  // Second request with the SAME configDir hits the warm cache — no new probe.
+  const second = await resolveDynamicBuiltIns('claude', USER_A);
+  assert.ok(second.some((c) => c.name === '/shared-cmd'));
+  assert.equal(probeCalls, 1, 'same context must reuse the cache, not re-probe');
+});
+
+test('B-26: a seeded entry for one config dir is NOT served to another', async () => {
+  // Warm cache for USER_A with a fresh (non-expired) entry.
+  _seedDynamicBuiltInsForTests(
+    'claude',
+    [{ name: 'a-seeded', description: 'A seeded command' }],
+    Date.now() + 60_000,
+    USER_A
+  );
+  // USER_B is still cold and must trigger its own probe.
+  probeImpl = async () => [{ name: 'b-fresh', description: 'B fresh command' }];
+
+  const listB = await resolveDynamicBuiltIns('claude', USER_B);
+  assert.ok(listB.some((c) => c.name === '/b-fresh'), 'B probes for its own set');
+  assert.ok(
+    !listB.some((c) => c.name === '/a-seeded'),
+    "B must not be served A's seeded cache entry"
+  );
+  assert.equal(probeCalls, 1, "A's seeded entry must not satisfy B's request");
+
+  // USER_A still reads its seeded entry from cache without probing.
+  const listA = await resolveDynamicBuiltIns('claude', USER_A);
+  assert.ok(listA.some((c) => c.name === '/a-seeded'));
+  assert.equal(probeCalls, 1, "A's warm seeded entry must not re-probe");
 });
 
 test('non-claude provider returns the static list and never probes', async () => {

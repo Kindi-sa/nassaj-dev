@@ -6,6 +6,7 @@ import express from "express";
 
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { getClaudeBuiltInCommands } from "../claude-sdk.js";
+import { resolveProviderEnv } from "../services/isolation/resolve-provider-env.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
 
@@ -297,7 +298,13 @@ const builtInCommands = [
  *    first probe briefly (COLD_PROBE_WAIT_MS); on overrun it falls back to the
  *    static list while the probe keeps running for the next request.
  *
- * Keyed per provider; only `claude` is ever populated (see resolveDynamicBuiltIns).
+ * Keyed by the PROBE CONTEXT, not the provider alone (B-26). Under multi-user
+ * isolation the probe runs with a per-user CLAUDE_CONFIG_DIR (resolveProviderEnv
+ * → ADR-014), so two users with different configs/subscriptions must NOT share a
+ * cache entry — otherwise one user's command set (or a stale set) leaks to
+ * another. The key folds in the effective config dir: users that genuinely share
+ * a config (provider marked 'shared', or no isolation) collapse to one key and
+ * keep the cache's effectiveness; isolated users each get their own entry.
  */
 const DYNAMIC_BUILTIN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 // How long a cold-cache /list request waits for the first probe before falling
@@ -306,8 +313,34 @@ const DYNAMIC_BUILTIN_TTL_MS = 10 * 60 * 1000; // 10 minutes
 // Env override exists for tests and operational tuning.
 const COLD_PROBE_WAIT_MS =
   Number(process.env.COMMANDS_COLD_PROBE_WAIT_MS || "") || 2500;
-const dynamicBuiltInCache = new Map(); // provider -> { commands, expiresAt }
-const dynamicBuiltInInFlight = new Map(); // provider -> Promise<commands|null>
+const dynamicBuiltInCache = new Map(); // cacheKey -> { commands, expiresAt }
+const dynamicBuiltInInFlight = new Map(); // cacheKey -> Promise<commands|null>
+
+/** Sentinel for the shared/base config (no per-user CLAUDE_CONFIG_DIR override). */
+const SHARED_CONFIG_SENTINEL = "__shared__";
+
+/**
+ * Builds the cache key for a dynamic built-in probe (B-26).
+ *
+ * The probe's RESULT depends on the Claude config dir it runs under — that is
+ * what distinguishes one user's subscription/commands from another's. The route
+ * resolves that effective dir once (via resolveProviderEnv) and passes it as
+ * `context.configDir`; here we fold it into the key so cache entries never cross
+ * isolation boundaries. When the provider is shared (or there is no isolated
+ * user) configDir is absent and every caller collapses onto the shared sentinel,
+ * preserving cache reuse for callers that truly share a config.
+ *
+ * @param {string} provider
+ * @param {{ configDir?: string|null }} [context]
+ * @returns {string} `<provider>::<configDir|__shared__>`
+ */
+function dynamicCacheKey(provider, context = {}) {
+  const configDir =
+    context && typeof context.configDir === "string" && context.configDir
+      ? context.configDir
+      : SHARED_CONFIG_SENTINEL;
+  return `${provider}::${configDir}`;
+}
 
 /**
  * Builds the set of identifiers (name + aliases, normalized) already covered by
@@ -393,11 +426,12 @@ function mergeBuiltInCommands(dynamicCommands) {
  * probe. The returned promise resolves with the normalized command array on
  * success or `null` on failure/timeout — it never rejects.
  * @param {string} provider
- * @param {Object} context - probe context ({ userId, cwd })
+ * @param {Object} context - probe context ({ userId, cwd, configDir })
  * @returns {Promise<Array|null>} the (possibly already in-flight) probe
  */
 function refreshDynamicBuiltIns(provider, context) {
-  const inFlight = dynamicBuiltInInFlight.get(provider);
+  const cacheKey = dynamicCacheKey(provider, context);
+  const inFlight = dynamicBuiltInInFlight.get(cacheKey);
   if (inFlight) {
     return inFlight;
   }
@@ -406,7 +440,7 @@ function refreshDynamicBuiltIns(provider, context) {
     .then(() => getClaudeBuiltInCommands(context))
     .then((commands) => {
       if (Array.isArray(commands)) {
-        dynamicBuiltInCache.set(provider, {
+        dynamicBuiltInCache.set(cacheKey, {
           commands,
           expiresAt: Date.now() + DYNAMIC_BUILTIN_TTL_MS,
         });
@@ -416,10 +450,10 @@ function refreshDynamicBuiltIns(provider, context) {
     })
     .catch(() => null) // Swallow — the static fallback covers this request.
     .finally(() => {
-      dynamicBuiltInInFlight.delete(provider);
+      dynamicBuiltInInFlight.delete(cacheKey);
     });
 
-  dynamicBuiltInInFlight.set(provider, probe);
+  dynamicBuiltInInFlight.set(cacheKey, probe);
   return probe;
 }
 
@@ -437,7 +471,7 @@ function refreshDynamicBuiltIns(provider, context) {
  *    falls back to static while the probe continues for the next request.
  *
  * @param {string} provider
- * @param {Object} context - probe context ({ userId, cwd })
+ * @param {Object} context - probe context ({ userId, cwd, configDir })
  * @returns {Promise<Array>} built-in command list to return now
  */
 async function resolveDynamicBuiltIns(provider, context) {
@@ -445,7 +479,8 @@ async function resolveDynamicBuiltIns(provider, context) {
     return builtInCommands;
   }
 
-  const cached = dynamicBuiltInCache.get(provider);
+  const cacheKey = dynamicCacheKey(provider, context);
+  const cached = dynamicBuiltInCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return mergeBuiltInCommands(cached.commands);
   }
@@ -488,9 +523,13 @@ function _resetDynamicBuiltInsForTests() {
  * @param {string} provider
  * @param {Array} commands
  * @param {number} expiresAt - epoch ms
+ * @param {{ configDir?: string|null }} [context] - probe context to key by
  */
-function _seedDynamicBuiltInsForTests(provider, commands, expiresAt) {
-  dynamicBuiltInCache.set(provider, { commands, expiresAt });
+function _seedDynamicBuiltInsForTests(provider, commands, expiresAt, context = {}) {
+  dynamicBuiltInCache.set(dynamicCacheKey(provider, context), {
+    commands,
+    expiresAt,
+  });
 }
 
 /**
@@ -740,9 +779,21 @@ router.post("/list", async (req, res) => {
     // request body, mirroring how /execute reads context.provider; defaults to
     // claude. The probe runs under the requesting user's Claude config dir.
     const provider = readModelProvider(req.body?.provider);
+    const userId = req.user?.id ?? null;
+    // B-26: derive the effective CLAUDE_CONFIG_DIR the probe will run under so
+    // the dynamic-command cache is keyed by the actual probe context, not by the
+    // provider alone — otherwise isolated users would share each other's (or a
+    // stale) command set. resolveProviderEnv is the single source of truth for
+    // isolation (ADR-014); it returns the base env (no override) when the
+    // provider is shared or there is no user, collapsing to one shared key.
+    const probeConfigDir =
+      provider === "claude"
+        ? resolveProviderEnv(userId, "claude").CLAUDE_CONFIG_DIR ?? null
+        : null;
     const builtInList = await resolveDynamicBuiltIns(provider, {
-      userId: req.user?.id ?? null,
+      userId,
       cwd: projectPath || null,
+      configDir: probeConfigDir,
     });
 
     const allCommands = [...builtInList];
