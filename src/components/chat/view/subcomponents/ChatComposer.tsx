@@ -227,34 +227,40 @@ export default function ChatComposer({
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-4xl">
 
-        {(hasSession || (isUserScrolledUp && hasMessages)) && (
-          <div className="absolute -top-[4.5rem] end-4 z-10 flex flex-col items-center gap-1.5">
-            {isUserScrolledUp && hasMessages && (
-              <button
-                type="button"
-                onClick={onScrollToBottom}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
-                title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-                aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-              >
-                <ArrowDownIcon className="h-4 w-4" />
-              </button>
-            )}
-            {hasSession && (
-              <button
-                type="button"
-                onClick={onManualRefresh}
-                disabled={isRefreshing}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-              >
-                <RefreshCw
-                  className={['h-4 w-4', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
-                  aria-hidden="true"
-                />
-              </button>
-            )}
+        {isUserScrolledUp && hasMessages && (
+          <div className="absolute -top-10 left-0 right-0 z-10 flex justify-center">
+            <button
+              type="button"
+              onClick={onScrollToBottom}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
+              title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
+              aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
+            >
+              <ArrowDownIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {hasSession && (
+          <div
+            className={[
+              'absolute left-0 right-0 z-10 flex justify-center',
+              isUserScrolledUp && hasMessages ? '-top-20' : '-top-10',
+            ].join(' ')}
+          >
+            <button
+              type="button"
+              onClick={onManualRefresh}
+              disabled={isRefreshing}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+              aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+              title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+            >
+              <RefreshCw
+                className={['h-4 w-4', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                aria-hidden="true"
+              />
+            </button>
           </div>
         )}
         {showFileDropdown && filteredFiles.length > 0 && (

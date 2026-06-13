@@ -252,17 +252,31 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     // Guard against missing/invalid timestamps (e.g. some agy tool_use or
     // thinking events arrive without one) so we never render "Invalid Date".
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }, [message.timestamp]);
+    const now = new Date();
+    const isToday =
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+    const timeStr = d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+    if (isToday) return timeStr;
+    // Older messages: short date (day + month) + time, no year unless different year
+    const isThisYear = d.getFullYear() === now.getFullYear();
+    const dateStr = d.toLocaleDateString(i18n.language, {
+      day: 'numeric',
+      month: 'short',
+      ...(isThisYear ? {} : { year: 'numeric' }),
+    });
+    return `${dateStr}، ${timeStr}`;
+  }, [message.timestamp, i18n.language]);
 
   const fullDateTime = useMemo(() => {
     const d = new Date(message.timestamp);
     if (Number.isNaN(d.getTime())) return '';
-    return d.toLocaleString([], {
+    return d.toLocaleString(i18n.language, {
       year: 'numeric', month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
-  }, [message.timestamp]);
+  }, [message.timestamp, i18n.language]);
 
   // `<time dateTime>` requires a string; normalise the (string | number | Date)
   // timestamp to a machine-readable ISO value, falling back to an empty string
