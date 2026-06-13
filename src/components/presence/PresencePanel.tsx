@@ -138,26 +138,10 @@ export default function PresencePanel() {
 
   return (
     <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
-      {/* "Online now" label + count badge, both derived from presenceUsers. */}
-      <div className="flex flex-shrink-0 items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {t('title', { defaultValue: 'Online now' })}
-        </span>
-
-        <Tooltip content={badgeTooltip}>
-          <span
-            className={cn(
-              'inline-flex items-center gap-0.5 rounded-full border border-border/60 bg-muted/40',
-              'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
-            )}
-            aria-label={badgeTooltip}
-          >
-            {/* Emerald dot instead of Activity icon — matches the per-avatar dot style. */}
-            <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-            <span className="font-medium">{badgeLabel}</span>
-          </span>
-        </Tooltip>
-      </div>
+      {/* "Online now" label only — the avatar stack conveys who is connected. */}
+      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        {t('title', { defaultValue: 'Online now' })}
+      </span>
 
       <ul
         className="flex min-w-0 items-center"
@@ -223,20 +207,16 @@ export default function PresencePanel() {
           </li>
         )}
       </ul>
-      {/* Active conversations counter — separated visually from the "online users" cluster.
-        * Uses a neutral/amber colour so it is never confused with the emerald "online" badge.
-        * Only rendered when the server has provided a value. */}
+      {/* Active conversations counter — inline, no border/background.
+        * Stays on the inline-end (ms-auto, RTL-friendly). Hidden when null. */}
       {openSessionsCount != null && (
         <Tooltip content={activeConversationsLabel}>
           <span
-            className={cn(
-              'ms-auto inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/40',
-              'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
-            )}
+            className="ms-auto inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
             aria-label={`${activeConversationsLabel}: ${openSessionsCount}`}
           >
-            <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 text-amber-500" aria-hidden="true" />
-            <span className="font-medium">{activeConversationsCount}</span>
+            <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 opacity-60" aria-hidden="true" />
+            <span>{activeConversationsCount}</span>
           </span>
         </Tooltip>
       )}

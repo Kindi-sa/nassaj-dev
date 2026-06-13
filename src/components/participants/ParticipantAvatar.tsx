@@ -85,7 +85,8 @@ export default function ParticipantAvatar({
           // gallery SVGs (DiceBear `fill="none"`) so image avatars sit on the
           // same solid disc as lettered ones; opaque photos simply cover it.
           chosenColorClass ?? avatarColorForUser(participant.userId),
-          stacked && '-ms-1.5 first:ms-0',
+          // Stacked: overlap offset + a ring that visually separates avatars.
+          stacked && '-ms-1.5 first:ms-0 ring-2 ring-background',
         )}
       >
         {showImage ? (
