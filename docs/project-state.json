@@ -1738,6 +1738,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-14",
       "summary": "منفَّذ في commit a3f9987 (عميل فقط). مكوّن PresenceCountCollapsed جديد (أيقونة MessagesSquare + رقم بنمط SystemStatsCollapsed) في SidebarCollapsed أسفل مؤشّرات الاستخدام، يظهر دائماً ما دام الـrail ظاهراً (واسع: تحت CPU/RAM؛ ضيّق: تحت C/W/S/O). يقرأ usePresence().total من WebSocketContext المشترك (بلا اشتراك مكرّر)، دلالة العدد مطابقة لـPresencePanel، يُخفى فقط قبل أول snapshot. الفواصل نُقلت داخل ClaudeUsageCollapsed وPresenceCountCollapsed (إصلاح فاصل مزدوج عند ≥1280px رصده qa-critic V1). PresencePanel الموسَّع بلا تغيير. مراجعة qa-critic CLEARED بعد إصلاح V1، build:client نجح، eslint 0 errors. تحقّق بصري بالمتصفّح تعذّر (Chrome غير مثبّت) — تُحقَّق بنيوياً عبر تتبّع DOM؛ المؤشّر ظاهر دائماً فيراه المالك مباشرة."
+    },
+    {
+      "id": "T-141",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "كشف بناء جديد + بانر «نسخة جديدة — تحديث»: حلّ مشكلة عدم ظهور التعديلات في التبويب المفتوح إلا بعد refresh يدوي (طلب المالك)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-14",
+      "summary": "منفَّذ في commit 474af1f (عميل/بناء بحت، بلا تغيير خادم ولا restart). vite.config: معرّف BUILD_ID واحد (git sha + احتياط زمني) يغذّي define.__BUILD_ID__ وversion.json عبر emitFile؛ هوك useBuildVersion (poll version.json بـcache:no-store كل 60ث + visibilitychange، خط أساس من المخبوز، يوقف عند أول اختلاف، حُرّاس ضد البانر الكاذب)؛ BuildUpdateBanner سفلي z-40 يعيد التحميل بنقرة (لا تلقائي) + زر تجاهل، RTL وaria؛ i18n buildUpdate متميّز عن versionUpdate. تصميم architect (SOUND-WITH-CHANGES) ومراجعة qa-critic (CLEARED-FOR-COMMIT، تتبّع سطري: مصدر واحد، تنظيف بلا ازدواج، SW لا يفسد no-store). build:client نجح، tsc/eslint نظيف. يسري على التبويبات من أول تحميل لاحق (التبويب القديم بلا الهوك). تحسينان اختياريان مؤجَّلان: header no-cache زائد، وعدم إعادة ظهور البانر بعد التجاهل."
     }
   ],
   "issues": [
