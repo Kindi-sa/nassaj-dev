@@ -33,6 +33,54 @@ export type RunnerActivity = {
   last_verdict?: 'clean' | 'unclean' | null;
 };
 
+/** One completed stage result inside a cycle record. */
+export type CycleStageResult = {
+  status?: string;
+  model?: string;
+  duration_s?: number;
+  approved_at?: string;
+  approved_by?: string;
+};
+
+/** One closed cycle entry from cycle-history.json `cycles[]`. */
+export type CycleRecord = {
+  cycle?: number;
+  phase_id?: string | null;
+  task_id?: string | null;
+  task_title?: string;
+  status?: 'succeeded' | 'failed' | 'interrupted' | string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  fix_loops?: number;
+  stages?: {
+    build?: CycleStageResult;
+    verify?: CycleStageResult;
+    verdict?: CycleStageResult;
+    gate?: CycleStageResult;
+  };
+};
+
+/**
+ * cycle-history.json surfaced by the bridge under RunnerStatus.history.
+ * null when the file is absent (no cycles yet) or unparseable.
+ */
+export type CycleHistory = {
+  $version?: number;
+  project?: string;
+  updated?: string;
+  total_cycles?: number;
+  current?: {
+    cycle?: number;
+    phase_id?: string | null;
+    task_id?: string | null;
+    stage?: string;
+    status?: string;
+    started_at?: string | null;
+    heartbeat_at?: string | null;
+  } | null;
+  cycles?: CycleRecord[];
+};
+
 export type RunnerStatus = {
   registered: boolean;
   name: string | null;
@@ -43,6 +91,11 @@ export type RunnerStatus = {
   cycle: RunnerCycleState | null;
   activity: RunnerActivity | null;
   verdict: { clean?: boolean; notes?: string } | null;
+  /**
+   * Journey log (cycle-history.json). null when the file is absent
+   * (project with no cycles yet). The UI degrades gracefully.
+   */
+  history: CycleHistory | null;
   config: { model: string | null; models: Record<string, string> | null; threshold: number | null } | null;
   stateError: boolean;
 };

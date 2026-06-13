@@ -13,6 +13,8 @@ import {
 
 import { cn } from '../../../lib/utils';
 import { RunnerPhaseBadge, RunnerTaskDot } from '../../runner/RunnerOverlayBits';
+import RunnerJourney from '../../runner/RunnerJourney';
+import type { CycleHistory } from '../../runner/useRunner';
 import type {
   BoardDecision,
   BoardIssue,
@@ -34,6 +36,10 @@ type BoardOverviewProps = {
   runnerActiveTaskId?: string | null;
   runnerActivePhaseId?: string | null;
   runnerRunning?: boolean;
+  /** Cycle journey log for the MinwalJourney section. null → section hidden. */
+  runnerHistory?: CycleHistory | null;
+  /** True when the project is registered with the runner. */
+  runnerRegistered?: boolean;
 };
 
 const SEVERITY_STYLES: Record<IssueSeverity, string> = {
@@ -572,6 +578,8 @@ export default function BoardOverview({
   runnerActiveTaskId,
   runnerActivePhaseId,
   runnerRunning,
+  runnerHistory,
+  runnerRegistered,
 }: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
   const overall = overallProgress(state);
@@ -643,6 +651,12 @@ export default function BoardOverview({
           state={state}
           runnerActivePhaseId={runnerActivePhaseId}
           runnerRunning={runnerRunning}
+        />
+        {/* Runner journey overlay — additive, hidden when runner absent or no history */}
+        <RunnerJourney
+          phases={state.phases ?? []}
+          history={runnerHistory ?? null}
+          registered={Boolean(runnerRegistered)}
         />
         <SprintsSection state={state} />
         <TasksBoard

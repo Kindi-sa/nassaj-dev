@@ -159,6 +159,27 @@
     "errors": {
       "notAwaiting": "The runner is not awaiting phase approval right now.",
       "generic": "Could not perform the action."
+    },
+    "journey": {
+      "title": "Runner Journey",
+      "here": "Runner here",
+      "cyclesCount": "Cycles ({{n}})",
+      "noCycles": "The runner has not started any cycles yet",
+      "cycleN": "Cycle {{n}}",
+      "showAll": "Show all ({{n}})",
+      "stale": "May be frozen",
+      "phasesLabel": "Cycle stages",
+      "stage": {
+        "build": "Build",
+        "verify": "Verify",
+        "verdict": "Verdict",
+        "gate": "Gate"
+      },
+      "cycleStatus": {
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "interrupted": "Interrupted"
+      }
     }
   }
 }

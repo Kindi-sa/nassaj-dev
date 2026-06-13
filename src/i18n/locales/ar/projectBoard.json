@@ -159,6 +159,27 @@
     "errors": {
       "notAwaiting": "المشغّل ليس بانتظار اعتماد المرحلة الآن.",
       "generic": "تعذّر تنفيذ الإجراء."
+    },
+    "journey": {
+      "title": "مسار المِنوال",
+      "here": "المِنوال هنا",
+      "cyclesCount": "الدورات ({{n}})",
+      "noCycles": "لم يبدأ المِنوال أي دورة بعد",
+      "cycleN": "دورة {{n}}",
+      "showAll": "عرض الكل ({{n}})",
+      "stale": "قد يكون متجمّداً",
+      "phasesLabel": "أطوار الدورة",
+      "stage": {
+        "build": "بناء",
+        "verify": "تحقّق",
+        "verdict": "حكم",
+        "gate": "عبور المرحلة"
+      },
+      "cycleStatus": {
+        "succeeded": "ناجحة",
+        "failed": "فشلت",
+        "interrupted": "متوقّفة"
+      }
     }
   }
 }

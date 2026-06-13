@@ -212,6 +212,8 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
               runnerActiveTaskId={runnerActiveTaskId}
               runnerActivePhaseId={runnerActivePhaseId}
               runnerRunning={runnerRunning}
+              runnerHistory={runner?.history ?? null}
+              runnerRegistered={registered}
             />
           ) : (
             <BoardEmptyState projectName={projectName} />
