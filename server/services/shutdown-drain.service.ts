@@ -27,10 +27,25 @@
  * sessions finish (the whole point of the drain), and PM2 must keep
  * `treekill: false` so its eventual SIGKILL never propagates to them.
  *
- * drainTimeoutMs = 0 (the default) waits WITHOUT a deadline — agent runs can
- * legitimately take an hour or more. The escape hatches for a wedged drain are
- * a second stop signal (immediate exit) and PM2's kill_timeout.
+ * drainTimeoutMs bounds how long the drain waits for in-flight sessions before
+ * exiting anyway. B-41 (T-95, 2026-06-13): an UNBOUNDED drain (the old default
+ * of 0) let a single long-running session pin the process for 7.5 hours while
+ * PM2 crash-looped a replacement on EADDRINUSE. The default is now a finite cap
+ * (DEFAULT_DRAIN_TIMEOUT_MS) so a wedged or very long session can no longer hold
+ * the supervisor slot indefinitely. Operators can still opt back into the
+ * no-deadline behaviour by setting DRAIN_TIMEOUT_MS=0 explicitly. The other
+ * escape hatches remain: a second stop signal (immediate exit) and PM2's
+ * kill_timeout.
  */
+
+/**
+ * Default drain ceiling (30 min) when DRAIN_TIMEOUT_MS is unset. Long enough
+ * for almost any legitimate agent run to finish, short enough that a wedged
+ * predecessor frees the slot well within an operator's patience. Pairs with the
+ * listen guard (listen-with-guard.service.ts) so the overlap window is finite
+ * from both ends.
+ */
+export const DEFAULT_DRAIN_TIMEOUT_MS = 1_800_000;
 
 /** WebSocket close code sent to clients when the server is going away. */
 export const WS_CLOSE_GOING_AWAY = 1001;
@@ -75,12 +90,19 @@ export type ShutdownDrainDeps = {
 };
 
 /**
- * Parses DRAIN_TIMEOUT_MS from the environment. Anything that is not a
- * positive finite integer means "no deadline" (0).
+ * Parses DRAIN_TIMEOUT_MS from the environment.
+ *   - A positive integer is honoured as an explicit deadline.
+ *   - An explicit "0" means "no deadline" (opt-in to the old unbounded drain).
+ *   - Anything else (unset, blank, non-numeric, negative) falls back to the
+ *     bounded default — this is the B-41 fix: the SAFE default is now finite.
  */
 export function resolveDrainTimeoutMs(raw: string | undefined): number {
-  const parsed = parseInt(raw ?? '', 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  const trimmed = (raw ?? '').trim();
+  const parsed = parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_DRAIN_TIMEOUT_MS;
+  // An explicit 0 is an intentional opt-out (wait with no deadline).
+  if (parsed === 0) return trimmed === '0' ? 0 : DEFAULT_DRAIN_TIMEOUT_MS;
+  return parsed;
 }
 
 /**

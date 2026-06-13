@@ -59,6 +59,23 @@ module.exports = {
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
 
+        // ── B-41 (self-hosting trap) — bounded drain + single-listener guard ──
+        // T-95 (2026-06-13) proved a 7.5h EADDRINUSE crash-loop: an UNBOUNDED
+        // drain (old default) let one long claude session pin port 3004 while
+        // PM2 respawned a replacement that crash-looped on bind. Two bounds now
+        // close the trap from both ends:
+        //
+        // DRAIN_TIMEOUT_MS: cap on how long a stopping instance waits for active
+        //   sessions before exiting anyway (releasing the slot). Must stay
+        //   <= kill_timeout (300000ms) so PM2 never SIGKILLs mid-drain. Set 0 to
+        //   opt back into the old no-deadline drain.
+        DRAIN_TIMEOUT_MS: '300000',
+        // LISTEN_BIND_WINDOW_MS: how long a STARTING instance tolerates
+        //   EADDRINUSE (a draining predecessor) before exiting cleanly (0)
+        //   instead of crash-looping. A healthy handoff binds in <1s; 10s
+        //   absorbs slow ones.
+        LISTEN_BIND_WINDOW_MS: '10000',
+
         // ── Phase-MU multi-user auth (B-AUTH) ──────────────────────────────
         // قيم placeholder. هذه الأسماء هي التي يقرأها الكود فعلاً (راجع
         // server/middleware/auth.js و server/services/bootstrap-owner.service.js).

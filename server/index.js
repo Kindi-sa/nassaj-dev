@@ -16,6 +16,7 @@ import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePa
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 import { createShutdownDrain, resolveDrainTimeoutMs } from '@/services/shutdown-drain.service.js';
+import { listenWithGuard, resolveBindWindowMs } from '@/services/listen-with-guard.service.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -1967,26 +1968,42 @@ async function startServer() {
 
         console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
    
-        server.listen(SERVER_PORT, HOST, async () => {
-            const appInstallPath = APP_ROOT;
+        // B-41 (self-hosting trap): bind through the single-listener guard
+        // instead of a naked server.listen(). If a draining/ghost predecessor
+        // still holds port 3004, the guard retries briefly then exits cleanly
+        // (0) rather than crash-looping on EADDRINUSE. See
+        // listen-with-guard.service.ts for the full rationale and the T-95
+        // diagnosis.
+        await listenWithGuard({
+            server,
+            port: SERVER_PORT,
+            host: HOST,
+            exit: (code) => process.exit(code),
+            // Operators can widen the overlap window if drain handoff is slow.
+            bindWindowMs: resolveBindWindowMs(process.env.LISTEN_BIND_WINDOW_MS),
+            onListening: () => {
+                const appInstallPath = APP_ROOT;
 
-            console.log('');
-            console.log(c.dim('═'.repeat(63)));
-            console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
-            console.log(c.dim('═'.repeat(63)));
-            console.log('');
-            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
-            console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
-            console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
-            console.log('');
+                console.log('');
+                console.log(c.dim('═'.repeat(63)));
+                console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
+                console.log(c.dim('═'.repeat(63)));
+                console.log('');
+                console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+                console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
+                console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
+                console.log('');
 
-            // Start watching the projects folder for changes
-            await initializeSessionsWatcher();
+                // Start watching the projects folder for changes
+                initializeSessionsWatcher().catch(err => {
+                    console.error('[Sessions] Error initializing watcher:', err.message);
+                });
 
-            // Start server-side plugin processes for enabled plugins
-            startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
-            });
+                // Start server-side plugin processes for enabled plugins
+                startEnabledPluginServers().catch(err => {
+                    console.error('[Plugins] Error during startup:', err.message);
+                });
+            },
         });
 
         await closeSessionsWatcher();
