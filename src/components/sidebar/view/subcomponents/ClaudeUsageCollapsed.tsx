@@ -53,15 +53,15 @@ export function ClaudeUsageCollapsed() {
         return (
           <div
             key={key}
-            className="flex flex-col items-center gap-0.5 py-1"
+            className="flex flex-col items-center gap-1 py-1.5"
             title={ariaLabel}
             aria-label={ariaLabel}
           >
-            <span className="text-[10px] font-semibold leading-none text-primary">
+            <span className="text-sm font-semibold leading-none text-primary">
               {letter}
             </span>
             <span
-              className={`text-[9px] leading-none tabular-nums ${usageTextColorClass(clamped)}`}
+              className={`text-xs leading-none tabular-nums ${usageTextColorClass(clamped)}`}
             >
               {percent}
             </span>
