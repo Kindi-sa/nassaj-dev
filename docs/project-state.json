@@ -1628,9 +1628,10 @@
       "kind": "doc",
       "issue": null,
       "title": "تحسين هيكلة الويكي وسهولة الوصول: عناوين رئيسية/فرعية منظّمة (H2/H3) + فهرس محتويات لكل صفحة + جدول الوكلاء الـ22 كاملاً بأسمائهم العربية والفِرَق والنماذج + روابط وصول سريع",
-      "status": "in_progress",
+      "status": "done",
       "owner": "content-writer",
-      "note": "روستر مثبّت من nassaj-core/agents (INDEX.md+بطاقات name_ar+_models.yaml): 22 وكيلاً، 3 فِرَق. سياق T-104: a7e1be03fc8643878"
+      "closed": "2026-06-13",
+      "summary": "commit b09a6cb (+تصحيح لاحق): جدول الـ22 وكيلاً كاملاً بأسمائهم العربية الرسمية (name_ar) منظّمين 6 فِرَق + الاستدعاء الجماعي + مسارات التفويض الشائعة في 02؛ فهرس «في هذه الصفحة» لكل صفحة (أنكور Markdown)؛ بوّابة وصول سريع في 00-overview (جدول سؤال→صفحة)؛ تدرّج عناوين H1/H2/H3 موحّد. team-wiki حصراً. تصحيح المنسّق: backend-dev كان Sonnet خطأً → Fable 5 في موضعين مطابقةً لـ_models.yaml (Sonnet لـfrontend-dev/researcher/tester فقط). build:client نُشر"
     }
   ],
   "issues": [
