@@ -98,11 +98,13 @@ export default function ParticipantAvatar({
           <img
             src={avatarUrl}
             alt=""
-            // `block` drops the inline replaced-element baseline gap that
-            // otherwise nudges the image up within the centred box; `h-full
-            // w-full object-cover` keeps it filling the same square as the
-            // lettered variant.
-            className="block h-full w-full object-cover"
+            // `absolute inset-0` pins the image to the box's four edges inside
+            // the `relative` parent, sidestepping the flex `h-full` ambiguity
+            // (a non-stretched flex child under `align-items:center` may not
+            // resolve `height:100%`, letting the photo bounce to its larger
+            // intrinsic size and look taller than lettered avatars). `h-full
+            // w-full object-cover` then fills the same square cleanly.
+            className="absolute inset-0 h-full w-full object-cover"
             onError={() => setImageFailed(true)}
           />
         ) : (
