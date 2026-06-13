@@ -131,6 +131,21 @@
     "missing": "لا توجد وثائق هيكلة (docs/ARCHITECTURE.md أو docs/ARCHITECTURE_AR.md).",
     "variantMissing": "هذه النسخة من وثيقة الهيكلة غير موجودة."
   },
+  "approvals": {
+    "title": "موافقات معلّقة",
+    "awaitingReview": "بانتظار مراجعتك",
+    "approve": "موافقة",
+    "reject": "رفض",
+    "pending": "جارٍ الإرسال…",
+    "error": "تعذّر تنفيذ الإجراء. حاول مجدداً.",
+    "kind": {
+      "prod-migration": "ترحيل إنتاج",
+      "secret": "سرّ",
+      "restart": "إعادة تشغيل",
+      "push": "دفع",
+      "sensitive": "إجراء حسّاس"
+    }
+  },
   "runner": {
     "label": "المِنوال",
     "description": "المُنفِّذ الذاتي",

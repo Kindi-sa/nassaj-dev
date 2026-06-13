@@ -6,6 +6,7 @@ import {
   Bot,
   CheckCheck,
   Gauge,
+  Inbox,
   Pause,
   Play,
   Square,
@@ -80,6 +81,7 @@ export default function RunnerControlBar({
   const threshold = runner.config?.threshold ?? null;
   const lastError = runner.cycle?.last_error || null;
   const verdict = runner.verdict;
+  const pendingCount = runner.pendingApprovals?.length ?? 0;
 
   const shortName = t('runner.label');
   const fullName = t('runner.fullName');
@@ -128,6 +130,20 @@ export default function RunnerControlBar({
         )}
         {cycle !== null && <span className="opacity-70">· {t('runner.cycle', { n: cycle })}</span>}
       </span>
+
+      {/* Pending approvals counter (Phase ب) — amber "awaiting your review",
+          shown only when the auto-mode runner logged sensitive actions. */}
+      {pendingCount > 0 && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+          title={t('approvals.awaitingReview')}
+          aria-label={t('approvals.awaitingReview')}
+        >
+          <Inbox className="h-3 w-3" />
+          <span className="tabular-nums">{pendingCount}</span>
+          <span>{t('approvals.awaitingReview')}</span>
+        </span>
+      )}
 
       {/* Model + quota badges */}
       {model && (

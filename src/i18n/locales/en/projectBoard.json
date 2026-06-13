@@ -131,6 +131,21 @@
     "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
     "variantMissing": "This version of the architecture document does not exist."
   },
+  "approvals": {
+    "title": "Pending approvals",
+    "awaitingReview": "Awaiting your review",
+    "approve": "Approve",
+    "reject": "Reject",
+    "pending": "Submitting…",
+    "error": "Action failed. Try again.",
+    "kind": {
+      "prod-migration": "Production migration",
+      "secret": "Secret",
+      "restart": "Restart",
+      "push": "Push",
+      "sensitive": "Sensitive action"
+    }
+  },
   "runner": {
     "label": "al-Minwāl",
     "description": "Autonomous Runner",

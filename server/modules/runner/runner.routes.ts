@@ -20,9 +20,12 @@ import express from 'express';
 import { projectsDb } from '@/modules/database/index.js';
 
 import {
+  approveApproval,
   approveNextPhase,
   pauseRunner,
+  readPendingApproval,
   readRunnerStatus,
+  rejectApproval,
   resolveRunnerProject,
   resumeRunner,
   startRunner,
@@ -203,6 +206,53 @@ router.post('/:projectId/approve', controlGuard, async (req, res) => {
     });
   }
   await approveNextPhase(resolved.name);
+  await respondWithState(req, res);
+});
+
+// ---- NON-BLOCKING APPROVAL QUEUE (ADR-RUNNER-AUTO-001) ----
+
+/** Express route params are typed string | string[]; the card id is a scalar. */
+function paramApprovalId(req: express.Request): string {
+  const value = req.params.id;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
+ * POST /api/runner/:projectId/approvals/:id/approve
+ * Approve a non-blocking approval card: write the unblock-queue control file and
+ * clear the card. 404 when the card is absent (already cleared / double-click).
+ * Unlike /approve, this does NOT require awaiting_approval — auto-mode cards are
+ * resolved out of band while the runner keeps moving.
+ */
+router.post('/:projectId/approvals/:id/approve', controlGuard, async (req, res) => {
+  const resolved = await resolveOr404(req, res);
+  if (!resolved) return;
+
+  const id = paramApprovalId(req);
+  const card = await readPendingApproval(resolved.name, id);
+  if (!card) {
+    return res.status(404).json({ error: 'Approval not found' });
+  }
+  await approveApproval(resolved.name, id);
+  await respondWithState(req, res);
+});
+
+/**
+ * POST /api/runner/:projectId/approvals/:id/reject
+ * Reject a non-blocking approval card: write the unblock-queue control file with
+ * action "reject" (optional { note }) and clear the card. 404 when absent.
+ */
+router.post('/:projectId/approvals/:id/reject', controlGuard, async (req, res) => {
+  const resolved = await resolveOr404(req, res);
+  if (!resolved) return;
+
+  const id = paramApprovalId(req);
+  const card = await readPendingApproval(resolved.name, id);
+  if (!card) {
+    return res.status(404).json({ error: 'Approval not found' });
+  }
+  const note = typeof req.body?.note === 'string' ? req.body.note : undefined;
+  await rejectApproval(resolved.name, id, note);
   await respondWithState(req, res);
 });
 

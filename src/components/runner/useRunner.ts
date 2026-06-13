@@ -81,6 +81,25 @@ export type CycleHistory = {
   cycles?: CycleRecord[];
 };
 
+/**
+ * One sensitive action the auto-mode runner logged for the owner's review
+ * (Phase ب — approval queue). Surfaced by the bridge under
+ * RunnerStatus.pendingApprovals (GET-only; the runner writes them, the UI reads
+ * + POSTs approve/reject). Non-blocking: the runner does not wait on these.
+ * Server contract: PendingApproval (id = `${task_id}__${kind}`).
+ */
+export type PendingApproval = {
+  id: string;
+  task_id: string;
+  phase_id: string;
+  kind: string;
+  reason: string;
+  commit?: string | null;
+  cycle?: number;
+  created_at?: string;
+  log_file?: string | null;
+};
+
 export type RunnerStatus = {
   registered: boolean;
   name: string | null;
@@ -97,6 +116,11 @@ export type RunnerStatus = {
    */
   history: CycleHistory | null;
   config: { model: string | null; models: Record<string, string> | null; threshold: number | null } | null;
+  /**
+   * Sensitive actions the auto-mode runner logged for owner review (Phase ب).
+   * Absent/empty when there is nothing pending. Read-only from the bridge.
+   */
+  pendingApprovals?: PendingApproval[];
   stateError: boolean;
 };
 
@@ -193,6 +217,43 @@ export function useRunner(projectId: string | null | undefined) {
   const resume = useCallback(() => runAction('resume'), [runAction]);
   const approve = useCallback(() => runAction('approve'), [runAction]);
 
+  // Approval queue (Phase ب). Each verb POSTs to the per-approval endpoint then
+  // refetches the merged state so the resolved item drops out of the queue. The
+  // optimistic local removal keeps the UI snappy before the WS/refetch lands.
+  const resolveApproval = useCallback(
+    async (approvalId: string, verb: 'approve' | 'reject'): Promise<{ ok: boolean; status?: number }> => {
+      if (!projectId) {
+        return { ok: false };
+      }
+      try {
+        const response = await api.post(
+          `/runner/${encodeURIComponent(projectId)}/approvals/${encodeURIComponent(approvalId)}/${verb}`,
+        );
+        if (response.ok && projectIdRef.current === projectId) {
+          setRunner((prev) =>
+            prev
+              ? { ...prev, pendingApprovals: (prev.pendingApprovals ?? []).filter((a) => a.id !== approvalId) }
+              : prev,
+          );
+          void refresh(projectId);
+        }
+        return { ok: response.ok, status: response.status };
+      } catch {
+        return { ok: false };
+      }
+    },
+    [projectId, refresh],
+  );
+
+  const approveApproval = useCallback(
+    (approvalId: string) => resolveApproval(approvalId, 'approve'),
+    [resolveApproval],
+  );
+  const rejectApproval = useCallback(
+    (approvalId: string) => resolveApproval(approvalId, 'reject'),
+    [resolveApproval],
+  );
+
   return {
     runner,
     isLoading,
@@ -204,5 +265,7 @@ export function useRunner(projectId: string | null | undefined) {
     pause,
     resume,
     approve,
+    approveApproval,
+    rejectApproval,
   };
 }

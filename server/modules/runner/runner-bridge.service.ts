@@ -123,6 +123,28 @@ type CycleHistory = {
   cycles?: CycleRecord[];
 };
 
+/**
+ * pending-approvals/<task_id>__<kind>.json — a non-blocking approval request the
+ * runner's auto mode drops when it hits a sensitive operation (ADR-RUNNER-AUTO-001).
+ * The runner WRITES these cards and keeps going; the owner approves/rejects them
+ * later out of band. The bridge READS the cards here and, on approve/reject, writes
+ * the corresponding control file under unblock-queue/ (the bridge is the only
+ * writer of control files — ADR-RUNNER-BRIDGE-001). Read-only mirror of the
+ * runner's own schema; the `id` is the filename without `.json` (= task_id__kind),
+ * doubling as the idempotency key.
+ */
+export type PendingApproval = {
+  id: string; // = task_id__kind (idempotency key and file name without .json)
+  task_id: string;
+  phase_id: string;
+  kind: string; // prod-migration | secret | restart | push | sensitive | ...
+  reason: string;
+  commit?: string | null;
+  cycle?: number;
+  created_at?: string;
+  log_file?: string | null;
+};
+
 type RunnerProjectConfig = {
   name?: string;
   dir?: string;
@@ -208,6 +230,12 @@ export type RunnerStatus = {
   history: CycleHistory | null;
   /** per-stage model map + timeouts surfaced from <name>.json (read-only) */
   config: { model: string | null; models: Record<string, string> | null; threshold: number | null } | null;
+  /**
+   * non-blocking approval queue (pending-approvals/*.json) the runner's auto mode
+   * drops on sensitive operations. Empty array when the dir is absent or every
+   * card is corrupt — never 500s, same resilience contract as every other file.
+   */
+  pendingApprovals: PendingApproval[];
   /** true when a runner file existed but could not be parsed */
   stateError: boolean;
 };
@@ -228,7 +256,19 @@ export function runnerPaths(name: string) {
     cycleHistory: path.join(dir, 'cycle-history.json'),
     pause: path.join(dir, 'pause'),
     approveNextPhase: path.join(dir, 'approve-next-phase'),
+    pendingApprovalsDir: path.join(dir, 'pending-approvals'),
+    unblockQueueDir: path.join(dir, 'unblock-queue'),
   };
+}
+
+/** Path to a single pending-approval card by its id (= task_id__kind). */
+function pendingApprovalCardPath(name: string, id: string): string {
+  return path.join(runnerPaths(name).pendingApprovalsDir, `${id}.json`);
+}
+
+/** Path to the unblock-queue control file the bridge writes on approve/reject. */
+function unblockQueuePath(name: string, taskId: string): string {
+  return path.join(runnerPaths(name).unblockQueueDir, `${taskId}.json`);
 }
 
 /**
@@ -266,6 +306,7 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     verdict: null,
     history: null,
     config: null,
+    pendingApprovals: [],
     stateError: false,
   };
 
@@ -292,6 +333,7 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
   // history degrades to null on a missing or corrupt file (never 500) — same
   // resilience contract as every other runner-owned file.
   const history = await readJsonOrNull<CycleHistory>(paths.cycleHistory);
+  const pendingApprovals = await readPendingApprovals(name);
   const paused = await fileExists(paths.pause);
 
   // stateError mirrors the board: a present-but-unreadable cycle-state.json.
@@ -316,8 +358,53 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
           threshold: config.threshold ?? null,
         }
       : null,
+    pendingApprovals,
     stateError,
   };
+}
+
+/**
+ * Read the non-blocking approval queue for a runner project. Lists
+ * pending-approvals/*.json, parses each card, and skips any that is corrupt or
+ * missing its required fields (task_id / kind). A missing dir -> [] (the runner
+ * has not dropped any card yet). Never throws — same resilience contract as the
+ * rest of the read surface. The `id` is normalized to the filename stem so it
+ * always matches the route's :id param even if the card omitted/mismatched it.
+ */
+export async function readPendingApprovals(name: string): Promise<PendingApproval[]> {
+  const dir = runnerPaths(name).pendingApprovalsDir;
+  let entries: string[];
+  try {
+    entries = await fsPromises.readdir(dir);
+  } catch {
+    return []; // dir absent -> no pending approvals
+  }
+
+  const out: PendingApproval[] = [];
+  for (const entry of entries) {
+    if (!entry.endsWith('.json')) {
+      continue;
+    }
+    const card = await readJsonOrNull<Partial<PendingApproval>>(path.join(dir, entry));
+    // Skip corrupt cards or cards missing the fields the control write needs.
+    if (!card || typeof card.task_id !== 'string' || typeof card.kind !== 'string') {
+      continue;
+    }
+    out.push({
+      id: entry.replace(/\.json$/, ''),
+      task_id: card.task_id,
+      phase_id: typeof card.phase_id === 'string' ? card.phase_id : '',
+      kind: card.kind,
+      reason: typeof card.reason === 'string' ? card.reason : '',
+      commit: card.commit ?? null,
+      cycle: typeof card.cycle === 'number' ? card.cycle : undefined,
+      created_at: typeof card.created_at === 'string' ? card.created_at : undefined,
+      log_file: card.log_file ?? null,
+    });
+  }
+  // Stable order: oldest created_at first so the queue reads top-to-bottom.
+  out.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
+  return out;
 }
 
 // ---- CONTROL writes (atomic; one direction: bridge writes, runner reads) ----
@@ -405,6 +492,68 @@ export async function resumeRunner(name: string): Promise<void> {
  */
 export async function approveNextPhase(name: string): Promise<void> {
   await touch(runnerPaths(name).approveNextPhase);
+}
+
+// ---- NON-BLOCKING APPROVAL QUEUE control writes (ADR-RUNNER-AUTO-001) ----
+
+/**
+ * Read a single pending-approval card by its id. Returns null when the card is
+ * absent or corrupt — the route turns that into a 404 so a double-click or a
+ * stale browser cannot resolve a card the runner already cleared.
+ */
+export async function readPendingApproval(
+  name: string,
+  id: string,
+): Promise<PendingApproval | null> {
+  const all = await readPendingApprovals(name);
+  return all.find((a) => a.id === id) ?? null;
+}
+
+/**
+ * approve: write the unblock-queue control file the runner consumes, then remove
+ * the queue card. The bridge is the ONLY writer of control files (BRIDGE-001).
+ * We write the control file FIRST and delete the card SECOND so a crash between
+ * the two leaves the approval signalled (safe to re-issue) rather than lost. The
+ * control file is keyed by task_id (the runner's unblock contract), atomic via
+ * temp+rename. Writes stay strictly under state/ — never docs/project-state.json.
+ */
+export async function approveApproval(name: string, id: string): Promise<void> {
+  const card = await readPendingApproval(name, id);
+  if (!card) {
+    return; // route already 404'd; defensive no-op.
+  }
+  const body = JSON.stringify(
+    { action: 'approve', task_id: card.task_id, approved_at: new Date().toISOString() },
+    null,
+    2,
+  );
+  await touch(unblockQueuePath(name, card.task_id), `${body}\n`);
+  await fsPromises.rm(pendingApprovalCardPath(name, id), { force: true });
+}
+
+/**
+ * reject: write the unblock-queue control file with action "reject" (so the
+ * runner records the decision / unblocks on a rejected boundary), then remove
+ * the queue card. Same crash-safe order as approve. An optional owner note is
+ * passed through for the audit trail. Writes stay strictly under state/.
+ */
+export async function rejectApproval(name: string, id: string, note?: string): Promise<void> {
+  const card = await readPendingApproval(name, id);
+  if (!card) {
+    return; // route already 404'd; defensive no-op.
+  }
+  const body = JSON.stringify(
+    {
+      action: 'reject',
+      task_id: card.task_id,
+      rejected_at: new Date().toISOString(),
+      ...(note ? { note } : {}),
+    },
+    null,
+    2,
+  );
+  await touch(unblockQueuePath(name, card.task_id), `${body}\n`);
+  await fsPromises.rm(pendingApprovalCardPath(name, id), { force: true });
 }
 
 export { RUNNER_ROOT, STATE_DIR, PROJECTS_DIR, REGISTRY_FILE };

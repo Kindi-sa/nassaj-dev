@@ -107,9 +107,18 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
   // one shared snapshot for both the control bar and the per-task/phase dots. All
   // values are null/false when the project is not registered with the runner, so
   // the board is unchanged.
-  const { runner, registered, actionPending, start, stop, pause, resume, approve } = useRunner(
-    selectedProject?.projectId,
-  );
+  const {
+    runner,
+    registered,
+    actionPending,
+    start,
+    stop,
+    pause,
+    resume,
+    approve,
+    approveApproval,
+    rejectApproval,
+  } = useRunner(selectedProject?.projectId);
   const runnerRunning = runner?.cycle?.status === 'running';
   const runnerActiveTaskId = runnerRunning ? runner?.activity?.active_task_id ?? null : null;
   const runnerActivePhaseId = runnerRunning ? runner?.activity?.active_phase_id ?? null : null;
@@ -142,7 +151,11 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
   // (spec: ~/.claude/wiki/project-board.md). Agile-only files are unaffected.
   const hasSchedule = Boolean(board.state?.schedule?.length);
   const hasObjectives = Boolean(board.state?.objectives?.length || board.state?.kpis?.length);
-  const hasVisualChecks = Boolean(board.state?.visual_checks?.length);
+  // Phase ب: the "Visual Checks" pill doubles as the owner-review surface, so it
+  // also appears when the auto-mode runner has pending approvals — even with no
+  // visual_checks authored. The tab body renders both sections.
+  const pendingApprovals = runner?.pendingApprovals ?? [];
+  const hasVisualChecks = Boolean(board.state?.visual_checks?.length) || pendingApprovals.length > 0;
 
   // The selection can outlive its tab (project switch, file edit) — fall back.
   const activeSection =
@@ -243,7 +256,14 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
           ))}
         {activeSection === 'schedule' && board.state && <ScheduleView state={board.state} />}
         {activeSection === 'objectives' && board.state && <ObjectivesView state={board.state} />}
-        {activeSection === 'visual' && board.state && <VisualChecksView state={board.state} />}
+        {activeSection === 'visual' && board.state && (
+          <VisualChecksView
+            state={board.state}
+            pendingApprovals={pendingApprovals}
+            onApprove={approveApproval}
+            onReject={rejectApproval}
+          />
+        )}
         {activeSection === 'architecture' && (
           <ArchitectureView
             technical={board.architecture.technical}

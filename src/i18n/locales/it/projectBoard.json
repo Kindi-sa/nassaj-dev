@@ -125,6 +125,21 @@
       "failed": "Failed"
     }
   },
+  "approvals": {
+    "title": "Pending approvals",
+    "awaitingReview": "Awaiting your review",
+    "approve": "Approve",
+    "reject": "Reject",
+    "pending": "Submitting…",
+    "error": "Action failed. Try again.",
+    "kind": {
+      "prod-migration": "Production migration",
+      "secret": "Secret",
+      "restart": "Restart",
+      "push": "Push",
+      "sensitive": "Sensitive action"
+    }
+  },
   "architecture": {
     "technical": "Technical",
     "simplified": "Simplified",

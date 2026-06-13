@@ -10,8 +10,9 @@
  *   state/<name>/activity.json
  *   state/<name>/critique-verdict.json
  *   state/<name>/cycle-history.json
- *   state/<name>/pause           (control file)
- *   projects/registry.json       (enable/priority changes)
+ *   state/<name>/pause              (control file)
+ *   state/<name>/pending-approvals/ (auto-mode approval queue — dir watch)
+ *   projects/registry.json          (enable/priority changes)
  *
  * Any event fans `runner-updated` out to every WS client via app.locals.wss,
  * with the same 250ms debounce. The frontend hook filters on type+projectId
@@ -102,6 +103,10 @@ export function ensureRunnerWatcher(
     paths.cycleHistory,
     paths.pause,
     paths.approveNextPhase,
+    // Dir watch: fires on every card the runner drops/clears in the auto-mode
+    // approval queue. chokidar tolerates the dir being absent and picks it up
+    // once the runner (or the sample seed) creates it.
+    paths.pendingApprovalsDir,
     REGISTRY_FILE(),
   ];
 
