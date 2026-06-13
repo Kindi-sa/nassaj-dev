@@ -1453,6 +1453,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "summary": "جذر تفاوت الأفاتارات: wrapper الأفاتار بلا أبعاد صريحة ولا items-center، فالـ<img> كعنصر replaced له baseline مختلف عن دوائر الأحرف فيتغيّر قطره الظاهر. الإصلاح في PresencePanel: wrapper صار h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ring-2، فكلا المتغيّرين (صورة/أحرف) محبوسان في 24×24 متمركزين. والعدّاد: الصف flex w-full justify-between → العدّاد يلتصق بأقصى يمين العمود بدل ms-auto. build:client نجح. متابعة محتملة: تطبيق نفس إصلاح baseline على wrapper الأفاتار في SessionParticipantsBar (رأس الحوار) إن بقي تفاوت هناك."
+    },
+    {
+      "id": "T-100",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "زر التحديث بحجم السهم ومباشرة تحته",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-13",
+      "summary": "commit 9acc9d1: زر التحديث كان h-7 w-7 في عمود end-10 منفصل؛ صار h-6 w-6 مطابقاً لزر السهم (chevron) ومكدّساً تحته مباشرة على نفس محور end-2 (دمج العمودين في flex-col واحد: السهم ثم التحديث ثم WsConnectionBadge، كل عنصر بشرط ظهوره الأصلي). أيقونة RefreshCw h-3.5 كالسهم. build:client نجح. ملاحظة: هذا يحسم تصادم زر التحديث مع ca8e62b (جلسة موازية) لصالح طلب المالك."
     }
   ],
   "issues": [
