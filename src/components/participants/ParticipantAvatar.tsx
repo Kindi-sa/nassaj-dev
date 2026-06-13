@@ -78,7 +78,12 @@ export default function ParticipantAvatar({
         role="img"
         aria-label={ariaLabel ?? `${participant.username} — ${roleLabel(participant.role, t)}`}
         className={cn(
-          'relative inline-flex select-none items-center justify-center overflow-hidden rounded-full font-semibold text-white',
+          // `aspect-square` + `flex-shrink-0` lock the box to a fixed square so
+          // a lettered avatar (tiny min-content width) cannot be squeezed by the
+          // stack's negative margins while an <img> avatar (full intrinsic size)
+          // resists shrinking — the divergence that made photo avatars look
+          // larger/higher than initial circles in the same row.
+          'relative inline-flex aspect-square flex-shrink-0 select-none items-center justify-center overflow-hidden rounded-full font-semibold leading-none text-white',
           SIZE_CLASSES[size],
           // Always paint a colour disc: the user's chosen palette colour, or the
           // deterministic userId-derived one. It shows through transparent
@@ -93,7 +98,11 @@ export default function ParticipantAvatar({
           <img
             src={avatarUrl}
             alt=""
-            className="h-full w-full object-cover"
+            // `block` drops the inline replaced-element baseline gap that
+            // otherwise nudges the image up within the centred box; `h-full
+            // w-full object-cover` keeps it filling the same square as the
+            // lettered variant.
+            className="block h-full w-full object-cover"
             onError={() => setImageFailed(true)}
           />
         ) : (

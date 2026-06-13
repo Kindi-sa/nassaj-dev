@@ -510,32 +510,32 @@ function ChatInterface({
         )}
         {/* Top floating column: WsConnectionBadge (when disconnected) + manual-refresh button.
             h-0 keeps it out of the flex-column flow so the messages scroll area can extend up
-            to the top divider. The inner `mx-auto max-w-4xl` wrapper reproduces the jump
-            arrow's positioning context (ChatComposer's centered column), so `end-10` here lands
-            on the exact same horizontal axis as the jump arrow regardless of breakpoint. The
-            outer div carries the same `p-2 sm:p-4 md:p-4` padding as the composer root so the
-            centered column's inline-end edge — which `end-10` is measured from — matches too. */}
+            to the top divider. Anchored to the messages pane's *full width* (the real window
+            inline-end edge), NOT the composer's centered max-w-4xl column — the 7fc0307 wrapper
+            made `end-10` land at the centred column's edge (≈ page middle on wide screens).
+            Instead we sit the button on the same axis as the participants-bar collapse chevron
+            (SessionParticipantsBar's `ms-auto` ChevronUp, w-7 inside px-3/sm:px-4): its centre is
+            12+14=26px (mobile) / 16+14=30px (≥sm) from the edge, so a w-6 (24px) button centres
+            there at end-[14px] / sm:end-[18px], directly beneath the chevron beside the scrollbar. */}
         {(wsStatus !== 'connected' || (Boolean(currentSessionId ?? selectedSession?.id) && !isLoading)) && (
-          <div className="relative z-10 h-0 p-2 sm:p-4 md:p-4">
-            <div className="relative mx-auto h-0 max-w-4xl">
-              <div className="absolute end-10 top-0 flex flex-col items-center gap-1">
-                {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
-                {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
-                  <button
-                    type="button"
-                    onClick={handleManualRefresh}
-                    disabled={isRefreshing}
-                    className="flex h-6 w-6 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                    aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                    title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                  >
-                    <RefreshCw
-                      className={['h-3 w-3', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
-                      aria-hidden="true"
-                    />
-                  </button>
-                )}
-              </div>
+          <div className="relative z-10 h-0">
+            <div className="absolute end-[14px] top-2 flex flex-col items-center gap-1 sm:end-[18px]">
+              {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
+              {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="flex h-6 w-6 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                  title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                >
+                  <RefreshCw
+                    className={['h-3 w-3', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
             </div>
           </div>
         )}
