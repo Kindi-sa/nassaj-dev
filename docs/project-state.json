@@ -1429,6 +1429,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "summary": "commit bbb94bc: (1) عدّاد «المحادثات النشطة» — أيقونة MessagesSquare amber على ms-auto (يمين) في PresencePanel، تسمية/tooltip activeConversations مميّزة عن «online users» الخضراء. (2) إرجاع رأس المشاركين مسطّحاً: حذف منطق activeParticipant/شارة ACTIVE NOW/النقطة النابضة/العنقود الثانوي الباهت → ParticipantAvatarStack بدوائر متساوية؛ عزو الرسائل داخل الفقاعات (coordinatorId/originKind) سليم بلا مساس؛ حذف مفاتيح activeNow/activeCoordinator. (3) أسماء المشاريع سطر واحد: overflow-hidden+whitespace-nowrap+flex-shrink-0 على ProjectBusyDot في SidebarProjectItem (desktop+mobile). (4) زر التحديث رجع صغيراً أعلى يمين النافذة (ChatInterface بجانب WsConnectionBadge، RefreshCw h-3) بعد حذفه من ChatComposer العائم. build:client نجح. مدفوع لorigin. لم تُمسّ ملفات بحث الجلسة (جلسة أخرى)."
+    },
+    {
+      "id": "T-98",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "تلميع رأس الشريط الجانبي: عدّاد أصغر بلا إطار، حذف «X online»، توحيد الأفاتارات",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-13",
+      "summary": "بملاحظات المستخدم على PresencePanel: (1) عدّاد المحادثات النشطة أصغر وبلا صندوق — حُذف rounded-full/border/bg/px فصار أيقونة MessagesSquare خافتة+رقم inline بلون muted. (2) حُذفت شارة «X online» الخضراء (النقطة+النص) — أبقي عنوان ONLINE NOW + الأفاتارات فقط (الصور تكفي). (3) توحيد الأفاتارات: ring-2 ring-background على ParticipantAvatar stacked فتتساوى عبر PresencePanel/SessionParticipantsBar/MessageComponent (كلها h-6 w-6 محاذاة وسطية). build:client نجح."
     }
   ],
   "issues": [
