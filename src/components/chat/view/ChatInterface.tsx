@@ -508,25 +508,29 @@ function ChatInterface({
             />
           </div>
         )}
-        {/* Top-right overlay row: WsConnectionBadge (when disconnected) + manual-refresh button. */}
+        {/* Top floating column: WsConnectionBadge (when disconnected) + manual-refresh button.
+            h-0 keeps it out of the flex-column flow so the messages scroll area can extend up
+            to the top divider; absolute centers it on the same end-10 axis as the jump arrow. */}
         {(wsStatus !== 'connected' || (Boolean(currentSessionId ?? selectedSession?.id) && !isLoading)) && (
-          <div className="flex items-center justify-end gap-1 px-2 py-0.5">
-            {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
-            {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
-              <button
-                type="button"
-                onClick={handleManualRefresh}
-                disabled={isRefreshing}
-                className="flex h-6 w-6 items-center justify-center rounded border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-              >
-                <RefreshCw
-                  className={['h-3 w-3', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
-                  aria-hidden="true"
-                />
-              </button>
-            )}
+          <div className="relative z-10 h-0">
+            <div className="absolute end-10 top-2 flex flex-col items-center gap-1">
+              {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
+              {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
+                <button
+                  type="button"
+                  onClick={handleManualRefresh}
+                  disabled={isRefreshing}
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                  aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                  title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                >
+                  <RefreshCw
+                    className={['h-3.5 w-3.5', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                    aria-hidden="true"
+                  />
+                </button>
+              )}
+            </div>
           </div>
         )}
         <ChatMessagesPane
