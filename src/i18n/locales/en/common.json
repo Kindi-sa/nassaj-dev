@@ -318,5 +318,11 @@
     "done": "Done",
     "doneHint": "Session finished and has not been opened yet",
     "projectDoneHint": "A session in this project finished and has not been opened yet"
+  },
+  "buildUpdate": {
+    "available": "A new build is available",
+    "reload": "Reload",
+    "ariaLabel": "New build update notification",
+    "dismiss": "Dismiss"
   }
 }

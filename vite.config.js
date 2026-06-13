@@ -1,7 +1,27 @@
 import { fileURLToPath, URL } from 'node:url'
+import { execSync } from 'node:child_process'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { getConnectableHost, normalizeLoopbackHost } from './shared/networkHosts.js'
+
+// Single source of truth for BUILD_ID — used in both the inline asset plugin
+// and the define constant so dist/version.json and __BUILD_ID__ are guaranteed
+// to be identical.
+const BUILD_ID = (() => {
+  try {
+    return execSync('git rev-parse --short=12 HEAD').toString().trim()
+  } catch {
+    const d = new Date()
+    return [
+      d.getFullYear(),
+      String(d.getMonth() + 1).padStart(2, '0'),
+      String(d.getDate()).padStart(2, '0'),
+      String(d.getHours()).padStart(2, '0'),
+      String(d.getMinutes()).padStart(2, '0'),
+      String(d.getSeconds()).padStart(2, '0'),
+    ].join('')
+  }
+})()
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
@@ -19,7 +39,25 @@ export default defineConfig(({ mode }) => {
   const serverPort = env.SERVER_PORT || env.PORT || 3001
 
   return {
-    plugins: [react()],
+    plugins: [
+      react(),
+      // Emits dist/version.json at build time with the same BUILD_ID baked into
+      // the bundle via define.__BUILD_ID__ — guarantees both values are identical.
+      {
+        name: 'nassaj-build-id',
+        apply: 'build',
+        generateBundle() {
+          this.emitFile({
+            type: 'asset',
+            fileName: 'version.json',
+            source: JSON.stringify({ buildId: BUILD_ID }),
+          })
+        },
+      },
+    ],
+    define: {
+      __BUILD_ID__: JSON.stringify(BUILD_ID),
+    },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url))

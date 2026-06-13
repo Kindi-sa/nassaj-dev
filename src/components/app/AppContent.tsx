@@ -17,6 +17,8 @@ import {
   shouldMarkSessionFinished,
 } from '../../stores/sessionCompletionStore';
 
+import BuildUpdateBanner from './BuildUpdateBanner';
+
 export default function AppContent() {
   return (
     <PaletteOpsProvider>
@@ -180,6 +182,7 @@ function AppContentInner() {
 
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
+      <BuildUpdateBanner />
       {!isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />
