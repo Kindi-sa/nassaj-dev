@@ -202,7 +202,7 @@ export default function UsersSettingsTab() {
                             onChange={(event) =>
                               handleRoleChange(managedUser.id, event.target.value as ManagedUserRole)
                             }
-                            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="min-w-[7rem] rounded-md border border-border bg-background ps-2 pe-7 py-1.5 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring"
                           >
                             {ROLE_OPTIONS.map((r) => (
                               <option key={r} value={r}>
