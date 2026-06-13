@@ -848,8 +848,10 @@
       "kind": "bug",
       "issue": "B-31",
       "title": "تحقق من وجود cwd على القرص قبل spawn وأي resume، مع خطأ صريح للواجهة عند غيابه",
-      "status": "todo",
-      "owner": "backend-dev"
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-13",
+      "summary": "commit 317444f: فحص checkCwdExists (server/shared/cwd-check.ts) قبل spawn ويغطّي resume (الفحص بلا شرط sessionId)؛ موصول مسبقاً عبر 6 مزوّدات وroutes/agent.js (8257190). أُضيف اختبارا تمييز spawn-جديد/resume. الرمز المعتمد project_dir_missing. 22/22 اختبار. backend — يحتاج restart للتفعيل."
     },
     {
       "id": "T-82",
@@ -858,8 +860,10 @@
       "kind": "bug",
       "issue": "B-32",
       "title": "ترجمة أخطاء spawn (ENOENT/cwd مفقود) لرسائل مستخدم صحيحة بدل تمرير رسالة SDK الخام",
-      "status": "todo",
-      "owner": "backend-dev"
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-13",
+      "summary": "commit 317444f: سدّ فجوة المصنّف — رمز permission_denied لـEACCES/EPERM متمايز عن project_dir_missing وcli_not_installed وspawn_failed. عقد خطأ منظّم للواجهة: {kind:error, code, content, sessionId, provider, isNewSessionError?}. build:server نظيف."
     },
     {
       "id": "T-83",
@@ -868,8 +872,10 @@
       "kind": "bug",
       "issue": "B-33",
       "title": "عرض أخطاء الجلسة الجديدة (sessionId=null) بوضوح في الواجهة بدل الفشل الصامت",
-      "status": "todo",
-      "owner": "frontend-dev"
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-13",
+      "summary": "commit 02fc26d: resolveServerErrorMessage متدرّج (بنية {error:{code,messageKey,detail}} ← code مسطّح ← fallback عام)؛ حالة error تُعرض دائماً، وsession_created بلا newSessionId يُنظّف التحميل ويُظهر الخطأ بدل break صامت. بانر serverError + مفتاح session_create_failed (ar/en). حيّ بعد build:client."
     },
     {
       "id": "T-84",
@@ -1200,6 +1206,18 @@
       "owner": "frontend-dev",
       "note": "تشخيص بلاغ المستخدم «الزر غائب»: السبب browserSupportsWebAuthn()=false على HTTP غير آمن (الكود والحزمة سليمان). الحل: زر disabled + مفتاح passkey.requiresSecureContext في 9 لغات + aria-disabled. الإخفاء الكامل باقٍ لـIS_PLATFORM ولمتصفح بلا WebAuthn في سياق آمن. commit ‏1d79338؛ واجهة فقط بلا restart.",
       "closed": "2026-06-12"
+    },
+    {
+      "id": "T-110",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-62",
+      "title": "بثّ تفصيل المحادثات النشطة من الخادم مفلتراً بالخصوصية (presence.activeConversations) وتطابق الشارة/الـtooltip",
+      "status": "done",
+      "owner": "backend-dev + frontend-dev",
+      "note": "backend (Opus، تصعيد لغياب Fable): presence.service يبثّ {total عالمي, byProject مرئي per-recipient عبر getVisibleProjectPaths, hiddenCount} + اختبار B-PRIV. frontend: usePresence يلتقط الحقل وPresencePanel يستهلكه (الشارة=total، tooltip=byProject+«N أخرى») وأُزيل runningSessionIds×projects. tsc الخادم + build:client + 6 اختبارات presence خضراء. commit 716c22f. يتطلب build:server+restart (بيد المالك).",
+      "closed": "2026-06-13"
     },
     {
       "id": "T-103",
@@ -1688,6 +1706,15 @@
   ],
   "issues": [
     {
+      "id": "B-62",
+      "title": "tooltip «المحادثات النشطة» لا يطابق الشارة: «4 active» مقابل سرد مشروع واحد «Diwan — 1»",
+      "severity": "medium",
+      "status": "fixed",
+      "found": "2026-06-13",
+      "fix": "العيب بنيوي: الشارة من open_sessions_count العالمي والـtooltip من runningSessionIds×projects الجزئية. الإصلاح: بثّ activeConversations {total, byProject, hiddenCount} من presence.service مفلتراً per-recipient بـgetVisibleProjectPaths؛ الواجهة تستهلكه فيتطابقان. فيتو B-PRIV محفوظ باختبار. T-110، commit 716c22f — يتطلب build:server+restart (بيد المالك).",
+      "note": "بلاغ المالك بصورة؛ ميزة b8ca8d2 من جلسة موازية"
+    },
+    {
       "id": "B-50",
       "title": "لوحة «المتصلون الآن»: الأفاتارات ليست بالترتيب المطلوب والعدّاد لا يطابق عدد الفقاعات (3 فقاعات مقابل «1 users · 1 agents»)",
       "severity": "medium",
@@ -2074,11 +2101,12 @@
     {
       "id": "B-43",
       "severity": "low",
-      "status": "resolved",
+      "status": "fixed",
       "found": "2026-06-12",
       "title": "اختبارات wsConnectionBehavior.test.ts تكرّر منطق المصدر محلياً بدل استيراده (calcReconnectDelay، SERVER_ERROR_CODE_KEYS) — قد تمر بينما يكسر الإنتاج",
       "triage": "أُغلق: استيراد calcReconnectDelay/SERVER_ERROR_CODE_KEYS من المصدر (commit 32cde37)",
-      "resolved": "2026-06-12"
+      "resolved": "2026-06-12",
+      "resolution": "commit 9a9f06f: معامل attribution لـupdateStreaming يختم coordinatorId/originKind على الصف المتدفّق (يحفظ القيمة السابقة)، مُمرَّر من stream_delta/stream_end/complete؛ finalizeStreaming يحملها بالـspread فيطابق الرسائل المكتملة. الخادم يختمها أصلاً عبر stampCoordinatorId."
     },
     {
       "id": "B-44",
@@ -2110,9 +2138,10 @@
       "id": "B-46",
       "title": "شاشة الدخول إنجليزية بالكامل (lang=en/LTR) رغم i18n التسع لغات، ولا إرشاد لطلب حساب/دعوة لمن لا يملك حساباً",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-12",
-      "note": "رصد end-user-tester أثناء T-106: خلط اتجاهين في سطر Sign in to your نسَّاج account، ومصطلح self-hosted تقني؛ مقترح سطر «لا تملك حساباً؟ اطلب دعوة من مديرك»"
+      "note": "رصد end-user-tester أثناء T-106: خلط اتجاهين في سطر Sign in to your نسَّاج account، ومصطلح self-hosted تقني؛ مقترح سطر «لا تملك حساباً؟ اطلب دعوة من مديرك»",
+      "resolution": "commit e580ddc: النصوص معرَّبة أصلاً، لكن الاتجاه كان يتبع rtlLayout المخزَّن المتزامن بعد الدخول فقط فتظهر العربية LTR قبل المصادقة؛ AuthScreenLayout صار يشتقّ dir من لغة i18n الحالية (العربية⇒RTL) وضبط lang، + تلميح login.requestAccountHint (مخفي على IS_PLATFORM)."
     },
     {
       "id": "B-47",
