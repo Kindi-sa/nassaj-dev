@@ -34,5 +34,11 @@
   "activeConversationsAriaLabel_two": "محادثتان نشطتان — {{projects}}",
   "activeConversationsAriaLabel_few": "{{count}} محادثات نشطة — {{projects}}",
   "activeConversationsAriaLabel_many": "{{count}} محادثة نشطة — {{projects}}",
-  "activeConversationsAriaLabel_other": "{{count}} محادثة نشطة — {{projects}}"
+  "activeConversationsAriaLabel_other": "{{count}} محادثة نشطة — {{projects}}",
+  "activeConversationsElsewhere_zero": "لا شيء في مكان آخر",
+  "activeConversationsElsewhere_one": "وواحدة أخرى",
+  "activeConversationsElsewhere_two": "واثنتان أخريان",
+  "activeConversationsElsewhere_few": "و{{count}} أخرى",
+  "activeConversationsElsewhere_many": "و{{count}} أخرى",
+  "activeConversationsElsewhere_other": "و{{count}} أخرى"
 }

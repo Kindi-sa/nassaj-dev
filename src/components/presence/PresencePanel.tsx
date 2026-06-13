@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessagesSquare } from 'lucide-react';
 
@@ -7,9 +6,7 @@ import { cn } from '../../lib/utils';
 import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
 import { Tooltip } from '../../shared/view/ui';
-import { useWebSocket } from '../../contexts/WebSocketContext';
 import type { Project } from '../../types/app';
-import { useRunningSessionIds } from '../../stores/sessionProcessStateStore';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
@@ -76,9 +73,7 @@ type PresencePanelProps = {
 export default function PresencePanel({ projects = [] }: PresencePanelProps) {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
-  const presenceUsers = usePresence();
-  const { openSessionsCount } = useWebSocket();
-  const runningSessionIds = useRunningSessionIds();
+  const { users: presenceUsers, activeConversations } = usePresence();
 
   const currentUserId = currentUser?.id !== undefined && currentUser?.id !== null
     ? String(currentUser.id)
@@ -137,55 +132,28 @@ export default function PresencePanel({ projects = [] }: PresencePanelProps) {
     defaultValue: 'Active conversations',
   });
   const activeConversationsCount = t('activeConversationsCount', {
-    count: openSessionsCount ?? 0,
+    count: activeConversations?.total ?? 0,
     defaultValue: '{{count}} active',
   });
 
   /**
-   * Map running sessions → projects.
-   * Each Project carries all provider session arrays; we flatten them to get
-   * the full id set, then count how many are currently 'running'.
-   * Only projects the current user can see are included (privacy: we receive
-   * only the projects list the server filtered for this user).
+   * Resolve a projectPath from byProject to a display name.
+   * Tries to match against the projects prop via fullPath or path; falls back
+   * to the last path segment (mirrors projectLabel logic above).
    */
-  const activeProjectBreakdown = useMemo(() => {
-    if (runningSessionIds.size === 0 || projects.length === 0) {
-      return [];
-    }
-
-    const breakdown: Array<{ displayName: string; runningCount: number }> = [];
-
-    for (const project of projects) {
-      const allSessions = [
-        ...(project.sessions ?? []),
-        ...(project.cursorSessions ?? []),
-        ...(project.codexSessions ?? []),
-        ...(project.geminiSessions ?? []),
-        ...(project.antigravitySessions ?? []),
-        ...(project.opencodeSessions ?? []),
-      ];
-
-      let runningCount = 0;
-      for (const session of allSessions) {
-        if (runningSessionIds.has(String(session.id))) {
-          runningCount++;
-        }
-      }
-
-      if (runningCount > 0) {
-        breakdown.push({ displayName: project.displayName, runningCount });
-      }
-    }
-
-    // Sort: highest running count first, then alphabetically for ties.
-    breakdown.sort((a, b) =>
-      b.runningCount !== a.runningCount
-        ? b.runningCount - a.runningCount
-        : a.displayName.localeCompare(b.displayName),
+  function resolveProjectDisplayName(projectPath: string): string {
+    const match = projects.find(
+      (p) =>
+        p.fullPath === projectPath ||
+        (p as unknown as Record<string, unknown>).path === projectPath,
     );
-
-    return breakdown;
-  }, [runningSessionIds, projects]);
+    if (match) {
+      return match.displayName;
+    }
+    const trimmed = projectPath.replace(/[/\\]+$/, '');
+    const segments = trimmed.split(/[/\\]+/).filter(Boolean);
+    return segments[segments.length - 1] ?? projectPath;
+  }
 
   if (presenceUsers.length === 0) {
     return null;
@@ -271,28 +239,38 @@ export default function PresencePanel({ projects = [] }: PresencePanelProps) {
       </div>
 
       {/* Active conversations counter — pinned to inline-end of the full row.
-        * Hidden when null. No border/background, stays small.
-        * When active projects are known the tooltip lists each project with its
-        * running-session count; otherwise falls back to the plain label. */}
-      {openSessionsCount != null && (
+        * Hidden until the first presence snapshot arrives (activeConversations != null).
+        * The tooltip lists each visible project from byProject, then a «N elsewhere»
+        * line when hiddenCount > 0 — so total always equals the badge count. */}
+      {activeConversations != null && (
         <Tooltip
           content={
-            activeProjectBreakdown.length > 0 ? (
+            activeConversations.byProject.length > 0 ? (
               <span className="flex flex-col gap-0.5 text-start">
                 <span className="mb-0.5 font-semibold opacity-90">
                   {t('activeConversations', { defaultValue: 'Active conversations' })}
                 </span>
-                {activeProjectBreakdown.map(({ displayName, runningCount }) => (
-                  <span key={displayName} className="flex items-center gap-1">
-                    <span className="truncate max-w-[160px]">{displayName}</span>
+                {activeConversations.byProject.map(({ projectPath, count }) => (
+                  <span key={projectPath} className="flex items-center gap-1">
+                    <span className="truncate max-w-[160px]">
+                      {resolveProjectDisplayName(projectPath)}
+                    </span>
                     <span className="opacity-70">
                       {t('activeConversationsProjectCount', {
-                        count: runningCount,
+                        count,
                         defaultValue: '— {{count}}',
                       })}
                     </span>
                   </span>
                 ))}
+                {activeConversations.hiddenCount > 0 && (
+                  <span className="opacity-60 italic">
+                    {t('activeConversationsElsewhere', {
+                      count: activeConversations.hiddenCount,
+                      defaultValue: '{{count}} elsewhere',
+                    })}
+                  </span>
+                )}
               </span>
             ) : (
               activeConversationsLabel
@@ -302,15 +280,26 @@ export default function PresencePanel({ projects = [] }: PresencePanelProps) {
           <span
             className="inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
             aria-label={
-              activeProjectBreakdown.length > 0
+              activeConversations.byProject.length > 0
                 ? t('activeConversationsAriaLabel', {
-                    count: openSessionsCount,
-                    projects: activeProjectBreakdown
-                      .map((p) => `${p.displayName} ${p.runningCount}`)
-                      .join(', '),
+                    count: activeConversations.total,
+                    projects: [
+                      ...activeConversations.byProject.map(
+                        ({ projectPath, count }) =>
+                          `${resolveProjectDisplayName(projectPath)} ${count}`,
+                      ),
+                      ...(activeConversations.hiddenCount > 0
+                        ? [
+                            t('activeConversationsElsewhere', {
+                              count: activeConversations.hiddenCount,
+                              defaultValue: '{{count}} elsewhere',
+                            }),
+                          ]
+                        : []),
+                    ].join(', '),
                     defaultValue: 'Active conversations: {{count}} across {{projects}}',
                   })
-                : `${activeConversationsLabel}: ${openSessionsCount}`
+                : `${activeConversationsLabel}: ${activeConversations.total}`
             }
           >
             <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 opacity-60" aria-hidden="true" />

@@ -18,5 +18,7 @@
   "activeConversationsProjectCount_one": "— {{count}}",
   "activeConversationsProjectCount_other": "— {{count}}",
   "activeConversationsAriaLabel_one": "Active conversations: {{count}} across {{projects}}",
-  "activeConversationsAriaLabel_other": "Active conversations: {{count}} across {{projects}}"
+  "activeConversationsAriaLabel_other": "Active conversations: {{count}} across {{projects}}",
+  "activeConversationsElsewhere_one": "{{count}} elsewhere",
+  "activeConversationsElsewhere_other": "{{count}} elsewhere"
 }

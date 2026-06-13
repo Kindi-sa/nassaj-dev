@@ -77,6 +77,24 @@ type PresenceEntry = {
   since: number;
 };
 
+/**
+ * Active-conversations detail broadcast alongside the presence snapshot.
+ *
+ * `total` is GLOBAL (every run of every user), so the badge count matches the
+ * tooltip exactly. `byProject` is filtered to the recipient's visible projects
+ * only; everything not surfaced there (private-project runs the recipient may
+ * not see + runs with no resolved project path) is absorbed into `hiddenCount`,
+ * which therefore satisfies `total === sum(byProject[*].count) + hiddenCount`.
+ */
+type ActiveConversations = {
+  /** Sum of all runs across all users (global). */
+  total: number;
+  /** Per-project run counts, visible to the recipient only. */
+  byProject: Array<{ projectPath: string; count: number }>;
+  /** total − sum(byProject[*].count): runs in hidden/null-path projects. */
+  hiddenCount: number;
+};
+
 /** WS message type other clients/agents can rely on. */
 export const PRESENCE_MESSAGE_TYPE = 'presence';
 
@@ -159,6 +177,41 @@ function buildSnapshot(visiblePaths: Set<string>): PresenceEntry[] {
   return entries;
 }
 
+/**
+ * Builds the active-conversations detail for ONE recipient from ALL runs of ALL
+ * users. Unlike buildSnapshot (which surfaces a single headline run per user),
+ * this counts EVERY run so the global `total` matches the badge.
+ *
+ * B-PRIV: a run only contributes to `byProject` when its `projectPath` is
+ * non-null AND present in `visiblePaths` (the same recipient-scoped set used by
+ * buildSnapshot). Runs in projects the recipient may not see — and runs with a
+ * null projectPath — never appear in `byProject`; they are absorbed into
+ * `hiddenCount`, so no hidden project path can leak. The invariant
+ * `total === sum(byProject[*].count) + hiddenCount` always holds.
+ */
+function buildActiveConversations(visiblePaths: Set<string>): ActiveConversations {
+  let total = 0;
+  const counts = new Map<string, number>();
+
+  for (const state of users.values()) {
+    for (const run of state.runs.values()) {
+      total += 1;
+      const path = run.projectPath;
+      if (path !== null && visiblePaths.has(path)) {
+        counts.set(path, (counts.get(path) ?? 0) + 1);
+      }
+    }
+  }
+
+  const byProject = [...counts.entries()]
+    .map(([projectPath, count]) => ({ projectPath, count }))
+    // Highest count first; tie-break by path for a stable, deterministic order.
+    .sort((a, b) => b.count - a.count || a.projectPath.localeCompare(b.projectPath));
+
+  const visibleTotal = byProject.reduce((sum, entry) => sum + entry.count, 0);
+  return { total, byProject, hiddenCount: total - visibleTotal };
+}
+
 /** Coerces a stamped socket userId into a DB user id, or null. */
 function toRecipientUserId(rawUserId: string | number | null | undefined): number | null {
   if (typeof rawUserId === 'number') {
@@ -192,6 +245,7 @@ function broadcastNow(): void {
         publicPayload = JSON.stringify({
           type: PRESENCE_MESSAGE_TYPE,
           users: buildSnapshot(publicPaths),
+          activeConversations: buildActiveConversations(publicPaths),
           timestamp,
         });
       }
@@ -204,6 +258,7 @@ function broadcastNow(): void {
       payload = JSON.stringify({
         type: PRESENCE_MESSAGE_TYPE,
         users: buildSnapshot(visiblePaths),
+        activeConversations: buildActiveConversations(visiblePaths),
         timestamp,
       });
       payloadByUserId.set(recipientId, payload);
