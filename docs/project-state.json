@@ -1441,6 +1441,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "summary": "بملاحظات المستخدم على PresencePanel: (1) عدّاد المحادثات النشطة أصغر وبلا صندوق — حُذف rounded-full/border/bg/px فصار أيقونة MessagesSquare خافتة+رقم inline بلون muted. (2) حُذفت شارة «X online» الخضراء (النقطة+النص) — أبقي عنوان ONLINE NOW + الأفاتارات فقط (الصور تكفي). (3) توحيد الأفاتارات: ring-2 ring-background على ParticipantAvatar stacked فتتساوى عبر PresencePanel/SessionParticipantsBar/MessageComponent (كلها h-6 w-6 محاذاة وسطية). build:client نجح."
+    },
+    {
+      "id": "T-99",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "تساوي الأفاتارات (فارق baseline) ونقل العدّاد لأقصى يمين العمود",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-13",
+      "summary": "جذر تفاوت الأفاتارات: wrapper الأفاتار بلا أبعاد صريحة ولا items-center، فالـ<img> كعنصر replaced له baseline مختلف عن دوائر الأحرف فيتغيّر قطره الظاهر. الإصلاح في PresencePanel: wrapper صار h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ring-2، فكلا المتغيّرين (صورة/أحرف) محبوسان في 24×24 متمركزين. والعدّاد: الصف flex w-full justify-between → العدّاد يلتصق بأقصى يمين العمود بدل ms-auto. build:client نجح. متابعة محتملة: تطبيق نفس إصلاح baseline على wrapper الأفاتار في SessionParticipantsBar (رأس الحوار) إن بقي تفاوت هناك."
     }
   ],
   "issues": [
