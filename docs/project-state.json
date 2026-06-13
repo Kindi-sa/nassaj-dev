@@ -1368,7 +1368,7 @@
       "status": "done",
       "owner": "backend-dev+frontend-dev",
       "closed": "2026-06-13",
-      "note": "بلاغ المالك 2026-06-13 (طلب #5)؛ commit 1be6c83 (خادم: DELETE + deleteUser transactional + 3 اختبارات، dist-server مبني bak-20260613-024414) + 4d74f4b (واجهة). ⏳ يحتاج pm2 restart nassaj-dev بيد المالك ليصير الـendpoint حياً"
+      "note": "بلاغ المالك 2026-06-13 (طلب #5)؛ commit 1be6c83 (خادم: DELETE + deleteUser transactional + 3 اختبارات) + 4d74f4b (واجهة). ✅ المالك أكّد عمل الحذف بعد pm2 restart. تلميع تابع: سهم قائمة اختيار الدور كان يتداخل مع النص — أُصلح بـps-2 pe-7 + min-w (commit c9b5755)"
     },
     {
       "id": "T-117",
