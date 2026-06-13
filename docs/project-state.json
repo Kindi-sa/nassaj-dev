@@ -1177,7 +1177,7 @@
       "kind": "feature",
       "title": "استبدال ThinkingModeSelector بنظام effort الحقيقي (low..max/ultracode/auto): تمرير Options.effort عبر SDK + allowlist + 13 اختباراً + شارة ULTRACODE وتأثير نبض بصري + ترجمات 9 لغات",
       "status": "done",
-      "note": "مكتمل: backend (Options.effort + allowlist + 13 اختباراً) + frontend (قائمة effort 8 خيارات + شارة ULTRACODE ونبض بصري + ترجمات 9 لغات) + مراجعة qa-critic (مقبول، ملاحظاته نُفّذت) + build:client ناجح. 446/446 اختباراً. المتبقي خارج الأداة: restart السيرفر بيد المستخدم لتفعيل جانب السيرفر. | تحسين بصري لاحق: إعادة تصميم القائمة المنسدلة لتطابق نمط منتقي النموذج (CommandItem/cmdk، tokens الثيم، ✓ للمحدَّد، شارة UC مدمجة) + تصغير + تقوية التوهّج. build:client ناجح؛ بانتظار تأكيد بصري من المستخدم. | متابعة: Auto صار الوضع الافتراضي بدل Standard (يُسقط حقل effort = افتراضي النموذج)، مع شارة default. مدفوع 4bd3fe4.",
+      "note": "مكتمل: backend (Options.effort + allowlist + 13 اختباراً) + frontend (قائمة effort 8 خيارات + شارة ULTRACODE ونبض بصري + ترجمات 9 لغات) + مراجعة qa-critic (مقبول، ملاحظاته نُفّذت) + build:client ناجح. 446/446 اختباراً. المتبقي خارج الأداة: restart السيرفر بيد المستخدم لتفعيل جانب السيرفر. | تحسين بصري لاحق: إعادة تصميم القائمة المنسدلة لتطابق نمط منتقي النموذج (CommandItem/cmdk، tokens الثيم، ✓ للمحدَّد، شارة UC مدمجة) + تصغير + تقوية التوهّج. build:client ناجح؛ بانتظار تأكيد بصري من المستخدم. | متابعة: Auto صار الوضع الافتراضي بدل Standard (يُسقط حقل effort = افتراضي النموذج)، مع شارة default. مدفوع 4bd3fe4. | ✅ نُشر حيّاً 2026-06-13: kill للعملية القديمة + pm2 restart (id 8، pid 3882389)؛ تحقّقت أن dist-server يحوي resolveEffortLevel ودist يحوي ultracode؛ المنفذ 3004 يرد 200. الميزة فعّالة طرفاً-لطرف.",
       "updated": "2026-06-13"
     },
     {
