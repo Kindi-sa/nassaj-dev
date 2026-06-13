@@ -1726,6 +1726,18 @@
       "owner": "frontend-dev",
       "closed": "2026-06-14",
       "summary": "منفَّذ في commit 51f7903 (عميل فقط، بلا تغيير خادم). الملفات: useRunProgress.ts (جديد) + ClaudeStatus/ChatInterface/ChatComposer + i18n ar/en. نموذج متداخل TodoWrite-أساسي؛ شريحة «وكيل يعمل» نابضة تظهر كلما وُجد وكيل نشط (FIX qa-critic)؛ تقدير بالاستقراء EMA رتيب يُعاد ضبطه عند نمو الخطة؛ مرساة زمن مثبّتة عند isLoading false→true (تُصلح أيضاً مؤقّت العرض المنقضي)؛ إغلاق بـ!isLoading؛ الحساب في هوك مفصول عن tick. مراجعتان qa-critic (الثانية CLEARED-FOR-MERGE) + architect SOUND-WITH-CHANGES. build:client نجح، tsc نظيف للملفات (خطأ ClaudeUsageCollapsed سابق خارج النطاق). حيّ على nassaj-dev.alkindy.tech. متبقٍّ طفيف اختياري: تصحيح تعليق reset-on-growth + 13 تحذير eslint نمطي (import/tailwind order يتساهل بها الريبو)."
+    },
+    {
+      "id": "T-140",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "عدّاد المحادثات المفتوحة في الشريط الجانبي المطويّ (الـrail): مؤشّر عدد مختصر أسفل مؤشّرات الاستخدام، يقرأ usePresence().total (طلب المالك)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-14",
+      "summary": "منفَّذ في commit a3f9987 (عميل فقط). مكوّن PresenceCountCollapsed جديد (أيقونة MessagesSquare + رقم بنمط SystemStatsCollapsed) في SidebarCollapsed أسفل مؤشّرات الاستخدام، يظهر دائماً ما دام الـrail ظاهراً (واسع: تحت CPU/RAM؛ ضيّق: تحت C/W/S/O). يقرأ usePresence().total من WebSocketContext المشترك (بلا اشتراك مكرّر)، دلالة العدد مطابقة لـPresencePanel، يُخفى فقط قبل أول snapshot. الفواصل نُقلت داخل ClaudeUsageCollapsed وPresenceCountCollapsed (إصلاح فاصل مزدوج عند ≥1280px رصده qa-critic V1). PresencePanel الموسَّع بلا تغيير. مراجعة qa-critic CLEARED بعد إصلاح V1، build:client نجح، eslint 0 errors. تحقّق بصري بالمتصفّح تعذّر (Chrome غير مثبّت) — تُحقَّق بنيوياً عبر تتبّع DOM؛ المؤشّر ظاهر دائماً فيراه المالك مباشرة."
     }
   ],
   "issues": [
