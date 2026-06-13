@@ -1596,6 +1596,17 @@
       "closed": "2026-06-13",
       "title": "زر «Sign in» في نافذة اختيار النماذج لا يفعل شيئاً (B-58)",
       "summary": "السبب: الزر كان يطلق window CustomEvent('nassaj:open-settings') بلا أي مستمع في المشروع → no-op. الإصلاح: استخدام usePaletteOps().openSettings('agents') (نفس آلية CodeEditor) لفتح تبويب Agents (فئة Account تعرض AgentConnectionCard لمصادقة المزوّدين — T-23/T-39)؛ ProviderSelectionEmptyState أسفل شجرة PaletteOpsProvider فيستهلك الـcontext مباشرة. حُذف الحدث المخترَع. build:client منشور (حيّ بعد إعادة تحميل الصفحة)."
+    },
+    {
+      "id": "T-131",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "حقل بحث داخل تبويب الويكي: بحث فوري عبر كل صفحات الويكي (العناوين+النص) مع إبراز النتائج والقفز إليها",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "note": "المحتوى مدمج بالحزمة عبر import.meta.glob في WikiPanel؛ بحث عميل خالص بلا سيرفر = build:client بلا restart"
     }
   ],
   "issues": [
