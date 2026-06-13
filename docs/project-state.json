@@ -1477,6 +1477,29 @@
       "owner": "frontend-dev",
       "closed": "2026-06-13",
       "summary": "commit 1eee987: أيقونة زر طيّ الفهرس في WikiPanel.tsx:208 غُيّرت BookOpen→PanelLeft (والاستيراد) فزالت ازدواجية أيقونة الكتاب مع تبويب الويكي. PanelLeft رمز قياسي لطيّ القائمة الجانبية بصرف النظر عن الاتجاه. build:client نُشر بلا restart"
+    },
+    {
+      "id": "T-121",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "نافذة اختيار النماذج (ProviderSelectionEmptyState): فلترة المزوّدين بمعيار مزدوج + زر تحديث + إصلاح تسرّب المزوّد المخفي عند المصدر",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "closed": null,
+      "summary": "خطة معتمدة بعد مراجعة مزدوجة (frontend-dev تحقق + qa-critic «مقبول بشروط»، تصعيد opus لغياب fable). المعيار محسوم بقرار المالك (ADR-030): installed=false يُخفى كلياً؛ installed=true&auth=false يظهر معطّلاً+CTA توجيه لـSettings؛ fail-open عند loading/error. زر RefreshCw يستدعي hardRefreshProviderModels(bypassCache)+refreshProviderAuthStatuses. إصلاح التسرّب عند المصدر في useChatProviderState (qualified=installed فقط). جسر installed لأنواع الفرونت. تعميم CommandResultModal/git-panel مؤجَّل."
+    },
+    {
+      "id": "T-122",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-55",
+      "title": "حذف زر الويكي المكرر من الشريط الجانبي (الإبقاء على تبويب Wiki) — حكم design-reviewer",
+      "status": "todo",
+      "owner": "frontend-dev",
+      "note": "حذف كتلة BookOpen في SidebarHeader (ديسكتوب+جوال) وتنظيف prop onOpenWiki عبر السلسلة"
     }
   ],
   "issues": [
@@ -1939,6 +1962,14 @@
       "status": "open",
       "found": "2026-06-13",
       "note": "تشخيص المنسّق (مصدر الحقيقة): ليست من الجلسة الموازية بل بقية من T-105؛ T-110 أصلح تكرار النص لا الأيقونة. الإصلاح: أيقونة طيّ الفهرس → PanelLeft"
+    },
+    {
+      "id": "B-55",
+      "title": "مدخلان مكرّران للويكي: تبويب Wiki أعلى يمين + زر كتاب بالشريط الجانبي بجانب الشعار، كلاهما setActiveTab('wiki')",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-13",
+      "note": "بلاغ المالك بصورة؛ حكم design-reviewer (Opus، تصعيد لغياب fable): إبقاء التبويب وحذف زر الشريط الجانبي في الموضعين (سطح مكتب+جوال)؛ شريط التبويبات ظاهر على الجوال فلا ضرورة للزر"
     }
   ],
   "decisions": [
@@ -2003,6 +2034,12 @@
       "status": "proposed",
       "title": "cluster-mode: توصية GO مشروط (docs/cluster-mode-readiness.md) — تنتظر go/no-go صريح من المالك؛ 3 مخاطر (instances>1، treekill للـworkers، تسلسل إشارات drain)",
       "due": "2026-06-20"
+    },
+    {
+      "id": "ADR-030",
+      "date": "2026-06-13",
+      "status": "accepted",
+      "title": "معيار «المزوّد المفعّل لدى المستخدم» في نافذة اختيار النماذج (قرار المالك): معيار مزدوج — installed=false يُخفى كلياً؛ installed=true&authenticated=false يظهر معطّلاً بصرياً مع CTA توجيه لـSettings (لا يُخفى)؛ fail-open: لا إخفاء إلا بإشارة installed===false قاطعة (loading/error يبقى ظاهراً). qualified لإعادة ضبط selected-provider عند المصدر = installed وحده. منفَّذ في T-121"
     }
   ]
 }
