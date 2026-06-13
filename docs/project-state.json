@@ -1485,10 +1485,10 @@
       "kind": "feature",
       "issue": null,
       "title": "نافذة اختيار النماذج (ProviderSelectionEmptyState): فلترة المزوّدين بمعيار مزدوج + زر تحديث + إصلاح تسرّب المزوّد المخفي عند المصدر",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "closed": null,
-      "summary": "خطة معتمدة بعد مراجعة مزدوجة (frontend-dev تحقق + qa-critic «مقبول بشروط»، تصعيد opus لغياب fable). المعيار محسوم بقرار المالك (ADR-030): installed=false يُخفى كلياً؛ installed=true&auth=false يظهر معطّلاً+CTA توجيه لـSettings؛ fail-open عند loading/error. زر RefreshCw يستدعي hardRefreshProviderModels(bypassCache)+refreshProviderAuthStatuses. إصلاح التسرّب عند المصدر في useChatProviderState (qualified=installed فقط). جسر installed لأنواع الفرونت. تعميم CommandResultModal/git-panel مؤجَّل."
+      "closed": "2026-06-13",
+      "summary": "منفَّذ ومنشور (build:client بلا restart). المعيار محسوم بقرار المالك (ADR-030): installed=false يُخفى كلياً؛ installed=true&auth=false يظهر معطّلاً مع CTA توجيه لـSettings؛ fail-open (loading/error/installed=undefined → ظاهر ومفعّل). (1) جسر installed لأنواع الفرونت (types.ts ProviderAuthStatus + useProviderAuthStatus toProviderAuthStatus، قيمة أولية true). (2) فلترة في ProviderSelectionEmptyState عبر وحدة نقية مشتركة providerAuthFilter.ts (isProviderVisible/isProviderDisabled). (3) زر RefreshCw في رأس النافذة يستدعي hardRefreshProviderModels(bypassCache)+refreshProviderAuthStatuses، spinner، CSS منطقية RTL. (4) مثيل useProviderAuthStatus جديد في ChatInterface بـTTL 30s+حارس in-flight، ثقب props عبر ChatMessagesPane. (5) إصلاح تسرّب المزوّد المخفي عبر shouldResetProvider (qualified=installed فقط؛ المركَّب-غير-المسجّل لا يُعاد ضبطه) — نُفّذ كـuseEffect في ChatInterface (انحراف مبرَّر: sanitizeStoredProvider متزامن بلا وصول لحالة auth غير المتزامنة). i18n ar/en. اختبارات: 17/17 vitest (أ-و). المؤجَّل: تعميم CommandResultModal/git-panel. مراجعة: frontend-dev تحقق + qa-critic «مقبول بشروط» (تصعيد opus لغياب fable)."
     },
     {
       "id": "T-122",

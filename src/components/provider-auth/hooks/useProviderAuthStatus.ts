@@ -13,6 +13,7 @@ import type {
 
 type ProviderAuthStatusPayload = {
   authenticated?: boolean;
+  installed?: boolean;
   email?: string | null;
   method?: string | null;
   error?: string | null;
@@ -35,6 +36,9 @@ const toProviderAuthStatus = (
   fallbackError: string | null = null,
 ): ProviderAuthStatus => ({
   authenticated: Boolean(payload.authenticated),
+  // fail-open: if the backend does not return installed, default to true so the
+  // provider remains visible rather than being silently hidden.
+  installed: payload.installed !== false,
   email: payload.email ?? null,
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
@@ -79,6 +83,7 @@ export function useProviderAuthStatus(
       if (!response.ok) {
         const status: ProviderAuthStatus = {
           authenticated: false,
+          installed: true, // fail-open on HTTP error
           email: null,
           method: null,
           loading: false,
@@ -96,6 +101,7 @@ export function useProviderAuthStatus(
       console.error(`Error checking ${provider} auth status:`, caughtError);
       const status: ProviderAuthStatus = {
         authenticated: false,
+        installed: true, // fail-open on network/fetch error
         email: null,
         method: null,
         loading: false,

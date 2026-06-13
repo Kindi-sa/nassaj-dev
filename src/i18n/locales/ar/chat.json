@@ -250,7 +250,13 @@
       "loading": "جارٍ التحميل…",
       "unknown": "غير معروف"
     },
-    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits"
+    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits",
+    "refresh": {
+      "button": "تحديث النماذج وحالة المصادقة",
+      "refreshing": "جارٍ التحديث…"
+    },
+    "providerUnavailable": "المزوّد غير متاح",
+    "signIn": "تسجيل الدخول"
   },
   "session": {
     "continue": {

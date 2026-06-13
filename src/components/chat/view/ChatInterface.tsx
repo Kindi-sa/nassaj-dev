@@ -15,6 +15,8 @@ import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useSessionProcessState } from '../../../stores/sessionProcessStateStore';
+import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
+import { shouldResetProvider } from '../../provider-auth/providerAuthFilter';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
 import ChatComposer from './subcomponents/ChatComposer';
@@ -135,6 +137,35 @@ function ChatInterface({
   }, []);
 
   const {
+    providerAuthStatus,
+    refreshProviderAuthStatuses,
+  } = useProviderAuthStatus({ initialLoading: true });
+
+  // TTL guard: avoid re-fetching auth status if last successful fetch was < 30 s ago.
+  const lastAuthFetchRef = useRef<number>(0);
+  const authFetchInFlightRef = useRef(false);
+
+  const refreshAuthStatus = useCallback(async () => {
+    if (authFetchInFlightRef.current) return;
+    const now = Date.now();
+    if (now - lastAuthFetchRef.current < 30_000) return;
+    authFetchInFlightRef.current = true;
+    try {
+      await refreshProviderAuthStatuses();
+      lastAuthFetchRef.current = Date.now();
+    } finally {
+      authFetchInFlightRef.current = false;
+    }
+  }, [refreshProviderAuthStatuses]);
+
+  // Fetch auth status once on mount.
+  useEffect(() => {
+    void refreshAuthStatus();
+    // intentionally runs only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const {
     provider,
     setProvider,
     cursorModel,
@@ -164,6 +195,25 @@ function ChatInterface({
     selectedSession,
     selectedProject,
   });
+
+  // Sanitize selected provider after auth status resolves: if the current
+  // provider is definitively not installed (installed===false, no error, not
+  // loading), reset to the first qualified (installed===true) provider.
+  // fail-open: only act on a confirmed installed===false, never during loading.
+  useEffect(() => {
+    const currentStatus = providerAuthStatus[provider];
+    if (!shouldResetProvider(currentStatus)) return;
+
+    // Find first qualified provider (installed===true), defaulting to 'claude'.
+    const PROVIDER_ORDER: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+    const fallback = PROVIDER_ORDER.find((p) => {
+      const s = providerAuthStatus[p];
+      return s.installed !== false;
+    }) ?? 'claude';
+
+    setProvider(fallback);
+    localStorage.setItem('selected-provider', fallback);
+  }, [providerAuthStatus, provider, setProvider]);
 
   // Provider used for in-conversation display (message logos, status badge).
   // Prefer the open session's own provider so an old Claude session keeps its
@@ -505,6 +555,10 @@ function ChatInterface({
           setOpenCodeModel={setOpenCodeModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
+          providerModelsRefreshing={providerModelsRefreshing}
+          providerAuthStatus={providerAuthStatus}
+          onHardRefreshProviderModels={hardRefreshProviderModels}
+          onRefreshAuthStatus={refreshAuthStatus}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}

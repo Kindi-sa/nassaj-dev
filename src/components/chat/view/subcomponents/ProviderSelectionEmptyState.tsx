@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, RefreshCw, Settings } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel";
@@ -9,6 +9,8 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from "../../../../types/app";
+import type { ProviderAuthStatusMap } from "../../../provider-auth/types";
+import { isProviderVisible, isProviderDisabled } from "../../../provider-auth/providerAuthFilter";
 import { NextTaskBanner } from "../../../task-master";
 import {
   Dialog,
@@ -56,6 +58,10 @@ type ProviderSelectionEmptyStateProps = {
   setOpenCodeModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
+  providerModelsRefreshing: boolean;
+  providerAuthStatus: ProviderAuthStatusMap;
+  onHardRefreshProviderModels: () => void;
+  onRefreshAuthStatus: () => Promise<void>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -122,6 +128,10 @@ export default function ProviderSelectionEmptyState({
   setOpenCodeModel,
   providerModelCatalog,
   providerModelsLoading,
+  providerModelsRefreshing,
+  providerAuthStatus,
+  onHardRefreshProviderModels,
+  onRefreshAuthStatus,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -129,6 +139,33 @@ export default function ProviderSelectionEmptyState({
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // in-flight guard for the combined refresh button (models + auth status)
+  const refreshInFlightRef = useRef(false);
+
+  // Trigger a refresh of both models catalog and auth status when the dialog opens.
+  useEffect(() => {
+    if (!dialogOpen) return;
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    Promise.all([onRefreshAuthStatus()]).finally(() => {
+      refreshInFlightRef.current = false;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen]);
+
+  const handleRefreshClick = useCallback(async () => {
+    if (providerModelsRefreshing || refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+    try {
+      await Promise.all([
+        onHardRefreshProviderModels(),
+        onRefreshAuthStatus(),
+      ]);
+    } finally {
+      refreshInFlightRef.current = false;
+    }
+  }, [providerModelsRefreshing, onHardRefreshProviderModels, onRefreshAuthStatus]);
 
   // agy supports model selection (CLI `--model`), so antigravity is a fully
   // selectable provider like the others: the chosen catalog model is stored in
@@ -142,13 +179,46 @@ export default function ProviderSelectionEmptyState({
     error: antigravityActiveError,
   } = useAntigravityActiveModel(isAntigravity);
 
+  // Compute per-provider visibility and disabled state via shared filter helpers.
+  // Logic lives in providerAuthFilter.ts — no inline duplication here.
+  const providerVisibilityMap = useMemo<Record<LLMProvider, boolean>>(() => {
+    const result = {} as Record<LLMProvider, boolean>;
+    for (const p of PROVIDER_META) {
+      result[p.id] = isProviderVisible(providerAuthStatus[p.id]);
+    }
+    return result;
+  }, [providerAuthStatus]);
+
+  const providerDisabledMap = useMemo<Record<LLMProvider, boolean>>(() => {
+    const result = {} as Record<LLMProvider, boolean>;
+    for (const p of PROVIDER_META) {
+      result[p.id] = isProviderDisabled(providerAuthStatus[p.id]);
+    }
+    return result;
+  }, [providerAuthStatus]);
+
   const visibleProviderGroups = useMemo<ProviderGroup[]>(() => {
-    return PROVIDER_META.map((p) => ({
-      id: p.id,
-      name: p.name,
-      models: providerModelCatalog[p.id]?.OPTIONS ?? [],
-    }));
-  }, [providerModelCatalog]);
+    return PROVIDER_META
+      .filter((p) => providerVisibilityMap[p.id])
+      .map((p) => {
+        const models = providerModelCatalog[p.id]?.OPTIONS ?? [];
+        return {
+          id: p.id,
+          name: p.name,
+          // Hide models for disabled (not-authenticated) providers so the group
+          // appears but no models are selectable. After catalog load, also hide
+          // groups that have 0 models (empty catalog + no loading).
+          models: providerDisabledMap[p.id] ? [] : models,
+        };
+      })
+      // Post-load: drop groups with 0 models when catalog has finished loading
+      // and the group is not just disabled-awaiting-auth.
+      .filter((g) => {
+        if (providerDisabledMap[g.id]) return true; // keep disabled groups for CTA
+        if (providerModelsLoading) return true; // fail-open during load
+        return g.models.length > 0;
+      });
+  }, [providerModelCatalog, providerVisibilityMap, providerDisabledMap, providerModelsLoading]);
 
   // Resolve the read-only label shown for antigravity: live agy value, a clear
   // loading placeholder, or an "unknown" fallback when agy reports nothing.
@@ -281,8 +351,29 @@ export default function ProviderSelectionEmptyState({
 
             <DialogContent className="max-w-md overflow-hidden p-0">
               <DialogTitle>Model Selector</DialogTitle>
-              <div className="border-b border-border/60 bg-muted/20 px-4 py-3">
+              <div className="flex items-center justify-between border-b border-border/60 bg-muted/20 px-4 py-3">
                 <p className="text-sm font-semibold text-foreground">Choose a model</p>
+                <button
+                  type="button"
+                  onClick={handleRefreshClick}
+                  disabled={providerModelsRefreshing}
+                  aria-label={
+                    providerModelsRefreshing
+                      ? t("providerSelection.refresh.refreshing", { defaultValue: "Refreshing…" })
+                      : t("providerSelection.refresh.button", { defaultValue: "Refresh models and auth status" })
+                  }
+                  title={
+                    providerModelsRefreshing
+                      ? t("providerSelection.refresh.refreshing", { defaultValue: "Refreshing…" })
+                      : t("providerSelection.refresh.button", { defaultValue: "Refresh models and auth status" })
+                  }
+                  className="flex h-7 w-7 items-center justify-center rounded border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={["h-3.5 w-3.5", providerModelsRefreshing ? "animate-spin" : ""].join(" ").trim()}
+                    aria-hidden="true"
+                  />
+                </button>
               </div>
               <Command>
                 <CommandInput
@@ -296,51 +387,79 @@ export default function ProviderSelectionEmptyState({
                       defaultValue: "No models found.",
                     })}
                   </CommandEmpty>
-                  {visibleProviderGroups.map((group, idx) => (
-                    <CommandGroup
-                      key={group.id}
-                      className={
-                        idx > 0
-                          ? "border-t border-border/40 [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
-                          : "[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
-                      }
-                      heading={
-                        <span className="flex items-center gap-1.5">
-                          <SessionProviderLogo provider={group.id} className="h-3.5 w-3.5 shrink-0" />
-                          {group.name}
-                        </span>
-                      }
-                    >
-                      {group.models.length === 0 && providerModelsLoading ? (
-                        <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
-                          {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
-                        </CommandItem>
-                      ) : null}
-                      {group.models.map((model) => {
-                        const isSelected = provider === group.id && currentModel === model.value;
-                        return (
-                          <CommandItem
-                            key={`${group.id}-${model.value}`}
-                            value={`${group.name} ${model.label} ${model.description || ''}`}
-                            onSelect={() => handleModelSelect(group.id, model.value)}
-                            className="ml-4 border-l border-border/40 pl-4"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <div className="truncate">{model.label}</div>
-                              {model.description && (
-                                <div className="truncate text-xs text-muted-foreground">
-                                  {model.description}
-                                </div>
-                              )}
-                            </div>
-                            {isSelected && (
-                              <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
-                            )}
-                          </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  ))}
+                  {visibleProviderGroups.map((group, idx) => {
+                    const isProviderDisabled = providerDisabledMap[group.id];
+                    return (
+                      <CommandGroup
+                        key={group.id}
+                        className={
+                          idx > 0
+                            ? "border-t border-border/40 [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                            : "[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                        }
+                        heading={
+                          <span className="flex items-center gap-1.5">
+                            <SessionProviderLogo provider={group.id} className={["h-3.5 w-3.5 shrink-0", isProviderDisabled ? "opacity-50" : ""].join(" ").trim()} />
+                            <span className={isProviderDisabled ? "opacity-50" : ""}>{group.name}</span>
+                          </span>
+                        }
+                      >
+                        {isProviderDisabled ? (
+                          // Provider is installed but not authenticated — show CTA only.
+                          <div className="ms-4 border-s border-border/40 ps-4 py-2">
+                            <p className="mb-1.5 text-[11px] text-muted-foreground">
+                              {t("providerSelection.providerUnavailable", { defaultValue: "Provider not available" })}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // Navigate to Settings — no auth logic here, just redirect.
+                                setDialogOpen(false);
+                                // Dispatch a custom event that App/ChatInterface can catch to open settings.
+                                window.dispatchEvent(new CustomEvent("nassaj:open-settings"));
+                              }}
+                              className="inline-flex items-center gap-1 rounded border border-border/60 bg-muted/40 px-2 py-1 text-[11px] text-foreground transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              aria-label={t("providerSelection.signIn", { defaultValue: "Sign in" })}
+                            >
+                              <Settings className="h-3 w-3" aria-hidden="true" />
+                              {t("providerSelection.signIn", { defaultValue: "Sign in" })}
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {group.models.length === 0 && providerModelsLoading ? (
+                              <CommandItem disabled className="ms-4 border-s border-border/40 ps-4 text-muted-foreground">
+                                {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
+                              </CommandItem>
+                            ) : null}
+                            {group.models.map((model) => {
+                              const isSelected = provider === group.id && currentModel === model.value;
+                              return (
+                                <CommandItem
+                                  key={`${group.id}-${model.value}`}
+                                  value={`${group.name} ${model.label} ${model.description || ''}`}
+                                  onSelect={() => handleModelSelect(group.id, model.value)}
+                                  className="ms-4 border-s border-border/40 ps-4"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate">{model.label}</div>
+                                    {model.description && (
+                                      <div className="truncate text-xs text-muted-foreground">
+                                        {model.description}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="ms-auto h-4 w-4 shrink-0 text-primary" />
+                                  )}
+                                </CommandItem>
+                              );
+                            })}
+                          </>
+                        )}
+                      </CommandGroup>
+                    );
+                  })}
                 </CommandList>
               </Command>
             </DialogContent>

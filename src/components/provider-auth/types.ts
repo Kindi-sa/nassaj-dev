@@ -2,6 +2,7 @@ import type { LLMProvider } from '../../types/app';
 
 export type ProviderAuthStatus = {
   authenticated: boolean;
+  installed: boolean;
   email: string | null;
   method: string | null;
   error: string | null;
@@ -24,11 +25,13 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   opencode: '/api/providers/opencode/auth/status',
 };
 
+// fail-open: installed defaults to true so providers remain visible before the
+// first auth-status response arrives. Only an explicit installed===false hides them.
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
-  claude: { authenticated: false, email: null, method: null, error: null, loading },
-  cursor: { authenticated: false, email: null, method: null, error: null, loading },
-  codex: { authenticated: false, email: null, method: null, error: null, loading },
-  gemini: { authenticated: false, email: null, method: null, error: null, loading },
-  antigravity: { authenticated: false, email: null, method: null, error: null, loading },
-  opencode: { authenticated: false, email: null, method: null, error: null, loading },
+  claude: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
+  cursor: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
+  codex: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
+  gemini: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
+  antigravity: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
+  opencode: { authenticated: false, installed: true, email: null, method: null, error: null, loading },
 });

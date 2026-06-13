@@ -11,6 +11,7 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from '../../../../types/app';
+import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
 import { getIntrinsicMessageKey } from '../../utils/messageKeys';
 
 import MessageComponent from './MessageComponent';
@@ -50,6 +51,10 @@ interface ChatMessagesPaneProps {
   setOpenCodeModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
+  providerModelsRefreshing: boolean;
+  providerAuthStatus: ProviderAuthStatusMap;
+  onHardRefreshProviderModels: () => void;
+  onRefreshAuthStatus: () => Promise<void>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -103,6 +108,10 @@ export default function ChatMessagesPane({
   setOpenCodeModel,
   providerModelCatalog,
   providerModelsLoading,
+  providerModelsRefreshing,
+  providerAuthStatus,
+  onHardRefreshProviderModels,
+  onRefreshAuthStatus,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -207,6 +216,10 @@ export default function ChatMessagesPane({
           setOpenCodeModel={setOpenCodeModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
+          providerModelsRefreshing={providerModelsRefreshing}
+          providerAuthStatus={providerAuthStatus}
+          onHardRefreshProviderModels={onHardRefreshProviderModels}
+          onRefreshAuthStatus={onRefreshAuthStatus}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}

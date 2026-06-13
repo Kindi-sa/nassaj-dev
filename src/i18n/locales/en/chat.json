@@ -250,7 +250,13 @@
       "loading": "Loading…",
       "unknown": "Unknown"
     },
-    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
+    "refresh": {
+      "button": "Refresh models and auth status",
+      "refreshing": "Refreshing…"
+    },
+    "providerUnavailable": "Provider not available",
+    "signIn": "Sign in"
   },
   "session": {
     "continue": {
