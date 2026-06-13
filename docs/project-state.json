@@ -1943,7 +1943,8 @@
       "incident_20260611": "تحققت فعلياً (اكتُشفت أثناء تشخيص «مفتاح splashHideTitle لا يتحرك»): restart ‏20:09 ترك العملية القديمة (PID ‏241903) مالكةً للمنفذ 3004 بكود ما قبل T-78؛ خروج drain النظيف 20:17 عُومل انهياراً → حلقة EADDRINUSE كل ~15 ثانية (917+ إعادة)؛ restart المستخدم 23:56 طال العملية المنهارة المتتبَّعة فقط واليتيمة بقيت تخدم الكود القديم — الواجهة الحديثة ترسل splashHideTitle والسيرفر القديم يتجاهله ويرد 200. العلاج: kill -INT لليتيمة (drain ‏T-73 يحرر المنفذ فوراً والجلسات الأبناء تبقى حتى تكتمل) وpm2 المنهار يلتقط المنفذ تلقائياً. رُفعت الأولوية medium→high",
       "title": "خطر متبقٍّ بعد إصلاح B-23 (مكتشف أثناء T-73 من قراءة مصدر PM2 7.0.1): عند انتهاء drain النسخة القديمة وخروجها المتأخر بينما البديلة online، يستقبل PM2 حدث exit المتأخر على نفس pm_id ويطلق respawn زائفاً (God.handleExit بلا حارس pid) → النسخة الزائدة تفشل EADDRINUSE أمام البديلة الصحية وتفسد محاسبة PM2 (قد تصل errored بينما الخدمة فعلياً حية كـ ghost). ‏exp_backoff يلجم العاصفة لكنه لا يمنعها. كما أن PM2 يعتقد حالياً أن العملية ماتت فوراً بسبب _tree_pids قديمة في pm2_env — سلوك عرَضي قد يتغير بعد pm2 delete/start نظيف فيصير restart منتظِراً حتى kill_timeout (5min)",
       "found": "2026-06-11",
-      "triage": "medium — بانتظار قرار المستخدم على ADR-028 (Proposed ‏2026-06-11): التوصية cluster-mode reload بـ instances:1 عبر pilot إلزامي (ESM shim، WAL، بقاء الأبناء، net.listen)، مؤقتاً runbook على fork-mode (restart عبر ecosystem في نافذة بلا جلسات، لا pm2 delete+start نظيف مع جلسات نشطة، restart تصالحي بعد drain طويل إن ظهرت errored)، وsystemd البسيط fallback؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي"
+      "triage": "medium — بانتظار قرار المستخدم على ADR-028 (Proposed ‏2026-06-11): التوصية cluster-mode reload بـ instances:1 عبر pilot إلزامي (ESM shim، WAL، بقاء الأبناء، net.listen)، مؤقتاً runbook على fork-mode (restart عبر ecosystem في نافذة بلا جلسات، لا pm2 delete+start نظيف مع جلسات نشطة، restart تصالحي بعد drain طويل إن ظهرت errored)، وsystemd البسيط fallback؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي",
+      "resolution": "2026-06-13: الخطر المتبقّي بعد B-23 عولج عملياً بحارس bind في B-41 (drain بلا سقف محفوظ + حارس يكسر EADDRINUSE)؛ الحل البنيوي النهائي = ADR-028 cluster (go/no-go للمالك)."
     },
     {
       "id": "B-25",
@@ -1964,11 +1965,12 @@
     {
       "id": "B-26",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-11",
       "area": "server",
       "title": "cache أوامر السلاش الديناميكية مفتاحه provider فقط بينما probe الـ CLI يعمل بإعدادات المستخدم الطالب — عند تفعيل تعدد المستخدمين ستتسرب skills أول مستخدم لبقية المستخدمين",
-      "summary": "اكتُشف أثناء T-75 (commit 917e0ae). الفرز: medium → backlog؛ يُعالج ضمن مسار تعدد المستخدمين بجعل مفتاح الـ cache يشمل هوية المستخدم/CLAUDE_CONFIG_DIR"
+      "summary": "اكتُشف أثناء T-75 (commit 917e0ae). الفرز: medium → backlog؛ يُعالج ضمن مسار تعدد المستخدمين بجعل مفتاح الـ cache يشمل هوية المستخدم/CLAUDE_CONFIG_DIR",
+      "resolution": "commit c7825f7: مفتاح dynamicBuiltInCache كان provider فقط فيتسرّب بين المستخدمين؛ صار <provider>::<configDir|__shared__> عبر dynamicCacheKey، وconfigDir من resolveProviderEnv(userId) (مصدر العزل ADR-014). المشترك/بلا مستخدم→__shared__. 8/8 اختبار. server/routes/commands.js. يحتاج restart."
     },
     {
       "id": "B-27",
@@ -1991,10 +1993,11 @@
     {
       "id": "B-29",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "title": "الجلسات اليتيمة قابلة للتبنّي وتلوّث القائمة: أي transcript يظهر في مجلد المشروع المشترك (وكيل/CLI/اختبار) يُزامَن للواجهة كجلسة، وأول من يكتب فيها عبر الخادم يصبح owner — مربك (حالة hi). مقترحان: اختبارات الوكلاء بـ cwd مؤقت، ووسم الجلسة «متبنّاة» حين يكون first_seen للمالك أحدث من أول رسالة",
       "found": "2026-06-11",
-      "triage": "medium → backlog"
+      "triage": "medium → backlog",
+      "resolution": "commit 8095685: الأصيلة لها صف session_participants (recordSpawn) أو message_authors (recordUserMessage) يكتبهما الخادم حصراً؛ اليتيمة (claude -p خارجي) بلا أيٍّ منهما. فلتر EXISTS(participant) OR EXISTS(message_author) على getSessionsByProjectPathPage+countSessionsByProjectPath (القائمة فقط؛ الملكية/الحذف/الأرشفة ترى الكل). DB حيّة: 215 جلسة كلها أصيلة. 3 اختبارات. يحتاج restart."
     },
     {
       "id": "B-45",
@@ -2009,10 +2012,11 @@
     {
       "id": "B-30",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "title": "getSessionMessages في claude-sessions.provider.ts يبحث عن agent-*.jsonl في مجلد المشروع مباشرة بينما الصيغة الحالية تضعها في <sessionId>/subagents/ — قد لا تُلتقط أدوات الوكلاء الفرعية للجلسات الحديثة (ملاحظة عرضية من T-77، تحتاج تحققاً)",
       "found": "2026-06-11",
-      "triage": "medium → backlog: مهمة تحقق وإصلاح تُجدول"
+      "triage": "medium → backlog: مهمة تحقق وإصلاح تُجدول",
+      "resolution": "commit 8095685: كان يبحث agent-*.jsonl في مجلد المشروع المُرمَّز (0 ملفات)؛ الموقع الصحيح <encoded>/<sessionId>/subagents/agent-*.jsonl. helper readAgentFileNames يتسامح مع غياب المجلد. 3 اختبارات. يحتاج restart."
     },
     {
       "id": "B-32",
@@ -2047,7 +2051,8 @@
       "status": "open",
       "title": "جذر عاصفة EADDRINUSE (1006 خطأ): respawn زائف من PM2 بعد اكتمال drain (ADR-028) يطلقه OOM دوري من تسرب ذاكرة (~7MB/h مقيس) + سجلات PM2 ‏116MB بلا تدوير — النمط مضمون التكرار. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
       "found": "2026-06-12",
-      "triage": "critical → جزئي: logrotate ‏10M×7 مفعّل 2026-06-12؛ المتبقي (قياس التسرب، مرحلة 0 من ADR-028) في S-2"
+      "triage": "critical → جزئي: logrotate ‏10M×7 مفعّل 2026-06-12؛ المتبقي (قياس التسرب، مرحلة 0 من ADR-028) في S-2",
+      "resolution": "2026-06-13: أثره مُحيَّد بإصلاح B-41 (حارس bind أحادي listen-with-guard: respawn الزائف يخرج exit(0) نظيفاً بدل حلقة EADDRINUSE)؛ الجذر الأعمق (PM2 fork-mode ghost-respawn) يبقى لقرار cluster-mode ADR-028."
     },
     {
       "id": "B-36",
