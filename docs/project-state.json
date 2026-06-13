@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-13",
+  "updated": "2026-06-14",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -1714,6 +1714,18 @@
       "closed": null,
       "title": "وضع الجهد ultracode لا يُفعَّل: الخادم كان يعيّنه xhigh بصمت بدل أقصى جهد + كلمات CLI السحرية",
       "summary": "commit ca11b14: الواجهة ترسل effort:ultracode سليماً، لكن server/claude-sdk.js (SDK_EFFORT_LEVELS بلا ultracode) كان يعيّنه EFFORT_ALIASES إلى xhigh — فيصير xhigh (شدة 3 لا 4) ويُسقط سلوكه الخاص. بفحص ثنائي الـSDK: الـCLI يكتشف ultrathink (تفكير أعمق) وultrawork (تفعيل Workflow) في نص الطلب لا كقيمة effort. الإصلاح: ultracode→max + maybeApplyUltracodeKeywords تحقن ultrathink ultrawork في نص الطلب لوضع ultracode حصراً (no-op لغيره). 29/29 اختبار، tsc نظيف. يحتاج restart (تغيير خادم)."
+    },
+    {
+      "id": "T-139",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "عدّاد تقدّم المهام + تقدير زمني تقريبي بجانب «Processing» في ClaudeStatus: نموذج متداخل TodoWrite-أساسي + الوكلاء tooltip، تقدير بالاستقراء EMA رتيب (طلب المالك)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-14",
+      "summary": "منفَّذ في commit 51f7903 (عميل فقط، بلا تغيير خادم). الملفات: useRunProgress.ts (جديد) + ClaudeStatus/ChatInterface/ChatComposer + i18n ar/en. نموذج متداخل TodoWrite-أساسي؛ شريحة «وكيل يعمل» نابضة تظهر كلما وُجد وكيل نشط (FIX qa-critic)؛ تقدير بالاستقراء EMA رتيب يُعاد ضبطه عند نمو الخطة؛ مرساة زمن مثبّتة عند isLoading false→true (تُصلح أيضاً مؤقّت العرض المنقضي)؛ إغلاق بـ!isLoading؛ الحساب في هوك مفصول عن tick. مراجعتان qa-critic (الثانية CLEARED-FOR-MERGE) + architect SOUND-WITH-CHANGES. build:client نجح، tsc نظيف للملفات (خطأ ClaudeUsageCollapsed سابق خارج النطاق). حيّ على nassaj-dev.alkindy.tech. متبقٍّ طفيف اختياري: تصحيح تعليق reset-on-growth + 13 تحذير eslint نمطي (import/tailwind order يتساهل بها الريبو)."
     }
   ],
   "issues": [
@@ -2330,6 +2342,12 @@
       "date": "2026-06-13",
       "status": "accepted",
       "title": "الإصلاح الجذري لـB-41: حارس bind أحادي المستمع + probe صحة على /health، مع الإبقاء على drain بلا سقف. الجذر المصحَّح: ليس احتجاز drain (B-23 يحرّر المنفذ فوراً) بل أن النسخة القديمة لم تتلقَّ SIGTERM لفقد PM2 fork-mode للـpid تحت treekill:false (ADR-028/B-24). السقف الزمني المؤقت في ecafb22 أُلغي في 58436b6 لأنه يقتل الجلسات الطويلة ويقلب قرار المالك «drain بلا سقف» (B-N-DRAIN) دون اعتماد. القصور البنيوي في PM2 fork-mode (ghost-respawn) يبقى جذراً أعمق مؤجّلاً في ADR-028؛ هذا الإصلاح يحيّد أثره (لا crash-loop ولا احتجاز لا نهائي ولا موت صامت). منفَّذ في T-123. مرتبط: project_session_service_separation، feedback_restart_kills_own_session."
+    },
+    {
+      "id": "ADR-032",
+      "date": "2026-06-14",
+      "status": "accepted",
+      "title": "نموذج عدّاد تقدّم المهام + التقدير الزمني في ClaudeStatus (بعد مراجعة نقدية: qa-critic فيتو REJECT + architect SOUND-WITH-CHANGES). رُفض نموذج «الجمع» الذي طلبه المالك (todos+وكلاء في بسط/مقام واحد): الوكيل الفرعي بلا «إجمالي» معروف (لا حقل total في SubagentChildTool/subagentState) فيقفز المقام عند انطلاق أي وكيل وتنهار النسبة، ويكسر الاستقراء الخطّي. المعتمد: متداخل TodoWrite-أساسي — العدّاد المرئي = أحدث قائمة TodoWrite (done/total) + شريط؛ الوكلاء (Task فريدة بالـtoolId) تفصيل في tooltip + مؤشّر «وكيل يعمل»، لا يدخلان البسط/المقام؛ تدرّج آمن عند total=0 (مؤشّر وكيل، وإلا لا عدّاد). تصليب التقدير: مرساة زمن مخصّصة تُثبَّت عند isLoading false→true (لا runStartedAt الذي يتلوّث برسائل originKind:coordinator)، EMA α=0.25 + رتابة نزولية على المعروض (لا يرتفع وسط الـrun)، قمع حتى done≥1 و elapsed≥15s، تهيئة cold-start بعد الاستئناف. الإغلاق بـ!isLoading لا بتجميع tool_result للأدوات. الحساب في هوك useRunProgress (memo على chatMessages، مسح من الذيل بكسر مبكّر) مفصول عن tick الثانية. منفَّذ في T-139. مرتبط: project_context_rot_indicator."
     }
   ]
 }
