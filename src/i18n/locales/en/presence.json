@@ -14,5 +14,9 @@
   "connectedCount": "{{count}} online",
   "connectedUsers": "{{count}} users",
   "connectedAgents": "{{count}} agents",
-  "connectedUsersAndAgents": "{{users}} users · {{agents}} agents"
+  "connectedUsersAndAgents": "{{users}} users · {{agents}} agents",
+  "activeConversationsProjectCount_one": "— {{count}}",
+  "activeConversationsProjectCount_other": "— {{count}}",
+  "activeConversationsAriaLabel_one": "Active conversations: {{count}} across {{projects}}",
+  "activeConversationsAriaLabel_other": "Active conversations: {{count}} across {{projects}}"
 }

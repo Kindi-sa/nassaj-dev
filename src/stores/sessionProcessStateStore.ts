@@ -88,3 +88,48 @@ export function useAnySessionProcessing(
     sessionIds.some((id) => Boolean(id) && states.get(id as string) === 'running'),
   );
 }
+
+/**
+ * Stable snapshot of running session ids — rebuilt only when the store
+ * changes. We cache one Set instance and reuse it between getSnapshot calls
+ * so that useSyncExternalStore's referential equality check (`Object.is`)
+ * doesn't trigger spurious re-renders every render cycle.
+ */
+let cachedRunningSet: ReadonlySet<string> = new Set<string>();
+
+function buildRunningSet(): ReadonlySet<string> {
+  const next = new Set<string>();
+  for (const [id, state] of states) {
+    if (state === 'running') {
+      next.add(id);
+    }
+  }
+  // Reuse the previous instance when the content is identical to avoid
+  // breaking referential equality inside useSyncExternalStore.
+  if (next.size === cachedRunningSet.size) {
+    let same = true;
+    for (const id of next) {
+      if (!cachedRunningSet.has(id)) {
+        same = false;
+        break;
+      }
+    }
+    if (same) {
+      return cachedRunningSet;
+    }
+  }
+  cachedRunningSet = next;
+  return cachedRunningSet;
+}
+
+/**
+ * Returns the current snapshot of all session ids whose process state is
+ * 'running'. The returned Set reference is stable across renders as long as
+ * the running set does not change — safe to use as a useMemo dependency.
+ *
+ * Used by PresencePanel to map running sessions → projects for the
+ * active-conversations tooltip.
+ */
+export function useRunningSessionIds(): ReadonlySet<string> {
+  return useSyncExternalStore(subscribe, buildRunningSet);
+}

@@ -22,5 +22,17 @@
   "connectedCount": "{{count}} متصل",
   "connectedUsers": "{{count}} مستخدمين",
   "connectedAgents": "{{count}} وكلاء",
-  "connectedUsersAndAgents": "{{users}} مستخدمين · {{agents}} وكلاء"
+  "connectedUsersAndAgents": "{{users}} مستخدمين · {{agents}} وكلاء",
+  "activeConversationsProjectCount_zero": "— 0",
+  "activeConversationsProjectCount_one": "— {{count}}",
+  "activeConversationsProjectCount_two": "— {{count}}",
+  "activeConversationsProjectCount_few": "— {{count}}",
+  "activeConversationsProjectCount_many": "— {{count}}",
+  "activeConversationsProjectCount_other": "— {{count}}",
+  "activeConversationsAriaLabel_zero": "محادثات نشطة: لا شيء",
+  "activeConversationsAriaLabel_one": "محادثة نشطة واحدة — {{projects}}",
+  "activeConversationsAriaLabel_two": "محادثتان نشطتان — {{projects}}",
+  "activeConversationsAriaLabel_few": "{{count}} محادثات نشطة — {{projects}}",
+  "activeConversationsAriaLabel_many": "{{count}} محادثة نشطة — {{projects}}",
+  "activeConversationsAriaLabel_other": "{{count}} محادثة نشطة — {{projects}}"
 }

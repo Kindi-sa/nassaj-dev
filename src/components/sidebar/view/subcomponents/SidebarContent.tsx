@@ -181,8 +181,10 @@ export default function SidebarContent({
 
       {/* Live presence (C-MU-UX-PRESENCE): self-contained, renders nothing
           until the first `presence` snapshot arrives. Mounted here as an
-          additive strip so it never touches the sidebar's project-list logic. */}
-      <PresencePanel />
+          additive strip so it never touches the sidebar's project-list logic.
+          `projects` is forwarded so the active-conversations tooltip can map
+          running sessions to their project display names. */}
+      <PresencePanel projects={projects} />
 
       <ScrollArea className="flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
         {searchMode === 'archived' ? (

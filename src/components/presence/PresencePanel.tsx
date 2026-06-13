@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MessagesSquare } from 'lucide-react';
 
@@ -7,6 +8,8 @@ import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
 import { Tooltip } from '../../shared/view/ui';
 import { useWebSocket } from '../../contexts/WebSocketContext';
+import type { Project } from '../../types/app';
+import { useRunningSessionIds } from '../../stores/sessionProcessStateStore';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
@@ -65,15 +68,17 @@ function toParticipant(user: PresenceUser): SessionParticipant {
   };
 }
 
-export default function PresencePanel() {
+type PresencePanelProps = {
+  /** Project list from the sidebar — used to map running sessions to project names. */
+  projects?: Project[];
+};
+
+export default function PresencePanel({ projects = [] }: PresencePanelProps) {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
   const presenceUsers = usePresence();
   const { openSessionsCount } = useWebSocket();
-
-  if (presenceUsers.length === 0) {
-    return null;
-  }
+  const runningSessionIds = useRunningSessionIds();
 
   const currentUserId = currentUser?.id !== undefined && currentUser?.id !== null
     ? String(currentUser.id)
@@ -135,6 +140,56 @@ export default function PresencePanel() {
     count: openSessionsCount ?? 0,
     defaultValue: '{{count}} active',
   });
+
+  /**
+   * Map running sessions → projects.
+   * Each Project carries all provider session arrays; we flatten them to get
+   * the full id set, then count how many are currently 'running'.
+   * Only projects the current user can see are included (privacy: we receive
+   * only the projects list the server filtered for this user).
+   */
+  const activeProjectBreakdown = useMemo(() => {
+    if (runningSessionIds.size === 0 || projects.length === 0) {
+      return [];
+    }
+
+    const breakdown: Array<{ displayName: string; runningCount: number }> = [];
+
+    for (const project of projects) {
+      const allSessions = [
+        ...(project.sessions ?? []),
+        ...(project.cursorSessions ?? []),
+        ...(project.codexSessions ?? []),
+        ...(project.geminiSessions ?? []),
+        ...(project.antigravitySessions ?? []),
+        ...(project.opencodeSessions ?? []),
+      ];
+
+      let runningCount = 0;
+      for (const session of allSessions) {
+        if (runningSessionIds.has(String(session.id))) {
+          runningCount++;
+        }
+      }
+
+      if (runningCount > 0) {
+        breakdown.push({ displayName: project.displayName, runningCount });
+      }
+    }
+
+    // Sort: highest running count first, then alphabetically for ties.
+    breakdown.sort((a, b) =>
+      b.runningCount !== a.runningCount
+        ? b.runningCount - a.runningCount
+        : a.displayName.localeCompare(b.displayName),
+    );
+
+    return breakdown;
+  }, [runningSessionIds, projects]);
+
+  if (presenceUsers.length === 0) {
+    return null;
+  }
 
   return (
     <div className="flex w-full items-center justify-between border-b border-border/60 px-3 py-1.5">
@@ -216,12 +271,47 @@ export default function PresencePanel() {
       </div>
 
       {/* Active conversations counter — pinned to inline-end of the full row.
-        * Hidden when null. No border/background, stays small. */}
+        * Hidden when null. No border/background, stays small.
+        * When active projects are known the tooltip lists each project with its
+        * running-session count; otherwise falls back to the plain label. */}
       {openSessionsCount != null && (
-        <Tooltip content={activeConversationsLabel}>
+        <Tooltip
+          content={
+            activeProjectBreakdown.length > 0 ? (
+              <span className="flex flex-col gap-0.5 text-start">
+                <span className="mb-0.5 font-semibold opacity-90">
+                  {t('activeConversations', { defaultValue: 'Active conversations' })}
+                </span>
+                {activeProjectBreakdown.map(({ displayName, runningCount }) => (
+                  <span key={displayName} className="flex items-center gap-1">
+                    <span className="truncate max-w-[160px]">{displayName}</span>
+                    <span className="opacity-70">
+                      {t('activeConversationsProjectCount', {
+                        count: runningCount,
+                        defaultValue: '— {{count}}',
+                      })}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            ) : (
+              activeConversationsLabel
+            )
+          }
+        >
           <span
             className="inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
-            aria-label={`${activeConversationsLabel}: ${openSessionsCount}`}
+            aria-label={
+              activeProjectBreakdown.length > 0
+                ? t('activeConversationsAriaLabel', {
+                    count: openSessionsCount,
+                    projects: activeProjectBreakdown
+                      .map((p) => `${p.displayName} ${p.runningCount}`)
+                      .join(', '),
+                    defaultValue: 'Active conversations: {{count}} across {{projects}}',
+                  })
+                : `${activeConversationsLabel}: ${openSessionsCount}`
+            }
           >
             <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 opacity-60" aria-hidden="true" />
             <span>{activeConversationsCount}</span>
