@@ -1,8 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { MessageSquare } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { IS_PLATFORM } from '../../../constants/config';
 import { useBranding } from '../../../contexts/BrandingContext';
 import { useRtl } from '../../../contexts/RtlContext';
+import { getLanguage } from '../../../i18n/languages';
 
 type AuthScreenLayoutProps = {
   title: string;
@@ -26,18 +28,32 @@ export default function AuthScreenLayout({
   logo,
 }: AuthScreenLayoutProps) {
   const { rtlLayout } = useRtl();
+  const { i18n } = useTranslation();
+  // Direction on auth screens follows the *current i18n language* (B-46): the
+  // post-login RTL preference lives in localStorage and is only server-synced
+  // after sign-in, so before authentication an Arabic UI would otherwise render
+  // LTR. The active language's `dir` hint wins; the saved RTL preference is a
+  // secondary signal so an English-in-RTL preference still flips the screen.
+  const language = i18n.language || 'en';
+  const langCode = language.split('-')[0];
+  const langEntry = (getLanguage(language) ?? getLanguage(langCode)) as
+    | { dir?: 'ltr' | 'rtl' }
+    | undefined;
+  const languageDir = langEntry?.dir;
+  const isRtl = languageDir === 'rtl' || (languageDir !== 'ltr' && rtlLayout);
   // Custom branding (logo + title) replaces the stock identity on every auth
   // screen. While set, the upstream attribution footer is hidden too — the
   // screen then carries the custom brand exclusively.
   const { title: brandingTitle, logoUrl: brandingLogoUrl, isLoading: isBrandingLoading } = useBranding();
   const hasCustomBranding = Boolean(brandingTitle || brandingLogoUrl);
-  const containerStyle: CSSProperties | undefined = rtlLayout
+  const containerStyle: CSSProperties | undefined = isRtl
     ? { fontFamily: RTL_FONT_FAMILY }
     : undefined;
 
   return (
     <div
-      dir={rtlLayout ? 'rtl' : 'ltr'}
+      dir={isRtl ? 'rtl' : 'ltr'}
+      lang={langCode}
       style={containerStyle}
       className="flex min-h-screen items-center justify-center bg-background p-4"
     >

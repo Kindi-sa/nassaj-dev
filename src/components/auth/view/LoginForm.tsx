@@ -169,6 +169,12 @@ export default function LoginForm() {
             )}
           </>
         )}
+
+        {!IS_PLATFORM && (
+          <p className="text-center text-xs text-muted-foreground" role="note">
+            {t('login.requestAccountHint')}
+          </p>
+        )}
       </form>
     </AuthScreenLayout>
   );
