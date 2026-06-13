@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-12",
+  "updated": "2026-06-13",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -1417,6 +1417,18 @@
       "owner": "frontend-dev+backend-dev",
       "closed": "2026-06-12",
       "summary": "(1) SessionIdBadge في MainContentTitle.tsx: «nassaj-dev · 36456b8f» (أول 8 أحرف monospace + نسخ بنقرة + tooltip بالID الكامل)، RTL، i18n في common.json. (2) نماذج الوكلاء كانت غير متاحة (transcript-parser يستخرج subagent_type فقط) — تعديل خادمي: transcript-parser يربط Agent tool_use_id↔subagent_type ثم يستخرج agentId من tool_result ويقرأ النموذج من subagents/agent-<id>.jsonl (async fail-safe)؛ عمود agent_model في session_agents_cache + migration migrateSessionAgentsModel + COALESCE في UPSERT؛ AgentView.agent_model. الواجهة: AgentChip يعرض «frontend-dev · sonnet-4-6» inline + tooltip، shortModelName للإيجاز. build:client+build:server نظيفان. التعديل الخادمي يُفعَّل بعد restart (B-41)."
+    },
+    {
+      "id": "T-97",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "title": "أربعة تعديلات واجهة بملاحظات المستخدم (عدّاد/رأس/مشاريع/تحديث)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-13",
+      "summary": "commit bbb94bc: (1) عدّاد «المحادثات النشطة» — أيقونة MessagesSquare amber على ms-auto (يمين) في PresencePanel، تسمية/tooltip activeConversations مميّزة عن «online users» الخضراء. (2) إرجاع رأس المشاركين مسطّحاً: حذف منطق activeParticipant/شارة ACTIVE NOW/النقطة النابضة/العنقود الثانوي الباهت → ParticipantAvatarStack بدوائر متساوية؛ عزو الرسائل داخل الفقاعات (coordinatorId/originKind) سليم بلا مساس؛ حذف مفاتيح activeNow/activeCoordinator. (3) أسماء المشاريع سطر واحد: overflow-hidden+whitespace-nowrap+flex-shrink-0 على ProjectBusyDot في SidebarProjectItem (desktop+mobile). (4) زر التحديث رجع صغيراً أعلى يمين النافذة (ChatInterface بجانب WsConnectionBadge، RefreshCw h-3) بعد حذفه من ChatComposer العائم. build:client نجح. مدفوع لorigin. لم تُمسّ ملفات بحث الجلسة (جلسة أخرى)."
     }
   ],
   "issues": [
