@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -458,41 +458,25 @@ function ChatInterface({
             />
           </div>
         )}
-        {/* Floating end-column: chevron (show participants) → refresh button → WsConnectionBadge.
-            All stacked vertically on the same end-2 axis; h-0 keeps them out of the flex flow. */}
-        {((!participantsBar.mounted && (currentSessionId ?? selectedSession?.id)) ||
-          wsStatus !== 'connected' ||
-          (Boolean(currentSessionId ?? selectedSession?.id) && !isLoading)) && (
-          <div className="relative z-10 h-0">
-            <div className="absolute end-2 top-1 flex flex-col items-center gap-1">
-              {!participantsBar.mounted && (currentSessionId ?? selectedSession?.id) && (
-                <button
-                  type="button"
-                  onClick={() => setShowParticipantsBar(true)}
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent/80 hover:text-foreground"
-                  aria-label={t('participants.show', { defaultValue: 'Show participants bar' })}
-                  title={t('participants.show', { defaultValue: 'Show participants bar' })}
-                >
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-              )}
-              {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
-                <button
-                  type="button"
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshing}
-                  className="flex h-6 w-6 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-                  aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                  title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
-                >
-                  <RefreshCw
-                    className={['h-3.5 w-3.5', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
-                    aria-hidden="true"
-                  />
-                </button>
-              )}
-              {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
-            </div>
+        {/* Top-right overlay row: WsConnectionBadge (when disconnected) + manual-refresh button. */}
+        {(wsStatus !== 'connected' || (Boolean(currentSessionId ?? selectedSession?.id) && !isLoading)) && (
+          <div className="flex items-center justify-end gap-1 px-2 py-0.5">
+            {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
+            {Boolean(currentSessionId ?? selectedSession?.id) && !isLoading && (
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="flex h-6 w-6 items-center justify-center rounded border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+              >
+                <RefreshCw
+                  className={['h-3 w-3', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
           </div>
         )}
         <ChatMessagesPane
