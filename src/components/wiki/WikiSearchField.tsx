@@ -58,7 +58,8 @@ type WikiSearchFieldProps = {
   onClear: () => void;
   results: SearchMatch[];
   isSearching: boolean;
-  onSelectResult: (file: string) => void;
+  /** Called with the selected file and the matched search term (for in-page highlight). */
+  onSelectResult: (file: string, matchedTerm?: string) => void;
   /** Ref to forward focus back to the input after selecting a result */
   inputRef?: React.RefObject<HTMLInputElement>;
 };
@@ -96,8 +97,8 @@ export default function WikiSearchField({
   const getOptionId = (i: number) => `wiki-search-option-${uid}-${i}`;
 
   const handleSelect = useCallback(
-    (file: string) => {
-      onSelectResult(file);
+    (file: string, matchedTerm?: string) => {
+      onSelectResult(file, matchedTerm);
       onClear();
       inputRef.current?.focus();
     },
@@ -130,7 +131,8 @@ export default function WikiSearchField({
         case 'Enter':
           e.preventDefault();
           if (activeIndex >= 0 && activeIndex < results.length) {
-            handleSelect(results[activeIndex].file);
+            const r = results[activeIndex];
+            handleSelect(r.file, r.matchedTerm);
           }
           break;
 
@@ -231,7 +233,7 @@ export default function WikiSearchField({
                       itemRefs.current[i] = el;
                     }}
                     type="button"
-                    onClick={() => handleSelect(match.file)}
+                    onClick={() => handleSelect(match.file, match.matchedTerm)}
                     className={[
                       'flex w-full flex-col gap-0.5 px-3 py-2 text-start',
                       'focus:outline-none transition-colors',

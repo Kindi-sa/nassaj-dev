@@ -1,0 +1,24 @@
+/* ── Wiki Panel — injected styles ─────────────────────────────────────────── */
+
+/* Search match highlight (T-136 B-2)
+   Applied by JS: element.classList.add('wiki-search-highlight')
+   Removed after 2 seconds.                                                   */
+.wiki-search-highlight {
+  outline: 2px solid hsl(var(--primary) / 0.6);
+  outline-offset: 2px;
+  border-radius: 4px;
+  background-color: hsl(var(--primary) / 0.12);
+  animation: wiki-highlight-fade 2s ease-out forwards;
+}
+
+@keyframes wiki-highlight-fade {
+  0%   { background-color: hsl(var(--primary) / 0.22); outline-color: hsl(var(--primary) / 0.8); }
+  100% { background-color: transparent; outline-color: transparent; }
+}
+
+/* Mobile drawer RTL slide (T-136 B-1)
+   On mobile (<md) the nav is position:fixed and uses translateX to slide.
+   data-wiki-drawer attribute drives the open/closed state.
+   On desktop (md+) Tailwind's md:transform-none overrides these rules.       */
+[data-wiki-drawer="closed"] { transform: translateX(100%); }
+[data-wiki-drawer="open"]   { transform: translateX(0);    }

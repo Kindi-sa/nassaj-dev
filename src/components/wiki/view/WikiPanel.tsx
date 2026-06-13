@@ -21,10 +21,11 @@ import {
   Check,
   List,
 } from 'lucide-react';
-import MermaidDiagram from '../../project-board/view/MermaidDiagram';
+import WikiMermaidDiagram from './WikiMermaidDiagram';
 import WikiSearchField from '../WikiSearchField';
-import { useWikiSearch } from '../useWikiSearch';
+import { useWikiSearch, normalizeArabic } from '../useWikiSearch';
 import { slugify, extractToc } from '../wikiUtils';
+import './wiki-panel.css';
 
 // ---------------------------------------------------------------------------
 // Wiki content loaded at build-time via Vite import.meta.glob (?raw).
@@ -123,7 +124,8 @@ function CodeBlock({
   const code = String(children).replace(/\n$/, '');
 
   if (lang === 'mermaid') {
-    return <MermaidDiagram code={code} />;
+    // Use the wiki-specific wrapper that adds a zoom button
+    return <WikiMermaidDiagram code={code} />;
   }
 
   return (
@@ -461,6 +463,61 @@ function PrevNextNav({
 }
 
 // ---------------------------------------------------------------------------
+// Search highlight utility (B-2: highlight matched term inside article DOM)
+// ---------------------------------------------------------------------------
+
+/** CSS class injected for the temporary highlight animation. */
+const HIGHLIGHT_CLASS = 'wiki-search-highlight';
+
+/**
+ * After a search result is selected, scroll to the first text node inside
+ * `container` that contains `term` (Arabic-normalized), and apply a brief
+ * highlight that fades out.
+ *
+ * Strategy: walk the DOM tree looking for Element nodes whose textContent
+ * (normalized) contains the normalized term. Prefer the deepest match so we
+ * land on the paragraph/heading rather than the article root.
+ */
+function scrollToMatchedTerm(
+  container: HTMLElement,
+  term: string,
+): void {
+  const normalizedTerm = normalizeArabic(term.trim());
+  if (!normalizedTerm) return;
+
+  // BFS/DFS: collect candidate elements whose textContent contains the term.
+  // We want the deepest element (smallest subtree) to avoid highlighting the
+  // whole article.
+  let bestMatch: HTMLElement | null = null;
+
+  const walk = (node: HTMLElement) => {
+    const nodeText = normalizeArabic(node.textContent ?? '');
+    if (!nodeText.includes(normalizedTerm)) return; // prune subtree
+
+    // This node contains the term. Record it (last one visited = deepest).
+    bestMatch = node;
+
+    // Recurse into children for a deeper match
+    for (const child of Array.from(node.children)) {
+      walk(child as HTMLElement);
+    }
+  };
+
+  walk(container);
+
+  if (!bestMatch) return;
+
+  const el = bestMatch as HTMLElement;
+
+  // Scroll the matched element into view inside the scroll container
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  // Apply highlight: add class, remove after 2s
+  el.classList.add(HIGHLIGHT_CLASS);
+  setTimeout(() => el.classList.remove(HIGHLIGHT_CLASS), 2000);
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -470,6 +527,10 @@ export default function WikiPanel() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const searchInputRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>;
   const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const articleRef = useRef<HTMLElement | null>(null);
+
+  // B-2: track the matched term from the last search selection
+  const pendingMatchTerm = useRef<string | null>(null);
 
   const { query, setQuery, clearQuery, results, isSearching } = useWikiSearch({
     pages: PAGES,
@@ -492,6 +553,21 @@ export default function WikiPanel() {
     firstH1Done.current = false;
   }, [activeFile]);
 
+  // B-2: after page content renders, scroll to and highlight the matched term
+  useEffect(() => {
+    const term = pendingMatchTerm.current;
+    if (!term || !articleRef.current) return;
+    pendingMatchTerm.current = null;
+
+    // Give ReactMarkdown a frame to render before walking the DOM
+    const id = requestAnimationFrame(() => {
+      if (articleRef.current) {
+        scrollToMatchedTerm(articleRef.current, term);
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [activeFile]);
+
   const wikiCtxValue = useMemo<WikiInternalContext>(
     () => ({
       setActiveFile,
@@ -502,6 +578,7 @@ export default function WikiPanel() {
   );
 
   // Keyboard shortcuts — P1-C
+  // B-1: on mobile, Escape closes the drawer first (if open and no query)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -542,7 +619,11 @@ export default function WikiPanel() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  const handleSelectResult = useCallback((file: string) => {
+  // B-2: when a search result is selected, record the matched term then navigate
+  const handleSelectResult = useCallback((file: string, matchedTerm?: string) => {
+    if (matchedTerm) {
+      pendingMatchTerm.current = matchedTerm;
+    }
     setActiveFile(file);
   }, []);
 
@@ -552,6 +633,15 @@ export default function WikiPanel() {
   // TOC derived from raw markdown — P1-A
   const toc = useMemo(() => (content ? extractToc(content) : []), [content]);
 
+  // B-1: sidebar state — on mobile it's a drawer (overlay), on desktop it's a column.
+  // We detect "mobile" at render time via a media query, but the sidebar open/close
+  // state is shared — the same boolean controls both the column width (desktop) and
+  // the drawer visibility (mobile).
+  //
+  // Implementation: on mobile (<md breakpoint = 768 px) the sidebar becomes
+  // position:fixed covering the viewport, with a backdrop. On desktop it remains
+  // the flex-column layout.
+
   return (
     <WikiCtx.Provider value={wikiCtxValue}>
       <div
@@ -560,12 +650,33 @@ export default function WikiPanel() {
         lang="ar"
         aria-label={t('wiki.panelAriaLabel', 'ويكي نسّاج')}
       >
-        {/* Sidebar nav */}
+        {/* ── B-1: Mobile drawer backdrop ────────────────────────────────────── */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-30 bg-black/40 md:hidden"
+            aria-hidden="true"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        {/* ── Sidebar nav ─────────────────────────────────────────────────────
+            Desktop (md+): regular flex column — pushes main content.
+            Mobile (<md):  fixed drawer from inline-start (right in RTL), overlaid.
+        */}
         <nav
           aria-label={t('wiki.sidebarAriaLabel', 'فهرس الويكي')}
-          className={`flex-shrink-0 overflow-y-auto border-e border-border/60 bg-muted/20 transition-all duration-200 ${
-            sidebarOpen ? 'w-56 sm:w-64' : 'w-0 overflow-hidden'
-          }`}
+          aria-modal={sidebarOpen ? 'true' : undefined}
+          role={sidebarOpen ? 'dialog' : 'navigation'}
+          className={[
+            'overflow-y-auto border-e border-border/60 bg-muted/20 transition-all duration-200',
+            // Desktop: normal flex-shrink-0 column, width controlled by sidebarOpen
+            'md:relative md:z-auto md:flex-shrink-0',
+            sidebarOpen ? 'md:w-56 lg:w-64' : 'md:w-0 md:overflow-hidden',
+            // Mobile: fixed drawer, always full height, slides in/out
+            'fixed inset-y-0 start-0 z-40 w-[min(280px,85vw)]',
+            'md:inset-y-auto md:start-auto md:w-auto md:transform-none',
+          ].join(' ')}
+          data-wiki-drawer={sidebarOpen ? 'open' : 'closed'}
         >
           <WikiSearchField
             query={query}
@@ -586,7 +697,11 @@ export default function WikiPanel() {
                     <li key={page.file}>
                       <button
                         type="button"
-                        onClick={() => setActiveFile(page.file)}
+                        onClick={() => {
+                          setActiveFile(page.file);
+                          // On mobile, close the drawer after selecting a page
+                          if (window.innerWidth < 768) setSidebarOpen(false);
+                        }}
                         aria-current={isActive ? 'page' : undefined}
                         className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
                           isActive
@@ -639,7 +754,14 @@ export default function WikiPanel() {
             }}
           >
             {content !== null ? (
-              <article className="prose prose-sm max-w-3xl text-start" lang="ar" dir="rtl">
+              <article
+                className="prose prose-sm max-w-3xl text-start"
+                lang="ar"
+                dir="rtl"
+                ref={(el) => {
+                  articleRef.current = el;
+                }}
+              >
                 {toc.length > 0 && (
                   <TableOfContents
                     toc={toc}
