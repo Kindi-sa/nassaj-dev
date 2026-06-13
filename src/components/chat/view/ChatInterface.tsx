@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -473,9 +473,25 @@ function ChatInterface({
           </div>
         )}
 
-        {wsStatus !== 'connected' && (
-          <div className="flex justify-end px-3 py-0.5">
-            <WsConnectionBadge status={wsStatus} />
+        {/* Top-right overlay row: WsConnectionBadge (when disconnected) + manual-refresh button. */}
+        {(wsStatus !== 'connected' || (Boolean(currentSessionId ?? selectedSession?.id) && !isLoading)) && (
+          <div className="flex items-center justify-end gap-1 px-2 py-0.5">
+            {wsStatus !== 'connected' && <WsConnectionBadge status={wsStatus} />}
+            {Boolean(currentSessionId ?? selectedSession?.id) && (
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={isRefreshing}
+                className="flex h-6 w-6 items-center justify-center rounded border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                aria-label={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+                title={isRefreshing ? t('refreshChat.refreshing', { defaultValue: 'Refreshing…' }) : t('refreshChat.button', { defaultValue: 'Refresh chat' })}
+              >
+                <RefreshCw
+                  className={['h-3 w-3', isRefreshing ? 'animate-spin' : ''].join(' ').trim()}
+                  aria-hidden="true"
+                />
+              </button>
+            )}
           </div>
         )}
         <ChatMessagesPane
@@ -606,9 +622,6 @@ function ChatInterface({
           sendByCtrlEnter={sendByCtrlEnter}
           isWsConnected={isConnected}
           sendError={sendError ?? serverError}
-          onManualRefresh={handleManualRefresh}
-          isRefreshing={isRefreshing}
-          hasSession={Boolean(selectedSession || currentSessionId)}
         />
       </div>
 

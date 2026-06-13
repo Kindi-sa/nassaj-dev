@@ -211,7 +211,7 @@ export default function SidebarProjectItem({
                   ) : (
                     <>
                       <div className="flex min-w-0 flex-1 items-center justify-between">
-                        <div className="flex min-w-0 items-center gap-1.5">
+                        <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
                           {isPrivate && (
                             <span
                               className="flex-shrink-0"
@@ -222,8 +222,8 @@ export default function SidebarProjectItem({
                               <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                             </span>
                           )}
-                          <h3 className="min-w-0 truncate text-sm font-medium text-foreground">{project.displayName}</h3>
-                          <ProjectBusyDot sessionIds={sessionIds} />
+                          <h3 className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-foreground">{project.displayName}</h3>
+                          <ProjectBusyDot sessionIds={sessionIds} className="flex-shrink-0" />
                         </div>
                         {tasksEnabled && (
                           <TaskIndicator
@@ -390,7 +390,7 @@ export default function SidebarProjectItem({
                 </div>
               ) : (
                 <div>
-                  <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
                     {isPrivate && (
                       <span
                         className="flex-shrink-0"
@@ -401,10 +401,10 @@ export default function SidebarProjectItem({
                         <Lock className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
                       </span>
                     )}
-                    <div className="truncate text-sm font-semibold text-foreground" title={project.displayName}>
+                    <div className="min-w-0 truncate whitespace-nowrap text-sm font-semibold text-foreground" title={project.displayName}>
                       {project.displayName}
                     </div>
-                    <ProjectBusyDot sessionIds={sessionIds} />
+                    <ProjectBusyDot sessionIds={sessionIds} className="flex-shrink-0" />
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {sessionCountDisplay}

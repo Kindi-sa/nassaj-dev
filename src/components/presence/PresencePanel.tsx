@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
+import { MessagesSquare } from 'lucide-react';
 
 import { useAuth } from '../auth/context/AuthContext';
 import { cn } from '../../lib/utils';
 import ParticipantAvatar from '../participants/ParticipantAvatar';
 import type { SessionParticipant } from '../participants/types';
 import { Tooltip } from '../../shared/view/ui';
+import { useWebSocket } from '../../contexts/WebSocketContext';
 
 import { usePresence, type PresenceUser } from './usePresence';
 
@@ -67,6 +69,7 @@ export default function PresencePanel() {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
   const presenceUsers = usePresence();
+  const { openSessionsCount } = useWebSocket();
 
   if (presenceUsers.length === 0) {
     return null;
@@ -124,6 +127,14 @@ export default function PresencePanel() {
         defaultValue: '{{users}} users · {{agents}} agents',
       })
     : t('connectedUsers', { count: totalConnected, defaultValue: '{{count}} users' });
+
+  const activeConversationsLabel = t('activeConversations', {
+    defaultValue: 'Active conversations',
+  });
+  const activeConversationsCount = t('activeConversationsCount', {
+    count: openSessionsCount ?? 0,
+    defaultValue: '{{count}} active',
+  });
 
   return (
     <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
@@ -212,6 +223,23 @@ export default function PresencePanel() {
           </li>
         )}
       </ul>
+      {/* Active conversations counter — separated visually from the "online users" cluster.
+        * Uses a neutral/amber colour so it is never confused with the emerald "online" badge.
+        * Only rendered when the server has provided a value. */}
+      {openSessionsCount != null && (
+        <Tooltip content={activeConversationsLabel}>
+          <span
+            className={cn(
+              'ms-auto inline-flex flex-shrink-0 items-center gap-1 rounded-full border border-border/60 bg-muted/40',
+              'px-1.5 py-px text-[10px] tabular-nums text-muted-foreground',
+            )}
+            aria-label={`${activeConversationsLabel}: ${openSessionsCount}`}
+          >
+            <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 text-amber-500" aria-hidden="true" />
+            <span className="font-medium">{activeConversationsCount}</span>
+          </span>
+        </Tooltip>
+      )}
     </div>
   );
 }
