@@ -9,6 +9,7 @@
  *   state/<name>/cycle-state.json
  *   state/<name>/activity.json
  *   state/<name>/critique-verdict.json
+ *   state/<name>/cycle-history.json
  *   state/<name>/pause           (control file)
  *   projects/registry.json       (enable/priority changes)
  *
@@ -98,6 +99,7 @@ export function ensureRunnerWatcher(
     paths.cycleState,
     paths.activity,
     paths.critiqueVerdict,
+    paths.cycleHistory,
     paths.pause,
     paths.approveNextPhase,
     REGISTRY_FILE(),

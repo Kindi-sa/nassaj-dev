@@ -83,6 +83,12 @@ async function writeCycleState(name: string, raw: string): Promise<void> {
   await writeFile(path.join(dir, 'cycle-state.json'), raw);
 }
 
+async function writeCycleHistory(name: string, raw: string): Promise<void> {
+  const dir = path.join(STATE, name);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'cycle-history.json'), raw);
+}
+
 async function exists(p: string): Promise<boolean> {
   try {
     await access(p);
@@ -159,6 +165,7 @@ test('readRunnerStatus: registered:true and merges registry + config, no state f
   // State files absent => null, and crucially NO throw.
   assert.equal(status.cycle, null);
   assert.equal(status.activity, null);
+  assert.equal(status.history, null);
   assert.equal(status.stateError, false);
   assert.equal(status.config?.model, 'sonnet');
   assert.equal(status.config?.threshold, 90);
@@ -189,6 +196,74 @@ test('readRunnerStatus: parses a valid cycle-state and surfaces awaiting_approva
   assert.equal(status.stateError, false);
   assert.equal(status.cycle?.stage, 'awaiting_approval');
   assert.equal(status.cycle?.cycle, 3);
+});
+
+// ---- cycle-history.json: the journey log surfaced read-only on `history` ----
+
+test('readRunnerStatus: history null when cycle-history.json is absent', async () => {
+  await writeProjectConfig('nu', '/home/x/Project/nu');
+  await writeRegistry([{ name: 'nu', enabled: true, priority: 1 }]);
+  projectPaths.set('p-nu', '/home/x/Project/nu');
+
+  const status = await readRunnerStatus('p-nu');
+  assert.equal(status.registered, true);
+  assert.equal(status.history, null, 'no journey file yet => history:null');
+  // stateError must NOT be set by an absent history (it tracks cycle-state only).
+  assert.equal(status.stateError, false);
+});
+
+test('readRunnerStatus: history null (not 500) when cycle-history.json is corrupt', async () => {
+  await writeProjectConfig('xi', '/home/x/Project/xi');
+  await writeRegistry([{ name: 'xi', enabled: true, priority: 1 }]);
+  projectPaths.set('p-xi', '/home/x/Project/xi');
+  await writeCycleHistory('xi', '{ broken json :: ,,,');
+
+  const status = await readRunnerStatus('p-xi');
+  assert.equal(status.registered, true);
+  assert.equal(status.history, null, 'corrupt journey file degrades to null, never throws');
+  assert.equal(status.stateError, false);
+});
+
+test('readRunnerStatus: parses cycle-history (current + cycles + _wip ignored)', async () => {
+  await writeProjectConfig('omicron', '/home/x/Project/omicron');
+  await writeRegistry([{ name: 'omicron', enabled: true, priority: 1 }]);
+  projectPaths.set('p-omicron', '/home/x/Project/omicron');
+  await writeCycleHistory(
+    'omicron',
+    JSON.stringify({
+      $version: 1,
+      project: 'omicron',
+      total_cycles: 1,
+      current: { cycle: 2, phase_id: 'S1', task_id: 'T-12', stage: 'build', status: 'running' },
+      cycles: [
+        {
+          cycle: 1,
+          phase_id: 'S0',
+          task_id: 'T-03',
+          status: 'succeeded',
+          fix_loops: 0,
+          stages: {
+            build: { status: 'ok', model: 'opus' },
+            verify: { status: 'ok', model: 'sonnet' },
+            verdict: { status: 'clean', model: 'opus' },
+            gate: { status: 'approved', model: 'fable' },
+          },
+        },
+      ],
+      // private scratch field the runner keeps for the in-flight cycle; the
+      // bridge type does not declare it, and reading must not choke on it.
+      _wip: { cycle: 2, stages: {} },
+    }),
+  );
+
+  const status = await readRunnerStatus('p-omicron');
+  assert.equal(status.history?.current?.cycle, 2);
+  assert.equal(status.history?.current?.stage, 'build');
+  assert.equal(status.history?.total_cycles, 1);
+  assert.equal(status.history?.cycles?.length, 1);
+  assert.equal(status.history?.cycles?.[0]?.status, 'succeeded');
+  assert.equal(status.history?.cycles?.[0]?.stages?.verdict?.status, 'clean');
+  assert.equal(status.history?.cycles?.[0]?.stages?.gate?.model, 'fable');
 });
 
 // ---- control writes: one direction, matched entry only ----

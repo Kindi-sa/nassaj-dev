@@ -109,6 +109,7 @@ router.get('/:projectId', async (req, res) => {
       cycle: null,
       activity: null,
       verdict: null,
+      history: null,
       config: null,
       stateError: true,
     });

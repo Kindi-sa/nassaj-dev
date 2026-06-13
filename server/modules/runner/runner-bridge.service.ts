@@ -74,6 +74,55 @@ type CritiqueVerdict = {
   notes?: string;
 };
 
+/**
+ * cycle-history.json — the runner's append-only "journey" log (read-only here).
+ * Schema mirror of minwal-journey-brief.md §2.2. The runner accumulates in-flight
+ * stage results under a private "_wip" root key which is intentionally NOT part of
+ * this type: the bridge surfaces only the public contract (current + cycles), so
+ * any internal scratch field is silently ignored.
+ */
+type CycleStageResult = {
+  status?: string;
+  model?: string;
+  duration_s?: number;
+  approved_at?: string;
+  approved_by?: string;
+};
+
+type CycleRecord = {
+  cycle?: number;
+  phase_id?: string | null;
+  task_id?: string | null;
+  task_title?: string;
+  status?: 'succeeded' | 'failed' | 'interrupted' | string;
+  started_at?: string | null;
+  ended_at?: string | null;
+  fix_loops?: number;
+  stages?: {
+    build?: CycleStageResult;
+    verify?: CycleStageResult;
+    verdict?: CycleStageResult;
+    gate?: CycleStageResult;
+  };
+};
+
+type CycleHistory = {
+  $version?: number;
+  project?: string;
+  updated?: string;
+  total_cycles?: number;
+  current?: {
+    cycle?: number;
+    phase_id?: string | null;
+    task_id?: string | null;
+    stage?: string;
+    status?: string;
+    started_at?: string | null;
+    heartbeat_at?: string | null;
+  } | null;
+  cycles?: CycleRecord[];
+};
+
 type RunnerProjectConfig = {
   name?: string;
   dir?: string;
@@ -151,6 +200,12 @@ export type RunnerStatus = {
   activity: ActivityState | null;
   /** latest critique verdict (critique-verdict.json) */
   verdict: CritiqueVerdict | null;
+  /**
+   * cycle journey log (cycle-history.json) — current position + completed cycles.
+   * null when the file is absent (project that has not run a cycle yet) or
+   * unparseable, so the overlay degrades to the cycles-less PhaseTimeline.
+   */
+  history: CycleHistory | null;
   /** per-stage model map + timeouts surfaced from <name>.json (read-only) */
   config: { model: string | null; models: Record<string, string> | null; threshold: number | null } | null;
   /** true when a runner file existed but could not be parsed */
@@ -170,6 +225,7 @@ export function runnerPaths(name: string) {
     cycleState: path.join(dir, 'cycle-state.json'),
     activity: path.join(dir, 'activity.json'),
     critiqueVerdict: path.join(dir, 'critique-verdict.json'),
+    cycleHistory: path.join(dir, 'cycle-history.json'),
     pause: path.join(dir, 'pause'),
     approveNextPhase: path.join(dir, 'approve-next-phase'),
   };
@@ -208,6 +264,7 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     cycle: null,
     activity: null,
     verdict: null,
+    history: null,
     config: null,
     stateError: false,
   };
@@ -232,6 +289,9 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
   const cycle = await readJsonOrNull<CycleState>(paths.cycleState);
   const activity = await readJsonOrNull<ActivityState>(paths.activity);
   const verdict = await readJsonOrNull<CritiqueVerdict>(paths.critiqueVerdict);
+  // history degrades to null on a missing or corrupt file (never 500) — same
+  // resilience contract as every other runner-owned file.
+  const history = await readJsonOrNull<CycleHistory>(paths.cycleHistory);
   const paused = await fileExists(paths.pause);
 
   // stateError mirrors the board: a present-but-unreadable cycle-state.json.
@@ -248,6 +308,7 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     cycle,
     activity,
     verdict,
+    history,
     config: config
       ? {
           model: config.model ?? null,
