@@ -910,7 +910,6 @@ export function useProjectsState({
       isLoading: isLoadingProjects,
       loadingProgress,
       onRefresh: handleSidebarRefresh,
-      onOpenWiki: () => setActiveTab('wiki'),
       onShowSettings: () => setShowSettings(true),
       showSettings,
       settingsInitialTab,
