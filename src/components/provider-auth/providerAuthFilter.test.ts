@@ -1,9 +1,10 @@
 /**
  * Tests for provider auth status filtering logic:
- * - installed===false  → provider is hidden
- * - installed===true + auth===false + no error + !loading → disabled (CTA shown, not hidden)
- * - loading / error / installed===undefined → fail-open (visible + enabled)
- * - selected-provider reset when installed===false
+ * - installed===false + checkFailed===false → provider is hidden (confirmed check)
+ * - installed===true + auth===false + checkFailed===false + !loading → disabled (CTA shown)
+ * - loading / checkFailed===true → fail-open (visible + enabled)
+ * - error field alone does NOT trigger fail-open (backend fills it for legitimate negative states)
+ * - selected-provider reset when installed===false + checkFailed===false
  * - selected-provider NOT reset when installed===true && auth===false
  * - no blanking during initial load
  */
@@ -23,6 +24,7 @@ function makeStatus(overrides: Partial<ProviderAuthStatus>): ProviderAuthStatus 
     method: null,
     error: null,
     loading: false,
+    checkFailed: false,
     ...overrides,
   };
 }
@@ -30,13 +32,13 @@ function makeStatus(overrides: Partial<ProviderAuthStatus>): ProviderAuthStatus 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('provider visibility (installed field)', () => {
-  it('(أ) installed===false hides the provider', () => {
+  it('(أ) installed===false + checkFailed===false hides the provider', () => {
     const status = makeStatus({ installed: false, authenticated: false });
     expect(isProviderVisible(status)).toBe(false);
     expect(isProviderDisabled(status)).toBe(false);
   });
 
-  it('(ب) installed===true + auth===false + no error → visible but disabled', () => {
+  it('(ب) installed===true + auth===false + no checkFailed → visible but disabled', () => {
     const status = makeStatus({ installed: true, authenticated: false });
     expect(isProviderVisible(status)).toBe(true);
     expect(isProviderDisabled(status)).toBe(true);
@@ -54,10 +56,26 @@ describe('provider visibility (installed field)', () => {
     expect(isProviderDisabled(loadingStatus)).toBe(false);
   });
 
-  it('(ج) error!=null → fail-open: visible and not disabled even if installed===false', () => {
-    const errorStatus = makeStatus({ installed: false, error: 'network error' });
-    expect(isProviderVisible(errorStatus)).toBe(true);
-    expect(isProviderDisabled(errorStatus)).toBe(false);
+  it('(ج) checkFailed=true → fail-open: visible and not disabled even if installed===false', () => {
+    const failedStatus = makeStatus({ installed: false, checkFailed: true, error: 'network error' });
+    expect(isProviderVisible(failedStatus)).toBe(true);
+    expect(isProviderDisabled(failedStatus)).toBe(false);
+  });
+
+  it('(باگ مُصلَح) installed===false + error مملوء + checkFailed===false → يُخفى (error وحده لا يمنع الإخفاء)', () => {
+    // Backend fills error="Gemini CLI is not installed" on a successful 200 response.
+    // The old code used error==null as fail-open guard → provider was always shown.
+    // The fix: only checkFailed (HTTP/network failure) triggers fail-open.
+    const status = makeStatus({ installed: false, error: 'Gemini CLI is not installed', checkFailed: false });
+    expect(isProviderVisible(status)).toBe(false);
+  });
+
+  it('(باگ مُصلَح) installed===true + auth===false + error مملوء + checkFailed===false → يُعطَّل (لا fail-open)', () => {
+    // Backend fills error="Not authenticated" on a successful 200 response.
+    // Provider should appear as disabled (CTA), not enabled.
+    const status = makeStatus({ installed: true, authenticated: false, error: 'Not authenticated', checkFailed: false });
+    expect(isProviderVisible(status)).toBe(true);
+    expect(isProviderDisabled(status)).toBe(true);
   });
 
   it('(ج) installed===undefined (old server) → fail-open: visible (never hidden)', () => {
@@ -73,7 +91,7 @@ describe('provider visibility (installed field)', () => {
 });
 
 describe('provider reset logic (sanitize stored provider)', () => {
-  it('(د) should reset provider when installed===false (confirmed)', () => {
+  it('(د) should reset provider when installed===false + checkFailed===false (confirmed)', () => {
     const status = makeStatus({ installed: false });
     expect(shouldResetProvider(status)).toBe(true);
   });
@@ -93,19 +111,25 @@ describe('provider reset logic (sanitize stored provider)', () => {
     expect(shouldResetProvider(status)).toBe(false);
   });
 
-  it('should not reset when installed===false but error exists (fail-open)', () => {
-    const status = makeStatus({ installed: false, error: 'timeout' });
+  it('should not reset when installed===false but checkFailed=true (fail-open on HTTP/network error)', () => {
+    const status = makeStatus({ installed: false, checkFailed: true, error: 'timeout' });
     expect(shouldResetProvider(status)).toBe(false);
+  });
+
+  it('(باگ مُصلَح) installed===false + error مملوء + checkFailed===false → يُعاد التعيين (error لا يمنع الإعادة)', () => {
+    const status = makeStatus({ installed: false, error: 'Not installed', checkFailed: false });
+    expect(shouldResetProvider(status)).toBe(true);
   });
 });
 
 describe('initial provider map (fail-open defaults)', () => {
-  it('(و) createInitialProviderAuthStatusMap sets installed=true by default (fail-open)', () => {
+  it('(و) createInitialProviderAuthStatusMap sets installed=true and checkFailed=false by default', () => {
     const map = createInitialProviderAuthStatusMap(true);
     const providers = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'] as const;
     for (const p of providers) {
       expect(map[p].installed).toBe(true);
       expect(map[p].loading).toBe(true);
+      expect(map[p].checkFailed).toBe(false);
     }
   });
 
@@ -140,5 +164,23 @@ describe('toProviderAuthStatus payload parsing (installed field)', () => {
   it('payload.installed===undefined (old server) → installed=true (fail-open)', () => {
     const fromPayload = (installed?: boolean) => installed !== false;
     expect(fromPayload(undefined)).toBe(true);
+  });
+
+  it('استجابة ناجحة (200) بـerror مملوء → checkFailed=false (الحالة محسومة، ليست فشل طلب)', () => {
+    // Simulate what toProviderAuthStatus produces for a 200 with error payload
+    // (e.g. gemini: installed=false, error="Gemini CLI is not installed")
+    // checkFailed must be false — this is a confirmed state, not a request failure.
+    const simulatedStatus = {
+      authenticated: false,
+      installed: false,
+      email: null,
+      method: null,
+      error: 'Gemini CLI is not installed',
+      loading: false,
+      checkFailed: false, // ← key: 200 response always sets this to false
+    };
+    expect(simulatedStatus.checkFailed).toBe(false);
+    // And with checkFailed=false, the provider should be hidden
+    expect(isProviderVisible(simulatedStatus)).toBe(false);
   });
 });

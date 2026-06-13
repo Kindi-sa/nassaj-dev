@@ -1537,6 +1537,18 @@
       "closed": "2026-06-13",
       "title": "زر تحديث المحادثة: دائري عائم متمركز تحت سهم القفز + تمديد منطقة التمرير للخط العلوي (قرار المالك المنقّح، يتجاوز T-124)",
       "summary": "commit 6ce78dc: استعادة العمود العائم من ca8e62b — حاوية relative z-10 h-0 + absolute end-10 top-2 flex-col، الزر rounded-full h-7 w-7 (بدل المربّع)، والسهم النازل في ChatComposer أُعيد لمحور end-10 نفسه (بدل التمركز) فالسهم فوق والزر تحته على نفس المحور. الأثر الجوهري: استبدال صف flex (px-2 py-0.5) الذي كان يأكل ارتفاعاً بعمود h-0 عائم لا يحجز ارتفاعاً، فترتفع منطقة الرسائل/التمرير حتى الفاصل الأفقي العلوي. top-1->top-2 تحريك بسيط. build:client نجح والتغيير حيّ (express.static من dist بلا restart). ملفات الجلسة الموازية وpackage.json لم تُمسّ."
+    },
+    {
+      "id": "T-126",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-56",
+      "owner": "frontend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "إصلاح فشل فلترة المزوّدين: حقل error المملوء دائماً من الـbackend عطّل fail-open فظهر الكل (B-56)",
+      "summary": "تشخيص (لا إصلاح قبل تشخيص): الـbackend يملأ error دائماً لأي حالة سلبية (gemini-auth.provider.ts:62 'Gemini CLI is not installed'، codex:44/gemini:74 'Not authenticated')، بينما فلترة الفرونت تشترط error==null للإخفاء/التعطيل → fail-open شامل أبقى codex/gemini وغيرهما ظاهرين مفعّلين. الإصلاح (frontend فقط): إشارة checkFailed صريحة تُرفع فقط عند فشل الطلب الفعلي (!response.ok/catch في useProviderAuthStatus)، وtoProviderAuthStatus على 200 الناجح يضبطها false حتى مع error مملوء؛ providerAuthFilter يبني الدوال الثلاث على !checkFailed بدل error==null (installed يبقى موثوقاً نظيفاً). حقل error باقٍ كما هو لعرض Settings/Onboarding. تحقّق على الجهاز: codex/cursor/opencode مفقودة (ستُخفى)، gemini/claude/agy مثبّتة. اختبارات 21/21 vitest، tsc نظيف، build:client منشور."
     }
   ],
   "issues": [
@@ -2007,6 +2019,15 @@
       "status": "open",
       "found": "2026-06-13",
       "note": "بلاغ المالك بصورة؛ حكم design-reviewer (Opus، تصعيد لغياب fable): إبقاء التبويب وحذف زر الشريط الجانبي في الموضعين (سطح مكتب+جوال)؛ شريط التبويبات ظاهر على الجوال فلا ضرورة للزر"
+    },
+    {
+      "id": "B-56",
+      "title": "فلترة نافذة اختيار النماذج (T-121) لم تُخفِ المزوّدين غير المثبّتين/غير المسجّلين: codex/gemini وغيرهم ظهروا بنماذجهم مفعّلين",
+      "severity": "high",
+      "status": "fixed",
+      "found": "2026-06-13",
+      "fix": "السبب: الـbackend يملأ حقل error دائماً للحالات السلبية فعطّل شرط fail-open (error==null) → ظهور شامل. الحل: إشارة checkFailed تميّز فشل الطلب العابر عن الحالة السلبية المحسومة؛ الفلترة على !checkFailed لا error==null — T-126 (frontend فقط، لا backend)",
+      "note": "بلاغ المالك بصورة (نافذة Choose a model تعرض OPENAI/GOOGLE كاملة)"
     }
   ],
   "decisions": [

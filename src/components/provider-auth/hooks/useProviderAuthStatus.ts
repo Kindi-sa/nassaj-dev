@@ -43,6 +43,10 @@ const toProviderAuthStatus = (
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
   loading: false,
+  // The request itself succeeded (HTTP 200) — this is a confirmed state, not a
+  // failed check. error may still be populated (e.g. "Not installed") but that
+  // is a legitimate negative state, not a request failure.
+  checkFailed: false,
 });
 
 type UseProviderAuthStatusOptions = {
@@ -88,6 +92,7 @@ export function useProviderAuthStatus(
           method: null,
           loading: false,
           error: FALLBACK_STATUS_ERROR,
+          checkFailed: true, // HTTP request did not succeed — use fail-open
         };
         setProviderStatus(provider, status);
         return status;
@@ -106,6 +111,7 @@ export function useProviderAuthStatus(
         method: null,
         loading: false,
         error: toErrorMessage(caughtError),
+        checkFailed: true, // network/fetch failure — use fail-open
       };
       setProviderStatus(provider, status);
       return status;
