@@ -1497,9 +1497,10 @@
       "kind": "bug",
       "issue": "B-55",
       "title": "حذف زر الويكي المكرر من الشريط الجانبي (الإبقاء على تبويب Wiki) — حكم design-reviewer",
-      "status": "todo",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "حذف كتلة BookOpen في SidebarHeader (ديسكتوب+جوال) وتنظيف prop onOpenWiki عبر السلسلة"
+      "closed": "2026-06-13",
+      "summary": "commit a87af8a: حُذف زر BookOpen من SidebarHeader (ديسكتوب+جوال) ونُظّف prop onOpenWiki عبر السلسلة كاملة (SidebarHeader/SidebarContent/Sidebar/types/useProjectsState) — صفر مرجع متبقٍ، setActiveTab سليمة. الويكي الآن مدخل واحد: تبويب Wiki. ملفا الجلسة الأخرى لم يُمسّا. build:client نُشر بلا restart"
     }
   ],
   "issues": [
