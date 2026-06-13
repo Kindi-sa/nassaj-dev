@@ -1702,6 +1702,18 @@
       "owner": "content-writer",
       "closed": "2026-06-13",
       "summary": "commit f802b3d (team-wiki حصراً، +254): آداب الجلسات المتوازية (05)، نافذة السياق مقابل حصة الاستخدام بجدول فرق (05)، تنظيم المحادثات بالنجمة (03)، 5 سيناريوهات شائعة (04)، 7 تعريفات مسرد (Claude/agy/Fable/Sonnet/Haiku/مزوّد) (06). build:client نجح"
+    },
+    {
+      "id": "T-138",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": null,
+      "owner": "backend-dev",
+      "status": "review",
+      "closed": null,
+      "title": "وضع الجهد ultracode لا يُفعَّل: الخادم كان يعيّنه xhigh بصمت بدل أقصى جهد + كلمات CLI السحرية",
+      "summary": "commit ca11b14: الواجهة ترسل effort:ultracode سليماً، لكن server/claude-sdk.js (SDK_EFFORT_LEVELS بلا ultracode) كان يعيّنه EFFORT_ALIASES إلى xhigh — فيصير xhigh (شدة 3 لا 4) ويُسقط سلوكه الخاص. بفحص ثنائي الـSDK: الـCLI يكتشف ultrathink (تفكير أعمق) وultrawork (تفعيل Workflow) في نص الطلب لا كقيمة effort. الإصلاح: ultracode→max + maybeApplyUltracodeKeywords تحقن ultrathink ultrawork في نص الطلب لوضع ultracode حصراً (no-op لغيره). 29/29 اختبار، tsc نظيف. يحتاج restart (تغيير خادم)."
     }
   ],
   "issues": [
