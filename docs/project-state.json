@@ -1557,9 +1557,10 @@
       "kind": "doc",
       "issue": null,
       "title": "توسيع الويكي: منتقي مستوى الجهد (المنوال) + متى يُستخدم كل مستوى + آلية استدعاء الوكلاء والنماذج + إضافة مشروع جديد والمسار /home/nassaj/Project + تصحيح علاقة الكِندِي (OSS وسم لا قسم، أحد مخرجات دار الكِندِي)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "content-writer",
-      "note": "حقائق مثبّتة: effort 8 مستويات من thinkingModes.ts؛ إنشاء مشروع عبر ProjectCreationWizard→POST /api/projects/create-project، WORKSPACES_ROOT=env||home، معيار الفريق /home/nassaj/Project؛ العلاقة المصحّحة من المالك+researcher. سياق T-104: a7e1be03fc8643878"
+      "closed": "2026-06-13",
+      "summary": "commit 49261c3 (+208/-54، 6 ملفات): (1) تصحيح علاقة الكِندِي — OSS وسم على مخرجات دار الكِندِي لا قسم/ذراع، مخطط Mermaid محدّث، نسّاج أداة تستخدمها الكِندِي؛ (2) منتقي مستوى الجهد «المنوال» جدول 8 مستويات+متى يُستخدم+قاعدة التوكنز في 03 و05؛ (3) آلية استدعاء الوكلاء والنماذج (سياسة هجينة+تصعيد+مثال) في 02؛ (4) إضافة مشروع جديد+المسار المعياري /home/nassaj/Project في 03 و05. placeholders: effort-selector, new-project-wizard. build:client نجح؛ team-wiki حصراً"
     },
     {
       "id": "T-128",
@@ -1571,6 +1572,30 @@
       "status": "todo",
       "owner": "scribe",
       "note": "تناقضات رصدها researcher: nassaj-core/alkindy متقادم (1.2/Endorsed) مقابل AlKindy BM (1.3/Branded). بانتظار قرار المالك على المزامنة"
+    },
+    {
+      "id": "T-129",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-57",
+      "owner": "backend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "كشف تثبيت الـCLI الخاطئ: checkInstalled تُرجع true دائماً (spawn.sync لا يرمي عند ENOENT) فظهر غير المثبّت معطّلاً بدل إخفائه (B-57)",
+      "summary": "السبب: spawn.sync (cross-spawn) لا يرمي استثناءً عند غياب الملف التنفيذي — يُرجع {status:null, error:ENOENT}، فالـtry/catch لا يلتقط شيئاً ويُرجع true دائماً → كل المزوّدين installed=true. الإصلاح: دالة مشتركة مختبَرة server/shared/cli-detect.ts isCliInstalled (مثبّت ⇔ error==null && status===0؛ ENOENT/EACCES→false؛ ETIMEDOUT/SIGTERM→true كي لا يُخفى مزوّد بطيء). طُبّقت على codex/gemini/cursor(checkInstalled فقط)/claude (كلها كانت تعتمد spawn لا SDK). سليم أصلاً: opencode (يفحص !error&&status===0) وantigravity (existsSync على ~/.local/bin/agy). تحقّق PATH: عملية الخادم ترث ~/.local/bin (من /proc/<pid>/environ) فترى claude/gemini/agy (gemini symlink→agy، claude→version) → آمن لا يُخفي claude؛ codex/cursor-agent/opencode مفقودة→تُخفى. اختبارات: cli-detect+codex 12/12، المزوّدون 125/125، الكل 472/472، tsc نظيف، build:server منشور بـdist-server. **يحتاج restart ليسري.**"
+    },
+    {
+      "id": "T-130",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-58",
+      "owner": "frontend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "زر «Sign in» في نافذة اختيار النماذج لا يفعل شيئاً (B-58)",
+      "summary": "السبب: الزر كان يطلق window CustomEvent('nassaj:open-settings') بلا أي مستمع في المشروع → no-op. الإصلاح: استخدام usePaletteOps().openSettings('agents') (نفس آلية CodeEditor) لفتح تبويب Agents (فئة Account تعرض AgentConnectionCard لمصادقة المزوّدين — T-23/T-39)؛ ProviderSelectionEmptyState أسفل شجرة PaletteOpsProvider فيستهلك الـcontext مباشرة. حُذف الحدث المخترَع. build:client منشور (حيّ بعد إعادة تحميل الصفحة)."
     }
   ],
   "issues": [
@@ -2041,6 +2066,24 @@
       "status": "open",
       "found": "2026-06-13",
       "note": "بلاغ المالك بصورة؛ حكم design-reviewer (Opus، تصعيد لغياب fable): إبقاء التبويب وحذف زر الشريط الجانبي في الموضعين (سطح مكتب+جوال)؛ شريط التبويبات ظاهر على الجوال فلا ضرورة للزر"
+    },
+    {
+      "id": "B-58",
+      "title": "زر Sign in في نافذة اختيار النماذج لا يفعل شيئاً (يطلق حدثاً بلا مستمع)",
+      "severity": "medium",
+      "status": "fixed",
+      "found": "2026-06-13",
+      "fix": "استبدال window CustomEvent بـusePaletteOps().openSettings('agents') — T-130 (frontend، حيّ بعد reload)",
+      "note": "بلاغ المالك"
+    },
+    {
+      "id": "B-57",
+      "title": "نافذة اختيار النماذج تعرض مزوّدين غير مثبّتين فعلاً (codex/cursor/opencode) معطّلين بدل إخفائهم: الـbackend يُبلّغ installed=true لكل المزوّدين",
+      "severity": "high",
+      "status": "fixed",
+      "found": "2026-06-13",
+      "fix": "checkInstalled كان يُرجع true دائماً (spawn.sync لا يرمي عند ENOENT). الحل: cli-detect.ts isCliInstalled (error==null && status===0) على codex/gemini/cursor/claude — T-129 (backend، يحتاج restart)",
+      "note": "بلاغ المالك بصورة؛ متابعة B-56"
     },
     {
       "id": "B-56",
