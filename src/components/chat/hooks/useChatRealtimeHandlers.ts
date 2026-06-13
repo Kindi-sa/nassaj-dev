@@ -85,7 +85,51 @@ export const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
   project_dir_missing: 'serverError.project_dir_missing',
   cli_not_installed: 'serverError.cli_not_installed',
   spawn_failed: 'serverError.spawn_failed',
+  session_create_failed: 'serverError.session_create_failed',
 };
+
+/**
+ * Resolve a human, localised message from a server error event (T-83).
+ *
+ * The error can arrive in several shapes and we degrade gracefully through them:
+ *   1. A structured `{ error: { code, messageKey, detail } }` object emitted by
+ *      the session channel — `messageKey` is a ready i18n key (chat namespace),
+ *      `code` maps via SERVER_ERROR_CODE_KEYS.
+ *   2. A flat top-level `code` (legacy error events).
+ *   3. Nothing recognisable → the generic `serverError.unknown` fallback.
+ *
+ * `detail` is appended (parenthesised) when present so the user sees the raw
+ * server reason without it ever replacing the translated headline.
+ */
+export function resolveServerErrorMessage(
+  msg: { code?: unknown; error?: unknown; reason?: unknown },
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const fallback = t('serverError.unknown');
+  const structured =
+    msg.error && typeof msg.error === 'object' ? (msg.error as Record<string, unknown>) : null;
+
+  const messageKey =
+    structured && typeof structured.messageKey === 'string' ? structured.messageKey : null;
+  const code =
+    (structured && typeof structured.code === 'string' && structured.code)
+    || (typeof msg.code === 'string' && msg.code)
+    || null;
+  const detail =
+    (structured && typeof structured.detail === 'string' && structured.detail)
+    || (typeof msg.reason === 'string' && msg.reason)
+    || null;
+
+  let headline = fallback;
+  if (messageKey) {
+    headline = t(messageKey, { defaultValue: fallback });
+  } else if (code) {
+    const i18nKey = SERVER_ERROR_CODE_KEYS[code] ?? null;
+    headline = i18nKey ? t(i18nKey, { defaultValue: fallback }) : fallback;
+  }
+
+  return detail ? `${headline} (${detail})` : headline;
+}
 
 export function useChatRealtimeHandlers({
   latestMessage,
@@ -260,7 +304,28 @@ export function useChatRealtimeHandlers({
     switch (msg.kind) {
       case 'session_created': {
         const newSessionId = msg.newSessionId;
-        if (!newSessionId) break;
+        if (!newSessionId) {
+          // sessionId=null means the provider failed to mint a session. This
+          // used to break silently, leaving the user on a dead, spinning view.
+          // Clear the active-view spinner and surface the failure (T-83). The
+          // event may carry a structured `{ error }` / flat code; otherwise we
+          // show the session-create fallback.
+          if (isActiveViewSession) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+            pendingViewSessionRef.current = null;
+            const hasErrorInfo =
+              (msg.error && typeof msg.error === 'object') || typeof msg.code === 'string';
+            const message = hasErrorInfo
+              ? resolveServerErrorMessage(msg, t)
+              : t('serverError.session_create_failed', {
+                defaultValue: t('serverError.unknown'),
+              });
+            onServerError?.(message);
+          }
+          break;
+        }
 
         // We no longer synthesize client-side placeholder IDs. Until the provider
         // announces `session_created`, the active id is expected to be null.
@@ -380,14 +445,12 @@ export function useChatRealtimeHandlers({
           setClaudeStatus(null);
           pendingViewSessionRef.current = null;
 
-          // If the server attached a recognised error code, surface a human-
-          // readable, localised message via the onServerError callback.
-          const errorCode = typeof msg.code === 'string' ? msg.code : null;
-          if (errorCode) {
-            const i18nKey = SERVER_ERROR_CODE_KEYS[errorCode] ?? 'serverError.unknown';
-            const humanMessage = t(i18nKey, { defaultValue: t('serverError.unknown') });
-            onServerError?.(humanMessage);
-          }
+          // Surface a human-readable, localised message via onServerError for
+          // any error event — structured `{ error: {...} }`, a flat code, or an
+          // unrecognised failure (general fallback). Previously this fired only
+          // when a known top-level `code` was present, so structured new-session
+          // failures and unknown errors failed silently (T-83).
+          onServerError?.(resolveServerErrorMessage(msg, t));
         }
         break;
       }

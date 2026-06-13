@@ -377,6 +377,7 @@
     "project_dir_missing": "Project folder not found on disk",
     "cli_not_installed": "CLI not installed — please install the required CLI tool",
     "spawn_failed": "Failed to start the process — check server logs for details",
+    "session_create_failed": "Could not start a new session — please try again",
     "unknown": "An unexpected server error occurred"
   },
   "refreshChat": {
