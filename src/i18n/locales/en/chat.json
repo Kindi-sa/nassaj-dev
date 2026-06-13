@@ -332,6 +332,19 @@
     },
     "frozen": "Paused (process frozen)"
   },
+  "runProgress": {
+    "tasksLabel": "Tasks",
+    "barAria": "Task progress",
+    "tasksTooltip": "Tasks: {{done}} of {{total}} done",
+    "inProgressTooltip_one": "{{count}} in progress",
+    "inProgressTooltip_other": "{{count}} in progress",
+    "agentsTooltip": "Sub-agents: {{done}}/{{total}}",
+    "agentWorking": "Agent · {{calls}}",
+    "agentWorkingTooltip": "Sub-agent working: {{calls}} calls",
+    "estimateRemaining": "≈ {{time}} left",
+    "estimating": "estimating…",
+    "estimateTooltip": "Rough estimate — based on completed tasks so far."
+  },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
   },

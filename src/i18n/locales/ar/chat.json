@@ -332,6 +332,22 @@
     },
     "frozen": "متوقفة مؤقتاً (العملية مجمّدة)"
   },
+  "runProgress": {
+    "tasksLabel": "مهام",
+    "barAria": "تقدّم المهام",
+    "tasksTooltip": "المهام: أُنجز {{done}} من {{total}}",
+    "inProgressTooltip_one": "مهمة واحدة قيد التنفيذ",
+    "inProgressTooltip_two": "مهمتان قيد التنفيذ",
+    "inProgressTooltip_few": "{{count}} مهام قيد التنفيذ",
+    "inProgressTooltip_many": "{{count}} مهمةً قيد التنفيذ",
+    "inProgressTooltip_other": "{{count}} مهمة قيد التنفيذ",
+    "agentsTooltip": "الوكلاء الفرعيون: {{done}}/{{total}}",
+    "agentWorking": "وكيل · {{calls}}",
+    "agentWorkingTooltip": "وكيل فرعي يعمل: {{calls}} استدعاء",
+    "estimateRemaining": "≈ {{time}} متبقّي",
+    "estimating": "يُقدّر…",
+    "estimateTooltip": "تقدير تقريبي — مبني على المهام المكتملة حتى الآن."
+  },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
   },

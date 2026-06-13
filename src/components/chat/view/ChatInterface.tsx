@@ -13,6 +13,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useRunProgress } from '../hooks/useRunProgress';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useSessionProcessState } from '../../../stores/sessionProcessStateStore';
 import { useProviderAuthStatus } from '../../provider-auth/hooks/useProviderAuthStatus';
@@ -449,6 +450,11 @@ function ChatInterface({
     return null;
   }, [chatMessages]);
 
+  // Task/agent progress snapshot for the ClaudeStatus indicators. Scans the
+  // FULL transcript (not the windowed visibleMessages) once per change; reads no
+  // clock, so it never recomputes on the per-second tick. Empty while idle.
+  const runProgress = useRunProgress(chatMessages, isLoading);
+
   // Coordinator speaking *now*: the `coordinatorId` of the most recent assistant
   // message (live or streaming). Drives the participants bar's active-speaker
   // highlight so the strip names the brother actually replying, not whoever
@@ -604,6 +610,7 @@ function ChatInterface({
           isLoading={isLoading}
           isSessionFrozen={isSessionFrozen}
           runStartedAt={runStartedAt}
+          runProgress={runProgress}
           onAbortSession={handleAbortSession}
           provider={provider}
           displayProvider={displayProvider}

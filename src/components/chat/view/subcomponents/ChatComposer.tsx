@@ -13,6 +13,7 @@ import type {
 } from 'react';
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
+import type { RunProgress } from '../../hooks/useRunProgress';
 import CommandMenu from './CommandMenu';
 import ClaudeStatus from './ClaudeStatus';
 import ImageAttachment from './ImageAttachment';
@@ -58,6 +59,8 @@ interface ChatComposerProps {
   isSessionFrozen?: boolean;
   /** Epoch-ms start of the current run (last triggering user message); lets the elapsed counter survive refresh. */
   runStartedAt?: number | null;
+  /** Task/agent progress snapshot for the ClaudeStatus indicators (derived in ChatInterface). */
+  runProgress?: RunProgress | null;
   onAbortSession: () => void;
   provider: Provider | string;
   displayProvider: Provider | string;
@@ -120,6 +123,7 @@ export default function ChatComposer({
   isLoading,
   isSessionFrozen = false,
   runStartedAt = null,
+  runProgress = null,
   onAbortSession,
   provider,
   displayProvider,
@@ -197,6 +201,7 @@ export default function ChatComposer({
           onAbort={onAbortSession}
           provider={displayProvider}
           runStartedAt={runStartedAt}
+          progress={runProgress}
         />
       )}
 
