@@ -5,13 +5,14 @@
  *  - Render the search input with Search/X icons
  *  - Render a results list (role="listbox") beneath the input
  *  - Highlight the matched term inside snippets
+ *  - Keyboard navigation: Arrow Up/Down, Enter, Escape
  *  - Delegate all business logic to the parent via props / callbacks
  *
- * Intentionally a pure presentational component (no internal state) so the
- * parent (WikiPanel) can orchestrate Escape-key priority.
+ * Intentionally keeps its own internal activeIndex state only — all other
+ * state lives in the parent (WikiPanel).
  */
 
-import { useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useId } from 'react';
 import { Search, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { SearchMatch } from './useWikiSearch';
@@ -20,10 +21,6 @@ import type { SearchMatch } from './useWikiSearch';
 // Highlight helper
 // ---------------------------------------------------------------------------
 
-/**
- * Splits `text` around the first case-insensitive occurrence of `term` and
- * returns a <span> with <mark> wrapping the match.
- */
 function HighlightedText({
   text,
   term,
@@ -82,12 +79,26 @@ export default function WikiSearchField({
   const { t } = useTranslation();
   const internalRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef ?? internalRef;
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // P1-D: keyboard nav state
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+
+  // Reset active index whenever results change
+  useEffect(() => {
+    setActiveIndex(-1);
+    itemRefs.current = [];
+  }, [results]);
+
+  const uid = useId();
+  const listboxId = `wiki-search-listbox-${uid}`;
+  const inputId = `wiki-search-input-${uid}`;
+  const getOptionId = (i: number) => `wiki-search-option-${uid}-${i}`;
 
   const handleSelect = useCallback(
     (file: string) => {
       onSelectResult(file);
       onClear();
-      // Return focus to input so keyboard users can continue typing
       inputRef.current?.focus();
     },
     [onSelectResult, onClear, inputRef],
@@ -95,18 +106,52 @@ export default function WikiSearchField({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // Escape is handled in WikiPanel (clears query first, then closes sidebar)
-      // We only need to prevent default here so the event bubbles correctly.
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClear();
+      if (!isSearching) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setActiveIndex((prev) => {
+            const next = prev < results.length - 1 ? prev + 1 : 0;
+            itemRefs.current[next]?.scrollIntoView({ block: 'nearest' });
+            return next;
+          });
+          break;
+
+        case 'ArrowUp':
+          e.preventDefault();
+          setActiveIndex((prev) => {
+            const next = prev > 0 ? prev - 1 : results.length - 1;
+            itemRefs.current[next]?.scrollIntoView({ block: 'nearest' });
+            return next;
+          });
+          break;
+
+        case 'Enter':
+          e.preventDefault();
+          if (activeIndex >= 0 && activeIndex < results.length) {
+            handleSelect(results[activeIndex].file);
+          }
+          break;
+
+        case 'Escape':
+          // Escape is handled in WikiPanel; stop propagation here so it
+          // doesn't also fire the WikiPanel handler.
+          e.stopPropagation();
+          onClear();
+          setActiveIndex(-1);
+          break;
+
+        default:
+          break;
       }
     },
-    [onClear],
+    [isSearching, results, activeIndex, handleSelect, onClear],
   );
 
-  const listboxId = 'wiki-search-listbox';
-  const inputId = 'wiki-search-input';
+  const hasResults = results.length > 0;
+  const activeDescendant =
+    activeIndex >= 0 && hasResults ? getOptionId(activeIndex) : undefined;
 
   return (
     <div className="relative px-2 pb-2 pt-2">
@@ -121,15 +166,16 @@ export default function WikiSearchField({
           id={inputId}
           type="search"
           role="combobox"
-          aria-expanded={isSearching && results.length > 0}
+          aria-expanded={isSearching && hasResults}
           aria-controls={listboxId}
+          aria-activedescendant={activeDescendant}
           aria-label={t('wiki.searchAriaLabel', 'بحث في صفحات الويكي')}
           aria-autocomplete="list"
           autoComplete="off"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('wiki.searchPlaceholder', 'ابحث في الويكي…')}
+          placeholder={t('wiki.searchPlaceholder', 'ابحث في الويكي… (/ أو Ctrl+K)')}
           className={[
             'w-full rounded-md border border-border/60 bg-background py-1.5',
             'ps-8 pe-7 text-sm text-foreground placeholder:text-muted-foreground/70',
@@ -159,10 +205,10 @@ export default function WikiSearchField({
           className={[
             'absolute start-2 end-2 z-20 mt-1 overflow-y-auto rounded-lg border border-border/60',
             'bg-popover shadow-lg',
-            results.length > 0 ? 'max-h-72' : '',
+            hasResults ? 'max-h-72' : '',
           ].join(' ')}
         >
-          {results.length === 0 ? (
+          {!hasResults ? (
             <li
               role="option"
               aria-selected={false}
@@ -171,36 +217,48 @@ export default function WikiSearchField({
               {t('wiki.searchNoResults', 'لا نتائج')}
             </li>
           ) : (
-            results.map((match) => (
-              <li key={match.file} role="option" aria-selected={false}>
-                <button
-                  type="button"
-                  onClick={() => handleSelect(match.file)}
-                  className={[
-                    'flex w-full flex-col gap-0.5 px-3 py-2 text-start',
-                    'hover:bg-accent/60 focus:bg-accent/60 focus:outline-none',
-                    'transition-colors border-b border-border/30 last:border-b-0',
-                  ].join(' ')}
+            results.map((match, i) => {
+              const isActive = i === activeIndex;
+              return (
+                <li
+                  key={match.file}
+                  id={getOptionId(i)}
+                  role="option"
+                  aria-selected={isActive}
                 >
-                  {/* Page title */}
-                  <span className="text-sm font-medium text-foreground">
-                    <HighlightedText text={match.title} term={match.matchedTerm} />
-                  </span>
-                  {/* Body snippet (if body matched) */}
-                  {match.snippet && (
-                    <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-                      <HighlightedText text={match.snippet} term={match.matchedTerm} />
+                  <button
+                    ref={(el) => {
+                      itemRefs.current[i] = el;
+                    }}
+                    type="button"
+                    onClick={() => handleSelect(match.file)}
+                    className={[
+                      'flex w-full flex-col gap-0.5 px-3 py-2 text-start',
+                      'focus:outline-none transition-colors',
+                      'border-b border-border/30 last:border-b-0',
+                      isActive
+                        ? 'bg-accent/70'
+                        : 'hover:bg-accent/60 focus:bg-accent/60',
+                    ].join(' ')}
+                  >
+                    <span className="text-sm font-medium text-foreground">
+                      <HighlightedText text={match.title} term={match.matchedTerm} />
                     </span>
-                  )}
-                </button>
-              </li>
-            ))
+                    {match.snippet && (
+                      <span className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+                        <HighlightedText text={match.snippet} term={match.matchedTerm} />
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       )}
 
       {/* Screen-reader count announcement */}
-      {isSearching && results.length > 0 && (
+      {isSearching && hasResults && (
         <p role="status" aria-live="polite" className="sr-only">
           {t('wiki.searchResultsCount', '{{count}} نتيجة', { count: results.length })}
         </p>
