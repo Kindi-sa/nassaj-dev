@@ -1524,7 +1524,19 @@
       "status": "done",
       "closed": "2026-06-13",
       "title": "زر تحديث المحادثة: إعادته لزر صغير أعلى يمين النافذة (قرار المالك النهائي) — يلغي «الدائري تحت سهم القفز» (T-100/ca8e62b)",
-      "summary": "commit c94d88c: ChatInterface.tsx — أُزيل بناء العمود العائم h-0/absolute الذي أدخله ca8e62b، وأُعيد الزر لصف flex items-center justify-end أعلى النافذة (rounded border، h-6 w-6)؛ ChatComposer.tsx — أُعيد السهم النازل لموضعه المتمركز (left-0 right-0 justify-center)؛ حُذف import ChevronDown غير المستخدم. build:client نجح. تحقّقات مرافقة: أفاتارات SessionParticipantsBar متساوية أصلاً (ParticipantAvatar يحمل h-6 w-6 inline-flex مباشرة) فلا تعديل؛ الشعار الأبيض logo_dark.svg موجود ويُوصَّل سليماً (تحقّق curl) فلا تعديل."
+      "summary": "commit c94d88c: ChatInterface.tsx — أُزيل بناء العمود العائم h-0/absolute الذي أدخله ca8e62b، وأُعيد الزر لصف flex items-center justify-end أعلى النافذة (rounded border، h-6 w-6)؛ ChatComposer.tsx — أُعيد السهم النازل لموضعه المتمركز (left-0 right-0 justify-center)؛ حُذف import ChevronDown غير المستخدم. build:client نجح. تحقّقات مرافقة: أفاتارات SessionParticipantsBar متساوية أصلاً (ParticipantAvatar يحمل h-6 w-6 inline-flex مباشرة) فلا تعديل؛ الشعار الأبيض logo_dark.svg موجود ويُوصَّل سليماً (تحقّق curl) فلا تعديل. [تجاوُز: المالك راجع القرار بعد رؤية النتيجة وطلب الدائري العائم — انظر T-125]."
+    },
+    {
+      "id": "T-125",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "task",
+      "issue": null,
+      "owner": "frontend-dev",
+      "status": "done",
+      "closed": "2026-06-13",
+      "title": "زر تحديث المحادثة: دائري عائم متمركز تحت سهم القفز + تمديد منطقة التمرير للخط العلوي (قرار المالك المنقّح، يتجاوز T-124)",
+      "summary": "commit 6ce78dc: استعادة العمود العائم من ca8e62b — حاوية relative z-10 h-0 + absolute end-10 top-2 flex-col، الزر rounded-full h-7 w-7 (بدل المربّع)، والسهم النازل في ChatComposer أُعيد لمحور end-10 نفسه (بدل التمركز) فالسهم فوق والزر تحته على نفس المحور. الأثر الجوهري: استبدال صف flex (px-2 py-0.5) الذي كان يأكل ارتفاعاً بعمود h-0 عائم لا يحجز ارتفاعاً، فترتفع منطقة الرسائل/التمرير حتى الفاصل الأفقي العلوي. top-1->top-2 تحريك بسيط. build:client نجح والتغيير حيّ (express.static من dist بلا restart). ملفات الجلسة الموازية وpackage.json لم تُمسّ."
     }
   ],
   "issues": [
