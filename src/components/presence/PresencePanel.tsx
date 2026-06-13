@@ -137,82 +137,90 @@ export default function PresencePanel() {
   });
 
   return (
-    <div className="flex items-center gap-2 border-b border-border/60 px-3 py-1.5">
-      {/* "Online now" label only — the avatar stack conveys who is connected. */}
-      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-        {t('title', { defaultValue: 'Online now' })}
-      </span>
+    <div className="flex w-full items-center justify-between border-b border-border/60 px-3 py-1.5">
+      {/* Left group: label + avatar stack */}
+      <div className="flex min-w-0 items-center gap-2">
+        {/* "Online now" label only — the avatar stack conveys who is connected. */}
+        <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {t('title', { defaultValue: 'Online now' })}
+        </span>
 
-      <ul
-        className="flex min-w-0 items-center"
-        aria-label={`${t('title', { defaultValue: 'Online now' })} (${totalConnected})`}
-      >
-        {visible.map((presenceUser) => {
-          const status = statusText(presenceUser);
-          const name = displayName(presenceUser);
+        <ul
+          className="flex items-center"
+          aria-label={`${t('title', { defaultValue: 'Online now' })} (${totalConnected})`}
+        >
+          {visible.map((presenceUser) => {
+            const status = statusText(presenceUser);
+            const name = displayName(presenceUser);
 
-          return (
-            <li key={presenceUser.userId} className="-ms-1.5 first:ms-0">
-              <span className="relative inline-flex rounded-full ring-2 ring-background">
-                <ParticipantAvatar
-                  participant={toParticipant(presenceUser)}
-                  size="sm"
-                  locale={i18n.language}
-                  t={t}
-                  stacked={false}
-                  avatarUrl={presenceUser.avatarUrl ?? undefined}
-                  ariaLabel={`${name} — ${status}`}
-                  tooltipContent={
-                    <span className="flex flex-col gap-0.5 text-start">
-                      <span className="font-semibold">{name}</span>
-                      <span className="opacity-80">{status}</span>
-                    </span>
-                  }
-                />
-                {/* Online dot (logical inset for RTL); pulses while active. */}
-                <span
-                  className={cn(
-                    'absolute bottom-0 end-0 h-2 w-2 rounded-full border border-background bg-emerald-500',
-                    presenceUser.active && 'animate-pulse',
-                  )}
-                  aria-hidden="true"
-                />
-              </span>
-            </li>
-          );
-        })}
-
-        {overflow.length > 0 && (
-          <li className="-ms-1.5">
-            <Tooltip
-              content={
-                <span className="flex flex-col gap-0.5 text-start">
-                  {overflow.map((presenceUser) => (
-                    <span key={presenceUser.userId}>
-                      <span className="font-semibold">{displayName(presenceUser)}</span>
-                      <span className="opacity-80"> — {statusText(presenceUser)}</span>
-                    </span>
-                  ))}
+            return (
+              <li key={presenceUser.userId} className="-ms-1.5 first:ms-0 flex items-center">
+                {/* Wrapper: explicit h-6 w-6 so both image and initial variants
+                  * occupy an identical bounding box. inline-flex + items-center
+                  * prevents the img replaced-element baseline from shifting the
+                  * circle relative to initial-letter circles. */}
+                <span className="relative inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full ring-2 ring-background">
+                  <ParticipantAvatar
+                    participant={toParticipant(presenceUser)}
+                    size="sm"
+                    locale={i18n.language}
+                    t={t}
+                    stacked={false}
+                    avatarUrl={presenceUser.avatarUrl ?? undefined}
+                    ariaLabel={`${name} — ${status}`}
+                    tooltipContent={
+                      <span className="flex flex-col gap-0.5 text-start">
+                        <span className="font-semibold">{name}</span>
+                        <span className="opacity-80">{status}</span>
+                      </span>
+                    }
+                  />
+                  {/* Online dot (logical inset for RTL); pulses while active. */}
+                  <span
+                    className={cn(
+                      'absolute bottom-0 end-0 h-2 w-2 rounded-full border border-background bg-emerald-500',
+                      presenceUser.active && 'animate-pulse',
+                    )}
+                    aria-hidden="true"
+                  />
                 </span>
-              }
-            >
-              <span
-                className="inline-flex h-6 w-6 select-none items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background"
-                role="img"
-                aria-label={t('more', { defaultValue: '{{count}} more', count: overflow.length })}
+              </li>
+            );
+          })}
+
+          {overflow.length > 0 && (
+            <li className="-ms-1.5 flex items-center">
+              <Tooltip
+                content={
+                  <span className="flex flex-col gap-0.5 text-start">
+                    {overflow.map((presenceUser) => (
+                      <span key={presenceUser.userId}>
+                        <span className="font-semibold">{displayName(presenceUser)}</span>
+                        <span className="opacity-80"> — {statusText(presenceUser)}</span>
+                      </span>
+                    ))}
+                  </span>
+                }
               >
-                +{overflow.length}
-              </span>
-            </Tooltip>
-          </li>
-        )}
-      </ul>
-      {/* Active conversations counter — inline, no border/background.
-        * Stays on the inline-end (ms-auto, RTL-friendly). Hidden when null. */}
+                <span
+                  className="inline-flex h-6 w-6 flex-shrink-0 select-none items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background"
+                  role="img"
+                  aria-label={t('more', { defaultValue: '{{count}} more', count: overflow.length })}
+                >
+                  +{overflow.length}
+                </span>
+              </Tooltip>
+            </li>
+          )}
+        </ul>
+      </div>
+
+      {/* Active conversations counter — pinned to inline-end of the full row.
+        * Hidden when null. No border/background, stays small. */}
       {openSessionsCount != null && (
         <Tooltip content={activeConversationsLabel}>
           <span
-            className="ms-auto inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
+            className="inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
             aria-label={`${activeConversationsLabel}: ${openSessionsCount}`}
           >
             <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 opacity-60" aria-hidden="true" />
