@@ -1604,9 +1604,10 @@
       "kind": "feature",
       "issue": null,
       "title": "حقل بحث داخل تبويب الويكي: بحث فوري عبر كل صفحات الويكي (العناوين+النص) مع إبراز النتائج والقفز إليها",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "المحتوى مدمج بالحزمة عبر import.meta.glob في WikiPanel؛ بحث عميل خالص بلا سيرفر = build:client بلا restart"
+      "closed": "2026-06-13",
+      "summary": "حقل بحث الويكي: useWikiSearch.ts (منطق خالص + تطبيع عربي: نزع تشكيل، توحيد ألف/همزات/تاء مربوطة/ياء/واو، غير حسّاس للحالة) + WikiSearchField.tsx (combobox/listbox، snippet 80حرف مع <mark>، النقر ينقل للصفحة) في رأس الفهرس + 23 اختبار وحدة + 6 مفاتيح i18n في 9 لغات (common.json). Escape يمسح البحث ثم يطوي الفهرس. الإبراز داخل ReactMarkdown مؤجّل (كلفة AST). build:client ناجح. ملاحظة تشغيلية: عمل الوكيل التُقط سهواً في commit af28dac بعنوان T-132 (جلسة موازية استخدمت git add شامل)؛ الكود سليم ومبني، لم نُعِد كتابة التاريخ المشترك"
     },
     {
       "id": "T-132",
