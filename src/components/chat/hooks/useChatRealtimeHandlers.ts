@@ -201,6 +201,14 @@ export function useChatRealtimeHandlers({
     // such legacy/global events apply to the current view — the safe default.
     const isActiveViewSession = !sid || sid === activeViewSessionId;
 
+    // Coordinator/origin attribution stamped by the server on every assistant
+    // payload of this run (incl. stream_delta). Carried onto the streaming row so
+    // attribution is correct *while* streaming, not only after finalize (B-43).
+    const streamAttribution = {
+      coordinatorId: (msg as NormalizedMessage).coordinatorId,
+      originKind: (msg as NormalizedMessage).originKind,
+    };
+
     // --- Streaming: buffer for performance ---
     if (msg.kind === 'stream_delta') {
       const text = msg.content || '';
@@ -210,7 +218,7 @@ export function useChatRealtimeHandlers({
         streamTimerRef.current = window.setTimeout(() => {
           streamTimerRef.current = null;
           if (sid) {
-            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
           }
         }, 100);
       }
@@ -228,7 +236,7 @@ export function useChatRealtimeHandlers({
       }
       if (sid) {
         if (accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
         }
         sessionStore.finalizeStreaming(sid);
       }
@@ -302,7 +310,7 @@ export function useChatRealtimeHandlers({
           streamTimerRef.current = null;
         }
         if (sid && accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
           sessionStore.finalizeStreaming(sid);
         }
         accumulatedStreamRef.current = '';

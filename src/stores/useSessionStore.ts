@@ -552,11 +552,29 @@ export function useSessionStore() {
   /**
    * Update or create a streaming message (accumulated text so far).
    * Uses a well-known ID so subsequent calls replace the same message.
+   *
+   * `attribution` mirrors the coordinator/origin fields stamped by the server on
+   * completed assistant rows (commit 9c61b60 / 91b8b39). The live `stream_delta`
+   * events already carry `coordinatorId`, but the previous implementation rebuilt
+   * the streaming row from scratch and dropped it — so the active-speaker
+   * highlight and per-message attribution only appeared once the run finalized.
+   * Carrying it here makes attribution correct *while* streaming (B-43).
    */
-  const updateStreaming = useCallback((sessionId: string, accumulatedText: string, msgProvider: LLMProvider) => {
+  const updateStreaming = useCallback((
+    sessionId: string,
+    accumulatedText: string,
+    msgProvider: LLMProvider,
+    attribution?: { coordinatorId?: number | null; originKind?: string },
+  ) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
     const streamId = `__streaming_${resolvedSessionId}`;
+    const existing = slot.realtimeMessages.find(m => m.id === streamId);
+    // Prefer a freshly-supplied coordinator, but never lose one already stamped
+    // on the streaming row by an earlier delta if a later call omits it.
+    const coordinatorId =
+      attribution?.coordinatorId ?? existing?.coordinatorId;
+    const originKind = attribution?.originKind ?? existing?.originKind;
     const msg: NormalizedMessage = {
       id: streamId,
       sessionId: resolvedSessionId,
@@ -564,6 +582,8 @@ export function useSessionStore() {
       provider: msgProvider,
       kind: 'stream_delta',
       content: accumulatedText,
+      ...(coordinatorId != null ? { coordinatorId } : {}),
+      ...(originKind ? { originKind } : {}),
     };
     const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
     if (idx >= 0) {
