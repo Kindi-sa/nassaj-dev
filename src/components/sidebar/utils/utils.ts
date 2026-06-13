@@ -251,18 +251,70 @@ export const sortProjects = (
   return byName;
 };
 
+/**
+ * Normalises an Arabic/Latin string for case-insensitive search:
+ * lower-cases Latin characters and strips Arabic diacritics (tashkeel)
+ * so that "محادثة" matches "مُحَادَثَة" etc.
+ */
+const normalizeForSearch = (value: string): string =>
+  value
+    .toLowerCase()
+    // Strip Arabic diacritics (U+064B–U+065F range covers all tashkeel marks).
+    .replace(/[ً-ٟ]/g, '');
+
+/**
+ * Returns the set of session IDs (across all providers) whose title/summary
+ * matches the search query for the given project.  Used by the sidebar
+ * controller to auto-expand projects that have session-level matches and
+ * (optionally) to highlight individual rows.
+ */
+export const getMatchedSessionIds = (project: Project, normalizedSearch: string): Set<string> => {
+  if (!normalizedSearch) {
+    return new Set();
+  }
+
+  const matched = new Set<string>();
+  const sessions = getAllSessions(project);
+
+  for (const session of sessions) {
+    const title = normalizeForSearch(
+      (typeof session.summary === 'string' && session.summary.trim().length > 0
+        ? session.summary
+        : typeof session.name === 'string' && session.name.trim().length > 0
+          ? session.name
+          : typeof session.title === 'string' && session.title.trim().length > 0
+            ? session.title
+            : '') || session.id,
+    );
+
+    if (title.includes(normalizedSearch)) {
+      matched.add(session.id);
+    }
+  }
+
+  return matched;
+};
+
 export const filterProjects = (projects: Project[], searchFilter: string): Project[] => {
-  const normalizedSearch = searchFilter.trim().toLowerCase();
+  const normalizedSearch = normalizeForSearch(searchFilter.trim());
   if (!normalizedSearch) {
     return projects;
   }
 
   return projects.filter((project) => {
-    const displayName = (project.displayName || project.projectId).toLowerCase();
+    const displayName = normalizeForSearch(project.displayName || project.projectId);
     // `project.path`/`fullPath` is the most useful search target now that the
     // folder-derived name is gone; fall back to displayName above.
-    const searchPath = (project.path || project.fullPath || '').toLowerCase();
-    return displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch);
+    const searchPath = normalizeForSearch(project.path || project.fullPath || '');
+
+    // Project name/path match — keep the project regardless of sessions.
+    if (displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch)) {
+      return true;
+    }
+
+    // Session-level match — keep the project so the matched sessions are
+    // reachable; the controller auto-expands these projects.
+    return getMatchedSessionIds(project, normalizedSearch).size > 0;
   });
 };
 

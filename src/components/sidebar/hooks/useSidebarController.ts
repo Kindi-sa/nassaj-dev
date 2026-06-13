@@ -19,6 +19,7 @@ import {
   filterProjects,
   filterProjectsByMembership,
   getAllSessions,
+  getMatchedSessionIds,
   getSessionCreationDate,
   readLegacyStarredProjectIds,
   readProjectMembershipFilter,
@@ -342,6 +343,56 @@ export function useSidebarController({
       clearTimeout(timeout);
     };
   }, [searchFilter]);
+
+  // Auto-expand projects whose sessions match the search query (but whose own
+  // name does not), so the user sees the matching sessions without having to
+  // open each project manually.  When the search is cleared the expanded set
+  // returns to its previous state (the effect below is additive only).
+  useEffect(() => {
+    if (!debouncedSearchQuery) {
+      return;
+    }
+
+    const normalizedSearch = debouncedSearchQuery.trim().toLowerCase()
+      // Strip Arabic diacritics – mirrors normalizeForSearch in utils.ts.
+      .replace(/[ً-ٟ]/g, '');
+
+    if (!normalizedSearch) {
+      return;
+    }
+
+    setExpandedProjects((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+
+      for (const project of projects) {
+        // Already expanded — nothing to do.
+        if (next.has(project.projectId)) {
+          continue;
+        }
+
+        // If the project name itself matched there is no need to force-expand
+        // (the project is visible but there is no session filter to reveal).
+        const projectNameNorm = (project.displayName || project.projectId)
+          .toLowerCase()
+          .replace(/[ً-ٟ]/g, '');
+        const pathNorm = (project.path || project.fullPath || '')
+          .toLowerCase()
+          .replace(/[ً-ٟ]/g, '');
+
+        if (projectNameNorm.includes(normalizedSearch) || pathNorm.includes(normalizedSearch)) {
+          continue;
+        }
+
+        if (getMatchedSessionIds(project, normalizedSearch).size > 0) {
+          next.add(project.projectId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [debouncedSearchQuery, projects]);
 
   // All sidebar state keys (expanded, starred, loading, etc.) use the DB
   // `projectId` as their identifier after the migration.
