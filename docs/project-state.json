@@ -1750,6 +1750,19 @@
       "owner": "frontend-dev",
       "closed": "2026-06-14",
       "summary": "منفَّذ في commit 474af1f (عميل/بناء بحت، بلا تغيير خادم ولا restart). vite.config: معرّف BUILD_ID واحد (git sha + احتياط زمني) يغذّي define.__BUILD_ID__ وversion.json عبر emitFile؛ هوك useBuildVersion (poll version.json بـcache:no-store كل 60ث + visibilitychange، خط أساس من المخبوز، يوقف عند أول اختلاف، حُرّاس ضد البانر الكاذب)؛ BuildUpdateBanner سفلي z-40 يعيد التحميل بنقرة (لا تلقائي) + زر تجاهل، RTL وaria؛ i18n buildUpdate متميّز عن versionUpdate. تصميم architect (SOUND-WITH-CHANGES) ومراجعة qa-critic (CLEARED-FOR-COMMIT، تتبّع سطري: مصدر واحد، تنظيف بلا ازدواج، SW لا يفسد no-store). build:client نجح، tsc/eslint نظيف. يسري على التبويبات من أول تحميل لاحق (التبويب القديم بلا الهوك). تحسينان اختياريان مؤجَّلان: header no-cache زائد، وعدم إعادة ظهور البانر بعد التجاهل."
+    },
+    {
+      "id": "T-142",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "spike",
+      "issue": null,
+      "title": "قرار معلّق: إضافة Kimi K2.7-Code كمزوّد سابع — تقييم جدوى مكتمل (ممكن بشروط)، ينتظر go/no-go من المالك على الخصوصية/إقامة البيانات والأولوية. مرتبط ADR-033",
+      "status": "open",
+      "owner": "product-strategist",
+      "due": "2026-06-21",
+      "closed": null,
+      "summary": "تقييم ثلاثي الطبقات (بحث موثّق + مسح كود فعلي + حكم architect على opus-4-8، الجلسة 2026-06-14). النتيجة: Kimi K2.7-Code حقيقي (صدر 2026-06-12، أوزان مفتوحة Modified MIT، سياق 256K، endpoint متوافق مع Anthropic رسمي api.moonshot.ai/anthropic + CLI رسمي moonshot-ai/kimi-code في technical preview). المسار الموصى به B: مزوّد أصيل عبر kimi-code CLI متّبعاً قالب Cursor (13 seam + وحدة 7 ملفات + kimi-cli.js + sessions normalizer)، مرحلياً PoC خلف feature flag (8–12h) ثم أصيل (إجمالي L ≈ 20–32h). المسار A (إعادة استخدام Claude SDK) مرفوض فخّاً: kimi-k2.7-code خارج acceptedModels في claude-sdk.js:378-394 فيُقهَر صامتاً لموديل Claude، وحقن ANTHROPIC_AUTH_TOKEN عالمياً يُفسد كشف مصادقة Claude في claude-auth.provider.ts:139-145 ويوجّه طلباته لـMoonshot — لذا أي حقن env لـKimi حصراً per-provider في resolve-provider-env.js. المسار C (عبر opencode) للاختبار فقط. بوابات تحتاج المالك: (1) الخصوصية/إقامة البيانات لشركة صينية مقابل سياسة بيانات المشروع — حاجبة، لا تنفيذ قبل حسمها؛ (2) التكلفة/الدفع للمنطقة وملكية مفتاح Moonshot؛ (3) الأولوية مقابل backlog مزامنة v1.34. يمتد لسلالة مزوّدي P2 (راجع T-6 إضافة Cursor)."
     }
   ],
   "issues": [
@@ -2372,6 +2385,13 @@
       "date": "2026-06-14",
       "status": "accepted",
       "title": "نموذج عدّاد تقدّم المهام + التقدير الزمني في ClaudeStatus (بعد مراجعة نقدية: qa-critic فيتو REJECT + architect SOUND-WITH-CHANGES). رُفض نموذج «الجمع» الذي طلبه المالك (todos+وكلاء في بسط/مقام واحد): الوكيل الفرعي بلا «إجمالي» معروف (لا حقل total في SubagentChildTool/subagentState) فيقفز المقام عند انطلاق أي وكيل وتنهار النسبة، ويكسر الاستقراء الخطّي. المعتمد: متداخل TodoWrite-أساسي — العدّاد المرئي = أحدث قائمة TodoWrite (done/total) + شريط؛ الوكلاء (Task فريدة بالـtoolId) تفصيل في tooltip + مؤشّر «وكيل يعمل»، لا يدخلان البسط/المقام؛ تدرّج آمن عند total=0 (مؤشّر وكيل، وإلا لا عدّاد). تصليب التقدير: مرساة زمن مخصّصة تُثبَّت عند isLoading false→true (لا runStartedAt الذي يتلوّث برسائل originKind:coordinator)، EMA α=0.25 + رتابة نزولية على المعروض (لا يرتفع وسط الـrun)، قمع حتى done≥1 و elapsed≥15s، تهيئة cold-start بعد الاستئناف. الإغلاق بـ!isLoading لا بتجميع tool_result للأدوات. الحساب في هوك useRunProgress (memo على chatMessages، مسح من الذيل بكسر مبكّر) مفصول عن tick الثانية. منفَّذ في T-139. مرتبط: project_context_rot_indicator."
+    },
+    {
+      "id": "ADR-033",
+      "date": "2026-06-14",
+      "status": "proposed",
+      "due": "2026-06-21",
+      "title": "إضافة Kimi K2.7-Code كمزوّد سابع في نسّاج — Proposed بانتظار go/no-go من المالك. تقييم الجدوى: ممكن بشروط. المسار الموصى به B (مزوّد أصيل عبر kimi-code CLI، قالب Cursor، مرحلياً PoC خلف علم ثم أصيل، L≈20–32h)؛ المسار A (إعادة استخدام Claude SDK) مرفوض فخّاً: kimi-k2.7-code خارج acceptedModels في claude-sdk.js:378-394 + تصادم كشف مصادقة Claude في claude-auth.provider.ts:139-145 عند حقن ANTHROPIC_AUTH_TOKEN عالمياً. بوابة حاجبة: خصوصية/إقامة بيانات لشركة صينية مقابل سياسة بيانات المشروع. بوابتان: التكلفة/الدفع، الأولوية مقابل v1.34. مهمة التتبّع T-142. مرتبط: ADR-030 (فلترة المزوّدين)، T-6 (إضافة Cursor)."
     }
   ]
 }
