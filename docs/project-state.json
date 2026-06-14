@@ -1787,9 +1787,30 @@
       "owner": "frontend-dev",
       "closed": "2026-06-14",
       "summary": "AgentSummaryBadge في AgentChipRow: بادج «N وكيل · M استدعاء» (المتمايزون = agent_kind==='subagent'؛ الإجمالي = مجموع invocation_count؛ النموذج مستثنى) + tooltip تفصيلي per-agent بالاسم. كل شريحة AgentChip تعرض «الاسم ×N» بلا عدّاد على النموذج. زر «إظهار شريط المشاركين» (ChevronDown) في ChatInterface يعيد الشريط المخفيّ بنقرة. مصدر البيانات: GET /api/sessions/:id/agents عبر transcript-parser (عدّ Agent+Task لكل subagent_type) — بلا تغيير خادم. مراجعة qa-critic (opus، احتياط لغياب fable-5): CONDITIONAL APPROVE؛ أُصلح H-1 (اسم الوكيل في breakdown عبر دمج يدوي مع مفتاح invocations القائم محافظاً على صيغ الجمع العربية الخمس) وM-1 (إزالة «×1» عن شريحة النموذج)؛ برهان i18next «architect: 3 استدعاءات». build:client نجح، tsc نظيف، حيّ على nassaj-dev.alkindy.tech:3004. جلسات متوازية: الكود مُلتزَم مستقلاً في commit 4e7b4d5 (feat(participants))؛ كان قد التُقط سهواً في commit B-63 عبر git add -A ثم أسقطته الجلسة الموازية بـamend فأُعيد التزامه مستقلاً — لا فقد بيانات. عيوب L-1/L-3/M-2 من المراجعة تخص useChatMessages/useRunProgress (مهمة B-63) لا هذه الميزة."
+    },
+    {
+      "id": "T-145",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-64",
+      "title": "إصلاح B-64: مؤشّر «Opus only» في CLAUDE USAGE عالق على 0% — إزالة fallback يلفّق نافذة صفرية عند غياب بيانات opus من الـAPI",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-14",
+      "summary": "السبب الجذري (مُثبَت بجلب حيّ للـAPI ×4 أعاد qa-critic إنتاجه بنفسه): Anthropic GET /api/oauth/usage يُعيد seven_day_opus=null لحسابات Max الحالية (استهلاك opus يُحتسب ضمن seven_day/five_hour لا في نافذة منفصلة)، وnormalize() في claude-usage.service.ts:411 كان يستبدل الـnull بنافذة ملفّقة عبر «?? {utilization:0,resetsAt:null}» فيظهر «0% used» دائماً — بينما weeklySonnet (408) بلا fallback فيصدُق (تفسير الفرق العامل/المعطّل). الأثر في ثلاثة مواضع لا واحد: Quick Settings، وشارة الهيدر «O»، والشريط المطويّ. الإصلاح (الخيار A عبر workflow: architect → qa-critic فيتو → backend-dev، نماذج opus احتياطاً لغياب fable-5): حذف الـfallback فيطابق opus بقية النوافذ (null يُسطَّح والواجهة تُخفيه؛ الحقل أصلاً |null والمستهلكون الثلاثة يحرسون null) + تصحيح تعليق types.ts. متوافق مستقبلاً: يظهر الصف تلقائياً إن عبّأت Anthropic الحقل. لا تغيير واجهة/i18n/عقد. build:server نجح، commit fc6d909 (الملفان بالاسم؛ جلسة متوازية نشطة). يبقى restart بطرفية المالك ليسري (حارس العميل). qa-critic صحّح خطوة تحقق: curl للمسار يُعطي 401 (محميّ) — التحقق عبر الواجهة. مرتبط: ADR-034، ADR-014 (عزل الاعتماد)."
     }
   ],
   "issues": [
+    {
+      "id": "B-64",
+      "severity": "medium",
+      "status": "fixed",
+      "found": "2026-06-14",
+      "title": "مؤشّر «Opus only» في Quick Settings → CLAUDE USAGE عالق على 0% دائماً (وكذلك شارة الهيدر «O» والشريط المطويّ): Anthropic usage API يُعيد seven_day_opus=null لحسابات Max الحالية، وnormalize() كان يلفّق نافذة {utilization:0} بدل تسطيحه null كبقية النوافذ. مؤكَّد بجلب حيّ للـAPI ×4 (أعاد qa-critic إنتاجه).",
+      "triage": "medium → أُصلح في نفس الجلسة (T-145، commit fc6d909): إزالة fallback في claude-usage.service.ts:411 + تصحيح تعليق types.ts (الخيار A). تغيير خادم — يسري بعد build:server (تمّ) + restart بطرفية المالك.",
+      "resolved": "2026-06-14"
+    },
     {
       "id": "B-62",
       "title": "tooltip «المحادثات النشطة» لا يطابق الشارة: «4 active» مقابل سرد مشروع واحد «Diwan — 1»",
@@ -2425,6 +2446,12 @@
       "status": "proposed",
       "due": "2026-06-21",
       "title": "إضافة Kimi K2.7-Code كمزوّد سابع في نسّاج — Proposed بانتظار go/no-go من المالك. تقييم الجدوى: ممكن بشروط. المسار الموصى به B (مزوّد أصيل عبر kimi-code CLI، قالب Cursor، مرحلياً PoC خلف علم ثم أصيل، L≈20–32h)؛ المسار A (إعادة استخدام Claude SDK) مرفوض فخّاً: kimi-k2.7-code خارج acceptedModels في claude-sdk.js:378-394 + تصادم كشف مصادقة Claude في claude-auth.provider.ts:139-145 عند حقن ANTHROPIC_AUTH_TOKEN عالمياً. بوابة حاجبة: خصوصية/إقامة بيانات لشركة صينية مقابل سياسة بيانات المشروع. بوابتان: التكلفة/الدفع، الأولوية مقابل v1.34. مهمة التتبّع T-142. مرتبط: ADR-030 (فلترة المزوّدين)، T-6 (إضافة Cursor)."
+    },
+    {
+      "id": "ADR-034",
+      "date": "2026-06-14",
+      "status": "accepted",
+      "title": "إخفاء صف «Opus only» عند غياب بياناته بدل تلفيق 0% (إصلاح B-64) — تراجع مقصود عن قرار سابق موثّق (carve-out في types.ts كان يُطبّع weeklyOpus إلى نافذة صفرية «ليظهر الصف دائماً»). المسوّغ مزدوج: (1) Anthropic لا يكشف نافذة opus منفصلة لحسابات Max الحالية — seven_day_opus=null عبر 4 استجابات حيّة، وopus يُحتسب ضمن seven_day/five_hour؛ (2) عزل الاعتماد (ADR-014): الواجهة تستعلم بتوكن المستخدم الطالب (user-2) بينما الوكلاء يستهلكون opus بحساب nassaj-core المختلف — فلا رقم «Opus only» ذو معنى متاح لهذا الحساب اليوم. لذا الصدق = إخفاء لا تلفيق: opus يطابق بقية النوافذ (null→مخفيّ) ويظهر تلقائياً إن عبّأت Anthropic الحقل لاحقاً. رُفض الخيار B (حالة «غير متعقَّب» دائمة الظهور) لكلفته عبر 3 مكوّنات + i18n لنافذة بلا إشارة، والخيار C (دمج/إعادة تسمية) للأكثر كوداً والأضعف وضوحاً. منفَّذ في T-145 (commit fc6d909). مرتبط: ADR-014 (عزل الاعتماد)، B-64."
     }
   ]
 }
