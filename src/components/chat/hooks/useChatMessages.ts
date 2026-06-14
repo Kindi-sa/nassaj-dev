@@ -37,6 +37,46 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     }
   }
 
+  // Pre-pass (B-63 live counter): fold *live* sub-agent tool rows into their
+  // container. The SDK streams a sub-agent's tool_use/tool_result blocks during
+  // a delegation run (no flag needed — "enough for a heartbeat counter", see
+  // @anthropic-ai/claude-agent-sdk sdk.d.ts ~L1525), each stamped with
+  // `parent_tool_use_id` = the id of the parent `Task`/`Agent` tool_use block.
+  // The server (claude-sdk.js transformMessage → parentToolUseId, copied onto
+  // every normalized row) forwards it; the client appends it verbatim. That id
+  // equals the container row's `toolId`, which the live normalizer derives from
+  // the same tool_use block id (`part.id`, claude-sessions.provider.ts ~L567).
+  //
+  // Without this, each live child arrives as an independent top-level tool_use
+  // row, renders orphaned, and is never seen by useRunProgress (which only
+  // descends into `subagentState.childTools`). Here we group those children by
+  // their parent id into the same SubagentChildTool shape the history path
+  // builds, so the container branch below can merge them and useRunProgress can
+  // count the sub-agent's TodoWrite live. The map is order-independent: a child
+  // that arrives before its container is still attached when the container is
+  // converted, because both passes run over the full `messages` array.
+  const liveChildMap = new Map<string, SubagentChildTool[]>();
+  for (const msg of messages) {
+    if (msg.kind !== 'tool_use' || !msg.parentToolUseId || !msg.toolId) continue;
+    const tr = msg.toolResult || toolResultMap.get(msg.toolId) || null;
+    const child: SubagentChildTool = {
+      toolId: msg.toolId,
+      toolName: msg.toolName || '',
+      toolInput: msg.toolInput,
+      toolResult: tr
+        ? {
+            content: formatToolResultContent(tr.content),
+            isError: Boolean(tr.isError),
+            toolUseResult: (tr as any).toolUseResult,
+          }
+        : null,
+      timestamp: new Date(msg.timestamp || Date.now()),
+    };
+    const bucket = liveChildMap.get(msg.parentToolUseId);
+    if (bucket) bucket.push(child);
+    else liveChildMap.set(msg.parentToolUseId, [child]);
+  }
+
   for (const msg of messages) {
     const sharedMetadata = {
       displayText: msg.displayText,
@@ -103,11 +143,29 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       }
 
       case 'tool_use': {
-        const tr = msg.toolResult || (msg.toolId ? toolResultMap.get(msg.toolId) : null);
-        const isSubagentContainer = msg.toolName === 'Task';
+        // Live sub-agent child tool (carries parentToolUseId): already folded
+        // into its container's childTools in the pre-pass. Do NOT also emit it as
+        // a flat top-level row, or it renders orphaned and double-counts (B-63).
+        if (msg.parentToolUseId) {
+          break;
+        }
 
-        // Build child tools from subagentTools
+        const tr = msg.toolResult || (msg.toolId ? toolResultMap.get(msg.toolId) : null);
+        // Sub-agent container: the coordinator delegating a run. Two tool names
+        // delegate in this codebase — Claude's native `Task` and the agy /
+        // Antigravity `Agent` tool (the only one actually used in nassaj runs,
+        // 2114 uses vs 0 for `Task`). Both attach their child tools via
+        // `subagentTools` on the result, so both must be recognised or the live
+        // active-agent chip and the history child-tool descent in useRunProgress
+        // never fire for real nassaj delegation runs (B-63).
+        const isSubagentContainer = msg.toolName === 'Task' || msg.toolName === 'Agent';
+
+        // Build child tools from subagentTools (history aggregate) and merge the
+        // live children folded in the pre-pass (B-63). Dedup by toolId — the same
+        // tool can appear in both once a run finishes and its children are also
+        // aggregated onto the container — keeping the history copy as canonical.
         const childTools: SubagentChildTool[] = [];
+        const seenChildIds = new Set<string>();
         if (isSubagentContainer && msg.subagentTools && Array.isArray(msg.subagentTools)) {
           for (const tool of msg.subagentTools as any[]) {
             childTools.push({
@@ -117,6 +175,17 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               toolResult: tool.toolResult || null,
               timestamp: new Date(tool.timestamp || Date.now()),
             });
+            if (tool.toolId) seenChildIds.add(tool.toolId);
+          }
+        }
+        if (isSubagentContainer && msg.toolId) {
+          const liveChildren = liveChildMap.get(msg.toolId);
+          if (liveChildren) {
+            for (const child of liveChildren) {
+              if (child.toolId && seenChildIds.has(child.toolId)) continue;
+              childTools.push(child);
+              if (child.toolId) seenChildIds.add(child.toolId);
+            }
           }
         }
 

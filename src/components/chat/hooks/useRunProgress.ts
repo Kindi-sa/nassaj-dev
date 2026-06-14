@@ -7,21 +7,35 @@
  *   - Pure message scan, memoized on `[chatMessages]` ONLY. It does not read the
  *     clock, so it recomputes only when the transcript actually changes, not
  *     every second.
- *   - A single full tail→head pass, NO early exit. The latest TodoWrite is
- *     locked at its first (newest) hit via `foundTodos`; every Task row is still
- *     visited and deduped by toolId so all unique sub-agents are counted and the
- *     newest incomplete one is the active one. One pass, no map/filter over the
- *     whole array. (Do NOT add a `break`: it would stop counting older Task rows
- *     and undercount the sub-agents.)
+ *   - A single full tail→head pass, NO early exit. The latest TodoWrite wins by
+ *     timestamp (it may be top-level or nested in a sub-agent's childTools);
+ *     every container row (Task/Agent) is still visited and deduped by toolId so
+ *     all unique sub-agents are counted and the newest incomplete one is the
+ *     active one. One pass, no map/filter over the whole array. (Do NOT add a
+ *     `break`: it would stop counting older container rows and undercount the
+ *     sub-agents.)
  *   - Consumes the FULL `chatMessages`, never the windowed `visibleMessages`
  *     (last ~100), so Task containers scrolled out of the visible window are
  *     still counted.
  *
  * Counter model (nested, TodoWrite-primary):
  *   - Numerator/denominator come ONLY from the most recent TodoWrite list.
- *   - Sub-agents (Task) are tooltip detail; they never enter the fraction.
+ *   - Sub-agents (Task / Agent) are tooltip detail; they never enter the fraction.
  *   - Safe degradation: TodoWrite list → counter; else an active sub-agent →
  *     "agent working" indicator (no bar, no estimate); else nothing.
+ *
+ * TodoWrite location (B-63): in nassaj the coordinator delegates via the `Agent`
+ * tool and writes NO top-level TodoWrite; the to-do list lives inside the
+ * sub-agent. So the latest TodoWrite must be located across BOTH positions —
+ * top-level tool_use rows AND `subagentState.childTools` of sub-agent container
+ * rows — and the newest of the two (by timestamp) wins. The legacy top-level
+ * path is preserved unchanged for sessions whose coordinator does its own
+ * TodoWrite. Sub-agent child tools reach `childTools` in two ways: from the
+ * history aggregate (`subagentTools`, fetchHistory / completed run) AND — live,
+ * mid-run — from the SDK's streamed sub-agent tool blocks, which useChatMessages
+ * folds into their container by `parentToolUseId === container.toolId` (B-63).
+ * So during a live delegation run the counter now updates as the sub-agent
+ * writes its TodoWrite, instead of only showing the active-agent chip.
  */
 
 import { useMemo } from 'react';
@@ -103,19 +117,52 @@ export function useRunProgress(
     let total = 0;
     let inProgress = 0;
     let foundTodos = false;
+    // Timestamp (ms) of the TodoWrite list currently locked in, so a TodoWrite
+    // found inside a sub-agent's childTools can win over an older top-level one
+    // and vice-versa. -Infinity until the first list is found.
+    let todosAt = -Infinity;
 
-    // Unique Task ids seen, and which of them have a matching tool_result.
+    // Unique sub-agent (Task / Agent) ids seen, and which have a tool_result.
     const taskIds = new Set<string>();
     let agentsDone = 0;
     let activeSubagent: { callCount: number } | null = null;
 
-    // Full tail→head pass, no early exit. The *latest* TodoWrite is the first
-    // one hit scanning backwards and is locked via `foundTodos` (older lists
-    // ignored). Task rows must ALL be visited and deduped by toolId so every
-    // unique sub-agent is counted; the active sub-agent is the first incomplete
-    // Task hit scanning backwards (= the most recent one still running).
-    // Intentionally `continue`, never `break`: an early break would skip older
-    // Task rows and undercount the sub-agents.
+    // Read a timestamp (string|number|Date) as epoch ms; non-finite → -Infinity
+    // so a row with no usable timestamp never displaces a properly-stamped list.
+    const tsMs = (value: unknown): number => {
+      if (value instanceof Date) return value.getTime();
+      const ms = new Date(value as string | number).getTime();
+      return Number.isFinite(ms) ? ms : -Infinity;
+    };
+
+    // Apply a candidate TodoWrite list if it is newer than the one held. Keeps
+    // the "latest list wins" contract across both top-level and child positions.
+    const considerTodos = (
+      todos: Array<{ content: string; status: string }>,
+      at: number,
+    ): void => {
+      if (todos.length === 0 || at < todosAt) return;
+      foundTodos = true;
+      todosAt = at;
+      let d = 0;
+      let p = 0;
+      for (const todo of todos) {
+        if (todo.status === 'completed') d++;
+        else if (todo.status === 'in_progress') p++;
+      }
+      done = d;
+      total = todos.length;
+      inProgress = p;
+    };
+
+    // Full tail→head pass, no early exit. The *latest* TodoWrite wins by
+    // timestamp via `considerTodos` (it may live top-level OR inside a
+    // sub-agent's childTools, so a pure first-hit lock is no longer enough).
+    // Container rows (Task/Agent) must ALL be visited and deduped by toolId so
+    // every unique sub-agent is counted; the active sub-agent is the first
+    // incomplete container hit scanning backwards (= the most recent one still
+    // running). Intentionally `continue`, never `break`: an early break would
+    // skip older container rows and undercount the sub-agents.
     for (let i = chatMessages.length - 1; i >= 0; i--) {
       const msg = chatMessages[i];
       if (!msg.isToolUse) continue;
@@ -123,33 +170,40 @@ export function useRunProgress(
       const toolName = msg.toolName;
 
       if (toolName === 'TodoWrite') {
-        if (!foundTodos) {
-          // First TodoWrite hit while scanning backwards == highest timestamp
-          // == latest list. Lock it in; ignore older ones.
-          const todos = parseTodos(msg.toolInput);
-          if (todos.length > 0) {
-            foundTodos = true;
-            total = todos.length;
-            for (const todo of todos) {
-              if (todo.status === 'completed') done++;
-              else if (todo.status === 'in_progress') inProgress++;
-            }
-          }
-        }
+        // Top-level TodoWrite (coordinator's own list). Compete by timestamp so
+        // a newer list — wherever it lives — always wins.
+        considerTodos(parseTodos(msg.toolInput), tsMs(msg.timestamp));
         continue;
       }
 
-      if (toolName === 'Task') {
+      // Sub-agent container: `Task` (Claude native) or `Agent` (agy/Antigravity,
+      // the one nassaj actually uses). Count it as a sub-agent AND descend into
+      // its childTools for any TodoWrite the sub-agent wrote — that is where the
+      // to-do list lives when the coordinator delegates (B-63).
+      if (toolName === 'Task' || toolName === 'Agent') {
+        const childTools = msg.subagentState?.childTools;
+        if (childTools && childTools.length > 0) {
+          // Walk tail→head: the newest child TodoWrite is the freshest list for
+          // this sub-agent; stop at the first hit to honour "latest wins" while
+          // still letting considerTodos arbitrate against other positions.
+          for (let c = childTools.length - 1; c >= 0; c--) {
+            const child = childTools[c];
+            if (child.toolName !== 'TodoWrite') continue;
+            considerTodos(parseTodos(child.toolInput), tsMs(child.timestamp));
+            break;
+          }
+        }
+
         const id = msg.toolId;
-        // Unique by toolId; ignore Task rows without an id (cannot dedupe).
+        // Unique by toolId; ignore container rows without an id (cannot dedupe).
         if (id && !taskIds.has(id)) {
           taskIds.add(id);
           const complete = msg.subagentState?.isComplete ?? Boolean(msg.toolResult);
           if (complete) {
             agentsDone++;
           } else if (activeSubagent === null) {
-            // First incomplete Task scanning backwards = the active one.
-            activeSubagent = { callCount: msg.subagentState?.childTools?.length ?? 0 };
+            // First incomplete container scanning backwards = the active one.
+            activeSubagent = { callCount: childTools?.length ?? 0 };
           }
         }
         continue;
