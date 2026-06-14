@@ -6,10 +6,9 @@
  * but for the runner's on-disk files. A lazy chokidar watcher is created per
  * project on first GET /api/runner/:projectId and watches:
  *
- *   state/<name>/cycle-state.json
- *   state/<name>/activity.json
- *   state/<name>/critique-verdict.json
- *   state/<name>/cycle-history.json
+ *   state/<name>/checkpoint.json    (v2: coordinator writes after each cycle)
+ *   state/<name>/supervisor.json    (v2: heartbeat + cycle_stats)
+ *   state/<name>/cycle-history.json (unchanged: RunnerJourney data)
  *   state/<name>/pause              (control file)
  *   state/<name>/pending-approvals/ (auto-mode approval queue — dir watch)
  *   projects/registry.json          (enable/priority changes)
@@ -97,9 +96,10 @@ export function ensureRunnerWatcher(
 
   const paths = runnerPaths(runnerName);
   const targets = [
-    paths.cycleState,
-    paths.activity,
-    paths.critiqueVerdict,
+    // v2 primary state files
+    paths.checkpoint,
+    paths.supervisor,
+    // unchanged: RunnerJourney history
     paths.cycleHistory,
     paths.pause,
     paths.approveNextPhase,

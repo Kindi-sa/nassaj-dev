@@ -12,25 +12,62 @@ import { useWebSocket } from '../../contexts/WebSocketContext';
  * status and POSTs control verbs — it never touches the runner's files.
  */
 
-export type RunnerCycleState = {
-  stage?: string;
+/**
+ * v2: checkpoint.json pointer + progress + blocked (§4 of minwal-v2-design.md).
+ * Replaces the old CycleState + ActivityState from v1.
+ */
+export type CheckpointPointer = {
+  phase?: string;
   cycle?: number;
-  status?: string;
-  pid?: number;
-  started_at?: string;
-  fix_loops?: number;
-  exit2_count?: number;
-  interrupted_count?: number;
-  last_error?: string;
+  active_task_id?: string;
+  stage?: string | number;
 };
 
-export type RunnerActivity = {
-  active_task_id?: string | null;
-  active_phase_id?: string | null;
-  stage?: string;
-  started_at?: string;
-  heartbeat_at?: string;
-  last_verdict?: 'clean' | 'unclean' | null;
+export type CheckpointProgress = {
+  done?: string[];
+  remaining?: string[];
+  partial?: Record<
+    string,
+    {
+      step?: number;
+      step_name?: string;
+      agents_done?: string[];
+      agents_pending?: string[];
+    }
+  >;
+};
+
+export type RunnerCheckpoint = {
+  schema_version?: string;
+  project?: string;
+  pointer?: CheckpointPointer;
+  progress?: CheckpointProgress;
+  open_questions?: string[];
+  blocked?: Record<string, string>;
+  last_commit?: string;
+  last_updated?: string;
+};
+
+/**
+ * v2: supervisor.json session liveness + cycle_stats.
+ * Replaces the old ActivityState liveness fields from v1.
+ */
+export type RunnerSupervisor = {
+  schema_version?: string;
+  project?: string;
+  session?: {
+    pid?: number;
+    unit?: string;
+    started?: string;
+    heartbeat?: string;
+    exit_reason?: string | null;
+  };
+  cycle_stats?: {
+    total_cycles?: number;
+    last_cycle_duration_s?: number | null;
+    tokens_this_session?: number;
+    hung_recoveries?: number;
+  };
 };
 
 /** One completed stage result inside a cycle record. */
@@ -107,9 +144,16 @@ export type RunnerStatus = {
   enabled: boolean | null;
   priority: number | null;
   paused: boolean;
-  cycle: RunnerCycleState | null;
-  activity: RunnerActivity | null;
-  verdict: { clean?: boolean; notes?: string } | null;
+  /**
+   * v2: pointer + progress + blocked from checkpoint.json.
+   * null when the coordinator has not written a checkpoint yet (normal initial state).
+   */
+  checkpoint: RunnerCheckpoint | null;
+  /**
+   * v2: session liveness + cycle_stats from supervisor.json.
+   * null when the supervisor has not started yet.
+   */
+  supervisor: RunnerSupervisor | null;
   /**
    * Journey log (cycle-history.json). null when the file is absent
    * (project with no cycles yet). The UI degrades gracefully.

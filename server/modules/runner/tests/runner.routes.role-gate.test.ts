@@ -47,7 +47,7 @@ const dbIndexUrl = pathToFileURL(
   path.resolve(import.meta.dirname, '../../database/index.js')
 ).href;
 
-// A merged status fixture; awaiting_approval so the approve verb passes its
+// A merged status fixture (v2); awaiting_approval so the approve verb passes its
 // stage guard once the role gate is cleared. `cycleStage` is mutable so a test
 // can drive the approve 409 branch (stage != awaiting_approval).
 let cycleStage = 'awaiting_approval';
@@ -58,9 +58,17 @@ const statusFixture = () => ({
   enabled: true,
   priority: 1,
   paused: false,
-  cycle: { stage: cycleStage, cycle: 1, status: 'idle' },
-  activity: null,
-  verdict: null,
+  // v2: stage lives in checkpoint.pointer.stage
+  checkpoint: {
+    schema_version: '2.0',
+    project: 'demo',
+    pointer: { phase: 'S0', cycle: 1, active_task_id: 'T-01', stage: cycleStage },
+    progress: { done: [], remaining: [], partial: {} },
+    blocked: {},
+    last_commit: 'abc1234',
+    last_updated: new Date().toISOString(),
+  },
+  supervisor: null,
   config: null,
   stateError: false,
 });

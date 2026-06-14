@@ -43,39 +43,67 @@ const PROJECTS_DIR = () => path.join(RUNNER_ROOT, 'projects');
 const STATE_DIR = () => path.join(RUNNER_ROOT, 'state');
 const REGISTRY_FILE = () => path.join(PROJECTS_DIR(), 'registry.json');
 
-// ---- file shapes (READ-ONLY mirrors of the runner's own schema) ----
+// ---- file shapes (READ-ONLY mirrors of the runner's own schema v2) ----
 
-type CycleState = {
-  stage?: string;
-  cycle?: number;
-  status?: string;
-  pid?: number;
-  started_at?: string;
-  fix_loops?: number;
-  exit2_count?: number;
-  interrupted_count?: number;
-  last_error?: string;
-  approval_notified?: boolean;
-  dirty_notified?: boolean;
+/**
+ * state/<project>/checkpoint.json — v2 contract (§4 of minwal-v2-design.md).
+ * Written atomically by the coordinator (tmp → rename). The bridge reads this
+ * ONLY, never writes it.
+ */
+type CheckpointV2 = {
+  schema_version?: string;
+  project?: string;
+  pointer?: {
+    phase?: string;
+    cycle?: number;
+    active_task_id?: string;
+    stage?: string | number;
+  };
+  progress?: {
+    done?: string[];
+    remaining?: string[];
+    partial?: Record<
+      string,
+      {
+        step?: number;
+        step_name?: string;
+        agents_done?: string[];
+        agents_pending?: string[];
+      }
+    >;
+  };
+  open_questions?: string[];
+  blocked?: Record<string, string>;
+  last_commit?: string;
+  last_updated?: string;
 };
 
-type ActivityState = {
-  active_task_id?: string | null;
-  active_phase_id?: string | null;
-  stage?: string;
-  started_at?: string;
-  heartbeat_at?: string;
-  log_file?: string;
-  last_verdict?: 'clean' | 'unclean' | null;
-};
-
-type CritiqueVerdict = {
-  clean?: boolean;
-  notes?: string;
+/**
+ * state/<project>/supervisor.json — v2 contract (§4 of minwal-v2-design.md).
+ * Written by the supervisor script and the coordinator. The bridge reads this
+ * ONLY, never writes it.
+ */
+type SupervisorV2 = {
+  schema_version?: string;
+  project?: string;
+  session?: {
+    pid?: number;
+    unit?: string;
+    started?: string;
+    heartbeat?: string;
+    exit_reason?: string | null;
+  };
+  cycle_stats?: {
+    total_cycles?: number;
+    last_cycle_duration_s?: number | null;
+    tokens_this_session?: number;
+    hung_recoveries?: number;
+  };
 };
 
 /**
  * cycle-history.json — the runner's append-only "journey" log (read-only here).
+ * Unchanged from v1: RunnerJourney.tsx reads this file directly.
  * Schema mirror of minwal-journey-brief.md §2.2. The runner accumulates in-flight
  * stage results under a private "_wip" root key which is intentionally NOT part of
  * this type: the bridge surfaces only the public contract (current + cycles), so
@@ -216,12 +244,16 @@ export type RunnerStatus = {
   enabled: boolean | null;
   priority: number | null;
   paused: boolean;
-  /** primary state-machine state (cycle-state.json) */
-  cycle: CycleState | null;
-  /** optional liveness detail (activity.json) — null when the file is absent */
-  activity: ActivityState | null;
-  /** latest critique verdict (critique-verdict.json) */
-  verdict: CritiqueVerdict | null;
+  /**
+   * v2: pointer + progress + blocked + last_commit extracted from checkpoint.json.
+   * null when the file is absent (coordinator has not written a checkpoint yet).
+   */
+  checkpoint: CheckpointV2 | null;
+  /**
+   * v2: session liveness + cycle_stats extracted from supervisor.json.
+   * null when the file is absent (supervisor has not started yet).
+   */
+  supervisor: SupervisorV2 | null;
   /**
    * cycle journey log (cycle-history.json) — current position + completed cycles.
    * null when the file is absent (project that has not run a cycle yet) or
@@ -236,7 +268,11 @@ export type RunnerStatus = {
    * card is corrupt — never 500s, same resilience contract as every other file.
    */
   pendingApprovals: PendingApproval[];
-  /** true when a runner file existed but could not be parsed */
+  /**
+   * true when checkpoint.json is present but could not be parsed (corrupt write).
+   * stateError is intentionally NOT set for a missing supervisor.json, since the
+   * supervisor may not have started yet — that is a normal initial state.
+   */
   stateError: boolean;
 };
 
@@ -250,10 +286,12 @@ export function runnerPaths(name: string) {
   const dir = projectStateDir(name);
   return {
     stateDir: dir,
-    cycleState: path.join(dir, 'cycle-state.json'),
-    activity: path.join(dir, 'activity.json'),
-    critiqueVerdict: path.join(dir, 'critique-verdict.json'),
+    // v2 primary state files (checkpoint + supervisor — coordinator writes these)
+    checkpoint: path.join(dir, 'checkpoint.json'),
+    supervisor: path.join(dir, 'supervisor.json'),
+    // unchanged: RunnerJourney reads this
     cycleHistory: path.join(dir, 'cycle-history.json'),
+    // control files — bridge writes, runner reads (unchanged from v1)
     pause: path.join(dir, 'pause'),
     approveNextPhase: path.join(dir, 'approve-next-phase'),
     pendingApprovalsDir: path.join(dir, 'pending-approvals'),
@@ -291,7 +329,8 @@ export async function resolveRunnerProject(
 
 /**
  * Build the single merged, resilience-wrapped status object the overlay renders.
- * Never throws on a missing/corrupt runner file.
+ * Reads v2 contract: checkpoint.json + supervisor.json (+ cycle-history.json
+ * which is unchanged). Never throws on a missing/corrupt runner file.
  */
 export async function readRunnerStatus(projectId: string): Promise<RunnerStatus> {
   const empty: RunnerStatus = {
@@ -301,9 +340,8 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     enabled: null,
     priority: null,
     paused: false,
-    cycle: null,
-    activity: null,
-    verdict: null,
+    checkpoint: null,
+    supervisor: null,
     history: null,
     config: null,
     pendingApprovals: [],
@@ -327,18 +365,20 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     path.join(PROJECTS_DIR(), `${name}.json`),
   );
 
-  const cycle = await readJsonOrNull<CycleState>(paths.cycleState);
-  const activity = await readJsonOrNull<ActivityState>(paths.activity);
-  const verdict = await readJsonOrNull<CritiqueVerdict>(paths.critiqueVerdict);
-  // history degrades to null on a missing or corrupt file (never 500) — same
-  // resilience contract as every other runner-owned file.
+  // v2: primary state files
+  const checkpoint = await readJsonOrNull<CheckpointV2>(paths.checkpoint);
+  // supervisor is treated as optional metadata — no stateError for its absence.
+  const supervisor = await readJsonOrNull<SupervisorV2>(paths.supervisor);
+  // cycle-history.json: unchanged — RunnerJourney reads it.
+  // Degrades to null on missing or corrupt (never 500s).
   const history = await readJsonOrNull<CycleHistory>(paths.cycleHistory);
   const pendingApprovals = await readPendingApprovals(name);
   const paused = await fileExists(paths.pause);
 
-  // stateError mirrors the board: a present-but-unreadable cycle-state.json.
-  const cycleStateFilePresent = await fileExists(paths.cycleState);
-  const stateError = cycleStateFilePresent && cycle === null;
+  // stateError: checkpoint.json is present but corrupt (coordinator mid-write
+  // crash). A missing checkpoint.json is normal (coordinator not yet run).
+  const checkpointFilePresent = await fileExists(paths.checkpoint);
+  const stateError = checkpointFilePresent && checkpoint === null;
 
   return {
     registered: true,
@@ -347,9 +387,8 @@ export async function readRunnerStatus(projectId: string): Promise<RunnerStatus>
     enabled: registryEntry?.enabled ?? null,
     priority: registryEntry?.priority ?? null,
     paused,
-    cycle,
-    activity,
-    verdict,
+    checkpoint,
+    supervisor,
     history,
     config: config
       ? {

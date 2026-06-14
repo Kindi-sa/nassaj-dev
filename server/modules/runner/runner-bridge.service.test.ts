@@ -77,10 +77,18 @@ async function writeRegistry(entries: { name: string; enabled: boolean; priority
   await writeFile(path.join(PROJECTS, 'registry.json'), JSON.stringify({ projects: entries }));
 }
 
-async function writeCycleState(name: string, raw: string): Promise<void> {
+/** v2: write checkpoint.json for a project (replaces cycle-state.json). */
+async function writeCheckpoint(name: string, raw: string): Promise<void> {
   const dir = path.join(STATE, name);
   await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, 'cycle-state.json'), raw);
+  await writeFile(path.join(dir, 'checkpoint.json'), raw);
+}
+
+/** v2: write supervisor.json for a project. */
+async function writeSupervisor(name: string, raw: string): Promise<void> {
+  const dir = path.join(STATE, name);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'supervisor.json'), raw);
 }
 
 async function writeCycleHistory(name: string, raw: string): Promise<void> {
@@ -162,40 +170,88 @@ test('readRunnerStatus: registered:true and merges registry + config, no state f
   assert.equal(status.enabled, true);
   assert.equal(status.priority, 1);
   assert.equal(status.paused, false);
-  // State files absent => null, and crucially NO throw.
-  assert.equal(status.cycle, null);
-  assert.equal(status.activity, null);
+  // v2: checkpoint + supervisor absent => null, no throw.
+  assert.equal(status.checkpoint, null);
+  assert.equal(status.supervisor, null);
   assert.equal(status.history, null);
   assert.equal(status.stateError, false);
   assert.equal(status.config?.model, 'sonnet');
   assert.equal(status.config?.threshold, 90);
 });
 
-test('readRunnerStatus: stateError:true when cycle-state.json is present but corrupt', async () => {
+test('readRunnerStatus: stateError:true when checkpoint.json is present but corrupt', async () => {
   await writeProjectConfig('epsilon', '/home/x/Project/epsilon');
   await writeRegistry([{ name: 'epsilon', enabled: true, priority: 1 }]);
   projectPaths.set('p-epsilon', '/home/x/Project/epsilon');
-  await writeCycleState('epsilon', '{ this is : not valid json ,,,');
+  await writeCheckpoint('epsilon', '{ this is : not valid json ,,,');
 
   const status = await readRunnerStatus('p-epsilon');
   assert.equal(status.registered, true);
-  assert.equal(status.cycle, null);
-  assert.equal(status.stateError, true, 'corrupt cycle-state.json must set stateError');
+  assert.equal(status.checkpoint, null);
+  assert.equal(status.stateError, true, 'corrupt checkpoint.json must set stateError');
 });
 
-test('readRunnerStatus: parses a valid cycle-state and surfaces awaiting_approval', async () => {
+test('readRunnerStatus: parses a valid checkpoint.json and surfaces pointer', async () => {
   await writeProjectConfig('zeta', '/home/x/Project/zeta');
   await writeRegistry([{ name: 'zeta', enabled: true, priority: 1 }]);
   projectPaths.set('p-zeta', '/home/x/Project/zeta');
-  await writeCycleState(
+  await writeCheckpoint(
     'zeta',
-    JSON.stringify({ stage: 'awaiting_approval', cycle: 3, status: 'idle' }),
+    JSON.stringify({
+      schema_version: '2.0',
+      project: 'zeta',
+      pointer: { phase: 'S1', cycle: 3, active_task_id: 'T-07', stage: 'awaiting_approval' },
+      progress: { done: ['T-05', 'T-06'], remaining: ['T-07', 'T-08'], partial: {} },
+      blocked: {},
+      last_commit: 'abc1234',
+      last_updated: new Date().toISOString(),
+    }),
   );
 
   const status = await readRunnerStatus('p-zeta');
   assert.equal(status.stateError, false);
-  assert.equal(status.cycle?.stage, 'awaiting_approval');
-  assert.equal(status.cycle?.cycle, 3);
+  assert.equal(status.checkpoint?.pointer?.stage, 'awaiting_approval');
+  assert.equal(status.checkpoint?.pointer?.cycle, 3);
+  assert.equal(status.checkpoint?.pointer?.active_task_id, 'T-07');
+  assert.equal(status.checkpoint?.pointer?.phase, 'S1');
+  assert.equal(status.checkpoint?.last_commit, 'abc1234');
+  assert.deepEqual(status.checkpoint?.progress?.done, ['T-05', 'T-06']);
+});
+
+test('readRunnerStatus: parses supervisor.json and surfaces session + cycle_stats', async () => {
+  await writeProjectConfig('zeta-sup', '/home/x/Project/zeta-sup');
+  await writeRegistry([{ name: 'zeta-sup', enabled: true, priority: 1 }]);
+  projectPaths.set('p-zeta-sup', '/home/x/Project/zeta-sup');
+  const heartbeat = new Date().toISOString();
+  await writeSupervisor(
+    'zeta-sup',
+    JSON.stringify({
+      schema_version: '2.0',
+      project: 'zeta-sup',
+      session: { pid: 42, unit: 'minwal-zeta-sup.scope', started: heartbeat, heartbeat, exit_reason: null },
+      cycle_stats: { total_cycles: 5, last_cycle_duration_s: 120, tokens_this_session: 15000, hung_recoveries: 0 },
+    }),
+  );
+
+  const status = await readRunnerStatus('p-zeta-sup');
+  assert.equal(status.stateError, false);
+  assert.equal(status.supervisor?.session?.pid, 42);
+  assert.equal(status.supervisor?.session?.unit, 'minwal-zeta-sup.scope');
+  assert.equal(status.supervisor?.session?.exit_reason, null);
+  assert.equal(status.supervisor?.cycle_stats?.total_cycles, 5);
+  assert.equal(status.supervisor?.cycle_stats?.tokens_this_session, 15000);
+});
+
+test('readRunnerStatus: stateError NOT set when only supervisor.json is absent', async () => {
+  await writeProjectConfig('zeta-nosup', '/home/x/Project/zeta-nosup');
+  await writeRegistry([{ name: 'zeta-nosup', enabled: true, priority: 1 }]);
+  projectPaths.set('p-zeta-nosup', '/home/x/Project/zeta-nosup');
+  // No supervisor.json written — normal state before first supervisor run.
+
+  const status = await readRunnerStatus('p-zeta-nosup');
+  assert.equal(status.registered, true);
+  assert.equal(status.supervisor, null);
+  assert.equal(status.stateError, false, 'missing supervisor.json must NOT set stateError');
 });
 
 // ---- cycle-history.json: the journey log surfaced read-only on `history` ----
@@ -334,7 +390,7 @@ test('pauseRunner then resumeRunner creates and removes ONLY the pause control f
   await pauseRunner('kappa', 'owner-user');
   assert.equal(await exists(paths.pause), true, 'pause file must exist after pause');
   // The runner-owned state files must not be touched by a control write.
-  assert.equal(await exists(paths.cycleState), false);
+  assert.equal(await exists(paths.checkpoint), false);
 
   await resumeRunner('kappa');
   assert.equal(await exists(paths.pause), false, 'pause file must be removed after resume');

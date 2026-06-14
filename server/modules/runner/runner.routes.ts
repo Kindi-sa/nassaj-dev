@@ -199,10 +199,12 @@ router.post('/:projectId/approve', controlGuard, async (req, res) => {
 
   const projectId = paramProjectId(req);
   const status = await readRunnerStatus(projectId);
-  if (status.cycle?.stage !== 'awaiting_approval') {
+  // v2: stage lives in checkpoint.pointer.stage
+  const currentStage = status.checkpoint?.pointer?.stage ?? null;
+  if (currentStage !== 'awaiting_approval') {
     return res.status(409).json({
       error: 'Runner is not awaiting approval',
-      stage: status.cycle?.stage ?? null,
+      stage: currentStage,
     });
   }
   await approveNextPhase(resolved.name);

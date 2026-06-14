@@ -72,16 +72,24 @@ export default function RunnerControlBar({
 
   const uiState: RunnerUiState = deriveRunnerUiState(runner);
   const pulse = isPulsing(uiState);
-  const stage = runner.cycle?.stage ?? null;
-  const cycle = runner.cycle?.cycle ?? null;
+  // v2: stage and cycle come from checkpoint.pointer
+  const stage = runner.checkpoint?.pointer?.stage != null
+    ? String(runner.checkpoint.pointer.stage)
+    : null;
+  const cycle = runner.checkpoint?.pointer?.cycle ?? null;
   const isAwaiting = uiState === 'awaiting_approval';
   const isPaused = runner.paused;
   const isEnabled = runner.enabled !== false;
   const model = runner.config?.model ?? null;
   const threshold = runner.config?.threshold ?? null;
-  const lastError = runner.cycle?.last_error || null;
-  const verdict = runner.verdict;
+  // v2: no last_error in checkpoint; show exit_reason from supervisor instead
+  const lastError = runner.supervisor?.session?.exit_reason ?? null;
+  // v2: no critique-verdict.json — blocked tasks surfaced instead
+  const blockedCount = Object.keys(runner.checkpoint?.blocked ?? {}).length;
   const pendingCount = runner.pendingApprovals?.length ?? 0;
+  // v2: cycle stats from supervisor
+  const totalCycles = runner.supervisor?.cycle_stats?.total_cycles ?? null;
+  const tokensThisSession = runner.supervisor?.cycle_stats?.tokens_this_session ?? null;
 
   const shortName = t('runner.label');
   const fullName = t('runner.fullName');
@@ -159,19 +167,28 @@ export default function RunnerControlBar({
         </span>
       )}
 
-      {/* Last verdict */}
-      {verdict && typeof verdict.clean === 'boolean' && (
+      {/* v2: blocked tasks badge */}
+      {blockedCount > 0 && (
         <span
-          className={cn(
-            'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px]',
-            verdict.clean
-              ? 'border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400'
-              : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-          )}
-          title={verdict.notes ?? undefined}
+          className="inline-flex items-center gap-1 rounded-md border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[10px] text-orange-600 dark:text-orange-400"
+          title={t('runner.blockedTasks', { defaultValue: 'Blocked tasks' })}
         >
           <CheckCheck className="h-3 w-3" />
-          <span>{verdict.clean ? t('runner.clean') : t('runner.unclean')}</span>
+          <span className="tabular-nums">{blockedCount}</span>
+          <span>{t('runner.blocked', { defaultValue: 'blocked' })}</span>
+        </span>
+      )}
+
+      {/* v2: total cycles + session tokens from supervisor */}
+      {totalCycles !== null && (
+        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+          <span>{t('runner.totalCycles', { n: totalCycles, defaultValue: `${totalCycles} cycles` })}</span>
+        </span>
+      )}
+      {tokensThisSession !== null && tokensThisSession > 0 && (
+        <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground" dir="ltr">
+          <span className="tabular-nums">{tokensThisSession.toLocaleString()}</span>
+          <span>{t('runner.tokens', { defaultValue: 'tok' })}</span>
         </span>
       )}
 

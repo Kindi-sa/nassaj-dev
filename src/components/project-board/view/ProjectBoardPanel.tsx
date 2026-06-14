@@ -119,9 +119,16 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
     approveApproval,
     rejectApproval,
   } = useRunner(selectedProject?.projectId);
-  const runnerRunning = runner?.cycle?.status === 'running';
-  const runnerActiveTaskId = runnerRunning ? runner?.activity?.active_task_id ?? null : null;
-  const runnerActivePhaseId = runnerRunning ? runner?.activity?.active_phase_id ?? null : null;
+  // v2: liveness derived from supervisor heartbeat; active task/phase from checkpoint.pointer
+  const supervisorHeartbeat = runner?.supervisor?.session?.heartbeat ?? null;
+  const supervisorExitReason = runner?.supervisor?.session?.exit_reason ?? null;
+  const runnerRunning = (() => {
+    if (!supervisorHeartbeat || supervisorExitReason) return false;
+    const ageSec = (Date.now() - new Date(supervisorHeartbeat).getTime()) / 1000;
+    return ageSec < 1200; // 20 min threshold (mirrors §2 of minwal-v2-design.md)
+  })();
+  const runnerActiveTaskId = runnerRunning ? runner?.checkpoint?.pointer?.active_task_id ?? null : null;
+  const runnerActivePhaseId = runnerRunning ? runner?.checkpoint?.pointer?.phase ?? null : null;
 
   if (isLoading) {
     return (
