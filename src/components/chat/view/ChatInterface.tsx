@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { RefreshCw } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
@@ -513,6 +513,21 @@ function ChatInterface({
               onHide={() => setShowParticipantsBar(false)}
             />
           </div>
+        )}
+        {/* Re-show button: a slim chevron shown only when the participants bar is
+            hidden AND a session is open. Sits flush at the top-start edge so it
+            does not interfere with the floating end-side refresh / WS buttons. */}
+        {!showParticipantsBar && Boolean(currentSessionId ?? selectedSession?.id) && (
+          <button
+            type="button"
+            onClick={() => setShowParticipantsBar(true)}
+            className="flex w-full items-center gap-1 border-b border-border/40 bg-muted/20 px-3 py-0.5 text-[10px] text-muted-foreground/60 transition-colors hover:bg-muted/50 hover:text-muted-foreground sm:px-4"
+            aria-label={t('participants.show', { defaultValue: 'Show participants bar' })}
+            title={t('participants.show', { defaultValue: 'Show participants bar' })}
+          >
+            <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden />
+            <span>{t('participants.show', { defaultValue: 'Show participants bar' })}</span>
+          </button>
         )}
         {/* Top floating column: WsConnectionBadge (when disconnected) + manual-refresh button.
             h-0 keeps it out of the flex-column flow so the messages scroll area can extend up

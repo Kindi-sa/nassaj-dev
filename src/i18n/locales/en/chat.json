@@ -374,6 +374,11 @@
       "model": "Base model",
       "subagent": "Subagent"
     },
+    "agentSummary_one": "{{count}} agent",
+    "agentSummary_other": "{{count}} agents",
+    "totalInvocations_one": "{{count}} call",
+    "totalInvocations_other": "{{count}} calls",
+    "agentSummaryAria": "{{agents}} distinct agents · {{calls}} total calls",
     "unknownAuthor": "Unknown author"
   },
   "ws": {

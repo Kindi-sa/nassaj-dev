@@ -80,8 +80,8 @@ export default function AgentChip({ agent, t }: AgentChipProps) {
             <span className="truncate font-mono opacity-70">{shortModelName(resolvedModel)}</span>
           </>
         )}
-        {agent.invocation_count > 1 && (
-          <span className="flex-shrink-0 opacity-70">{agent.invocation_count}</span>
+        {!isModel && agent.invocation_count > 0 && (
+          <span className="flex-shrink-0 opacity-70">×{agent.invocation_count}</span>
         )}
       </span>
     </Tooltip>

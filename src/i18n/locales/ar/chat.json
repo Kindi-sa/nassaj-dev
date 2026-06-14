@@ -386,6 +386,17 @@
       "model": "النموذج الأساسي",
       "subagent": "وكيل فرعي"
     },
+    "agentSummary_one": "وكيل واحد",
+    "agentSummary_two": "وكيلان",
+    "agentSummary_few": "{{count}} وكلاء",
+    "agentSummary_many": "{{count}} وكيلاً",
+    "agentSummary_other": "{{count}} وكيل",
+    "totalInvocations_one": "استدعاء واحد",
+    "totalInvocations_two": "استدعاءان",
+    "totalInvocations_few": "{{count}} استدعاءات",
+    "totalInvocations_many": "{{count}} استدعاءً",
+    "totalInvocations_other": "{{count}} استدعاء",
+    "agentSummaryAria": "{{agents}} وكيل متمايز · {{calls}} استدعاء إجمالي",
     "unknownAuthor": "مؤلف غير معروف"
   },
   "ws": {
