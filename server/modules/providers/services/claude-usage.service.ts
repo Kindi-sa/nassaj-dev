@@ -406,9 +406,11 @@ class ClaudeUsageService {
       session: this.toWindow(raw.five_hour),
       weeklyAllModels: this.toWindow(raw.seven_day),
       weeklySonnet: this.toWindow(raw.seven_day_sonnet),
-      // Opus is normalized to a zeroed window when absent so the UI always has a
-      // row to render; every other window stays null when upstream says null.
-      weeklyOpus: this.toWindow(raw.seven_day_opus) ?? { utilization: 0, resetsAt: null },
+      // Opus surfaces null like every other window when upstream omits it
+      // (current Max plans report seven_day_opus: null — opus burn rolls into
+      // seven_day/five_hour). The UI hides null windows; if Anthropic later
+      // populates seven_day_opus, the row appears automatically.
+      weeklyOpus: this.toWindow(raw.seven_day_opus),
       extraUsage: this.toExtraUsage(raw.extra_usage),
       fetchedAt: new Date().toISOString(),
       stale,

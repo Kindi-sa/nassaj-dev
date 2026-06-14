@@ -594,9 +594,9 @@ export type ClaudeExtraUsage = {
  * Stable response contract for `GET /api/providers/claude/usage`.
  *
  * The frontend depends on this exact shape. Any window the upstream API reports
- * as `null` is surfaced as `null` here (never fabricated), except `weeklyOpus`
- * which is normalized to a zeroed window when absent so the usage page can
- * always render an Opus row.
+ * as `null` is surfaced as `null` here (never fabricated) — including
+ * `weeklyOpus`, which current Max plans report as null. The frontend hides
+ * null windows; the Opus row reappears automatically if upstream populates it.
  */
 export type ClaudeUsageSummary = {
   plan: string | null;
