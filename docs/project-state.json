@@ -1763,6 +1763,30 @@
       "due": "2026-06-21",
       "closed": null,
       "summary": "تقييم ثلاثي الطبقات (بحث موثّق + مسح كود فعلي + حكم architect على opus-4-8، الجلسة 2026-06-14). النتيجة: Kimi K2.7-Code حقيقي (صدر 2026-06-12، أوزان مفتوحة Modified MIT، سياق 256K، endpoint متوافق مع Anthropic رسمي api.moonshot.ai/anthropic + CLI رسمي moonshot-ai/kimi-code في technical preview). المسار الموصى به B: مزوّد أصيل عبر kimi-code CLI متّبعاً قالب Cursor (13 seam + وحدة 7 ملفات + kimi-cli.js + sessions normalizer)، مرحلياً PoC خلف feature flag (8–12h) ثم أصيل (إجمالي L ≈ 20–32h). المسار A (إعادة استخدام Claude SDK) مرفوض فخّاً: kimi-k2.7-code خارج acceptedModels في claude-sdk.js:378-394 فيُقهَر صامتاً لموديل Claude، وحقن ANTHROPIC_AUTH_TOKEN عالمياً يُفسد كشف مصادقة Claude في claude-auth.provider.ts:139-145 ويوجّه طلباته لـMoonshot — لذا أي حقن env لـKimi حصراً per-provider في resolve-provider-env.js. المسار C (عبر opencode) للاختبار فقط. بوابات تحتاج المالك: (1) الخصوصية/إقامة البيانات لشركة صينية مقابل سياسة بيانات المشروع — حاجبة، لا تنفيذ قبل حسمها؛ (2) التكلفة/الدفع للمنطقة وملكية مفتاح Moonshot؛ (3) الأولوية مقابل backlog مزامنة v1.34. يمتد لسلالة مزوّدي P2 (راجع T-6 إضافة Cursor)."
+    },
+    {
+      "id": "T-143",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-63",
+      "title": "إصلاح B-63: عدم ظهور عدّاد تقدّم المهام/الوقت المتوقّع أثناء المعالجة رغم وجود قائمة مهام",
+      "status": "in_progress",
+      "owner": "frontend-dev",
+      "closed": null,
+      "summary": "إصلاح عميلي بحت على مرحلتين. (أ) مُنجَز ومُجاز qa-critic: تمييز Agent + النزول إلى childTools + مؤشّر «وكيل يعمل» حيّاً (useChatMessages+useRunProgress). (ب) جارٍ (frontend-dev opus): استهلاك parentToolUseId في useChatMessages لطيّ صفوف الوكيل الحيّة في حاويتها (Map by parentToolUseId، دمج dedup مع childTools، استبعاد اليتيمة) فيعمل العدّاد الرقمي + الوقت المتوقّع حيّاً. useRunProgress/ETA بلا تغيير. أخطر نقطة: تطابق parentToolUseId↔toolId الحاوية. بلا تغيير خادم/restart. التالي: qa-critic (تركيز الربط) → commit (ملفات بالاسم؛ جلسة متوازية نشطة) → build → تحقّق المالك الحيّ. تصفية أداء خادمية اختيارية مؤجَّلة (تحتاج restart)."
+    },
+    {
+      "id": "T-144",
+      "phase": "P6",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "ملخّص الوكلاء فوق المحادثة + زر إعادة إظهار الشريط: إجمالي الوكلاء المتمايزين وعدد مرات الاستدعاء لكل وكيل والإجمالي (طلب المالك)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-14",
+      "summary": "AgentSummaryBadge في AgentChipRow: بادج «N وكيل · M استدعاء» (المتمايزون = agent_kind==='subagent'؛ الإجمالي = مجموع invocation_count؛ النموذج مستثنى) + tooltip تفصيلي per-agent بالاسم. كل شريحة AgentChip تعرض «الاسم ×N» بلا عدّاد على النموذج. زر «إظهار شريط المشاركين» (ChevronDown) في ChatInterface يعيد الشريط المخفيّ بنقرة. مصدر البيانات: GET /api/sessions/:id/agents عبر transcript-parser (عدّ Agent+Task لكل subagent_type) — بلا تغيير خادم. مراجعة qa-critic (opus، احتياط لغياب fable-5): CONDITIONAL APPROVE؛ أُصلح H-1 (اسم الوكيل في breakdown عبر دمج يدوي مع مفتاح invocations القائم محافظاً على صيغ الجمع العربية الخمس) وM-1 (إزالة «×1» عن شريحة النموذج)؛ برهان i18next «architect: 3 استدعاءات». build:client نجح، tsc نظيف، حيّ على nassaj-dev.alkindy.tech:3004. جلسات متوازية: الكود التُقِط في commit 5e0e004 (مع B-63/T-143) عبر git add -A من جلسة موازية على الشجرة المشتركة — لا فقد بيانات لكن العنوان موسوم B-63 فقط. عيوب L-1/L-3/M-2 من المراجعة تخص useChatMessages/useRunProgress (مهمة B-63) لا هذه الميزة."
     }
   ],
   "issues": [
@@ -2303,6 +2327,15 @@
       "found": "2026-06-13",
       "note": "من مراجعة الويكي الثلاثية (design-reviewer+researcher+end-user-tester) 2026-06-13",
       "fix": "موجة تحسين الويكي T-134/T-135 (commit 1fa4126)"
+    },
+    {
+      "id": "B-63",
+      "title": "عدّاد تقدّم المهام + الوقت المتوقّع (T-139) لا يُرسَم إطلاقاً أثناء المعالجة رغم وجود قائمة مهام — مؤكَّد من المالك بعد إعادة تحميل",
+      "severity": "high",
+      "status": "open",
+      "found": "2026-06-14",
+      "note": "جذر مصحَّح (architect، تنقيب في SDK+خادم): (1) nassaj يفوّض عبر Agent لا Task. (2) الـSDK يبثّ أدوات الوكيل الفرعي (TodoWrite) حيّاً افتراضياً موسومةً بparent_tool_use_id، والخادم يمرّرها (claude-sdk.js) — البيانات تصل العميل حيّاً. (3) الفجوة عميلية بحتة: parentToolUseId معرَّف في useSessionStore.ts:107 وغير مُستهلَك، فالصفوف الحيّة تُرسَم يتيمة ولا تُربط بحاويتها فلا يعدّها useRunProgress. التشخيص الأول (لا بثّ حيّ/يحتاج خادماً) كان مبنياً على transcripts محفوظة لا البثّ الحيّ — مصحَّح. الإصلاح عميلي بحت بلا restart.",
+      "fix": null
     }
   ],
   "decisions": [
