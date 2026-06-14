@@ -16,6 +16,40 @@
   100% { background-color: transparent; outline-color: transparent; }
 }
 
+/* Reduced-motion: replace the fade animation with a static, persistent
+   indicator. The global *-rule in index.css collapses the animation to its
+   transparent end-state, leaving no visible highlight; here we pin a steady
+   outline + background that stays until JS removes the class.               */
+@media (prefers-reduced-motion: reduce) {
+  .wiki-search-highlight {
+    animation: none;
+    outline: 2px solid hsl(var(--primary) / 0.8);
+    background-color: hsl(var(--primary) / 0.15);
+  }
+}
+
+/* Arabic font inside the wiki, independent of the root dir state.
+   The :root[dir="rtl"] font rule in index.css only applies when the whole app
+   is RTL. The wiki article always sets dir=rtl/lang=ar on its own element, so
+   we pin the Arabic stack here to avoid Latin glyphs when the app root is LTR. */
+.wiki-article {
+  font-family: 'Tajawal', 'IBM Plex Sans Arabic', system-ui, -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Code blocks must always render LTR regardless of article dir=rtl (T-136 RTL)
+   The article carries dir=rtl, but code is inherently LTR — force isolation.  */
+.wiki-article pre,
+.wiki-article code,
+.wiki-article kbd,
+.wiki-article samp {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+}
+
 /* Mobile drawer RTL slide (T-136 B-1)
    On mobile (<md) the nav is position:fixed and uses translateX to slide.
    data-wiki-drawer attribute drives the open/closed state.

@@ -318,7 +318,7 @@ const MARKDOWN_COMPONENTS: Components = {
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-border/40 px-4 py-2 align-top text-foreground/90">
+    <td className="border-b border-border/40 px-4 py-2 align-top text-start text-foreground/90">
       {children}
     </td>
   ),
@@ -431,21 +431,23 @@ function PrevNextNav({
 
   return (
     <div className="mt-8 flex items-center justify-between border-t border-border/40 pt-4">
-      {/* Previous — ChevronRight because RTL "previous" is to the right */}
+      {/* Previous — base glyph points back (←); rtl:rotate-180 flips it to (→),
+          the "back" direction in RTL. Mirrors the rtl flip used elsewhere. */}
       {prevPage ? (
         <button
           type="button"
           onClick={() => onNavigate(prevPage.file)}
           className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
         >
-          <ChevronRight className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <ChevronLeft className="h-4 w-4 flex-shrink-0 rtl:rotate-180" aria-hidden="true" />
           <span className="max-w-[140px] truncate">{prevPage.title}</span>
         </button>
       ) : (
         <div />
       )}
 
-      {/* Next — ChevronLeft because RTL "next" is to the left */}
+      {/* Next — base glyph points forward (→); rtl:rotate-180 flips it to (←),
+          the "forward" direction in RTL. */}
       {nextPage ? (
         <button
           type="button"
@@ -453,7 +455,7 @@ function PrevNextNav({
           className="flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
         >
           <span className="max-w-[140px] truncate">{nextPage.title}</span>
-          <ChevronLeft className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <ChevronRight className="h-4 w-4 flex-shrink-0 rtl:rotate-180" aria-hidden="true" />
         </button>
       ) : (
         <div />
@@ -528,6 +530,10 @@ export default function WikiPanel() {
   const searchInputRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>;
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const articleRef = useRef<HTMLElement | null>(null);
+  const sidebarToggleRef = useRef<HTMLButtonElement | null>(null);
+
+  // A11y: polite live announcement when the index drawer closes via keyboard.
+  const [closeAnnouncement, setCloseAnnouncement] = useState('');
 
   // B-2: track the matched term from the last search selection
   const pendingMatchTerm = useRef<string | null>(null);
@@ -591,7 +597,16 @@ export default function WikiPanel() {
         if (query.trim()) {
           clearQuery();
         } else {
-          setSidebarOpen(false);
+          // A11y (WCAG SC 2.1.1, 3.2.2): when the drawer is open and Escape
+          // collapses it, return focus to the toggle button and announce the
+          // change so screen-reader users aren't left on a hidden region.
+          setSidebarOpen((open) => {
+            if (open) {
+              setCloseAnnouncement(t('wiki.indexClosed', 'تم إغلاق الفهرس'));
+              requestAnimationFrame(() => sidebarToggleRef.current?.focus());
+            }
+            return false;
+          });
         }
         return;
       }
@@ -611,7 +626,7 @@ export default function WikiPanel() {
         setTimeout(() => searchInputRef.current?.focus(), 50);
       }
     },
-    [query, clearQuery],
+    [query, clearQuery, t],
   );
 
   useEffect(() => {
@@ -648,8 +663,14 @@ export default function WikiPanel() {
         className="flex h-full overflow-hidden bg-background"
         dir="rtl"
         lang="ar"
+        role="region"
         aria-label={t('wiki.panelAriaLabel', 'ويكي نسّاج')}
       >
+        {/* A11y: polite live region for keyboard-driven drawer close. */}
+        <div aria-live="polite" className="sr-only">
+          {closeAnnouncement}
+        </div>
+
         {/* ── B-1: Mobile drawer backdrop ────────────────────────────────────── */}
         {sidebarOpen && (
           <div
@@ -664,9 +685,8 @@ export default function WikiPanel() {
             Mobile (<md):  fixed drawer from inline-start (right in RTL), overlaid.
         */}
         <nav
+          id="wiki-sidebar"
           aria-label={t('wiki.sidebarAriaLabel', 'فهرس الويكي')}
-          aria-modal={sidebarOpen ? 'true' : undefined}
-          role={sidebarOpen ? 'dialog' : 'navigation'}
           className={[
             'overflow-y-auto border-e border-border/60 bg-muted/20 transition-all duration-200',
             // Desktop: normal flex-shrink-0 column, width controlled by sidebarOpen
@@ -730,6 +750,7 @@ export default function WikiPanel() {
           {/* Toolbar */}
           <div className="flex flex-shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2">
             <button
+              ref={sidebarToggleRef}
               type="button"
               onClick={() => setSidebarOpen((v) => !v)}
               aria-label={
@@ -738,10 +759,15 @@ export default function WikiPanel() {
                   : t('wiki.openSidebar', 'إظهار الفهرس')
               }
               aria-expanded={sidebarOpen}
+              aria-controls="wiki-sidebar"
+              aria-describedby="wiki-sidebar-hint"
               className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
             >
-              <PanelLeft className="h-4 w-4" aria-hidden="true" />
+              <PanelLeft className="h-4 w-4 rtl:scale-x-[-1]" aria-hidden="true" />
             </button>
+            <span id="wiki-sidebar-hint" className="sr-only">
+              {t('wiki.sidebarEscapeHint', 'اضغط Escape لإغلاق الفهرس')}
+            </span>
             <h2 className="truncate text-sm font-semibold text-foreground">{activeTitle}</h2>
           </div>
 
@@ -755,7 +781,7 @@ export default function WikiPanel() {
           >
             {content !== null ? (
               <article
-                className="prose prose-sm max-w-3xl text-start"
+                className="wiki-article prose prose-sm max-w-3xl text-start"
                 lang="ar"
                 dir="rtl"
                 ref={(el) => {
