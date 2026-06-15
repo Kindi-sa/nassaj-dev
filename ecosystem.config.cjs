@@ -55,7 +55,7 @@ module.exports = {
         NODE_ENV: 'production',
         SERVER_PORT: '3004',
         PORT: '3004',
-        HOST: '0.0.0.0',
+        HOST: '127.0.0.1',
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
 
