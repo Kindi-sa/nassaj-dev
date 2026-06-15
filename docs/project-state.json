@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-14",
+  "updated": "2026-06-15",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -1811,9 +1811,52 @@
       "owner": "workflow",
       "closed": "2026-06-14",
       "summary": "نُفِّذ عبر workflow متعدّد الوكلاء (5 مراحل: تدقيق ← قرارات بإجماع ← تأليف كاتب-واحد-لكل-ملف لمنع التعارض ← توحيد ← بناء/مراجعة؛ 24 وكيل، 1.13M توكن، 28 دقيقة). المنجَز: (1) حذف docs/team-wiki/01-alkindy.md نهائياً مع روابطه الثلاثة (index.json + صف جدول + فرع mermaid في 00-overview) مع إبقاء ذكر الكِندِي السياقي الموجز (إزالة البطاقة لا اجتثاث العلامة)؛ (2) صفحة جديدة 08-minwal.md (~21KB، 15 قسماً) تشرح المُنفِّذ الذاتي nassaj-runner: نموذج الدورة بناء→تحقّق→حكم→بوابة، الطبقات الثلاث، البوابات الأمنية، خطوات التشغيل على أي مشروع، الحالة (مبنيّ/قيد القرار)؛ (3) تدقيق وإصلاح 7 صفحات: ترقيم أسئلة FAQ المكسور (٤ مكرّر)، أخطاء فصحى/إملائية (القواعس→القواعد، المفتاء→المفتاح)، أخطاء وقائعية (عدد الفِرَق، نفي end-to-end encryption، ui-designer لا يفتح Figma)، وحذف حشو؛ (4) إصلاحات RTL في العارض (عزل الكود LTR، عكس الأيقونات الاتجاهية، خط عربي مضمون) + 7 إصلاحات a11y عالية (إزالة toggle لـrole=dialog، landmark، إدارة focus على Escape، prefers-reduced-motion لإبراز البحث). build:client + tsc + eslint أخضر، منشور بلا restart (الويكي مُجمَّع وقت البناء). حادثة وتصحيح: 3 وكلاء حسّاسين (architect+product-strategist في التصويت، qa-critic في المراجعة) فشلوا لغياب fable-5 من البيئة (خرق قاعدة الاحتياط: غياب fable→أعلى متاح=opus، أُغفل تجاوز model)، فتمّ التصويت بصوت واحد وقرّر خطأً تسمية الـrunner «المشغِّل». صحّحه المنسّق (ADR-035): «المنوال» = المُنفِّذ الذاتي مطابقةً للكود وطلب المالك، ومنتقي الجهد بلا لقب المنوال؛ وكيل تصحيح واحد (sonnet، 90K توكن) أعاد التسمية عبر 7 ملفات وثبّت الحقائق وأصلح المرساة. خطأ typecheck وحيد (ClaudeUsageCollapsed.tsx) سابق وغير متعلق بالويكي — لم يُلمس. لم تُلمس package.json (جلسة متوازية)."
+    },
+    {
+      "id": "T-147",
+      "phase": "P5",
+      "sprint": null,
+      "kind": "bug",
+      "issue": "B-65",
+      "title": "إصلاح فشل إنشاء passkey بعد هجرة الدومين 2026-06-15: مواءمة WEBAUTHN_RP_ID=nassaj.alkindy.tech وWEBAUTHN_ORIGIN=https://nassaj.alkindy.tech (+localhost dev) في ecosystem.config.cjs و.env",
+      "status": "done",
+      "owner": "workflow",
+      "closed": "2026-06-15",
+      "summary": "نُفِّذ عبر workflow تشخيص-أولاً (3 مراحل، 8 وكلاء، ~417K توكن، ~9 دقائق): Locate (واجهة/خادم/سجلّات+بنية بالتوازي) ← Diagnose (سلسلة سببية + 3 مراجعين عدائيين بزوايا مختلفة، إجماع 3/3، ثقة عالية) ← Fix مشروط طُبِّق آلياً (fixType=config، risk=low). السبب الجذري: عملية PM2 (id 4) قرأت إعداد WebAuthn مرة عند الإقلاع (server/constants/webauthn.js، بلا hot-reload) بقيمتي الدومين المتقاعد nassaj-dev.alkindy.tech، بينما المتصفح لا يصل إلا عبر nassaj.alkindy.tech (نفق Cloudflare الوحيد) — وهو شقيق لا suffix فيرمي SecurityError في المتصفح قبل verify (لذا لا أثر بالسجلّات). مسارات ميتة مُستبعَدة بالأدلة: جدول webauthn_credentials موجود/مهاجَر (سجل واحد)، الربط/المسارات/المكتبة سليمة، والميزة عملت فعلاً (audit_log: passkey login_success 2026-06-12). الإصلاح (config فقط، لا كود): ecosystem.config.cjs:105-106 (يتجاوز .env) و.env:40-41 (gitignored، غير معتمد) → WEBAUTHN_RP_ID=nassaj.alkindy.tech، WEBAUTHN_ORIGIN=https://nassaj.alkindy.tech,http://localhost:5173 (rpID يبقى دوميناً واحداً؛ localhost يوسّع expectedOrigin فقط، وrpID/expectedOrigin متلازمان). تحقّق بلا restart: محاكاة re-read للثوابت تُطابق مضيف الصفحة، وcurl: nassaj.alkindy.tech=200 / nassaj-dev=404. commit 6ae1903 (ecosystem.config.cjs بالاسم؛ .env غير معتمد لأنه gitignored). يبقى بطرفية المالك (حارس العميل): إعادة التشغيل بإعادة قراءة ملف ecosystem — pm2 restart ecosystem.config.cjs --only nassaj-dev --update-env ثم pm2 save بعد التحقق — لا pm2 restart nassaj-dev المجرّد فهو يُعيد حقن البيئة القديمة من dump.pm2 (load-env.js:19 لا يتجاوز قيمة محقونة)؛ ثم إعادة تسجيل مفتاح user_id=2 ('Jazari') المربوط بالدومين القديم. [تصحيح بعد فشل إعادة التشغيل الأولى — التفاصيل في T-148/B-66] تصليب مؤجَّل اختياري (غير لازم للإصلاح): تمرير رسالة الخطأ الحقيقية في useWebAuthn.ts:144-145 بدل النص العام + تسجيل فشل التسجيل في audit_log. لم تُلمس package.json/-lock (جلسة موازية)."
+    },
+    {
+      "id": "T-148",
+      "phase": "P4",
+      "sprint": null,
+      "kind": "security",
+      "issue": "B-66",
+      "title": "إغلاق المنافذ غير الآمنة (السيرفر كامل): ربط الخدمات المكشوفة بـ127.0.0.1 — nassaj-dev:3004، diwan-web:3100، diwan-api:4101 — مع إبقاء SSH:22 وبلا كسر نفق Cloudflare",
+      "status": "in_progress",
+      "owner": "workflow",
+      "closed": null,
+      "summary": "نُفِّذ عبر workflow تشخيص+تحقّق-عدائي (3 مراحل، 7 وكلاء، ~347K توكن): Locate (مالكو المنافذ المكشوفة وملفات الربط / خريطة النفق وسطح القفل / آلية بيئة pm2) ← Plan ← 3 مراجعين عدائيين (كسر النفق/قفل SSH/اكتمال المسح) إجماع 3/3 ثقة عالية: لا كسر لأي hostname ولا قفل SSH. المكشوف (ss): 0.0.0.0:3004 nassaj-dev، *:3100 diwan-web (next-server)، *:4101 diwan-api (Nest)؛ SSH 0.0.0.0:22 يبقى. كل upstreams نفق cloudflared = 127.0.0.1؛ Diwan يُوصَل خارجياً فقط عبر بوابة diwan-gate على 127.0.0.1:8100 التي تتصل بـapi/web على loopback — فالربط بـ127.0.0.1 شفّاف. cloudflared الثانية = حاوية wafeq معزولة (منافذ 3002/4002/8000 داخلية). المسارات الحيّة مؤكَّدة بـpm2 jlist: nassaj-dev وdiwan-* تعمل من /home/nassaj/Project/* (لا Diwan-staging). المطبَّق والملتزَم: (1) nassaj-dev ecosystem.config.cjs:58 HOST 0.0.0.0→127.0.0.1 + .env:11، commit f8424df؛ (2) Diwan (backend-dev، model opus): ecosystem.dev.config.cjs:66 إضافة '-H 127.0.0.1' لـnext، apps/api/src/main.ts:131 app.listen(port,'127.0.0.1') + rebuild ناجح (dist محجوب gitignore)، commit bba901c على feat/redesign-identity. الربط loopback يُلغي الوصول المباشر LAN/Tailscale (مقصود)؛ النفاذ عبر hostnames HTTPS. يبقى (المالك، طرفية منفصلة — restart nassaj-dev قد يُسقط جلسة Claude هذه لأنها ابنة pid العملية): restart diwan-api+web (ecosystem.dev.config.cjs) أولاً، ثم nassaj-dev (ecosystem.config.cjs، يطبّق أيضاً rpID وHOST)، تحقّق ss=127.0.0.1 وcurl HTTPS=200، ثم pm2 save. ufw اختياري دفاع-بالعمق (allow 22 أولاً). الانكشاف ما زال حيّاً حتى تتم إعادات التشغيل."
     }
   ],
   "issues": [
+    {
+      "id": "B-66",
+      "severity": "medium",
+      "status": "in_progress",
+      "found": "2026-06-15",
+      "title": "انكشاف منافذ HTTP صرفة على واجهات غير-loopback: 0.0.0.0:3004 (nassaj-dev)، *:3100 (diwan-web)، *:4101 (diwan-api) — مكشوفة على LAN/Tailscale؛ السيرفر بلا جدار ufw، والوصول الخارجي المشروع عبر نفق Cloudflare (loopback) فقط. مسار passkey غير الآمن (http://...:3004) أحد أعراضها.",
+      "triage": "medium → الحل: ربط الثلاثة بـ127.0.0.1 (النفق يصلها loopback فلا ينكسر شيء؛ تحقّق عدائي 3/3). T-148. الإصلاح مطبَّق وملتزَم (nassaj f8424df، Diwan bba901c) لكنه غير حيّ حتى إعادة تشغيل الخدمات (حارس العميل، بطرفية المالك). ufw اختياري دفاع-بالعمق (allow 22 أولاً).",
+      "resolved": null
+    },
+    {
+      "id": "B-65",
+      "severity": "high",
+      "status": "fixed",
+      "found": "2026-06-15",
+      "title": "تعذّر إنشاء passkey جديد (PASSKEYS → Create passkey): «Could not create the passkey. Please try again.». السبب الجذري (workflow، ثقة عالية، إجماع 3/3 مراجعين عدائيين): هجرة الدومين 2026-06-15 قاعدت nassaj-dev.alkindy.tech واعتمدت الشقيق nassaj.alkindy.tech (الوحيد الذي يوجّهه نفق Cloudflare إلى :3004)، لكن عملية PM2 وملفّي الإعداد (.env + ecosystem.config.cjs) بقيا يشيران للدومين المتقاعد. لأن nassaj-dev.alkindy.tech ليس registrable-domain suffix لمضيف الصفحة nassaj.alkindy.tech (شقيقان لا أب/ابن)، يرمي navigator.credentials.create() خطأ SecurityError في المتصفح قبل أي طلب شبكي — فلا أثر بسجلّات الخادم. مسار ثانوي بنفس العَرَض: فتح المنفذ المباشر http://...:3004 (سياق غير آمن).",
+      "triage": "high → أُصلح في نفس الجلسة (T-147، commit 6ae1903): مواءمة WEBAUTHN_RP_ID/WEBAUTHN_ORIGIN مع الدومين الحيّ في ecosystem.config.cjs (المعتمد) و.env (gitignored)، مع إبقاء rpID وexpectedOrigin متلازمين. إعداد يُقرأ وقت الإقلاع — إعادة التشغيل الأولى (2026-06-15 ~22:46) لم تُطبّقه: pm2 أعاد حقن البيئة القديمة من dump.pm2 (05:42) وload-env.js:19 لا يتجاوزها؛ الأمر الصحيح: pm2 restart ecosystem.config.cjs --only nassaj-dev --update-env ثم pm2 save (بطرفية المالك، حارس العميل). المفتاح الوحيد المسجّل سابقاً (user_id=2 'Jazari') مربوط بالدومين القديم ويلزم إعادة تسجيله.",
+      "resolved": "2026-06-15",
+      "note": "بلاغ المالك بصورة. الهجرة عكستْ قرار T-61 (2026-06-11 أزال nassaj.alkindy.tech وأبقى -dev)؛ الإصلاح يتبع الواقع الحيّ المثبَّت بنفق cloudflared + curl (nassaj.alkindy.tech=200، nassaj-dev=404)."
+    },
     {
       "id": "B-64",
       "severity": "medium",
