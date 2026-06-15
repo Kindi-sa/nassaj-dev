@@ -33,13 +33,14 @@ import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './services/isolation/anthropic-base-url-guard.js';
+import { assertSubscriptionOAuthOwnerOnly } from './services/isolation/subscription-oauth-guard.js';
 import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
   PROCESS_TAG_ENV_VAR,
   registerSessionProcess,
   unregisterSessionProcess
 } from './services/session-process-monitor.js';
-import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
+import { messageAuthorsDb, participantsDb, userDb } from './modules/database/index.js';
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -1057,6 +1058,27 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // spawn env. Validate that file under the same allowlist so a competitor base
     // URL placed there cannot bypass the OS-env guard above.
     assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
+
+    // Subscription-seat guard (G4 — SUBSCRIPTION-OAUTH-001): if the Claude
+    // credential about to be handed to the subprocess is the OWNER's personal
+    // Claude subscription (OAuth), refuse to spawn it on behalf of a non-owner.
+    // Validated on the FINAL env (after per-user isolation rewrote
+    // CLAUDE_CONFIG_DIR), so the detector sees exactly what the child will use.
+    // No-op when the credential is an API key / Bedrock / Vertex (licensable
+    // per-user) or when the user IS the owner. See subscription-oauth-guard.js.
+    //
+    // Role resolution: ws.userId is the authenticated human who spawned this run
+    // (set on every WebSocketWriter / SSEStreamWriter / ResponseCollector). We
+    // look up the live row so the role is authoritative (not a stale client
+    // claim). When there is no userId (single-user / system context — e.g. the
+    // git commit-message path passes a writer with no userId), the run is the
+    // host operator's own: resolve the sole/first user as the owner-equivalent so
+    // the owner-always-passes branch applies instead of a fail-closed throw.
+    const spawnUserId = ws?.userId ?? null;
+    const spawnUser = spawnUserId != null
+      ? (userDb.getUserById(spawnUserId) ?? { id: spawnUserId, role: null })
+      : (userDb.getFirstUser() ?? null);
+    assertSubscriptionOAuthOwnerOnly(sdkOptions.env, spawnUser);
 
     // Per-user commit authorship (B-MU-UX-GIT-ID): inject GIT_AUTHOR_*/
     // GIT_COMMITTER_* for the authenticated user so any commit the agent makes
