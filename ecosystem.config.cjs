@@ -102,8 +102,8 @@ module.exports = {
         // هوية الـ relying party لمفاتيح المرور. RP_ID نطاق فقط بلا scheme؛
         // ORIGIN أصل كامل (يدعم قائمة بفواصل). بدونها يسقط الخادم إلى إعداد
         // localhost التطويري ولن تعمل passkeys على النطاق المنشور.
-        WEBAUTHN_RP_ID: 'nassaj-dev.alkindy.tech',
-        WEBAUTHN_ORIGIN: 'https://nassaj-dev.alkindy.tech',
+        WEBAUTHN_RP_ID: 'nassaj.alkindy.tech',
+        WEBAUTHN_ORIGIN: 'https://nassaj.alkindy.tech,http://localhost:5173',
         WEBAUTHN_RP_NAME: 'Nassaj Dev',
       },
     },
