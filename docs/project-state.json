@@ -1831,21 +1831,21 @@
       "kind": "security",
       "issue": "B-66",
       "title": "إغلاق المنافذ غير الآمنة (السيرفر كامل): ربط الخدمات المكشوفة بـ127.0.0.1 — nassaj-dev:3004، diwan-web:3100، diwan-api:4101 — مع إبقاء SSH:22 وبلا كسر نفق Cloudflare",
-      "status": "in_progress",
+      "status": "done",
       "owner": "workflow",
-      "closed": null,
-      "summary": "نُفِّذ عبر workflow تشخيص+تحقّق-عدائي (3 مراحل، 7 وكلاء، ~347K توكن): Locate (مالكو المنافذ المكشوفة وملفات الربط / خريطة النفق وسطح القفل / آلية بيئة pm2) ← Plan ← 3 مراجعين عدائيين (كسر النفق/قفل SSH/اكتمال المسح) إجماع 3/3 ثقة عالية: لا كسر لأي hostname ولا قفل SSH. المكشوف (ss): 0.0.0.0:3004 nassaj-dev، *:3100 diwan-web (next-server)، *:4101 diwan-api (Nest)؛ SSH 0.0.0.0:22 يبقى. كل upstreams نفق cloudflared = 127.0.0.1؛ Diwan يُوصَل خارجياً فقط عبر بوابة diwan-gate على 127.0.0.1:8100 التي تتصل بـapi/web على loopback — فالربط بـ127.0.0.1 شفّاف. cloudflared الثانية = حاوية wafeq معزولة (منافذ 3002/4002/8000 داخلية). المسارات الحيّة مؤكَّدة بـpm2 jlist: nassaj-dev وdiwan-* تعمل من /home/nassaj/Project/* (لا Diwan-staging). المطبَّق والملتزَم: (1) nassaj-dev ecosystem.config.cjs:58 HOST 0.0.0.0→127.0.0.1 + .env:11، commit f8424df؛ (2) Diwan (backend-dev، model opus): ecosystem.dev.config.cjs:66 إضافة '-H 127.0.0.1' لـnext، apps/api/src/main.ts:131 app.listen(port,'127.0.0.1') + rebuild ناجح (dist محجوب gitignore)، commit bba901c على feat/redesign-identity. الربط loopback يُلغي الوصول المباشر LAN/Tailscale (مقصود)؛ النفاذ عبر hostnames HTTPS. يبقى (المالك، طرفية منفصلة — restart nassaj-dev قد يُسقط جلسة Claude هذه لأنها ابنة pid العملية): restart diwan-api+web (ecosystem.dev.config.cjs) أولاً، ثم nassaj-dev (ecosystem.config.cjs، يطبّق أيضاً rpID وHOST)، تحقّق ss=127.0.0.1 وcurl HTTPS=200، ثم pm2 save. ufw اختياري دفاع-بالعمق (allow 22 أولاً). الانكشاف ما زال حيّاً حتى تتم إعادات التشغيل."
+      "closed": "2026-06-15",
+      "summary": "نُفِّذ عبر workflow تشخيص+تحقّق-عدائي (3 مراحل، 7 وكلاء، ~347K توكن): Locate (مالكو المنافذ المكشوفة وملفات الربط / خريطة النفق وسطح القفل / آلية بيئة pm2) ← Plan ← 3 مراجعين عدائيين (كسر النفق/قفل SSH/اكتمال المسح) إجماع 3/3 ثقة عالية: لا كسر لأي hostname ولا قفل SSH. المكشوف (ss): 0.0.0.0:3004 nassaj-dev، *:3100 diwan-web (next-server)، *:4101 diwan-api (Nest)؛ SSH 0.0.0.0:22 يبقى. كل upstreams نفق cloudflared = 127.0.0.1؛ Diwan يُوصَل خارجياً فقط عبر بوابة diwan-gate على 127.0.0.1:8100 التي تتصل بـapi/web على loopback — فالربط بـ127.0.0.1 شفّاف. cloudflared الثانية = حاوية wafeq معزولة (منافذ 3002/4002/8000 داخلية). المسارات الحيّة مؤكَّدة بـpm2 jlist: nassaj-dev وdiwan-* تعمل من /home/nassaj/Project/* (لا Diwan-staging). المطبَّق والملتزَم: (1) nassaj-dev ecosystem.config.cjs:58 HOST 0.0.0.0→127.0.0.1 + .env:11، commit f8424df؛ (2) Diwan (backend-dev، model opus): ecosystem.dev.config.cjs:66 إضافة '-H 127.0.0.1' لـnext، apps/api/src/main.ts:131 app.listen(port,'127.0.0.1') + rebuild ناجح (dist محجوب gitignore)، commit bba901c على feat/redesign-identity. الربط loopback يُلغي الوصول المباشر LAN/Tailscale (مقصود)؛ النفاذ عبر hostnames HTTPS. يبقى (المالك، طرفية منفصلة — restart nassaj-dev قد يُسقط جلسة Claude هذه لأنها ابنة pid العملية): restart diwan-api+web (ecosystem.dev.config.cjs) أولاً، ثم nassaj-dev (ecosystem.config.cjs، يطبّق أيضاً rpID وHOST)، تحقّق ss=127.0.0.1 وcurl HTTPS=200، ثم pm2 save. ufw اختياري دفاع-بالعمق (allow 22 أولاً). أُعيد تشغيل الخدمات الثلاث وتحقّق حيّ 2026-06-15: ss=127.0.0.1 للثلاثة، nassaj-dev pid جديد بـHOST=127.0.0.1 وWEBAUTHN_RP_ID=nassaj.alkindy.tech، curl HTTPS=200/307؛ الانكشاف مُغلق والـpasskey يعمل (أكّده المالك). الجلسة صمدت عبر إعادة التشغيل (drain). يبقى pm2 save لتثبيت الـ dump."
     }
   ],
   "issues": [
     {
       "id": "B-66",
       "severity": "medium",
-      "status": "in_progress",
+      "status": "fixed",
       "found": "2026-06-15",
       "title": "انكشاف منافذ HTTP صرفة على واجهات غير-loopback: 0.0.0.0:3004 (nassaj-dev)، *:3100 (diwan-web)، *:4101 (diwan-api) — مكشوفة على LAN/Tailscale؛ السيرفر بلا جدار ufw، والوصول الخارجي المشروع عبر نفق Cloudflare (loopback) فقط. مسار passkey غير الآمن (http://...:3004) أحد أعراضها.",
-      "triage": "medium → الحل: ربط الثلاثة بـ127.0.0.1 (النفق يصلها loopback فلا ينكسر شيء؛ تحقّق عدائي 3/3). T-148. الإصلاح مطبَّق وملتزَم (nassaj f8424df، Diwan bba901c) لكنه غير حيّ حتى إعادة تشغيل الخدمات (حارس العميل، بطرفية المالك). ufw اختياري دفاع-بالعمق (allow 22 أولاً).",
-      "resolved": null
+      "triage": "medium → الحل: ربط الثلاثة بـ127.0.0.1 (النفق يصلها loopback فلا ينكسر شيء؛ تحقّق عدائي 3/3). T-148. الإصلاح مطبَّق وملتزَم (nassaj f8424df، Diwan bba901c) وحيٌّ بعد إعادة التشغيل (تحقّق 2026-06-15: ss=127.0.0.1 للثلاثة + curl HTTPS سليم). ufw اختياري دفاع-بالعمق (allow 22 أولاً). يبقى pm2 save لتثبيت الـ dump.",
+      "resolved": "2026-06-15"
     },
     {
       "id": "B-65",
