@@ -2,9 +2,12 @@
  * RunnerJourney — «مسار المِنوال عبر المراحل»
  * ==============================================
  *
- * Vertical timeline overlaying the runner's cycle history on top of the
- * project's phase list. Shows the owner at a glance:
- *   «Which phase is the runner in now, how many cycles finished, what is next?»
+ * Compact history log for the runner's cycle journey. Shows:
+ *   1. A header pill: «المِنوال عند المرحلة X» with live/idle state.
+ *   2. A flat list of cycle cards (most-recent last).
+ *
+ * Phase progress bars are intentionally NOT shown here — they are already
+ * rendered by PhaseTimeline above. This avoids visual duplication.
  *
  * Design brief: docs/design/minwal-journey-brief.md
  * Data contract: runner-bridge.service.ts → RunnerStatus.history (CycleHistory)
@@ -18,14 +21,12 @@
  *       animate-pulse wrapped in motion-safe:.
  */
 
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Activity,
   Bot,
   CheckCircle2,
   Circle,
-  CircleDot,
   Pause,
   XCircle,
 } from 'lucide-react';
@@ -41,13 +42,11 @@ import { UI_STATE_STYLES } from './runnerStatus';
 /** After this many seconds without a heartbeat we consider the runner stale. */
 const STALE_THRESHOLD_S = 180; // 3 × typical 60s tick
 
-/** Chips beyond this count are hidden behind a "show all" toggle. */
-const MAX_VISIBLE_CHIPS = 20;
-
 // ─── types ───────────────────────────────────────────────────────────────────
 
 export type RunnerJourneyProps = {
-  /** Board phases from docs/project-state.json (same source as PhaseTimeline). */
+  /** Board phases from docs/project-state.json — used only to look up the
+   *  current-phase title for the header; progress bars are NOT re-rendered here. */
   phases: BoardPhase[];
   /**
    * Cycle journey log. null → section is hidden entirely (project not yet
@@ -56,6 +55,12 @@ export type RunnerJourneyProps = {
   history: CycleHistory | null;
   /** True when the runner is registered with this project (guard). */
   registered: boolean;
+  /**
+   * supervisor.session.exit_reason — used to suppress «may be frozen» when
+   * the session has already ended (clean exit, OOM, etc.).
+   * Omit / null when the supervisor has not started yet.
+   */
+  sessionExitReason?: string | null;
 };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -67,8 +72,17 @@ function secondsSince(iso: string | null | undefined): number {
   return isFinite(diff) ? diff : Infinity;
 }
 
-/** True if heartbeat is stale (runner might be frozen). */
-function isHeartbeatStale(heartbeatAt: string | null | undefined): boolean {
+/**
+ * True if a *running* session has a stale heartbeat (runner might be frozen).
+ * Returns false when exitReason is set — the session already ended cleanly or
+ * with an error; "may be frozen" does not apply to a finished process.
+ */
+function isHeartbeatStale(
+  heartbeatAt: string | null | undefined,
+  exitReason: string | null | undefined,
+): boolean {
+  // Session has an exit_reason → it is done (clean, failed, etc.), not frozen.
+  if (exitReason != null) return false;
   return secondsSince(heartbeatAt) > STALE_THRESHOLD_S;
 }
 
@@ -165,36 +179,6 @@ function StageDots({
   );
 }
 
-/** Compact chip for a single closed cycle (used in the mini-chip grid). */
-function CycleChip({
-  cycle,
-  isCurrentCycle,
-  onClick,
-}: {
-  cycle: CycleRecord;
-  isCurrentCycle: boolean;
-  onClick?: () => void;
-}) {
-  const { t } = useTranslation('projectBoard');
-  const n = cycle.cycle ?? '?';
-  const status = cycle.status ?? 'pending';
-  const label = t('runner.journey.cycleN', { n }) + ' · ' + (cycle.task_id ?? cycle.phase_id ?? '');
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      title={label}
-      className={cn(
-        'h-4 w-4 rounded border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70',
-        cycleStatusClasses(status),
-        isCurrentCycle && 'ring-2 ring-primary/50',
-      )}
-    />
-  );
-}
-
 /** Full expanded card for a single cycle. */
 function CycleCard({
   cycle,
@@ -283,124 +267,6 @@ function CycleCard({
   );
 }
 
-/** Cycles list for one phase — collapsible, current phase open by default. */
-function PhaseCycles({
-  phaseId,
-  cycles,
-  currentCycleRecord,
-  isCurrent,
-  currentStage,
-  isStale,
-}: {
-  phaseId: string;
-  cycles: CycleRecord[];
-  currentCycleRecord: CycleRecord | null;
-  isCurrent: boolean;
-  currentStage?: string;
-  isStale?: boolean;
-}) {
-  const { t } = useTranslation('projectBoard');
-  const [expandedCycle, setExpandedCycle] = useState<number | null>(null);
-  const [showAll, setShowAll] = useState(false);
-
-  // Merge closed cycles + in-progress current (if not yet in cycles[])
-  const allCycles: CycleRecord[] = [...cycles];
-  if (currentCycleRecord && isCurrent) {
-    const alreadyIn = allCycles.some((c) => c.cycle === currentCycleRecord.cycle);
-    if (!alreadyIn) {
-      allCycles.push(currentCycleRecord);
-    }
-  }
-
-  if (!allCycles.length) {
-    // No cycles for this phase yet
-    if (!isCurrent) return null;
-    return (
-      <p className="ps-2 text-[11px] text-muted-foreground">
-        {t('runner.journey.noCycles')}
-      </p>
-    );
-  }
-
-  const totalCount = allCycles.length;
-  const visibleCycles = showAll ? allCycles : allCycles.slice(0, MAX_VISIBLE_CHIPS);
-
-  // For current phase: expand to full cards; for others: mini chip grid
-  if (isCurrent) {
-    return (
-      <div className="mt-2 space-y-2">
-        {allCycles.map((cycle) => {
-          const isCurrentCycle =
-            currentCycleRecord !== null && cycle.cycle === currentCycleRecord.cycle;
-          return (
-            <CycleCard
-              key={cycle.cycle ?? phaseId + String(allCycles.indexOf(cycle))}
-              cycle={cycle}
-              isCurrentCycle={isCurrentCycle}
-              currentStage={isCurrentCycle ? currentStage : undefined}
-              isStale={isCurrentCycle ? isStale : undefined}
-            />
-          );
-        })}
-      </div>
-    );
-  }
-
-  // Closed / pending phases: mini chips in a wrap grid
-  return (
-    <details className="group mt-1.5">
-      <summary className="cursor-pointer select-none text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground">
-        {t('runner.journey.cyclesCount', { n: totalCount })}
-        &ensp;
-        <span className="flex flex-wrap gap-1 pt-1" aria-hidden="true">
-          {cycles.slice(0, 5).map((c) => (
-            <span
-              key={c.cycle}
-              className={cn('h-3.5 w-3.5 rounded border', cycleStatusClasses(c.status))}
-            />
-          ))}
-          {cycles.length > 5 && (
-            <span className="text-[9px] text-muted-foreground">+{cycles.length - 5}</span>
-          )}
-        </span>
-      </summary>
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {visibleCycles.map((cycle) => {
-          const isExpanded = expandedCycle === cycle.cycle;
-          return (
-            <div key={cycle.cycle ?? String(allCycles.indexOf(cycle))} className="w-full">
-              <CycleChip
-                cycle={cycle}
-                isCurrentCycle={false}
-                onClick={() =>
-                  setExpandedCycle(isExpanded ? null : (cycle.cycle ?? null))
-                }
-              />
-              {isExpanded && (
-                <div className="mt-1.5">
-                  <CycleCard
-                    cycle={cycle}
-                    isCurrentCycle={false}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {totalCount > MAX_VISIBLE_CHIPS && !showAll && (
-          <button
-            type="button"
-            onClick={() => setShowAll(true)}
-            className="text-[11px] text-muted-foreground underline decoration-border hover:text-foreground"
-          >
-            {t('runner.journey.showAll', { n: totalCount })}
-          </button>
-        )}
-      </div>
-    </details>
-  );
-}
-
 // ─── main component ───────────────────────────────────────────────────────────
 
 /**
@@ -409,7 +275,7 @@ function PhaseCycles({
  * Placed in BoardOverview, below PhaseTimeline, visible only when
  * `registered && history != null`.
  */
-export default function RunnerJourney({ phases, history, registered }: RunnerJourneyProps) {
+export default function RunnerJourney({ phases, history, registered, sessionExitReason }: RunnerJourneyProps) {
   const { t } = useTranslation('projectBoard');
 
   // Guard: additive, never shown unless runner is registered and has history data
@@ -420,14 +286,6 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
   const current = history.current;
   const cycles = history.cycles ?? [];
   const totalCycles = history.total_cycles ?? cycles.length;
-
-  // Build a map of phase_id → closed cycles for that phase
-  const cyclesByPhase = new Map<string, CycleRecord[]>();
-  for (const c of cycles) {
-    const pid = c.phase_id ?? '__unknown__';
-    if (!cyclesByPhase.has(pid)) cyclesByPhase.set(pid, []);
-    cyclesByPhase.get(pid)!.push(c);
-  }
 
   // Current cycle pseudo-record (in-flight, not yet in cycles[])
   const currentCycleRecord: CycleRecord | null = current
@@ -445,7 +303,7 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
   const currentStage = current?.stage;
   const currentStatus = current?.status ?? 'idle';
   const heartbeatAt = current?.heartbeat_at;
-  const stale = isHeartbeatStale(heartbeatAt);
+  const stale = isHeartbeatStale(heartbeatAt, sessionExitReason);
 
   // Derive the pill UI state from the current status/stage
   const pillUiState = (() => {
@@ -461,16 +319,26 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
   })();
   const isLive = pillUiState === 'building' || pillUiState === 'verifying' || pillUiState === 'running';
 
+  // Look up the current phase title for the header (no progress bar re-render).
+  const currentPhase = phases.find((p) => p.id === currentPhaseId);
+
+  // Flat list of all cycle cards: closed cycles in order, then the in-flight one.
+  const allCycles: CycleRecord[] = [...cycles];
+  if (currentCycleRecord) {
+    const alreadyIn = allCycles.some((c) => c.cycle === currentCycleRecord.cycle);
+    if (!alreadyIn) allCycles.push(currentCycleRecord);
+  }
+
   return (
     <section dir="rtl" aria-labelledby="runner-journey-heading">
-      {/* Section header with live indicator */}
+      {/* ── Header row ─────────────────────────────────────────────────────── */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <h3 id="runner-journey-heading" className="text-sm font-semibold text-foreground">
           {t('runner.journey.title')}
         </h3>
 
-        {/* Live «المِنوال هنا» pill — layer 1 of 3 */}
-        {current && (
+        {/* «المِنوال عند المرحلة X» position indicator */}
+        {currentPhaseId && (
           <span
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium',
@@ -478,7 +346,11 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
             )}
             aria-live="polite"
             aria-atomic="true"
-            aria-label={t('runner.journey.here') + ' · ' + t('runner.journey.cycleN', { n: current.cycle ?? '?' })}
+            aria-label={
+              t('runner.journey.here') +
+              (currentPhaseId ? ` · ${currentPhaseId}` : '') +
+              (current ? ` · ${t('runner.journey.cycleN', { n: current.cycle ?? '?' })}` : '')
+            }
           >
             <span
               aria-hidden="true"
@@ -488,10 +360,23 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
               )}
             />
             <Bot className="h-3 w-3" aria-hidden="true" />
-            <span>{t('runner.journey.here')}</span>
-            <span className="opacity-50" aria-hidden="true">·</span>
-            <span>{t('runner.journey.cycleN', { n: current.cycle ?? '?' })}</span>
-            {stale && (
+            {/* Phase reference */}
+            <span className="font-mono" dir="ltr">{currentPhaseId}</span>
+            {currentPhase && (
+              <>
+                <span className="opacity-40" aria-hidden="true">·</span>
+                <span>{currentPhase.title}</span>
+              </>
+            )}
+            {/* Current cycle number */}
+            {current && (
+              <>
+                <span className="opacity-40" aria-hidden="true">·</span>
+                <span>{t('runner.journey.cycleN', { n: current.cycle ?? '?' })}</span>
+              </>
+            )}
+            {/* «May be frozen» only when a session is actively running with stale heartbeat */}
+            {stale && isLive && (
               <span className="ms-1 opacity-60">({t('runner.journey.stale')})</span>
             )}
           </span>
@@ -505,113 +390,25 @@ export default function RunnerJourney({ phases, history, registered }: RunnerJou
         )}
       </div>
 
-      {/* Vertical timeline — mirrors PhaseTimeline's exact markup */}
-      {phases.length === 0 ? (
+      {/* ── Cycle history list ──────────────────────────────────────────────── */}
+      {allCycles.length === 0 ? (
         <p className="text-[11px] text-muted-foreground">{t('runner.journey.noCycles')}</p>
       ) : (
-        <ol className="relative space-y-0 border-s-2 border-border ps-5">
-          {phases.map((phase) => {
-            const isCurrent = phase.status === 'current';
-            const isRunnerHere = phase.id === currentPhaseId;
-            const phaseCycles = cyclesByPhase.get(phase.id) ?? [];
-            const progress = Math.max(0, Math.min(100, Number(phase.progress) || 0));
-
+        <div className="space-y-2">
+          {allCycles.map((cycle) => {
+            const isCurrentCycle =
+              currentCycleRecord !== null && cycle.cycle === currentCycleRecord.cycle;
             return (
-              <li key={phase.id} className="relative pb-5 last:pb-0">
-                {/* Phase node — mirrors PhaseTimeline icons exactly */}
-                <span
-                  className={cn(
-                    'absolute -start-[1.65rem] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-background',
-                    phase.status === 'done' && 'border-green-500 text-green-500',
-                    isCurrent && 'border-primary text-primary',
-                    isRunnerHere && isCurrent && 'motion-safe:animate-pulse',
-                    (phase.status === 'pending' || phase.status === 'cancelled') &&
-                      'border-border text-muted-foreground',
-                  )}
-                  aria-hidden="true"
-                >
-                  {phase.status === 'done' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                  {isCurrent && <CircleDot className="h-3.5 w-3.5" />}
-                  {phase.status === 'pending' && <Circle className="h-3 w-3" />}
-                  {phase.status === 'cancelled' && <XCircle className="h-3.5 w-3.5" />}
-                </span>
-
-                {/* Phase header row */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground" dir="ltr">
-                    {phase.id}
-                  </span>
-                  <span
-                    className={cn(
-                      'text-sm font-medium',
-                      phase.status === 'cancelled'
-                        ? 'text-muted-foreground line-through'
-                        : 'text-foreground',
-                    )}
-                  >
-                    {phase.title}
-                  </span>
-
-                  {/* «المِنوال هنا» on phase node — layer 2 of 3 */}
-                  {isRunnerHere && current && (
-                    <span
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium',
-                        UI_STATE_STYLES[pillUiState],
-                      )}
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'inline-block h-1.5 w-1.5 rounded-full bg-current',
-                          isLive && !stale && 'motion-safe:animate-pulse',
-                        )}
-                      />
-                      {t('runner.journey.here')}
-                    </span>
-                  )}
-                </div>
-
-                {/* Progress bar (only for non-cancelled phases) */}
-                {phase.status !== 'cancelled' && (
-                  <div className="mt-2 flex max-w-md items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                      <div
-                        className={cn(
-                          'h-full rounded-full transition-all',
-                          phase.status === 'done' ? 'bg-green-500' : 'bg-primary',
-                        )}
-                        style={{ width: `${phase.status === 'done' ? 100 : progress}%` }}
-                      />
-                    </div>
-                    <span className="w-9 text-end text-[11px] tabular-nums text-muted-foreground">
-                      {phase.status === 'done' ? 100 : progress}%
-                    </span>
-                  </div>
-                )}
-
-                {/* Cycles for this phase */}
-                <div className="mt-2">
-                  <PhaseCycles
-                    phaseId={phase.id}
-                    cycles={phaseCycles}
-                    currentCycleRecord={isRunnerHere ? currentCycleRecord : null}
-                    isCurrent={isRunnerHere}
-                    currentStage={isRunnerHere ? currentStage : undefined}
-                    isStale={isRunnerHere ? stale : undefined}
-                  />
-                </div>
-              </li>
+              <CycleCard
+                key={cycle.cycle ?? String(allCycles.indexOf(cycle))}
+                cycle={cycle}
+                isCurrentCycle={isCurrentCycle}
+                currentStage={isCurrentCycle ? currentStage : undefined}
+                isStale={isCurrentCycle ? stale : undefined}
+              />
             );
           })}
-        </ol>
-      )}
-
-      {/* Empty state: registered but no cycles started */}
-      {cycles.length === 0 && !current && (
-        <p className="mt-3 text-[11px] text-muted-foreground">
-          {t('runner.journey.noCycles')}
-        </p>
+        </div>
       )}
     </section>
   );

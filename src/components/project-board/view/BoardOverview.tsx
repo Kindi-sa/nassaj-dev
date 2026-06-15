@@ -40,6 +40,11 @@ type BoardOverviewProps = {
   runnerHistory?: CycleHistory | null;
   /** True when the project is registered with the runner. */
   runnerRegistered?: boolean;
+  /**
+   * supervisor.session.exit_reason — forwarded to RunnerJourney to suppress
+   * the «may be frozen» warning when the session has already ended.
+   */
+  runnerSessionExitReason?: string | null;
 };
 
 const SEVERITY_STYLES: Record<IssueSeverity, string> = {
@@ -580,6 +585,7 @@ export default function BoardOverview({
   runnerRunning,
   runnerHistory,
   runnerRegistered,
+  runnerSessionExitReason,
 }: BoardOverviewProps) {
   const { t } = useTranslation('projectBoard');
   const overall = overallProgress(state);
@@ -657,6 +663,7 @@ export default function BoardOverview({
           phases={state.phases ?? []}
           history={runnerHistory ?? null}
           registered={Boolean(runnerRegistered)}
+          sessionExitReason={runnerSessionExitReason ?? null}
         />
         <SprintsSection state={state} />
         <TasksBoard

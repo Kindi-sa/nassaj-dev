@@ -257,6 +257,7 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
               runnerRunning={runnerRunning}
               runnerHistory={runner?.history ?? null}
               runnerRegistered={registered}
+              runnerSessionExitReason={supervisorExitReason}
             />
           ) : (
             <BoardEmptyState projectName={projectName} />
