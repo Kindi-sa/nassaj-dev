@@ -43,11 +43,22 @@ function extractStage(runner: RunnerStatus): string {
 }
 
 /**
- * Derive a synthetic "running/idle/failed" status from supervisor liveness.
+ * Derive a synthetic "running/idle/failed/interrupted" status from supervisor liveness.
  * We have no explicit status field in v2 — we infer:
- *   - exit_reason non-null → interrupted or failed
+ *   - exit_reason non-null → mapped per table below
  *   - heartbeat recent (< 20 min) → running
  *   - no supervisor data → idle
+ *
+ * exit_reason values written by nassaj-ops/scripts/runner/lib/launch.sh:
+ *   null         → session still live or never started (→ idle/running via heartbeat)
+ *   "clean"      → rc=0, successful exit                          (→ idle)
+ *   "failed"     → rc=1, general failure                          (→ failed)
+ *   "oom"        → OOM-killed by cgroup/systemd (rc=137 typically)(→ failed)
+ *   "killed"     → SIGKILL / external termination                 (→ failed)
+ *   "error"      → unhandled error in runner harness              (→ failed)
+ *   "crash"      → unexpected crash                               (→ failed)
+ *   "rate-limit" → rc=75, Anthropic rate-limit back-off           (→ interrupted)
+ *   "hung-stopped"→ supervisor recovered from hang via SIGSTOP    (→ failed)
  */
 function deriveLivenessStatus(runner: RunnerStatus): 'running' | 'idle' | 'interrupted' | 'failed' {
   const session = runner.supervisor?.session;
@@ -55,8 +66,17 @@ function deriveLivenessStatus(runner: RunnerStatus): 'running' | 'idle' | 'inter
 
   const exitReason = session.exit_reason;
   if (exitReason) {
-    // Treat error/crash exits as failed; clean exits (null) as idle.
-    return exitReason === 'error' || exitReason === 'crash' ? 'failed' : 'interrupted';
+    // Hard-failure exits: process died abnormally — show red.
+    const FAILED_REASONS = new Set(['failed', 'oom', 'killed', 'error', 'crash', 'hung-stopped']);
+    if (FAILED_REASONS.has(exitReason)) return 'failed';
+
+    // Recoverable / expected exits.
+    if (exitReason === 'rate-limit') return 'interrupted'; // back-off, can resume
+    if (exitReason === 'clean') return 'idle';             // rc=0 success — not an error
+
+    // Unknown future exit_reason values: treat as interrupted, not failed,
+    // to avoid false alarms while preserving the ability to resume.
+    return 'interrupted';
   }
 
   // Heartbeat freshness: > 20 min stale = not running.
