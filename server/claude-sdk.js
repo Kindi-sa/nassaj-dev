@@ -32,6 +32,7 @@ import { createNormalizedMessage, stampCoordinatorId, stampHumanUserId } from '.
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './services/isolation/anthropic-base-url-guard.js';
 import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
   PROCESS_TAG_ENV_VAR,
@@ -317,6 +318,13 @@ function mapCliOptionsToSDK(options = {}, validModelValues) {
 
   // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
+  //
+  // Vendor-resilience iron rule (fail-closed): before forwarding, refuse to spawn
+  // if ANTHROPIC_BASE_URL points the Claude/Anthropic path at a non-approved host.
+  // No-op when unset (default Anthropic). See anthropic-base-url-guard.js. The
+  // final env is re-validated at the spawn site below after per-user isolation,
+  // since that step also carries the host env through.
+  assertAnthropicBaseUrlAllowed(process.env);
   sdkOptions.env = { ...process.env };
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
@@ -519,6 +527,13 @@ async function getClaudeBuiltInCommands(context = {}) {
     if (cwd) {
       sdkOptions.cwd = cwd;
     }
+
+    // Iron-rule guard: this probe also spawns the Claude/Anthropic subprocess,
+    // so fail-closed if ANTHROPIC_BASE_URL targets a non-approved host. No-op
+    // when unset (default Anthropic). Also validate the per-user settings.json
+    // env block the CLI applies from CLAUDE_CONFIG_DIR (same bypass surface).
+    assertAnthropicBaseUrlAllowed(sdkOptions.env);
+    assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
 
     queryInstance = query({
       prompt: emptyPromptStream(),
@@ -1032,6 +1047,16 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // while conversations/instructions stay shared via symlinks. Falls back to the
     // base env unchanged when no userId is present (single-user / platform mode).
     sdkOptions.env = resolveProviderEnv(ws?.userId ?? null, 'claude', sdkOptions.env);
+
+    // Iron-rule re-check on the FINAL env actually handed to the subprocess.
+    // resolveProviderEnv spreads the base env (ANTHROPIC_BASE_URL included) and
+    // never strips it, so validate again here — fail-closed before query().
+    assertAnthropicBaseUrlAllowed(sdkOptions.env);
+    // The CLI also applies env.ANTHROPIC_BASE_URL (and Bedrock/Vertex siblings)
+    // from settings.json INSIDE the per-user CLAUDE_CONFIG_DIR, downstream of the
+    // spawn env. Validate that file under the same allowlist so a competitor base
+    // URL placed there cannot bypass the OS-env guard above.
+    assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
 
     // Per-user commit authorship (B-MU-UX-GIT-ID): inject GIT_AUTHOR_*/
     // GIT_COMMITTER_* for the authenticated user so any commit the agent makes

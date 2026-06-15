@@ -5,6 +5,10 @@ import path from 'node:path';
 import { query, type ModelInfo, type Options } from '@anthropic-ai/claude-agent-sdk';
 
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
+import {
+  assertAnthropicBaseUrlAllowed,
+  assertSettingsEnvAllowed,
+} from '@/services/isolation/anthropic-base-url-guard.js';
 import type { ProviderModelOption, ProviderModelsDefinition } from '@/shared/types.js';
 
 import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
@@ -231,14 +235,28 @@ async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> 
   };
 
   try {
+    // Forward host env (credentials / CLAUDE_CONFIG_DIR) so the probe reports the
+    // catalog for the operator's authenticated subscription. Held in a definite
+    // local so the fail-closed guard below sees a concrete env (Options.env is
+    // typed optional, which would otherwise widen back to `| undefined`).
+    const probeEnv: NodeJS.ProcessEnv = { ...process.env };
     const options: Options = {
-      // Forward host env (credentials / CLAUDE_CONFIG_DIR) so the probe reports
-      // the catalog for the operator's authenticated subscription.
-      env: { ...process.env } as NodeJS.ProcessEnv,
+      env: probeEnv,
       cwd: probeCwd,
       pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
       systemPrompt: { type: 'preset', preset: 'claude_code' },
     };
+
+    // Vendor-resilience iron rule (fail-closed): refuse to spawn this catalog
+    // probe if a competitor ANTHROPIC_BASE_URL (or any *_BASE_URL routing var) in
+    // the operator OS env / per-user settings.json would route the Claude
+    // subprocess to a non-Anthropic endpoint. No-op when unset (default
+    // Anthropic). Mirrors the three spawn seams in server/claude-sdk.js. The
+    // throw is caught by probeSupportedModels()'s catch and degrades to the
+    // fallback catalog — never silently routes Claude traffic to an unknown
+    // vendor. See server/services/isolation/anthropic-base-url-guard.js.
+    assertAnthropicBaseUrlAllowed(probeEnv);
+    assertSettingsEnvAllowed(probeEnv.CLAUDE_CONFIG_DIR ?? '', probeEnv);
 
     queryInstance = query({
       prompt: emptyPromptStream(),

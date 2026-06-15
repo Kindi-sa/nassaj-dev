@@ -207,3 +207,103 @@ test('getClaudeModelCatalog: single-flight — concurrent callers share one prob
 
   __resetClaudeCatalogCircuit();
 });
+
+// ---------------- vendor-resilience iron rule (fail-closed) ----------------
+//
+// The catalog probe forwards the host env into the Claude subprocess. A
+// competitor ANTHROPIC_BASE_URL in the operator OS env must NEVER be allowed to
+// route that subprocess to a non-Anthropic endpoint. The probe must REFUSE to
+// spawn (the guard throws BEFORE query() is constructed) and degrade to the
+// fallback catalog, and must be a NO-OP when no routing var is set.
+
+test('getClaudeModelCatalog: REFUSES to spawn the probe when ANTHROPIC_BASE_URL is a disallowed host', async () => {
+  __resetClaudeCatalogCircuit();
+  const previous = process.env.ANTHROPIC_BASE_URL;
+  process.env.ANTHROPIC_BASE_URL = 'https://api.openai.com';
+
+  let constructCalls = 0;
+  currentProbe = {
+    onConstruct: () => {
+      constructCalls += 1;
+    },
+    // Must never be reached: the guard throws before query() is constructed.
+    supportedModels: async () => SAMPLE_LIVE_MODELS,
+  };
+
+  try {
+    const result = await getClaudeModelCatalog();
+    // Fail-closed: the disallowed host degrades to the fallback catalog and the
+    // subprocess is never spawned — Claude traffic is NEVER routed to a
+    // non-Anthropic endpoint.
+    assert.deepEqual(result, { ...CLAUDE_FALLBACK_MODELS, degraded: true });
+    assert.equal(
+      constructCalls,
+      0,
+      'guard must throw before query() — the Claude subprocess must NOT be spawned',
+    );
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ANTHROPIC_BASE_URL;
+    } else {
+      process.env.ANTHROPIC_BASE_URL = previous;
+    }
+    __resetClaudeCatalogCircuit();
+  }
+});
+
+test('getClaudeModelCatalog: guard is a no-op when ANTHROPIC_BASE_URL is unset (default Anthropic path)', async () => {
+  __resetClaudeCatalogCircuit();
+  const previous = process.env.ANTHROPIC_BASE_URL;
+  delete process.env.ANTHROPIC_BASE_URL;
+
+  let constructCalls = 0;
+  currentProbe = {
+    onConstruct: () => {
+      constructCalls += 1;
+    },
+    supportedModels: async () => SAMPLE_LIVE_MODELS,
+  };
+
+  try {
+    const result = await getClaudeModelCatalog();
+    // Unset routing var → guard no-op → probe spawns and returns the live catalog.
+    assert.equal(constructCalls, 1, 'unset routing var: the probe spawns normally');
+    assert.ok(result.OPTIONS.some((o) => o.value === 'claude-opus-4-8'));
+    assert.notEqual(result.degraded, true);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ANTHROPIC_BASE_URL;
+    } else {
+      process.env.ANTHROPIC_BASE_URL = previous;
+    }
+    __resetClaudeCatalogCircuit();
+  }
+});
+
+test('getClaudeModelCatalog: guard allows an official Anthropic ANTHROPIC_BASE_URL (probe spawns)', async () => {
+  __resetClaudeCatalogCircuit();
+  const previous = process.env.ANTHROPIC_BASE_URL;
+  process.env.ANTHROPIC_BASE_URL = 'https://api.anthropic.com';
+
+  let constructCalls = 0;
+  currentProbe = {
+    onConstruct: () => {
+      constructCalls += 1;
+    },
+    supportedModels: async () => SAMPLE_LIVE_MODELS,
+  };
+
+  try {
+    const result = await getClaudeModelCatalog();
+    assert.equal(constructCalls, 1, 'official Anthropic host is allowed: the probe spawns');
+    assert.ok(result.OPTIONS.some((o) => o.value === 'claude-opus-4-8'));
+    assert.notEqual(result.degraded, true);
+  } finally {
+    if (previous === undefined) {
+      delete process.env.ANTHROPIC_BASE_URL;
+    } else {
+      process.env.ANTHROPIC_BASE_URL = previous;
+    }
+    __resetClaudeCatalogCircuit();
+  }
+});
