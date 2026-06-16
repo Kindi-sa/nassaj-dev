@@ -91,57 +91,12 @@
     "label": "设置",
     "agents": "智能体",
     "appearance": "外观",
-    "branding": "品牌",
     "git": "Git",
     "apiTokens": "API 和令牌",
     "tasks": "任务",
     "notifications": "通知",
     "plugins": "插件",
     "about": "关于"
-  },
-  "brandingSettings": {
-    "ownerOnly": "只有工作区所有者才能更改品牌设置。",
-    "save": "保存",
-    "savedTitle": "标题已保存。",
-    "savedLogo": "徽标已更新。",
-    "removedLogo": "徽标已移除，将显示默认徽标。",
-    "errorGeneric": "出了点问题，请重试。",
-    "errorType": "不支持的文件类型。请使用 PNG、JPEG、WebP 或 SVG。",
-    "errorSize": "图片超过 2MB 大小限制。",
-    "titleSection": {
-      "label": "应用标题",
-      "description": "显示在侧边栏顶部。留空则使用默认值。",
-      "fieldLabel": "标题"
-    },
-    "logoSection": {
-      "label": "徽标",
-      "description": "替换侧边栏顶部显示的默认徽标。",
-      "uploadButton": "上传徽标",
-      "removeButton": "移除",
-      "uploadAria": "上传徽标图片",
-      "previewAlt": "当前徽标预览",
-      "hint": "PNG、JPEG、WebP 或 SVG，最大 2MB。"
-    },
-    "savedLogoOnly": "显示模式已保存。",
-    "savedSplash": "加载界面偏好已保存。",
-    "splashSection": {
-      "label": "加载界面",
-      "description": "在加载（启动）界面隐藏应用名称，仅显示徽标。",
-      "toggleLabel": "在加载界面隐藏应用名称"
-    },
-    "logoOnlySection": {
-      "label": "仅徽标模式",
-      "description": "在侧边栏标题中显示单个徽标（SVG/图片），替代图标和标题。",
-      "toggleLabel": "仅用上传的徽标替换图标和标题",
-      "needsLogo": "请先上传徽标以启用此模式。"
-    },
-    "logoDarkSection": {
-      "label": "深色主题徽标",
-      "description": "深色模式下替代主徽标显示的可选徽标。未设置时使用主徽标。",
-      "uploadButton": "上传深色徽标",
-      "uploadAria": "上传深色模式徽标",
-      "hint": "PNG、JPEG、WebP 或 SVG。最大 2MB。请选择在深色背景上清晰可读的浅色。"
-    }
   },
   "notifications": {
     "title": "通知",

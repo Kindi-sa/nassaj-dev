@@ -78,7 +78,7 @@ export default function SidebarHeader({
   // Shared segmented control: membership filter + archive toggle. Selecting a
   // membership option always returns to the projects view, leaving the archive.
   const filterToggle = (
-    <div className="flex rounded-lg bg-muted/50 p-0.5">
+    <div className="flex items-center rounded-lg bg-muted/50 p-0.5">
       {membershipOptions.map((option) => (
         <button
           key={option.value}
@@ -91,7 +91,7 @@ export default function SidebarHeader({
           }}
           aria-pressed={searchMode === 'projects' && membershipFilter === option.value}
           className={cn(
-            "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
+            "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all whitespace-nowrap",
             searchMode === 'projects' && membershipFilter === option.value
               ? "bg-background shadow-sm text-foreground"
               : "text-muted-foreground hover:text-foreground"

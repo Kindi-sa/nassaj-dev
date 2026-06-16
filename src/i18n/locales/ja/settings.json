@@ -91,57 +91,12 @@
     "label": "設定",
     "agents": "エージェント",
     "appearance": "外観",
-    "branding": "ブランディング",
     "git": "Git",
     "apiTokens": "API & トークン",
     "tasks": "タスク",
     "notifications": "通知",
     "plugins": "プラグイン",
     "about": "概要"
-  },
-  "brandingSettings": {
-    "ownerOnly": "ブランディングを変更できるのはワークスペースのオーナーのみです。",
-    "save": "保存",
-    "savedTitle": "タイトルを保存しました。",
-    "savedLogo": "ロゴを更新しました。",
-    "removedLogo": "ロゴを削除しました。デフォルトのロゴが表示されます。",
-    "errorGeneric": "問題が発生しました。もう一度お試しください。",
-    "errorType": "サポートされていないファイル形式です。PNG、JPEG、WebP、SVG を使用してください。",
-    "errorSize": "画像が 2MB のサイズ制限を超えています。",
-    "titleSection": {
-      "label": "アプリのタイトル",
-      "description": "サイドバーのヘッダーに表示されます。空欄でデフォルトを使用します。",
-      "fieldLabel": "タイトル"
-    },
-    "logoSection": {
-      "label": "ロゴ",
-      "description": "サイドバーのヘッダーに表示されるデフォルトのロゴを置き換えます。",
-      "uploadButton": "ロゴをアップロード",
-      "removeButton": "削除",
-      "uploadAria": "ロゴ画像をアップロード",
-      "previewAlt": "現在のロゴのプレビュー",
-      "hint": "PNG、JPEG、WebP、SVG。最大 2MB。"
-    },
-    "savedLogoOnly": "表示モードを保存しました。",
-    "savedSplash": "ローディング画面の設定を保存しました。",
-    "splashSection": {
-      "label": "ローディング画面",
-      "description": "ローディング（スプラッシュ）画面でアプリ名を非表示にし、ロゴのみを表示します。",
-      "toggleLabel": "ローディング画面でアプリ名を非表示にする"
-    },
-    "logoOnlySection": {
-      "label": "ロゴのみモード",
-      "description": "サイドバーヘッダーのアイコンとタイトルの代わりに単一のロゴ（SVG/画像）を表示します。",
-      "toggleLabel": "アイコンとタイトルをアップロードしたロゴのみに置き換える",
-      "needsLogo": "このモードを有効にするには、まずロゴをアップロードしてください。"
-    },
-    "logoDarkSection": {
-      "label": "ダークテーマ用ロゴ",
-      "description": "ダークモードでメインロゴの代わりに表示される任意のロゴです。未設定の場合はメインロゴを使用します。",
-      "uploadButton": "ダーク用ロゴをアップロード",
-      "uploadAria": "ダークモード用ロゴをアップロード",
-      "hint": "PNG、JPEG、WebP、SVG。最大2MB。暗い背景で読みやすい明るい色を選んでください。"
-    }
   },
   "notifications": {
     "title": "通知",

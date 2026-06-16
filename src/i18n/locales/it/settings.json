@@ -91,57 +91,12 @@
     "label": "Impostazioni",
     "agents": "Agenti",
     "appearance": "Aspetto",
-    "branding": "Branding",
     "git": "Git",
     "apiTokens": "API e Token",
     "tasks": "Attività",
     "notifications": "Notifiche",
     "plugins": "Plugin",
     "about": "Informazioni"
-  },
-  "brandingSettings": {
-    "ownerOnly": "Solo il proprietario dello spazio di lavoro può modificare il branding.",
-    "save": "Salva",
-    "savedTitle": "Titolo salvato.",
-    "savedLogo": "Logo aggiornato.",
-    "removedLogo": "Logo rimosso. Verrà mostrato il logo predefinito.",
-    "errorGeneric": "Qualcosa è andato storto. Riprova.",
-    "errorType": "Tipo di file non supportato. Usa PNG, JPEG, WebP o SVG.",
-    "errorSize": "L'immagine supera il limite di 2MB.",
-    "titleSection": {
-      "label": "Titolo dell'app",
-      "description": "Mostrato nell'intestazione della barra laterale. Lascia vuoto per il predefinito.",
-      "fieldLabel": "Titolo"
-    },
-    "logoSection": {
-      "label": "Logo",
-      "description": "Sostituisci il logo predefinito mostrato nell'intestazione della barra laterale.",
-      "uploadButton": "Carica logo",
-      "removeButton": "Rimuovi",
-      "uploadAria": "Carica un'immagine del logo",
-      "previewAlt": "Anteprima del logo attuale",
-      "hint": "PNG, JPEG, WebP o SVG. Max 2MB."
-    },
-    "savedLogoOnly": "Modalità di visualizzazione salvata.",
-    "savedSplash": "Preferenza della schermata di caricamento salvata.",
-    "splashSection": {
-      "label": "Schermata di caricamento",
-      "description": "Nascondi il nome dell'app nella schermata di caricamento (splash) e mostra solo il logo.",
-      "toggleLabel": "Nascondi il nome dell'app nella schermata di caricamento"
-    },
-    "logoOnlySection": {
-      "label": "Modalità solo logo",
-      "description": "Mostra un unico logo (SVG/immagine) al posto di icona e titolo nell'intestazione della barra laterale.",
-      "toggleLabel": "Sostituisci icona e titolo con il solo logo caricato",
-      "needsLogo": "Carica prima un logo per attivare questa modalità."
-    },
-    "logoDarkSection": {
-      "label": "Logo per tema scuro",
-      "description": "Logo opzionale mostrato in modalità scura al posto di quello principale. In assenza, si usa il logo principale.",
-      "uploadButton": "Carica logo scuro",
-      "uploadAria": "Carica un logo per la modalità scura",
-      "hint": "PNG, JPEG, WebP o SVG. Max 2MB. Scegli colori chiari leggibili su sfondo scuro."
-    }
   },
   "notifications": {
     "title": "Notifiche",

@@ -1,19 +1,23 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onApplyServerPreference } from '../preferences/preferencesSync';
+import { createContext, useContext, useEffect, useState } from 'react';
+import i18n from '../i18n/config.js';
+import { getLanguage } from '../i18n/languages.js';
 
 const RtlContext = createContext(null);
-
-const STORAGE_KEY = 'rtlLayout';
 
 /**
  * useRtl
  *
- * Access the application-wide RTL layout toggle. This is intentionally
- * decoupled from the chosen i18n language: a user may run an Arabic UI in
- * LTR mode, or an English UI in RTL mode, depending on preference.
+ * Returns the application-wide RTL layout state derived automatically from the
+ * active i18n language. Arabic (and any future RTL language tagged with
+ * `dir: 'rtl'` in languages.js) yields `rtlLayout: true`; all other languages
+ * yield `false`.
  *
- * Returns `{ rtlLayout: boolean, setRtlLayout: (next: boolean) => void,
- *           toggleRtlLayout: () => void }`.
+ * The manual toggle has been removed (2026-06-16). Direction is no longer a
+ * separate user preference — it follows the language selection so the two
+ * settings can never diverge. AuthScreenLayout already applies its own language-
+ * aware direction logic and is unaffected.
+ *
+ * Returns `{ rtlLayout: boolean }`.
  */
 export const useRtl = () => {
   const ctx = useContext(RtlContext);
@@ -23,43 +27,41 @@ export const useRtl = () => {
   return ctx;
 };
 
-const readInitial = () => {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
-  } catch {
-    return false;
-  }
+const isRtlLanguage = (lng) => {
+  if (!lng) return false;
+  const langCode = lng.split('-')[0];
+  const entry = getLanguage(lng) ?? getLanguage(langCode);
+  return entry?.dir === 'rtl';
 };
 
 export const RtlProvider = ({ children }) => {
-  const [rtlLayout, setRtlLayout] = useState(readInitial);
+  const [activeLang, setActiveLang] = useState(() => i18n.language || 'en');
+  const rtlLayout = isRtlLanguage(activeLang);
 
-  // Apply direction at the document root. Lang is set to 'ar' when RTL is
-  // enabled so the browser picks Arabic font fallback chains and a11y tools
-  // announce content as Arabic; otherwise we leave it as 'en' to avoid
-  // changing TTS/voice behavior unnecessarily.
+  // Keep direction in sync when the user changes the language.
   useEffect(() => {
-    // Direction is handled per-element via dir="auto" — never force on root.
-    document.documentElement.dir = 'ltr';
-
-    try {
-      localStorage.setItem(STORAGE_KEY, String(rtlLayout));
-    } catch {
-      // Storage unavailable (private mode, quota).
-    }
-  }, [rtlLayout]);
-
-  // Apply an account-sourced value live after sign-in (server is authoritative).
-  useEffect(() => {
-    return onApplyServerPreference(STORAGE_KEY, (raw) => {
-      setRtlLayout(raw === 'true');
-    });
+    const handler = (lng) => {
+      setActiveLang(lng || 'en');
+    };
+    i18n.on('languageChanged', handler);
+    return () => {
+      i18n.off('languageChanged', handler);
+    };
   }, []);
 
-  const toggleRtlLayout = () => setRtlLayout((prev) => !prev);
+  // Apply direction at the document root so CSS selectors such as
+  // `:root[dir="rtl"]` in index.css activate the correct typography and layout
+  // corrections. The lang attribute is derived from the active i18n language so
+  // browsers pick the right font fallback chains and a11y tools announce content
+  // in the correct language regardless of direction.
+  useEffect(() => {
+    document.documentElement.dir = rtlLayout ? 'rtl' : 'ltr';
+    // Strip region code for the root lang: 'zh-CN' → 'zh', 'ar' → 'ar'.
+    document.documentElement.lang = activeLang.split('-')[0];
+  }, [rtlLayout, activeLang]);
 
   return (
-    <RtlContext.Provider value={{ rtlLayout, setRtlLayout, toggleRtlLayout }}>
+    <RtlContext.Provider value={{ rtlLayout }}>
       {children}
     </RtlContext.Provider>
   );

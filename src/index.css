@@ -970,12 +970,13 @@
 /* ============================================================
    RTL & Arabic typography
    ------------------------------------------------------------
-   The RTL toggle lives in Appearance settings (RtlContext) and
-   sets `dir="rtl"` + `lang="ar"` on <html>. We keep the default
-   sans stack for LTR and switch to Tajawal only when RTL is on.
-   Technical surfaces (CodeMirror, xterm, git diffs, file paths)
-   override with dir="ltr" inline; they keep their monospace font
-   via the existing component styles.
+   Direction is derived automatically from the active i18n language
+   (RtlContext): Arabic sets `dir="rtl"` + `lang="ar"` on <html>;
+   all other languages use LTR. We keep the default sans stack for
+   LTR and switch to Tajawal only when RTL is active. Technical
+   surfaces (CodeMirror, xterm, git diffs, file paths) override with
+   dir="ltr" inline; they keep their monospace font via the existing
+   component styles.
    ============================================================ */
 :root[dir="rtl"] body,
 :root[dir="rtl"] {

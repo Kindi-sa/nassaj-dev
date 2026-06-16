@@ -91,7 +91,6 @@
     "label": "Einstellungen",
     "agents": "Agenten",
     "appearance": "Darstellung",
-    "branding": "Branding",
     "git": "Git",
     "apiTokens": "API & Token",
     "tasks": "Aufgaben",
@@ -122,50 +121,6 @@
       "actionRequired": "Aktion erforderlich",
       "stop": "Lauf gestoppt",
       "error": "Lauf fehlgeschlagen"
-    }
-  },
-  "brandingSettings": {
-    "ownerOnly": "Nur der Workspace-Eigentümer kann das Branding ändern.",
-    "save": "Speichern",
-    "savedTitle": "Titel gespeichert.",
-    "savedLogo": "Logo aktualisiert.",
-    "removedLogo": "Logo entfernt. Das Standardlogo wird angezeigt.",
-    "errorGeneric": "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
-    "errorType": "Nicht unterstützter Dateityp. Verwende PNG, JPEG, WebP oder SVG.",
-    "errorSize": "Das Bild überschreitet die Größenbeschränkung von 2 MB.",
-    "titleSection": {
-      "label": "App-Titel",
-      "description": "Wird in der Seitenleisten-Kopfzeile angezeigt. Leer lassen für Standard.",
-      "fieldLabel": "Titel"
-    },
-    "logoSection": {
-      "label": "Logo",
-      "description": "Ersetze das Standardlogo in der Seitenleisten-Kopfzeile.",
-      "uploadButton": "Logo hochladen",
-      "removeButton": "Entfernen",
-      "uploadAria": "Logobild hochladen",
-      "previewAlt": "Vorschau des aktuellen Logos",
-      "hint": "PNG, JPEG, WebP oder SVG. Max. 2 MB."
-    },
-    "savedLogoOnly": "Anzeigemodus gespeichert.",
-    "savedSplash": "Einstellung für den Ladebildschirm gespeichert.",
-    "splashSection": {
-      "label": "Ladebildschirm",
-      "description": "Den App-Namen auf dem Ladebildschirm (Splash) ausblenden und nur das Logo anzeigen.",
-      "toggleLabel": "App-Namen auf dem Ladebildschirm ausblenden"
-    },
-    "logoOnlySection": {
-      "label": "Nur-Logo-Modus",
-      "description": "Ein einzelnes Logo (SVG/Bild) statt Icon und Titel in der Seitenleiste anzeigen.",
-      "toggleLabel": "Icon und Titel durch das hochgeladene Logo ersetzen",
-      "needsLogo": "Laden Sie zuerst ein Logo hoch, um diesen Modus zu aktivieren."
-    },
-    "logoDarkSection": {
-      "label": "Logo für dunkles Design",
-      "description": "Optionales Logo für den Dunkelmodus anstelle des Hauptlogos. Ohne Upload wird das Hauptlogo verwendet.",
-      "uploadButton": "Dunkles Logo hochladen",
-      "uploadAria": "Logo für den Dunkelmodus hochladen",
-      "hint": "PNG, JPEG, WebP oder SVG. Max. 2MB. Helle Farben wählen, die auf dunklem Hintergrund lesbar sind."
     }
   },
   "appearanceSettings": {

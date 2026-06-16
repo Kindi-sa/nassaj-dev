@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Image, Info, Key, ListChecks, Palette, Puzzle, User, Users } from 'lucide-react';
+import { Bell, Bot, GitBranch, Info, Key, ListChecks, Palette, Puzzle, User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
@@ -23,9 +23,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'profile', labelKey: 'mainTabs.profile', icon: User },
   { id: 'agents', labelKey: 'mainTabs.agents', icon: Bot },
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
-  // Owner-only: the branding write endpoints are owner-only on the server, so an
-  // admin would only ever see a tab whose actions fail. Keep the UI in sync.
-  { id: 'branding', labelKey: 'mainTabs.branding', icon: Image, roles: ['owner'] },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
   { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },

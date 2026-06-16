@@ -108,7 +108,6 @@ describe('synced key registry', () => {
       'theme',
       'nassaj-theme-preset',
       'userLanguage',
-      'rtlLayout',
       'uiPreferences',
       'notificationSoundEnabled',
       'tasks-enabled',
@@ -138,23 +137,27 @@ describe('synced key registry', () => {
 describe('collectLocalPreferences', () => {
   it('decodes JSON-shaped values and keeps plain strings, skipping unset keys', () => {
     localStorage.setItem('theme', 'dark'); // plain string
-    localStorage.setItem('rtlLayout', 'true'); // boolean-as-string -> JSON true
     localStorage.setItem('uiPreferences', JSON.stringify({ sidebarVisible: false }));
     const out = sync.collectLocalPreferences();
     assert.equal(out.theme, 'dark');
-    assert.equal(out.rtlLayout, true);
     assert.deepEqual(out.uiPreferences, { sidebarVisible: false });
     assert.ok(!('userLanguage' in out), 'unset key must be omitted');
+    assert.ok(!('rtlLayout' in out), 'rtlLayout is no longer synced (derived from userLanguage)');
   });
 });
 
 describe('applyServerPreferences', () => {
   it('writes values to localStorage and dispatches a live-apply event per key', () => {
-    sync.applyServerPreferences({ theme: 'dark', rtlLayout: true });
+    sync.applyServerPreferences({ theme: 'dark', userLanguage: 'en' });
     assert.equal(localStorage.getItem('theme'), 'dark');
-    assert.equal(localStorage.getItem('rtlLayout'), 'true');
+    assert.equal(localStorage.getItem('userLanguage'), 'en');
     const applyEvents = dispatched.filter((e) => e.type === 'preferences:apply');
     assert.equal(applyEvents.length, 2);
+  });
+
+  it('ignores rtlLayout from server (no longer a synced preference)', () => {
+    sync.applyServerPreferences({ rtlLayout: true } as Record<string, unknown>);
+    assert.equal(localStorage.getItem('rtlLayout'), null, 'rtlLayout must not be written');
   });
 
   it('ignores unknown forward-compat keys', () => {
@@ -177,11 +180,13 @@ describe('hydratePreferencesFromServer', () => {
   it('seeds the account from local values when the server returns {}', async () => {
     localStorage.setItem('auth-token', 't');
     localStorage.setItem('theme', 'dark');
-    localStorage.setItem('rtlLayout', 'true');
+    // rtlLayout is no longer synced; direction is derived from userLanguage.
+    localStorage.setItem('rtlLayout', 'true'); // stale value — must NOT be seeded
     getResponse = () => ok({ preferences: {} });
     const result = await sync.hydratePreferencesFromServer();
     assert.equal(result.status, 'seeded');
-    assert.deepEqual(lastPutBody, { theme: 'dark', rtlLayout: true });
+    assert.equal((lastPutBody as Record<string, unknown>).theme, 'dark');
+    assert.ok(!('rtlLayout' in (lastPutBody as Record<string, unknown>)), 'rtlLayout must not be seeded');
   });
 
   it('does not seed a brand-new browser (no local values) → defaults stand', async () => {

@@ -75,7 +75,6 @@ const SYNCED_STORAGE_KEYS: string[] = [
   'theme', // ThemeContext.jsx (light/dark)
   'nassaj-theme-preset', // lib/theme-presets.ts (preset + custom colors, JSON)
   'userLanguage', // i18n/config.js
-  'rtlLayout', // RtlContext.jsx ("true"/"false")
   'uiPreferences', // hooks/useUiPreferences.ts (6 booleans, JSON)
   'notificationSoundEnabled', // utils/notificationSound.ts ("true"/"false")
   'tasks-enabled', // TasksSettingsContext.jsx (JSON boolean)

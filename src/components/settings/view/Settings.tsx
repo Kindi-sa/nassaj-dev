@@ -6,7 +6,6 @@ import { Button } from '../../../shared/view/ui';
 import SettingsSidebar from '../view/SettingsSidebar';
 import AgentsSettingsTab from '../view/tabs/agents-settings/AgentsSettingsTab';
 import AppearanceSettingsTab from '../view/tabs/AppearanceSettingsTab';
-import BrandingSettingsTab from '../view/tabs/BrandingSettingsTab';
 import CredentialsSettingsTab from '../view/tabs/api-settings/CredentialsSettingsTab';
 import GitSettingsTab from '../view/tabs/git-settings/GitSettingsTab';
 import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
@@ -127,9 +126,6 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
                   onCodeEditorFontSizeChange={(value) => updateCodeEditorSetting('fontSize', value)}
                 />
               )}
-
-              {/* Owner-only: branding write endpoints are owner-only on the server. */}
-              {activeTab === 'branding' && user?.role === 'owner' && <BrandingSettingsTab />}
 
               {activeTab === 'git' && <GitSettingsTab />}
 
