@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-15",
+  "updated": "2026-06-16T19:14:13.919Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -47,6 +47,12 @@
       "title": "ويكي نسّاج للفريق + زر تحديث نافذة المحادثة",
       "status": "done",
       "progress": 100
+    },
+    {
+      "id": "P7",
+      "title": "أسطول نسّاج للصيانة/الإدارة عبر السيرفرات (Tailscale): توحيد ذاكرة + توزيع النظام + النشر",
+      "status": "pending",
+      "progress": 80
     }
   ],
   "sprints": [
@@ -105,7 +111,8 @@
       "title": "دمج 15 commit من upstream v1.33.0 (الفرع chore/sync-upstream-v1.33)",
       "status": "in_progress",
       "owner": "backend-dev",
-      "closed": null
+      "closed": null,
+      "note": "[WF w06wyxyet 2026-06-16] تحقّق الناقد: merge-base نحو v1.32.0 صحيح والوسم موجود. لكن فرضية «تعطيل Antigravity» باطلة — مُعاد تفعيله في provider.registry.ts:19. الدمج 57 ملفاً (6 add/add على طبقة المزوّدات/iron-rule egress) + هدف 457 اختباراً (لا 275). autonomousOk=false: يلزم إقرار المالك + ADR لقرار «عدم دمج الوسم/نقل انتقائي» + مراجعة qa-critic لكل hunk يمسّ egress قبل أي commit. لا push/merge-to-main."
     },
     {
       "id": "T-6",
@@ -1529,10 +1536,11 @@
       "kind": "bug",
       "issue": "B-41",
       "owner": "backend-dev",
-      "status": "review",
-      "closed": null,
+      "status": "done",
+      "closed": "2026-06-16",
       "title": "الإصلاح الجذري لـB-41 («فخّ الاستضافة الذاتية»): حارس bind أحادي المستمع + probe صحة على /health، مع إبقاء drain بلا سقف",
-      "summary": "commits ecafb22→58436b6. تشخيص مصحَّح بالدليل: B-23 (4cc4bd6، سلف للإصلاح) يحرّر المنفذ فوراً عبر server.close()، فحلقة EADDRINUSE ~7.5س (2026-06-12 17:14→2026-06-13 03:13، 767 حدثاً) لم تكن احتجاز drain متعمّداً بل أن النسخة القديمة لم تتلقَّ SIGTERM أصلاً (PM2 fork-mode فقد pid تحت treekill:false — ADR-028/B-24) فبقيت حيّة محتجزةً المنفذ بينما تنهار البديلة. الإصلاح: listen-with-guard.service.ts يتسامح مع EADDRINUSE ضمن LISTEN_BIND_WINDOW_MS=10000 ثم probe على /health (بصمة service:nassaj-server): holder بعلامتنا أو غير حاسم→exit(0)، أجنبي→exit(1) (لا موت صامت)؛ أخطاء bind الأخرى تبقى fatal. أُلغي سقف drain الذي أُدخل مؤقتاً في ecafb22 (DRAIN_TIMEOUT_MS=0) احتراماً لقرار المالك B-N-DRAIN ولمنع قتل الجلسات الطويلة. اختبارات منفذ حقيقي 18/18 + suite كامل 434+26، tsc/build نظيفان. qa-critic APPROVE بعد جولتين. ينتظر نشر المالك عبر SSH (pm2 restart محجوب بحارس العميل). ملفات الجلسة الموازية لم تُمسّ."
+      "summary": "commits ecafb22→58436b6. تشخيص مصحَّح بالدليل: B-23 (4cc4bd6، سلف للإصلاح) يحرّر المنفذ فوراً عبر server.close()، فحلقة EADDRINUSE ~7.5س (2026-06-12 17:14→2026-06-13 03:13، 767 حدثاً) لم تكن احتجاز drain متعمّداً بل أن النسخة القديمة لم تتلقَّ SIGTERM أصلاً (PM2 fork-mode فقد pid تحت treekill:false — ADR-028/B-24) فبقيت حيّة محتجزةً المنفذ بينما تنهار البديلة. الإصلاح: listen-with-guard.service.ts يتسامح مع EADDRINUSE ضمن LISTEN_BIND_WINDOW_MS=10000 ثم probe على /health (بصمة service:nassaj-server): holder بعلامتنا أو غير حاسم→exit(0)، أجنبي→exit(1) (لا موت صامت)؛ أخطاء bind الأخرى تبقى fatal. أُلغي سقف drain الذي أُدخل مؤقتاً في ecafb22 (DRAIN_TIMEOUT_MS=0) احتراماً لقرار المالك B-N-DRAIN ولمنع قتل الجلسات الطويلة. اختبارات منفذ حقيقي 18/18 + suite كامل 434+26، tsc/build نظيفان. qa-critic APPROVE بعد جولتين. ينتظر نشر المالك عبر SSH (pm2 restart محجوب بحارس العميل). ملفات الجلسة الموازية لم تُمسّ.",
+      "note": "[WF w06wyxyet 2026-06-16] مُغلق: B-41 مُتحقَّق حيّاً — 0 EADDRINUSE في error.log الحالي، /health=service:nassaj-server، اختبارات الحارس 18/18 ناجحة (شغّلها الناقد). drain بلا سقف + bind أحادي المستمع فاعلان."
     },
     {
       "id": "T-124",
@@ -1774,7 +1782,8 @@
       "status": "in_progress",
       "owner": "frontend-dev",
       "closed": null,
-      "summary": "إصلاح عميلي بحت على مرحلتين. (أ) مُنجَز ومُجاز qa-critic: تمييز Agent + النزول إلى childTools + مؤشّر «وكيل يعمل» حيّاً (useChatMessages+useRunProgress). (ب) جارٍ (frontend-dev opus): استهلاك parentToolUseId في useChatMessages لطيّ صفوف الوكيل الحيّة في حاويتها (Map by parentToolUseId، دمج dedup مع childTools، استبعاد اليتيمة) فيعمل العدّاد الرقمي + الوقت المتوقّع حيّاً. useRunProgress/ETA بلا تغيير. أخطر نقطة: تطابق parentToolUseId↔toolId الحاوية. بلا تغيير خادم/restart. التالي: qa-critic (تركيز الربط) → commit (ملفات بالاسم؛ جلسة متوازية نشطة) → build → تحقّق المالك الحيّ. تصفية أداء خادمية اختيارية مؤجَّلة (تحتاج restart)."
+      "summary": "إصلاح عميلي بحت على مرحلتين. (أ) مُنجَز ومُجاز qa-critic: تمييز Agent + النزول إلى childTools + مؤشّر «وكيل يعمل» حيّاً (useChatMessages+useRunProgress). (ب) جارٍ (frontend-dev opus): استهلاك parentToolUseId في useChatMessages لطيّ صفوف الوكيل الحيّة في حاويتها (Map by parentToolUseId، دمج dedup مع childTools، استبعاد اليتيمة) فيعمل العدّاد الرقمي + الوقت المتوقّع حيّاً. useRunProgress/ETA بلا تغيير. أخطر نقطة: تطابق parentToolUseId↔toolId الحاوية. بلا تغيير خادم/restart. التالي: qa-critic (تركيز الربط) → commit (ملفات بالاسم؛ جلسة متوازية نشطة) → build → تحقّق المالك الحيّ. تصفية أداء خادمية اختيارية مؤجَّلة (تحتاج restart).",
+      "note": "[WF w06wyxyet 2026-06-16] يبقى in_progress: تحقّق حزمة C غير حاسم (اختبار يمرّ 3/3 لكنه لا يعزل أثر B-63). فرع verify/b63-live-counter-pkgC يحوي اختباراً مساعداً. يلزم تحقّق حيّ موثّق."
     },
     {
       "id": "T-144",
@@ -1835,6 +1844,194 @@
       "owner": "workflow",
       "closed": "2026-06-15",
       "summary": "نُفِّذ عبر workflow تشخيص+تحقّق-عدائي (3 مراحل، 7 وكلاء، ~347K توكن): Locate (مالكو المنافذ المكشوفة وملفات الربط / خريطة النفق وسطح القفل / آلية بيئة pm2) ← Plan ← 3 مراجعين عدائيين (كسر النفق/قفل SSH/اكتمال المسح) إجماع 3/3 ثقة عالية: لا كسر لأي hostname ولا قفل SSH. المكشوف (ss): 0.0.0.0:3004 nassaj-dev، *:3100 diwan-web (next-server)، *:4101 diwan-api (Nest)؛ SSH 0.0.0.0:22 يبقى. كل upstreams نفق cloudflared = 127.0.0.1؛ Diwan يُوصَل خارجياً فقط عبر بوابة diwan-gate على 127.0.0.1:8100 التي تتصل بـapi/web على loopback — فالربط بـ127.0.0.1 شفّاف. cloudflared الثانية = حاوية wafeq معزولة (منافذ 3002/4002/8000 داخلية). المسارات الحيّة مؤكَّدة بـpm2 jlist: nassaj-dev وdiwan-* تعمل من /home/nassaj/Project/* (لا Diwan-staging). المطبَّق والملتزَم: (1) nassaj-dev ecosystem.config.cjs:58 HOST 0.0.0.0→127.0.0.1 + .env:11، commit f8424df؛ (2) Diwan (backend-dev، model opus): ecosystem.dev.config.cjs:66 إضافة '-H 127.0.0.1' لـnext، apps/api/src/main.ts:131 app.listen(port,'127.0.0.1') + rebuild ناجح (dist محجوب gitignore)، commit bba901c على feat/redesign-identity. الربط loopback يُلغي الوصول المباشر LAN/Tailscale (مقصود)؛ النفاذ عبر hostnames HTTPS. يبقى (المالك، طرفية منفصلة — restart nassaj-dev قد يُسقط جلسة Claude هذه لأنها ابنة pid العملية): restart diwan-api+web (ecosystem.dev.config.cjs) أولاً، ثم nassaj-dev (ecosystem.config.cjs، يطبّق أيضاً rpID وHOST)، تحقّق ss=127.0.0.1 وcurl HTTPS=200، ثم pm2 save. ufw اختياري دفاع-بالعمق (allow 22 أولاً). أُعيد تشغيل الخدمات الثلاث وتحقّق حيّ 2026-06-15: ss=127.0.0.1 للثلاثة، nassaj-dev pid جديد بـHOST=127.0.0.1 وWEBAUTHN_RP_ID=nassaj.alkindy.tech، curl HTTPS=200/307؛ الانكشاف مُغلق والـpasskey يعمل (أكّده المالك). الجلسة صمدت عبر إعادة التشغيل (drain). يبقى pm2 save لتثبيت الـ dump."
+    },
+    {
+      "id": "T-149",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "رفع نسخة النشر إلى GitHub: دفع الفرع chore/sync-upstream-v1.33 (cb2211a) ووسم v1.34.0-nassaj إلى origin (Kindi-sa/nassaj-dev) كـ ref ثابت لاستنساخ ميناء",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-150",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "نشر نسّاج على سيرفر ميناء (Debian): كور (~/.claude) + ديف من v1.34.0-nassaj — ✅ حيّ 2026-06-16 (nassaj-dev online 202mb، curl 200، DB مهيّأة، owner أُنشئ). الوصول داخلي بنفق SSH وbind 127.0.0.1 (أداة داخلية، لا Cloudflare). يتبقّى يدوياً: claude /login + pm2 startup + تغيير كلمة مرور owner",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-151",
+      "phase": "P7",
+      "kind": "decision",
+      "title": "قرار الأسطول (محسوم 2026-06-16): نسّاج على السيرفرات = أداة صيانة/إدارة داخلية فقط (لا منتج عملاء؛ العملاء على API). الآلية: Git أحادي hub-and-spoke (نسّاج=المؤلِّف) + pull-timer ذاتي لكل عقدة (آمن من B-41 وخارج حارس العميل)، بناءً على sync.sh؛ لا Syncthing. الذاكرة تُزامَن (ops بلا بيانات عملاء؛ الجلسات/الكاش/الأسرار محلية untracked). المصادقة: اشتراك Max للصيانة الفردية = متوافق-بشروط (لا API لـ ops). النطاق: سيرفران الآن، 4 لاحقاً",
+      "status": "done",
+      "owner": "architect",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-152",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "رفع نسّاج-كور إلى GitHub (Kindi-sa/nassaj-core، main 0e206dc) + توثيق بروتوكول توحيد ذاكرة الأسطول wiki/memory-fleet-sync.md (origin/scope + hub-merge + إعادة توليد الفهرس + طابور تعارض). قواعد الكتابة مفعَّلة فوراً",
+      "status": "done",
+      "owner": "coordinator",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-153",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "المرحلة 0 — آلية الأسطول: ✅ مكتملة. bootstrap-node.sh + wiki/fleet-install.md (nassaj-core 550c9ef) + الآن pull.sh (spoke: سحب mem/main مع حفظ المحلي) + consolidate-memory.sh (hub: اتحاد scope=shared + إعادة توليد الفهرس + طابور تعارض) + ربط memory-fleet-sync.md من NASSAJ.md (nassaj-core 50c3887، محلي بلا push). تحقّق ساكن: bash -n + dry-run في sandbox معزول (الذاكرة الحيّة والجلسة الموازية لم تُمَسّا) + إصلاح خطأ set -u. لم يُشغَّل التوحيد إنتاجياً بعد — مرهون بقرار صيغة الفهرس T-161",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-154",
+      "phase": "P7",
+      "kind": "feature",
+      "title": "جسر تحكّم SSH للأسطول (dev→ميناء): مفتاح آلية مخصّص بلا passphrase (id_nassaj_fleet) + alias mina في ~/.ssh/config. السبب الجذري لفشل السابق = مفتاح dev الأصلي مشفّر بكلمة مرور (غير صالح لاتصال غير تفاعلي). تحقّق فعلي: claude -p على ميناء أعاد BRIDGE_OK",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-155",
+      "phase": "P7",
+      "kind": "bug",
+      "title": "خلل محمولية الأسطول: hooks في settings.json المتزامن تثبّت مسار /home/nassaj/nassaj-core/hooks/... فتفشل على عقد بمستخدم مختلف (ميناء=ibrahim) — حوكمة (zero-rule/لوحة/session-end) لا تعمل + ضجيج خطأ بعد كل جلسة. الإصلاح: ~/.claude/hooks/... محمول. مؤجَّل لحين فراغ settings.json من تعديل جلسة موازية",
+      "status": "open",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-156",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "إعادة هوية نسّاج الكاملة: شعار wordmark ثنائي اللون (أبيض للداكن/كحلي #1b2a4a للفاتح) في كل المواضع (ترويسة/دخول/تحميل/favicon/PWA/apple-touch/manifest) + 17 أيقونة PNG مولّدة من SVG عبر sharp (scripts/gen-icons.mjs) + عنوان التبويب «ـنسَّاجـ» بالضبط (كشيدة+شدّة U+0651+فتحة U+064E) في 8 ملفات + أباوت معاد كتابتها (فورك claudecodeui/siteboon من الكندي + إسناد AGPL-3.0 §13). commit b4dd9f6",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-157",
+      "phase": "P3",
+      "kind": "maintenance",
+      "title": "إزالة تكامل TaskMaster كاملاً (~30 ملفاً: server/routes/taskmaster.js + taskmaster-websocket + mcp-detector + projects-has-taskmaster + src/components/task-master/ + i18n tasks + علم TASKMASTER_ENABLED) — قرار ADR-036: غير ضروري (مكرّر مع لوحتنا). مؤجَّل لما بعد إغلاق دمج upstream v1.33 (P2/T-5) تجنّباً لتعارض الدمج؛ يبقى معطَّلاً بالعلم الآن. قائمة الإزالة الدقيقة في تقرير researcher 2026-06-16",
+      "status": "open",
+      "owner": "frontend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-158",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "تحسين تبويب Shell (قرار ADR-037: إبقاء لا حذف — مُطلِق ذكي لكل المزوّدين claude/agy/cursor/codex/gemini مع كشف القوائم التفاعلية وعزل PTY). التحسينات منخفضة الجهد على البنية القائمة: تبويبات طرفية متعددة فوق ptySessionsMap + مهلة PTY_SESSION_TIMEOUT قابلة للضبط مع تحذير قبل الانتهاء + ثيمات xterm إضافية + تقوية مفاتيح الجوال في TerminalShortcutsPanel",
+      "status": "open",
+      "owner": "frontend-dev",
+      "closed": null,
+      "note": "[WF w06wyxyet 2026-06-16] المكاسب الآمنة منجزة (T-164). حزمة D نفّذت تبويبات متعددة + مهلة قابلة للضبط (14/14 اختبار عزل PTY) على worktree 4c8-9 لكن الناقد رفضها بشروط: (حرج) ارتداد reattach عند تحديث الصفحة — terminalId عشوائي غير محفوظ في ShellTabBar يكسر إعادة الربط القائمة؛ (مهم) لافتة تحذير المهلة ميتة في المسار الأساسي؛ (مهم) keepalive قد يجدول قتل جلسة متصلة. لا تُدمج قبل T-168."
+    },
+    {
+      "id": "T-159",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "زر قتل الجلسة المتجمدة من الواجهة (قرار ADR-038: تبنّي فكرة cloudcli-claude-watch لا الـplugin). endpoint خادمي يرسل SIGTERM ثم SIGKILL على pid عملية Claude/agy المعلّقة + زر «إيقاف/قتل» في واجهة الجلسة يكمّل كشف «قد يكون متجمداً» القائم. لا اعتماد على نظام plugins. يلزم تنسيق التوقيت مع جلسة vendor-resilience الموازية (تعديلات خادم)",
+      "status": "open",
+      "owner": "backend-dev",
+      "closed": null
+    },
+    {
+      "id": "T-160",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "جولة تلميع واجهة (ملاحظات المالك 2026-06-16، عبر workflow بثلاثة مسارات متوازية): (1) إرجاع favicon للزجزاج الذهبي بنسبه + توليد كل أيقونات التطبيق المربّعة ذهبية من favicon.svg عبر scripts/gen-app-icons.mjs (إزالة فقاعة upstream الزرقاء التي ظهرت بعد revert من fe7d560؛ الـwordmark يبقى شعاراً أفقياً داخلياً)؛ (2) توسيط زر الأرشيف عمودياً + nowrap لتبويبات «مشاريعي/الفريق/الكل» في SidebarHeader؛ (3) RTL يُشتقّ تلقائياً من لغة i18n وحذف زرّه اليدوي (RtlContext + AppearanceSettingsTab + إزالة rtlLayout من preferencesSync)؛ (4) حذف تبويب Branding من الإعدادات مع إبقاء BrandingContext لـ5 مستهلكين في شاشات الدخول. build نظيف + preferencesSync 12/12. commit 281c4ae",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-161",
+      "phase": "P7",
+      "kind": "decision",
+      "title": "✅ محسوم 2026-06-16 (المالك): فهرس MEMORY.md يُولَّد آلياً مُجمَّعاً حسب metadata.type الموجود (user/feedback/project/reference) — لا تسطيح كامل ولا حقل index_section جديد ولا مهاجرة. يبقى مُشتقّاً لا مؤلَّفاً مع تجميع خفيف مجاني. التنفيذ في T-163",
+      "status": "done",
+      "owner": "architect",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-162",
+      "phase": "P7",
+      "kind": "decision",
+      "title": "فجوة مواصفة مقابل واقع (ذاكرة الأسطول): memory-fleet-sync.md ينصّ على metadata.{type,origin,scope} لكن كل ملفات الذاكرة القائمة تستخدم مفاتيح عُليا بلا origin/scope. حالياً السكربتات تتسامح وتفترض الافتراضات (shared للحوكمة/المشاريع، local للحوادث/سيرفر). القرار: مهاجرة الملفات القائمة لإضافة origin/scope صريحَين (نظافة وحسم) أم إبقاء التسامح الافتراضي؟ منخفض العجلة، يُحسم مع/بعد T-161",
+      "status": "open",
+      "owner": "scribe",
+      "closed": null
+    },
+    {
+      "id": "T-163",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "✅ تنفيذ قرار T-161: consolidate-memory.sh يولّد MEMORY.md مُجمَّعاً حسب type (ترتيب ثابت user→feedback→project→reference→أخرى، قسم احتياطي للملف بلا نوع فلا يُسقَط). يتسامح مع type العلوي وmetadata.type المُزاح. nassaj-core commit 34d03e7 (محلي بلا push، ملف السكربت حصراً، الجلسة الموازية سليمة). تحقّق تشغيلي في sandbox معزول: التجميع صحيح 5/5 + كلتا الصيغتين + القسم الاحتياطي + idempotent، وbash -n سليم",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-164",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "T-158 المكاسب الآمنة (قرار المالك 2026-06-16): ثيمات xterm (5 ثيمات + منتقٍ في الرأس، تتبع وضع التطبيق، localStorage، term.refresh فوري) + مفاتيح جوال إضافية (Ctrl+C/D/L وHome وEnd) في TerminalShortcutsPanel — واجهة فقط بلا خادم. commit 52e7aeb. المتبقّي من T-158 (تبويبات طرفية متعددة) مؤجَّل: محاولة frontend-only رفضها qa-critic بفيتو (تكسر عزل المزوّد B-MU-PTY + لا تُجمَّع tsc + التبويبات تتصادم على PTY واحد لأن مفتاح الخادم يربط بـ sessionId الاستئناف لا بمعرّف تبويب) — تتطلب تعديل مفتاح PTY في الخادم (إضافة tabId) + سقف تبويبات + اختبارات؛ تُنفَّذ كسبرنت مستقل عند نافذة خادم خالية.",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-165",
+      "phase": "P7",
+      "kind": "maintenance",
+      "title": "تفعيل مزامنة ذاكرة الأسطول (تتطلب إذن مالك صريح: push + إنتاج): (1) push نسّاج-كور للريموت، (2) تهيئة فرعَي mem/main وmem/<node> على المحور، (3) توزيع السكربتات لميناء عبر pull، (4) ربط pull-timer لكل عقدة، (5) أول توحيد إنتاجي — يعيد توليد فهارس MEMORY.md الحيّة بالصيغة المُجمَّعة الجديدة (تغيير مرئي لمرة واحدة). محجوب على تفريغ settings.json من الجلسة الموازية + إذن النشر",
+      "status": "open",
+      "owner": "devops",
+      "closed": null
+    },
+    {
+      "id": "T-166",
+      "phase": "P4",
+      "kind": "decision",
+      "title": "✅ محسوم 2026-06-16 (المالك): عربي الطرفية (تبويب Shell) مفكّك ومعكوس — قيد بنيوي في xterm.js 5.5 (لا bidi ولا تشكيل عربي؛ issue #701 مفتوحة منذ 2017، وPR دعم RTL الشامل #5623 أُغلق بلا دمج يناير 2026؛ لا addon ناضج). المعالجة المسبقة للتيار (reshaper+bidi) تكسر تخطيط TUI لـ claude/agy. القرار: قبول القيد — الطرفية للأوامر/الإطلاق، وقراءة العربي في تبويب Chat (يرندر RTL أصيل). الحلّ الوحيد الفعلي (طبقة DOM overlay، 3-5 أيام + مخاطر + صيانة، مرجع مغلق المصدر) مؤجَّل ولا يُعاد طرحه إلا بطلب صريح. لا تغيير كود.",
+      "status": "done",
+      "owner": "researcher",
+      "closed": "2026-06-16"
+    },
+    {
+      "id": "T-167",
+      "phase": "P6",
+      "kind": "bug",
+      "title": "قياس تسرّب ذاكرة nassaj-dev قبل أي تعديل كود: heap snapshot + رصد RSS عند 1h/6h/12h (baseline ~230M/768M، 6 restarts). جذر B-35 الفعلي (~7MB/س). لا افتراض — REPORT.md §7.2.",
+      "status": "open",
+      "owner": "devops",
+      "sprint": "S-2"
+    },
+    {
+      "id": "T-168",
+      "phase": "P4",
+      "kind": "bug",
+      "title": "إصلاح ارتدادات حزمة D قبل دمج T-158: (1حرج) حفظ terminalId لكل تبويب في sessionStorage/localStorage مفتاحاً بالمشروع/الجلسة لاسترداده عند mount (وإلا تحديث الصفحة يهجر PTY ويكسر reattach القائم)؛ (2) تسليح مؤقّت التحذير عند init لا close فقط؛ (3) عدم جدولة قتل لجلسة متصلة في keepalive؛ (4) onContextLoss لـWebglAddon + حدّ تبويبات. الكود على worktree 4c8-9 commit 7daaf96.",
+      "status": "open",
+      "owner": "backend-dev"
+    },
+    {
+      "id": "T-169",
+      "phase": "P4",
+      "kind": "bug",
+      "title": "إصلاح B-16 (UX مشروع خاص: وميض زر الرؤية مقابل شارة القفل) على chore/sync-upstream-v1.33 — الرموز موجودة فعلاً في SidebarProjectItem.tsx (isPrivate/canManageVisibility/Globe/Lock). إصلاح مساري الجوال (272-288) والديسكتوب (453-473) معاً + تمييز بصري بين القفل (حالة) وزر التبديل (إجراء). ملاحظة: منفّذ E السابق فبرك تقريره (فيتو الناقد) — يُعاد لمنفّذ آخر.",
+      "status": "open",
+      "owner": "frontend-dev"
     }
   ],
   "issues": [
@@ -2093,7 +2290,8 @@
       "title": "خطر متبقٍّ بعد إصلاح B-23 (مكتشف أثناء T-73 من قراءة مصدر PM2 7.0.1): عند انتهاء drain النسخة القديمة وخروجها المتأخر بينما البديلة online، يستقبل PM2 حدث exit المتأخر على نفس pm_id ويطلق respawn زائفاً (God.handleExit بلا حارس pid) → النسخة الزائدة تفشل EADDRINUSE أمام البديلة الصحية وتفسد محاسبة PM2 (قد تصل errored بينما الخدمة فعلياً حية كـ ghost). ‏exp_backoff يلجم العاصفة لكنه لا يمنعها. كما أن PM2 يعتقد حالياً أن العملية ماتت فوراً بسبب _tree_pids قديمة في pm2_env — سلوك عرَضي قد يتغير بعد pm2 delete/start نظيف فيصير restart منتظِراً حتى kill_timeout (5min)",
       "found": "2026-06-11",
       "triage": "medium — بانتظار قرار المستخدم على ADR-028 (Proposed ‏2026-06-11): التوصية cluster-mode reload بـ instances:1 عبر pilot إلزامي (ESM shim، WAL، بقاء الأبناء، net.listen)، مؤقتاً runbook على fork-mode (restart عبر ecosystem في نافذة بلا جلسات، لا pm2 delete+start نظيف مع جلسات نشطة، restart تصالحي بعد drain طويل إن ظهرت errored)، وsystemd البسيط fallback؛ مراقبة أول drain طويل بعد restart المالك للتحقق من الأثر الفعلي",
-      "resolution": "2026-06-13: الخطر المتبقّي بعد B-23 عولج عملياً بحارس bind في B-41 (drain بلا سقف محفوظ + حارس يكسر EADDRINUSE)؛ الحل البنيوي النهائي = ADR-028 cluster (go/no-go للمالك)."
+      "resolution": "2026-06-13: الخطر المتبقّي بعد B-23 عولج عملياً بحارس bind في B-41 (drain بلا سقف محفوظ + حارس يكسر EADDRINUSE)؛ الحل البنيوي النهائي = ADR-028 cluster (go/no-go للمالك).",
+      "note": "[WF w06wyxyet 2026-06-16] العَرَض محيَّد بحارس bind (T-123). الجذر البنيوي (ghost-respawn من God.handleExit) يبقى رهن ADR-028 (Proposed) — قرار cluster-mode ينتظر go/no-go المالك."
     },
     {
       "id": "B-25",
@@ -2201,7 +2399,8 @@
       "title": "جذر عاصفة EADDRINUSE (1006 خطأ): respawn زائف من PM2 بعد اكتمال drain (ADR-028) يطلقه OOM دوري من تسرب ذاكرة (~7MB/h مقيس) + سجلات PM2 ‏116MB بلا تدوير — النمط مضمون التكرار. التفصيل والأدلة: docs/audit-2026-06-12/REPORT.md",
       "found": "2026-06-12",
       "triage": "critical → جزئي: logrotate ‏10M×7 مفعّل 2026-06-12؛ المتبقي (قياس التسرب، مرحلة 0 من ADR-028) في S-2",
-      "resolution": "2026-06-13: أثره مُحيَّد بإصلاح B-41 (حارس bind أحادي listen-with-guard: respawn الزائف يخرج exit(0) نظيفاً بدل حلقة EADDRINUSE)؛ الجذر الأعمق (PM2 fork-mode ghost-respawn) يبقى لقرار cluster-mode ADR-028."
+      "resolution": "2026-06-13: أثره مُحيَّد بإصلاح B-41 (حارس bind أحادي listen-with-guard: respawn الزائف يخرج exit(0) نظيفاً بدل حلقة EADDRINUSE)؛ الجذر الأعمق (PM2 fork-mode ghost-respawn) يبقى لقرار cluster-mode ADR-028.",
+      "note": "[WF w06wyxyet 2026-06-16] تقدّم جزئي: pm2-logrotate compress=true + أرشفة سجل حادثة B-41 (37M→1.5M .gz، ~49M مستردّة) + الحارس يحيّد respawn الزائف. المتبقّي = الجذر الفعلي: تسرّب ذاكرة ~7MB/س — يلزم قياس heap (T-167) قبل أي تعديل كود. لا افتراض."
     },
     {
       "id": "B-36",
@@ -2251,10 +2450,12 @@
     {
       "id": "B-41",
       "severity": "critical",
-      "status": "in_progress",
+      "status": "resolved",
       "found": "2026-06-12",
       "title": "B-41 (جذر مؤكَّد 2026-06-12 مساءً — «فخّ الاستضافة الذاتية»): العملية اليتيمة 2961366 (dist-server/index.js، أبوها PM2 God Daemon) تحتجز المنفذ 3004 منذ 9.5س وترفض الموت، والنسخة الجديدة تنهار EADDRINUSE في حلقة (117+ محاولة، waiting restart مع exp_backoff). السبب أن جلسات claude/طرفيات التطبيق هي أبناء مباشرون لعملية السيرفر (3818462=claude ابن 2961366)، فأي محاولة قتل/restart من طرفية داخل التطبيق تقتل الطرفية الآمرة نفسها قبل اكتمال التعافي، والسيرفر ينجو. fuser -k/kill من الداخل لا يكتمل. الحل التشغيلي: التعافي من طرفية SSH خارجية (لا يستضيفها نفس السيرفر): kill -9 2961366 ثم pm2 يلتقط أو pm2 restart. الإصلاح الجذري (T-95): فصل دورة حياة جلسات claude عن عملية السيرفر (ألا تكون أبناءه المباشرين أو handoff نظيف عبر SESSION_REGISTRY)، وتقليم drain بلا سقف، ومنع تعدد المستمعين. مرتبط: project_session_service_separation، feedback_restart_kills_own_session.",
-      "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain | 2026-06-13: الإصلاح الجذري مُلتزَم (58436b6) وqa-critic APPROVE — ينتظر نشر المالك عبر SSH ثم يُغلق بعد تحقق ما بعد النشر (T-123)."
+      "triage": "critical → يقطع العمل: تعاف يدوي فوري + إصلاح drain | 2026-06-13: الإصلاح الجذري مُلتزَم (58436b6) وqa-critic APPROVE — ينتظر نشر المالك عبر SSH ثم يُغلق بعد تحقق ما بعد النشر (T-123).",
+      "closed": "2026-06-16",
+      "note": "[WF w06wyxyet 2026-06-16] resolved مُتحقَّق حيّاً بعد حزمة A: لا EADDRINUSE، النسخة الحيّة id4 مستقرة ~14h، /health سليم. الحارس (listen-with-guard/shutdown-drain) يحيّد العَرَض."
     },
     {
       "id": "B-42",
@@ -2322,9 +2523,10 @@
       "id": "B-48",
       "title": "شعار الويكي مكرر مرتين في رأس تبويب الويكي",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-12",
-      "note": "بلاغ المالك؛ على الأرجح WikiPanel يعرض شعاراً يكرّره عنصر رأس قائم — يلزم تشخيص frontend-dev"
+      "note": "[WF w06wyxyet 2026-06-16] duplicate-of-fixed: مُتحقَّق مُصلَح أصلاً على الفرع (الناقد: لا شعار مكرر). || سابقاً: بلاغ المالك؛ على الأرجح WikiPanel يعرض شعاراً يكرّره عنصر رأس قائم — يلزم تشخيص frontend-dev",
+      "closed": "2026-06-16"
     },
     {
       "id": "B-49",
@@ -2338,17 +2540,19 @@
       "id": "B-54",
       "title": "أيقونة BookOpen مكررة في صفحة الويكي: تبويب الويكي + زر طيّ الفهرس داخل WikiPanel يستخدمان نفس الأيقونة",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-13",
-      "note": "تشخيص المنسّق (مصدر الحقيقة): ليست من الجلسة الموازية بل بقية من T-105؛ T-110 أصلح تكرار النص لا الأيقونة. الإصلاح: أيقونة طيّ الفهرس → PanelLeft"
+      "note": "[WF w06wyxyet 2026-06-16] duplicate-of-fixed: مُتحقَّق — WikiPanel يستخدم PanelLeft/List لا BookOpen (grep=0). || سابقاً: تشخيص المنسّق (مصدر الحقيقة): ليست من الجلسة الموازية بل بقية من T-105؛ T-110 أصلح تكرار النص لا الأيقونة. الإصلاح: أيقونة طيّ الفهرس → PanelLeft",
+      "closed": "2026-06-16"
     },
     {
       "id": "B-55",
       "title": "مدخلان مكرّران للويكي: تبويب Wiki أعلى يمين + زر كتاب بالشريط الجانبي بجانب الشعار، كلاهما setActiveTab('wiki')",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-13",
-      "note": "بلاغ المالك بصورة؛ حكم design-reviewer (Opus، تصعيد لغياب fable): إبقاء التبويب وحذف زر الشريط الجانبي في الموضعين (سطح مكتب+جوال)؛ شريط التبويبات ظاهر على الجوال فلا ضرورة للزر"
+      "note": "[WF w06wyxyet 2026-06-16] duplicate-of-fixed: مُتحقَّق — لا مدخل ويكي مكرر؛ tooltips.openWiki يتيم فقط (تنظيف i18n اختياري). || سابقاً: بلاغ المالك بصورة؛ حكم design-reviewer (Opus، تصعيد لغياب fable): إبقاء التبويب وحذف زر الشريط الجانبي في الموضعين (سطح مكتب+جوال)؛ شريط التبويبات ظاهر على الجوال فلا ضرورة للزر",
+      "closed": "2026-06-16"
     },
     {
       "id": "B-58",
@@ -2410,7 +2614,23 @@
       "severity": "high",
       "status": "open",
       "found": "2026-06-14",
-      "note": "جذر مصحَّح (architect، تنقيب في SDK+خادم): (1) nassaj يفوّض عبر Agent لا Task. (2) الـSDK يبثّ أدوات الوكيل الفرعي (TodoWrite) حيّاً افتراضياً موسومةً بparent_tool_use_id، والخادم يمرّرها (claude-sdk.js) — البيانات تصل العميل حيّاً. (3) الفجوة عميلية بحتة: parentToolUseId معرَّف في useSessionStore.ts:107 وغير مُستهلَك، فالصفوف الحيّة تُرسَم يتيمة ولا تُربط بحاويتها فلا يعدّها useRunProgress. التشخيص الأول (لا بثّ حيّ/يحتاج خادماً) كان مبنياً على transcripts محفوظة لا البثّ الحيّ — مصحَّح. الإصلاح عميلي بحت بلا restart.",
+      "note": "[WF w06wyxyet 2026-06-16] الإصلاح (95574f9) منشور في البندل المخدوم لكن غير مُثبَت بالعزل: الناقد أثبت أن العدّاد done/total كان يعمل قبل الإصلاح أيضاً؛ أثر الإصلاح الفعلي أضيق (activeSubagent/agentsTotal). لا يُغلق قبل تحقّق حيّ بالمتصفح بمستخدم له اعتماد مزوّد + سدّ نقص مكتبات Playwright على السيرفر. || سابقاً: جذر مصحَّح (architect، تنقيب في SDK+خادم): (1) nassaj يفوّض عبر Agent لا Task. (2) الـSDK يبثّ أدوات الوكيل الفرعي (TodoWrite) حيّاً افتراضياً موسومةً بparent_tool_use_id، والخادم يمرّرها (claude-sdk.js) — البيانات تصل العميل حيّاً. (3) الفجوة عميلية بحتة: parentToolUseId معرَّف في useSessionStore.ts:107 وغير مُستهلَك، فالصفوف الحيّة تُرسَم يتيمة ولا تُربط بحاويتها فلا يعدّها useRunProgress. التشخيص الأول (لا بثّ حيّ/يحتاج خادماً) كان مبنياً على transcripts محفوظة لا البثّ الحيّ — مصحَّح. الإصلاح عميلي بحت بلا restart.",
+      "fix": null
+    },
+    {
+      "id": "B-67",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-06-16",
+      "title": "[WF w06wyxyet 2026-06-16] فشل اختبار runner.routes.role-gate (runner-bridge): تشخيصان متضاربان من وكيلين — أحدهما يزعم import من .JS بينما التصدير في .TS:559، والآخر يزعم أن الاختبار لا يستورد approveApproval أصلاً والسبب مختلف. يلزم تحقيق محايد. انحدار بناء سابق لا يخصّ sync (T-5).",
+      "fix": null
+    },
+    {
+      "id": "B-68",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-16",
+      "title": "[WF w06wyxyet 2026-06-16] خطأ tsc في src/components/.../ClaudeUsageCollapsed.tsx رصده وكيلان أثناء حزمتي C/D — خارج نطاقهما، يُسجَّل للفرز.",
       "fix": null
     }
   ],
@@ -2514,6 +2734,27 @@
       "date": "2026-06-14",
       "status": "accepted",
       "title": "إخفاء صف «Opus only» عند غياب بياناته بدل تلفيق 0% (إصلاح B-64) — تراجع مقصود عن قرار سابق موثّق (carve-out في types.ts كان يُطبّع weeklyOpus إلى نافذة صفرية «ليظهر الصف دائماً»). المسوّغ مزدوج: (1) Anthropic لا يكشف نافذة opus منفصلة لحسابات Max الحالية — seven_day_opus=null عبر 4 استجابات حيّة، وopus يُحتسب ضمن seven_day/five_hour؛ (2) عزل الاعتماد (ADR-014): الواجهة تستعلم بتوكن المستخدم الطالب (user-2) بينما الوكلاء يستهلكون opus بحساب nassaj-core المختلف — فلا رقم «Opus only» ذو معنى متاح لهذا الحساب اليوم. لذا الصدق = إخفاء لا تلفيق: opus يطابق بقية النوافذ (null→مخفيّ) ويظهر تلقائياً إن عبّأت Anthropic الحقل لاحقاً. رُفض الخيار B (حالة «غير متعقَّب» دائمة الظهور) لكلفته عبر 3 مكوّنات + i18n لنافذة بلا إشارة، والخيار C (دمج/إعادة تسمية) للأكثر كوداً والأضعف وضوحاً. منفَّذ في T-145 (commit fc6d909). مرتبط: ADR-014 (عزل الاعتماد)، B-64."
+    },
+    {
+      "id": "ADR-036",
+      "date": "2026-06-16",
+      "status": "accepted",
+      "title": "TaskMaster غير ضروري — يُزال كاملاً بعد إغلاق دمج upstream v1.33 (يبقى معطَّلاً بعلم TASKMASTER_ENABLED=false الآن). المسوّغ: مكرّر مع لوحتنا project-state.json (مصدر حقيقة مركزي أغنى: مهام+قرارات+أهداف+أخطاء)، تبعية npx خارجية هشّة، وupstream نفسه يُبقيه مؤقتاً فقط لعدم تعقيد دمجه. الإزالة الآن تُعقّد الدمج الجاري. قرار المالك 2026-06-16. مهمة التتبّع T-157. مرتبط: project_board_feature.",
+      "_relTask": "T-157"
+    },
+    {
+      "id": "ADR-037",
+      "date": "2026-06-16",
+      "status": "accepted",
+      "title": "تبويب Shell يُبقى ويُحسَّن لا يُحذف — تحليل researcher 2026-06-16: ليس عديم فائدة بل مُطلِق ذكي لكل المزوّدين (claude/agy/cursor/codex/gemini) مع كشف القوائم التفاعلية وعزل PTY لكل مستخدم؛ حذفه يكسر إطلاق الوكلاء من الواجهة. رُفض استبداله بـ cloudcli-plugin-terminal (alpha غير مُصدَر، MIT، يتطلب إعادة كتابة عزل B-MU-PTY من الصفر). المعتمد: تحسينات منخفضة الجهد على البنية القائمة. قرار المالك 2026-06-16. مهمة التتبّع T-158.",
+      "_relTask": "T-158"
+    },
+    {
+      "id": "ADR-038",
+      "date": "2026-06-16",
+      "status": "accepted",
+      "title": "تبنّي فكرة cloudcli-claude-watch لا الـplugin — الـplugin غير قابل للتبني الآن (يلزمه نظام plugins رسمي + watchdog.log غير موجودَين في nassaj-dev). المعتمد: تطبيق الفكرة الجوهرية (قتل عمليات Claude المتجمدة من الواجهة عبر SIGTERM/SIGKILL) مباشرةً بجهد منخفض (endpoint + زر) تكمّل كشف «قد يكون متجمداً» القائم بلا اعتماد على نظام plugins. قرار المالك 2026-06-16. مهمة التتبّع T-159.",
+      "_relTask": "T-159"
     }
   ]
 }
