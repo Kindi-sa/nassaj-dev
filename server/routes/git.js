@@ -2,11 +2,9 @@ import express from 'express';
 import { spawn } from 'child_process';
 import path from 'path';
 import { promises as fs } from 'fs';
-import { projectsDb, userDb } from '../modules/database/index.js';
+import { projectsDb } from '../modules/database/index.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
 import { spawnCursor } from '../cursor-cli.js';
-import { resolveProviderEnv } from '../services/isolation/resolve-provider-env.js';
-import { assertSubscriptionOAuthOwnerOnly } from '../services/isolation/subscription-oauth-guard.js';
 import { buildGitAuthorEnv, getUserGithubToken, buildTokenPushUrl } from '../utils/gitIdentity.js';
 
 const router = express.Router();
@@ -946,12 +944,8 @@ router.post('/generate-commit-message', async (req, res) => {
       }
     }
 
-    // Generate commit message using AI. Thread req.user so the subscription-seat
-    // guard inside can resolve the REAL requester's role (the commit-message
-    // writer carries no userId, so this is the only place the requester is known).
-    const message = await generateCommitMessageWithAI(
-      files, diffContext, provider, projectPath, req.user ?? null
-    );
+    // Generate commit message using AI
+    const message = await generateCommitMessageWithAI(files, diffContext, provider, projectPath);
 
     res.json({ message });
   } catch (error) {
@@ -966,10 +960,9 @@ router.post('/generate-commit-message', async (req, res) => {
  * @param {string} diffContext - Git diff content
  * @param {string} provider - 'claude' or 'cursor'
  * @param {string} projectPath - Project directory path
- * @param {{ id?: number, role?: string }|null} [requestUser] - authenticated requester (for the subscription-seat guard)
  * @returns {Promise<string>} Generated commit message
  */
-async function generateCommitMessageWithAI(files, diffContext, provider, projectPath, requestUser = null) {
+async function generateCommitMessageWithAI(files, diffContext, provider, projectPath) {
   // Create the prompt
   const prompt = `Generate a conventional commit message for these changes.
 
@@ -1037,19 +1030,6 @@ Generate the commit message:`;
 
     // Call the appropriate agent
     if (provider === 'claude') {
-      // Subscription-seat guard (G5 — SUBSCRIPTION-OAUTH-001): the commit-message
-      // writer carries no userId, so queryClaudeSDK (G4) would treat this as a
-      // system/owner spawn. Enforce here with the REAL requester against the env
-      // that path will use, so a non-owner cannot generate commit messages on the
-      // owner's personal subscription. Resolve the authoritative role from the DB
-      // by id (consistent with G4). No-op for API-key/Bedrock/Vertex or the owner.
-      const commitUserId = requestUser?.id ?? null;
-      if (commitUserId != null) {
-        const commitUser = userDb.getUserById(commitUserId) ?? { id: commitUserId, role: null };
-        assertSubscriptionOAuthOwnerOnly(resolveProviderEnv(commitUserId, 'claude'), commitUser);
-      }
-      // No userId (defensive): defer to G4's owner-equivalent resolution in queryClaudeSDK.
-
       await queryClaudeSDK(prompt, {
         cwd: projectPath,
         permissionMode: 'bypassPermissions',

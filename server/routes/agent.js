@@ -6,8 +6,6 @@ import { promises as fs } from 'fs';
 import crypto from 'crypto';
 import { userDb, apiKeysDb, githubTokensDb, projectsDb } from '../modules/database/index.js';
 import { queryClaudeSDK } from '../claude-sdk.js';
-import { resolveProviderEnv } from '../services/isolation/resolve-provider-env.js';
-import { assertSubscriptionOAuthOwnerOnly } from '../services/isolation/subscription-oauth-guard.js';
 import { spawnCursor } from '../cursor-cli.js';
 import { queryCodex } from '../openai-codex.js';
 import { spawnGemini } from '../gemini-cli.js';
@@ -973,21 +971,6 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     // Start the appropriate session
     if (provider === 'claude') {
       console.log('🤖 Starting Claude SDK session');
-
-      // Subscription-seat guard (G5 — SUBSCRIPTION-OAUTH-001): refuse, at this
-      // REST chokepoint, to start Claude on the owner's personal subscription for
-      // a non-owner. Defense-in-depth: queryClaudeSDK re-checks the same rule on
-      // the final spawn env (G4). We resolve the AUTHORITATIVE role from the DB by
-      // id (this endpoint authenticates via external API key, whose req.user has
-      // no role field — so trusting req.user.role would misclassify the owner's
-      // own automation as a non-owner and wrongly block it). No-op for
-      // API-key/Bedrock/Vertex Claude credentials or the owner.
-      const agentUserId = req.user?.id ?? null;
-      if (agentUserId != null) {
-        const agentUser = userDb.getUserById(agentUserId) ?? { id: agentUserId, role: null };
-        assertSubscriptionOAuthOwnerOnly(resolveProviderEnv(agentUserId, 'claude'), agentUser);
-      }
-      // No userId (defensive): defer to G4's owner-equivalent resolution in queryClaudeSDK.
 
       await queryClaudeSDK(message.trim(), {
         projectPath: finalProjectPath,

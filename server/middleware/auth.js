@@ -2,7 +2,6 @@ import jwt from 'jsonwebtoken';
 
 import { userDb, appConfigDb, auditLogDb } from '../modules/database/index.js';
 import { IS_PLATFORM } from '../constants/config.js';
-import { assertPlatformFirstUserOwnsSubscription } from '../services/isolation/subscription-oauth-guard.js';
 
 // JWT secret: prefer an explicit env var (recommended, kept in .env with chmod 600).
 // Fall back to a per-install secret persisted in app_config so OSS installs work
@@ -44,19 +43,9 @@ const authenticateToken = async (req, res, next) => {
       if (!user) {
         return res.status(500).json({ error: 'Platform mode: No user found in database' });
       }
-      // Subscription-seat guard (G5): in platform mode the whole deployment runs
-      // as this single user. If the Claude credential is the owner's personal
-      // subscription but this sole user is NOT the owner, fail closed now rather
-      // than lending the seat at every Claude spawn. No-op for API-key/Bedrock/
-      // Vertex deployments or when the sole user is the owner.
-      assertPlatformFirstUserOwnsSubscription(user);
       req.user = user;
       return next();
     } catch (error) {
-      if (error?.code === 'SUBSCRIPTION_OAUTH_NON_OWNER') {
-        console.error('Platform mode subscription-seat misconfiguration:', error.message);
-        return res.status(403).json({ error: 'Platform mode: Claude subscription is owner-only; the platform user is not the owner.' });
-      }
       console.error('Platform mode error:', error);
       return res.status(500).json({ error: 'Platform mode: Failed to fetch user' });
     }
@@ -154,18 +143,10 @@ const authenticateWebSocket = (token) => {
     try {
       const user = userDb.getFirstUser();
       if (user) {
-        // Subscription-seat guard (G5): deny the connection if this sole platform
-        // user would run Claude on an owner-only personal subscription without
-        // being the owner. No-op for API-key/Bedrock/Vertex or the owner.
-        assertPlatformFirstUserOwnsSubscription(user);
         return { id: user.id, userId: user.id, username: user.username, role: user.role };
       }
       return null;
     } catch (error) {
-      if (error?.code === 'SUBSCRIPTION_OAUTH_NON_OWNER') {
-        console.error('Platform mode WebSocket subscription-seat misconfiguration:', error.message);
-        return null;
-      }
       console.error('Platform mode WebSocket error:', error);
       return null;
     }

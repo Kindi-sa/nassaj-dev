@@ -1,8 +1,6 @@
 import type { WebSocket } from 'ws';
 
-import { projectsDb, userDb } from '@/modules/database/index.js';
-import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
-import { assertSubscriptionOAuthOwnerOnly } from '@/services/isolation/subscription-oauth-guard.js';
+import { projectsDb } from '@/modules/database/index.js';
 import { sendOpenSessionsCount } from '@/modules/websocket/services/open-sessions.service.js';
 import {
   presenceConnect,
@@ -240,24 +238,6 @@ async function dispatchProviderCommand(
   if (targetProvider === 'antigravity') {
     await dependencies.spawnAntigravity(command, data.options, writer);
     return;
-  }
-
-  // Subscription-seat guard (G5 — SUBSCRIPTION-OAUTH-001): before dispatching to
-  // the Claude SDK, refuse to run the owner's personal subscription for a
-  // non-owner. Defense-in-depth at this WS chokepoint: queryClaudeSDK re-checks
-  // the same rule on the final spawn env (G4). We resolve the live role for the
-  // writer's userId and assert on the env that path will use. No-op for
-  // API-key/Bedrock/Vertex or the owner; system/anonymous runs (no userId) defer
-  // to the G4 owner-equivalent resolution inside queryClaudeSDK.
-  const dispatchUserId =
-    typeof writer.userId === 'number'
-      ? writer.userId
-      : typeof writer.userId === 'string' && writer.userId.trim() !== ''
-        ? Number.parseInt(writer.userId, 10)
-        : null;
-  if (dispatchUserId !== null && Number.isInteger(dispatchUserId)) {
-    const dispatchUser = userDb.getUserById(dispatchUserId) ?? { id: dispatchUserId, role: null };
-    assertSubscriptionOAuthOwnerOnly(resolveProviderEnv(dispatchUserId, 'claude'), dispatchUser);
   }
 
   await dependencies.queryClaudeSDK(command, data.options, writer);
