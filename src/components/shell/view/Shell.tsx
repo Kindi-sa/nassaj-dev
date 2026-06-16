@@ -12,6 +12,7 @@ import {
   SHELL_RESTART_DELAY_MS,
 } from '../constants/constants';
 import { useShellRuntime } from '../hooks/useShellRuntime';
+import { useTerminalTheme } from '../hooks/useTerminalTheme';
 import { sendSocketMessage } from '../utils/socket';
 import { getSessionDisplayName } from '../utils/auth';
 
@@ -81,6 +82,8 @@ export default function Shell({
     onProcessComplete,
     onOutputRef,
   });
+
+  const { themeId: terminalThemeId, setThemeId: setTerminalThemeId } = useTerminalTheme(terminalRef);
 
   // Check xterm.js buffer for CLI prompt patterns (❯ N. label)
   const checkBufferForPrompt = useCallback(() => {
@@ -304,6 +307,8 @@ export default function Shell({
         restartLabel={t('shell.actions.restart')}
         restartTitle={t('shell.actions.restartTitle')}
         disableRestart={isRestarting || !isInitialized}
+        terminalThemeId={terminalThemeId}
+        onTerminalThemeChange={setTerminalThemeId}
       />
 
       <div className="relative flex-1 overflow-hidden p-2">

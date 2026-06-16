@@ -1,4 +1,6 @@
-import { RotateCcw, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { RotateCcw, X, Palette } from 'lucide-react';
+import { TERMINAL_THEMES, type TerminalThemeId } from '../../constants/constants';
 
 type ShellHeaderProps = {
   isConnected: boolean;
@@ -16,6 +18,10 @@ type ShellHeaderProps = {
   restartLabel: string;
   restartTitle: string;
   disableRestart: boolean;
+  /** Currently active xterm theme id */
+  terminalThemeId: TerminalThemeId;
+  /** Called when the user picks a new theme */
+  onTerminalThemeChange: (id: TerminalThemeId) => void;
 };
 
 export default function ShellHeader({
@@ -34,10 +40,22 @@ export default function ShellHeader({
   restartLabel,
   restartTitle,
   disableRestart,
+  terminalThemeId,
+  onTerminalThemeChange,
 }: ShellHeaderProps) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const togglePicker = () => setPickerOpen((v) => !v);
+
+  const handlePickerKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') setPickerOpen(false);
+  };
+
   return (
     <div className="flex-shrink-0 border-b border-gray-700 bg-gray-800 px-4 py-2">
       <div className="flex items-center justify-between">
+        {/* Left: status indicators */}
         <div className="flex items-center space-x-2">
           <div className={`h-2 w-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
 
@@ -52,7 +70,70 @@ export default function ShellHeader({
           {isRestarting && <span className="text-xs text-blue-400">{statusRestartingText}</span>}
         </div>
 
+        {/* Right: action buttons + theme picker */}
         <div className="flex items-center gap-2">
+          {/* Theme picker */}
+          <div className="relative" ref={pickerRef} onKeyDown={handlePickerKeyDown}>
+            <button
+              type="button"
+              onClick={togglePicker}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-600/80 bg-gray-700/70 px-2.5 text-xs font-medium text-gray-100 transition-colors hover:border-gray-500 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-400/70 focus:ring-offset-2 focus:ring-offset-gray-800"
+              aria-label="Terminal theme"
+              title="Terminal theme"
+              aria-expanded={pickerOpen}
+              aria-haspopup="listbox"
+            >
+              {/* Swatch of active theme */}
+              {(() => {
+                const active = TERMINAL_THEMES.find((t) => t.id === terminalThemeId);
+                return active ? (
+                  <span
+                    className="inline-block h-3 w-3 rounded-sm border border-gray-500"
+                    style={{ background: active.swatch }}
+                    aria-hidden="true"
+                  />
+                ) : null;
+              })()}
+              <Palette className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+
+            {pickerOpen && (
+              <div
+                role="listbox"
+                aria-label="Terminal theme"
+                className="absolute right-0 top-full z-30 mt-1 min-w-[10rem] rounded-md border border-gray-700 bg-gray-800 py-1 shadow-xl"
+              >
+                {TERMINAL_THEMES.map((entry) => {
+                  const isActive = entry.id === terminalThemeId;
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onClick={() => {
+                        onTerminalThemeChange(entry.id);
+                        setPickerOpen(false);
+                      }}
+                      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-xs transition-colors ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-200 hover:bg-gray-700'
+                      }`}
+                    >
+                      <span
+                        className="inline-block h-3.5 w-3.5 flex-shrink-0 rounded-sm border border-gray-500"
+                        style={{ background: entry.swatch }}
+                        aria-hidden="true"
+                      />
+                      {entry.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {isConnected && (
             <button
               type="button"
