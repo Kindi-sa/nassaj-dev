@@ -1,7 +1,7 @@
-import { MessageSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useBranding } from '../../../contexts/BrandingContext';
+import { useTheme } from '../../../contexts/ThemeContext';
 
 const loadingDotAnimationDelays = ['0s', '0.1s', '0.2s'];
 
@@ -13,33 +13,40 @@ const loadingDotAnimationDelays = ['0s', '0.1s', '0.2s'];
  */
 export default function AuthLoadingScreen() {
   const { t } = useTranslation('sidebar');
+  const { isDarkMode } = useTheme();
   const {
     title: brandingTitle,
     logoUrl: brandingLogoUrl,
+    logoDarkUrl: brandingLogoDarkUrl,
     splashHideTitle,
     isLoading: isBrandingLoading,
   } = useBranding();
+  // على الشاشة الداكنة نفضّل النسخة الداكنة من الشعار المخصّص
+  const effectiveBrandingLogoUrl = isDarkMode ? (brandingLogoDarkUrl ?? brandingLogoUrl) : brandingLogoUrl;
 
   // Owner opt-in: show the logo alone on the splash. Only honored when a
   // custom logo exists — otherwise the title stays so the screen is never
   // anonymous. The name is kept for screen readers via an sr-only heading.
-  const hideTitle = !isBrandingLoading && splashHideTitle && Boolean(brandingLogoUrl);
+  const hideTitle = !isBrandingLoading && splashHideTitle && Boolean(effectiveBrandingLogoUrl);
 
   // The placeholder is U+00A0 so the heading keeps its line box while loading.
   const displayTitle = isBrandingLoading
     ? ' '
-    : brandingTitle ?? t('app.title', { defaultValue: 'CloudCLI' });
+    : brandingTitle ?? t('app.title', { defaultValue: 'ـنسَّاجـ' });
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="text-center">
         <div className="mb-4 flex justify-center">
-          {brandingLogoUrl ? (
-            <img src={brandingLogoUrl} alt="" className="h-16 w-16 rounded-lg object-contain" />
+          {effectiveBrandingLogoUrl ? (
+            <img src={effectiveBrandingLogoUrl} alt="" className="h-16 w-auto max-w-[160px] object-contain" />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary shadow-sm">
-              <MessageSquare className="h-8 w-8 text-primary-foreground" />
-            </div>
+            /* شعار نسّاج الافتراضي على شاشة التحميل */
+            <img
+              src={isDarkMode ? '/nassaj-logo-on-dark.svg' : '/nassaj-logo-on-light.svg'}
+              alt="نسّاج"
+              className="h-10 w-auto"
+            />
           )}
         </div>
 

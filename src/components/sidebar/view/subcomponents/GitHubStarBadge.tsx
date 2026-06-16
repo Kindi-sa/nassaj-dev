@@ -2,7 +2,7 @@ import { Star } from 'lucide-react';
 
 import { IS_PLATFORM } from '../../../../constants/config';
 
-const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
+const GITHUB_REPO_URL = 'https://github.com/Kindi-sa/nassaj-dev';
 
 function GitHubIcon({ className }: { className?: string }) {
   return (

@@ -32,7 +32,7 @@ export default function BrandingSettingsTab() {
   const { title, logoUrl, logoDarkUrl, logoOnly, splashHideTitle, refresh } = useBranding();
 
   const isOwner = user?.role === 'owner';
-  const defaultTitle = t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
+  const defaultTitle = t('app.title', { ns: 'sidebar', defaultValue: 'ـنسَّاجـ' });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const darkFileInputRef = useRef<HTMLInputElement>(null);

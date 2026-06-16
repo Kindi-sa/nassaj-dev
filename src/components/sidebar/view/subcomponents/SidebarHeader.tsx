@@ -133,16 +133,19 @@ export default function SidebarHeader({
         <img
           src={brandingLogoUrl}
           alt={displayTitle}
-          className="h-7 w-7 flex-shrink-0 rounded-lg object-contain"
+          className="h-7 w-auto max-w-[140px] flex-shrink-0 object-contain object-left rtl:object-right"
         />
       ) : (
-        <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-          <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        </div>
+        /* شعار نسّاج الافتراضي في الشريط الجانبي — وعي بالثيم */
+        <img
+          src={isDarkMode ? '/nassaj-logo-on-dark.svg' : '/nassaj-logo-on-light.svg'}
+          alt="نسّاج"
+          className="h-6 w-auto flex-shrink-0"
+        />
       )}
-      <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{displayTitle}</h1>
+      {brandingLogoUrl && (
+        <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{displayTitle}</h1>
+      )}
     </div>
   );
 

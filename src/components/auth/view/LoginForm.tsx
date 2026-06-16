@@ -49,7 +49,7 @@ export default function LoginForm() {
   // Custom branding title (if configured) is interpolated into the description
   // copy (`{{appName}}`) so the login screen never names the stock product.
   const { title: brandingTitle } = useBranding();
-  const appName = brandingTitle ?? t('app.title', { ns: 'sidebar', defaultValue: 'CloudCLI' });
+  const appName = brandingTitle ?? t('app.title', { ns: 'sidebar', defaultValue: 'ـنسَّاجـ' });
 
   const [formState, setFormState] = useState<LoginFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');

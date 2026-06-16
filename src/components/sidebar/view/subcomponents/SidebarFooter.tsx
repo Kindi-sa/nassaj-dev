@@ -125,12 +125,12 @@ export default function SidebarFooter({
       {!IS_PLATFORM && (
         <div className="hidden px-3 py-2 text-center md:block">
           <a
-            href={GITHUB_REPO_URL}
+            href="https://github.com/Kindi-sa/nassaj-dev"
             target="_blank"
             rel="noopener noreferrer"
             className="text-[10px] text-muted-foreground/40 transition-colors hover:text-muted-foreground"
           >
-            CloudCLI v{currentVersion} – {t('branding.openSource')}
+            نسّاج v{currentVersion} — مفتوح المصدر
           </a>
         </div>
       )}

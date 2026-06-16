@@ -55,7 +55,7 @@ export default function SetupForm() {
   // logo is no longer passed explicitly: AuthScreenLayout renders the branding
   // logo when set, or a neutral icon otherwise.
   const { title: brandingTitle } = useBranding();
-  const appName = brandingTitle ?? 'CloudCLI';
+  const appName = brandingTitle ?? 'ـنسَّاجـ';
 
   const [formState, setFormState] = useState<SetupFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');
