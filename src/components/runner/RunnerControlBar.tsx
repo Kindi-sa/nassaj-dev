@@ -7,9 +7,10 @@ import {
   CheckCheck,
   Gauge,
   Inbox,
+  OctagonX,
   Pause,
-  Play,
-  Square,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
@@ -36,6 +37,7 @@ export type RunnerControlBarProps = {
   pause: () => Promise<{ ok: boolean; status?: number }>;
   resume: () => Promise<{ ok: boolean; status?: number }>;
   approve: () => Promise<{ ok: boolean; status?: number }>;
+  forceStop: () => Promise<{ ok: boolean; status?: number }>;
 };
 
 /**
@@ -44,10 +46,18 @@ export type RunnerControlBarProps = {
  * NOTHING when the project is not registered with the runner, so the board is
  * byte-for-byte unchanged for projects with no runner.
  *
- * Status pill (status + stage + cycle, color-coded) + Start/Pause/Resume/
- * Approve/Stop buttons wired to the bridge POST endpoints. Approve is enabled
- * only when stage = awaiting_approval. Shows model, quota threshold and last
- * verdict / last error inline. ADR-RUNNER-BRIDGE-001.
+ * Status pill (status + stage + cycle, color-coded) + control buttons wired to
+ * the bridge POST endpoints (ADR-RUNNER-BRIDGE-001). The three stop semantics are
+ * kept visually and verbally distinct so they cannot be confused:
+ *   - Pause/Resume  → soft stop (`pause`/`resume`): in-flight cycle finishes,
+ *     no new cycles; reversible by Resume.
+ *   - Force stop    → immediate kill (`force-stop`, destructive, confirmed):
+ *     terminates the live cycle's session NOW, then blocks relaunch. The ONLY
+ *     way to interrupt a running LLM cycle (there is no mid-cycle pause check).
+ *   - Disable/Enable→ registry toggle (`stop`/`start`, enabled=false/true):
+ *     a project-level switch, not a stop — never ends a running cycle.
+ * Approve is enabled only when stage = awaiting_approval. Shows model, quota
+ * threshold and last error inline.
  *
  * No terminal: every control is a button. Multi-project: the bar appears
  * automatically for any project whose path matches a runner registry entry.
@@ -61,9 +71,14 @@ export default function RunnerControlBar({
   pause,
   resume,
   approve,
+  forceStop,
 }: RunnerControlBarProps) {
   const { t } = useTranslation('projectBoard');
   const [flash, setFlash] = useState<string | null>(null);
+  // Inline confirmation gate for the destructive force-stop (no native confirm:
+  // not styleable/RTL-aware). When true, the bar swaps the force-stop button for
+  // a confirm/cancel pair until the owner resolves it.
+  const [confirmForceStop, setConfirmForceStop] = useState(false);
 
   // Additive overlay: nothing to show when the runner does not target this project.
   if (!registered || !runner) {
@@ -101,9 +116,15 @@ export default function RunnerControlBar({
   const runResult = async (action: RunnerAction, fn: () => Promise<{ ok: boolean; status?: number }>) => {
     const result = await fn();
     if (!result.ok) {
-      const key = result.status === 409 ? 'runner.errors.notAwaiting' : 'runner.errors.generic';
+      let key = 'runner.errors.generic';
+      if (result.status === 409) {
+        key = 'runner.errors.notAwaiting';
+      } else if (action === 'force-stop' && result.status === 502) {
+        // systemctl --user stop failed server-side — the cycle may still be live.
+        key = 'runner.errors.forceStopFailed';
+      }
       setFlash(t(key));
-      setTimeout(() => setFlash(null), 3000);
+      setTimeout(() => setFlash(null), 4000);
     }
   };
 
@@ -133,7 +154,7 @@ export default function RunnerControlBar({
         <span className="font-semibold">{shortName}</span>
         <span className="opacity-50">·</span>
         <span>{statusLabel}</span>
-        {stageLabel && uiState !== 'idle' && uiState !== 'awaiting_approval' && (
+        {stageLabel && uiState !== 'idle' && uiState !== 'awaiting_approval' && uiState !== 'paused' && (
           <span className="opacity-80">· {stageLabel}</span>
         )}
         {cycle !== null && <span className="opacity-70">· {t('runner.cycle', { n: cycle })}</span>}
@@ -194,26 +215,18 @@ export default function RunnerControlBar({
 
       {/* Controls */}
       <div className="flex items-center gap-1.5">
-        {/* Start: enable when disabled */}
-        {!isEnabled && (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void runResult('start', start)}
-            className={cn(btn, 'border-green-500/40 text-green-600 hover:bg-green-500/10 dark:text-green-400')}
-          >
-            <Play className="h-3 w-3" />
-            <span>{t('runner.actions.start')}</span>
-          </button>
-        )}
-
-        {/* Pause / Resume toggle (only meaningful while enabled) */}
+        {/* Soft stop / Resume toggle — only while enabled.
+            Pause = owner-requested soft stop: writes the pause file via the
+            `pause` verb. The in-flight cycle finishes; no new cycles start.
+            Reversible by Resume (deletes the pause file). */}
         {isEnabled && !isPaused && (
           <button
             type="button"
             disabled={busy}
             onClick={() => void runResult('pause', pause)}
             className={cn(btn, 'border-orange-500/40 text-orange-600 hover:bg-orange-500/10 dark:text-orange-400')}
+            aria-busy={actionPending === 'pause'}
+            title={t('runner.actions.pause')}
           >
             <Pause className="h-3 w-3" />
             <span>{t('runner.actions.pause')}</span>
@@ -225,6 +238,8 @@ export default function RunnerControlBar({
             disabled={busy}
             onClick={() => void runResult('resume', resume)}
             className={cn(btn, 'border-green-500/40 text-green-600 hover:bg-green-500/10 dark:text-green-400')}
+            aria-busy={actionPending === 'resume'}
+            title={t('runner.actions.resume')}
           >
             <Activity className="h-3 w-3" />
             <span>{t('runner.actions.resume')}</span>
@@ -237,21 +252,91 @@ export default function RunnerControlBar({
           disabled={busy || !isAwaiting}
           onClick={() => void runResult('approve', approve)}
           className={cn(btn, 'border-blue-500/40 text-blue-600 hover:bg-blue-500/10 dark:text-blue-400')}
+          aria-busy={actionPending === 'approve'}
         >
           <CheckCheck className="h-3 w-3" />
           <span>{t('runner.actions.approve')}</span>
         </button>
 
-        {/* Stop: hard-disable when enabled */}
-        {isEnabled && (
+        {/* Force stop ("إيقاف فوري") — immediate kill via the `force-stop` verb
+            (systemctl --user stop + pause file). The ONLY control that interrupts
+            a live LLM cycle. Destructive + confirmation-gated: the button swaps
+            in place for a confirm/cancel pair. Always available while enabled
+            (a cycle can be running regardless of pause state). */}
+        {isEnabled && !confirmForceStop && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirmForceStop(true)}
+            className={cn(btn, 'border-destructive/40 text-destructive hover:bg-destructive/10')}
+            aria-busy={actionPending === 'force-stop'}
+            title={t('runner.actions.forceStopHint')}
+          >
+            <OctagonX className="h-3 w-3" />
+            <span>{t('runner.actions.forceStop')}</span>
+          </button>
+        )}
+        {isEnabled && confirmForceStop && (
+          <span
+            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-1.5 py-0.5"
+            role="alertdialog"
+            aria-label={t('runner.actions.forceStopConfirm')}
+          >
+            <span className="text-[11px] text-destructive">{t('runner.actions.forceStopConfirm')}</span>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setConfirmForceStop(false);
+                void runResult('force-stop', forceStop);
+              }}
+              className={cn(
+                btn,
+                'border-destructive bg-destructive/10 text-destructive hover:bg-destructive/20',
+              )}
+              aria-busy={actionPending === 'force-stop'}
+            >
+              <OctagonX className="h-3 w-3" />
+              <span>{t('runner.actions.forceStopConfirmYes')}</span>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirmForceStop(false)}
+              className={cn(btn, 'border-border text-muted-foreground hover:bg-muted')}
+            >
+              <span>{t('runner.actions.forceStopCancel')}</span>
+            </button>
+          </span>
+        )}
+
+        {/* Disable / Enable — registry toggle, NOT a stop. Disable sets
+            enabled=false (`stop` verb): no new cycles until re-enabled; it does
+            not end a running cycle. Enable sets enabled=true (`start` verb).
+            Muted/neutral styling keeps it clearly apart from the red force-stop. */}
+        {isEnabled ? (
           <button
             type="button"
             disabled={busy}
             onClick={() => void runResult('stop', stop)}
-            className={cn(btn, 'border-destructive/40 text-destructive hover:bg-destructive/10')}
+            className={cn(btn, 'border-border text-muted-foreground hover:bg-muted')}
+            aria-busy={actionPending === 'stop'}
+            title={t('runner.actions.disableHint')}
           >
-            <Square className="h-3 w-3" />
-            <span>{t('runner.actions.stop')}</span>
+            <PowerOff className="h-3 w-3" />
+            <span>{t('runner.actions.disable')}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void runResult('start', start)}
+            className={cn(btn, 'border-green-500/40 text-green-600 hover:bg-green-500/10 dark:text-green-400')}
+            aria-busy={actionPending === 'start'}
+            title={t('runner.actions.enableHint')}
+          >
+            <Power className="h-3 w-3" />
+            <span>{t('runner.actions.enable')}</span>
           </button>
         )}
       </div>

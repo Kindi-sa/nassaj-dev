@@ -28,6 +28,10 @@
 import path from 'path';
 import os from 'os';
 import { promises as fsPromises } from 'fs';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 import { projectsDb } from '@/modules/database/index.js';
 
@@ -513,15 +517,89 @@ export async function stopRunner(name: string): Promise<boolean> {
   return setRegistryEnabled(name, false);
 }
 
-/** pause: create the pause control file (runner skips next launch). */
-export async function pauseRunner(name: string, by?: string): Promise<void> {
-  const body = JSON.stringify({ by: by ?? 'owner', at: new Date().toISOString() });
+/**
+ * pause: create the pause control file (runner skips next launch).
+ *
+ * Pause contract (unified, see prompt): the file's presence == "paused by owner".
+ * Its body is optional JSON { reason, by, at }. The supervisor checks this file
+ * before any launch (Guard B) and the in-cycle phase loop checks it at each phase
+ * boundary, so writing it stops the next cycle without disabling the registry
+ * entry. resume (rm) is the single re-arm path. `reason` lets the caller mark how
+ * the pause was requested ('ui' for the overlay Stop button, 'force-stop' when it
+ * accompanies an immediate scope kill).
+ */
+export async function pauseRunner(name: string, by?: string, reason?: string): Promise<void> {
+  const body = JSON.stringify({
+    reason: reason ?? 'ui',
+    by: by ?? 'owner',
+    at: new Date().toISOString(),
+  });
   await touch(runnerPaths(name).pause, body);
 }
 
 /** resume: remove the pause control file the bridge created. */
 export async function resumeRunner(name: string): Promise<void> {
   await fsPromises.rm(runnerPaths(name).pause, { force: true });
+}
+
+/**
+ * force-stop: immediate kill of the live runner session + a durable soft pause.
+ *
+ * Two steps, in this order so the runner cannot respawn a cycle after the kill:
+ *   1. Write the pause file (reason: 'force-stop') so the supervisor's NEXT launch
+ *      is blocked by Guard B even though the scope is being torn down. Without
+ *      this, killing the scope only ends the current cycle; the supervisor could
+ *      relaunch on its next tick.
+ *   2. systemctl --user stop <unit>, where <unit> is the live systemd scope from
+ *      supervisor.json session.unit when present (e.g. 'minwal-<name>.scope'),
+ *      else the conventional `minwal-${name}.scope`.
+ *
+ * The server is a plain node process (NOT the Claude client), so the client-side
+ * pm2/systemctl guard does not apply here — execFile is permitted. We use execFile
+ * with a parameterized argv (never a shell string) so the unit name cannot inject
+ * a command, and never leak systemctl stderr to the caller (generic boolean ok).
+ *
+ * Returns true when the scope stop succeeded (or the unit was already inactive),
+ * false on any error. The pause file is written regardless so re-arm always goes
+ * through resume (rm pause) — the single re-arm path for both stop and force-stop.
+ */
+export async function forceStopRunner(name: string, by?: string): Promise<boolean> {
+  // 1. Durable soft pause FIRST, so a relaunch is blocked even if the kill races.
+  await pauseRunner(name, by, 'force-stop');
+
+  // 2. Resolve the live scope unit from supervisor.json, else the conventional name.
+  const supervisor = await readJsonOrNull<SupervisorV2>(runnerPaths(name).supervisor);
+  const liveUnit = supervisor?.session?.unit;
+  const unit =
+    typeof liveUnit === 'string' && liveUnit.trim() ? liveUnit.trim() : `minwal-${name}.scope`;
+
+  try {
+    await execFileAsync('systemctl', ['--user', 'stop', unit]);
+    return true;
+  } catch (error) {
+    // systemctl exits non-zero when the unit is already inactive/not-loaded; that
+    // is a benign "already stopped" for our purposes. Treat "not loaded" / "not
+    // active" as success, surface everything else as a generic failure (we never
+    // leak stderr to the user — the route maps false to a generic 5xx).
+    const stderr =
+      typeof (error as { stderr?: unknown })?.stderr === 'string'
+        ? ((error as { stderr: string }).stderr as string)
+        : '';
+    const alreadyStopped =
+      /not loaded|not[- ]?active|no such unit|not running/i.test(stderr);
+    if (alreadyStopped) {
+      return true;
+    }
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'forceStopRunner: systemctl --user stop failed',
+        runner: name,
+        unit,
+      }),
+    );
+    return false;
+  }
 }
 
 /**

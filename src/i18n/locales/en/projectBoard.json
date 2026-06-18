@@ -168,6 +168,7 @@
       "interrupted": "Interrupted (quota)",
       "failed": "Failed",
       "blocked": "Blocked",
+      "paused": "Paused",
       "awaiting_approval": "Awaiting approval",
       "disabled": "Disabled"
     },
@@ -183,10 +184,20 @@
       "stop": "Stop",
       "pause": "Pause",
       "resume": "Resume",
-      "approve": "Approve phase"
+      "approve": "Approve phase",
+      "enable": "Enable",
+      "enableHint": "Re-enable al-Minwāl for this project",
+      "disable": "Disable",
+      "disableHint": "Disable the project in al-Minwāl's registry (no new cycles until enabled) — does not end a running cycle",
+      "forceStop": "Force stop",
+      "forceStopHint": "End the running cycle immediately by terminating its session, then block relaunch",
+      "forceStopConfirm": "This will end the running cycle immediately by terminating its session. Continue?",
+      "forceStopConfirmYes": "Yes, stop now",
+      "forceStopCancel": "Cancel"
     },
     "errors": {
       "notAwaiting": "The runner is not awaiting phase approval right now.",
+      "forceStopFailed": "Immediate stop failed (could not stop the unit). The cycle may still be running — try again.",
       "generic": "Could not perform the action."
     },
     "journey": {

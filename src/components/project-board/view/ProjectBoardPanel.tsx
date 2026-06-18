@@ -116,6 +116,7 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
     pause,
     resume,
     approve,
+    forceStop,
     approveApproval,
     rejectApproval,
   } = useRunner(selectedProject?.projectId);
@@ -235,6 +236,7 @@ export default function ProjectBoardPanel({ selectedProject, onFileOpen }: Proje
             pause={pause}
             resume={resume}
             approve={approve}
+            forceStop={forceStop}
           />
         </div>
       </div>

@@ -22,6 +22,7 @@ export type RunnerUiState =
   | 'interrupted'
   | 'failed'
   | 'blocked'
+  | 'paused'
   | 'awaiting_approval'
   | 'disabled';
 
@@ -93,8 +94,11 @@ export function deriveRunnerUiState(runner: RunnerStatus | null): RunnerUiState 
   if (runner.enabled === false) {
     return 'disabled';
   }
+  // Owner-requested soft stop (pause file present) — a distinct, intentional
+  // state, not an automatic block. Surfaced as "Paused/متوقّف" so the owner can
+  // tell "I stopped this" apart from "the runner is blocked".
   if (runner.paused) {
-    return 'blocked';
+    return 'paused';
   }
 
   const stage = extractStage(runner);
@@ -130,6 +134,7 @@ export const UI_STATE_STYLES: Record<RunnerUiState, string> = {
   interrupted: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/30',
   failed: 'bg-destructive/10 text-destructive border-destructive/30',
   blocked: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30',
+  paused: 'bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/40',
   awaiting_approval: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30',
   disabled: 'bg-muted text-muted-foreground/70 border-border',
 };

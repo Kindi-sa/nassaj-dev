@@ -91,6 +91,10 @@ mock.module(bridgeUrl, {
       calls.push('stopRunner');
       return true;
     },
+    forceStopRunner: async () => {
+      calls.push('forceStopRunner');
+      return true;
+    },
     pauseRunner: async () => {
       calls.push('pauseRunner');
     },
@@ -99,6 +103,16 @@ mock.module(bridgeUrl, {
     },
     approveNextPhase: async () => {
       calls.push('approveNextPhase');
+    },
+    readPendingApproval: async () => {
+      calls.push('readPendingApproval');
+      return { id: 'T-01__secret', task_id: 'T-01', phase_id: 'S0', kind: 'secret', reason: 'x' };
+    },
+    approveApproval: async () => {
+      calls.push('approveApproval');
+    },
+    rejectApproval: async () => {
+      calls.push('rejectApproval');
     },
     findRunnerProjectName: async () => 'demo',
   },
@@ -182,7 +196,7 @@ async function buildServer() {
   return { request, close };
 }
 
-const CONTROL_VERBS = ['start', 'stop', 'pause', 'resume', 'approve'] as const;
+const CONTROL_VERBS = ['start', 'stop', 'pause', 'resume', 'force-stop', 'approve'] as const;
 
 for (const verb of CONTROL_VERBS) {
   test(`POST /api/runner/:id/${verb} is 403 for a plain user and never reaches the handler`, async () => {
@@ -211,6 +225,21 @@ for (const role of ['owner', 'admin'] as const) {
       const { status } = await srv.request('POST', '/api/runner/demo/start');
       assert.equal(status, 200, `start must succeed for role=${role}`);
       assert.ok(calls.includes('startRunner'), 'handler must run for an authorized role');
+    } finally {
+      await srv.close();
+    }
+  });
+
+  test(`POST /api/runner/:id/force-stop passes the role gate for role=${role}`, async () => {
+    currentRole = role;
+    const srv = await buildServer();
+    try {
+      const { status } = await srv.request('POST', '/api/runner/demo/force-stop');
+      assert.equal(status, 200, `force-stop must succeed for role=${role}`);
+      assert.ok(
+        calls.includes('forceStopRunner'),
+        'handler must run for an authorized role',
+      );
     } finally {
       await srv.close();
     }

@@ -170,7 +170,18 @@ export type RunnerStatus = {
 
 type RunnerWebSocketMessage = { type?: string; projectId?: string };
 
-export type RunnerAction = 'start' | 'stop' | 'pause' | 'resume' | 'approve';
+/**
+ * Control verbs POSTed to /api/runner/:id/:action. The action string IS the URL
+ * segment (see api.runnerControl), so it must match the server route exactly:
+ *  - 'pause'      → soft stop: writes the pause file; the in-flight cycle finishes.
+ *  - 'resume'     → deletes the pause file.
+ *  - 'stop'       → hard-disable: registry enabled=false (re-enable with 'start').
+ *  - 'start'      → re-enable a disabled project (registry enabled=true).
+ *  - 'force-stop' → immediate kill: systemctl --user stop ends the live cycle's
+ *                   session now, then writes the pause file to block relaunch.
+ *  - 'approve'    → advance past an awaiting-approval phase gate.
+ */
+export type RunnerAction = 'start' | 'stop' | 'pause' | 'resume' | 'approve' | 'force-stop';
 
 export function useRunner(projectId: string | null | undefined) {
   const [runner, setRunner] = useState<RunnerStatus | null>(null);
@@ -260,6 +271,9 @@ export function useRunner(projectId: string | null | undefined) {
   const pause = useCallback(() => runAction('pause'), [runAction]);
   const resume = useCallback(() => runAction('resume'), [runAction]);
   const approve = useCallback(() => runAction('approve'), [runAction]);
+  // Immediate kill of the live cycle (systemctl --user stop + pause file).
+  // May return 502 when systemctl fails — the caller surfaces that distinctly.
+  const forceStop = useCallback(() => runAction('force-stop'), [runAction]);
 
   // Approval queue (Phase ب). Each verb POSTs to the per-approval endpoint then
   // refetches the merged state so the resolved item drops out of the queue. The
@@ -309,6 +323,7 @@ export function useRunner(projectId: string | null | undefined) {
     pause,
     resume,
     approve,
+    forceStop,
     approveApproval,
     rejectApproval,
   };

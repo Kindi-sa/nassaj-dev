@@ -22,6 +22,7 @@ import { projectsDb } from '@/modules/database/index.js';
 import {
   approveApproval,
   approveNextPhase,
+  forceStopRunner,
   pauseRunner,
   readPendingApproval,
   readRunnerStatus,
@@ -171,12 +172,16 @@ router.post('/:projectId/stop', controlGuard, async (req, res) => {
   await respondWithState(req, res);
 });
 
-/** POST /api/runner/:projectId/pause — create the pause control file. */
+/**
+ * POST /api/runner/:projectId/pause — create the pause control file.
+ * This is the overlay "Stop" button's soft-stop: the runner skips its next launch
+ * (Guard B) without disabling the registry entry. resume re-arms it.
+ */
 router.post('/:projectId/pause', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   const user = (req as AuthenticatedRequest).user;
-  await pauseRunner(resolved.name, user?.username ?? String(user?.id ?? 'owner'));
+  await pauseRunner(resolved.name, user?.username ?? String(user?.id ?? 'owner'), 'ui');
   await respondWithState(req, res);
 });
 
@@ -185,6 +190,27 @@ router.post('/:projectId/resume', controlGuard, async (req, res) => {
   const resolved = await resolveOr404(req, res);
   if (!resolved) return;
   await resumeRunner(resolved.name);
+  await respondWithState(req, res);
+});
+
+/**
+ * POST /api/runner/:projectId/force-stop — immediate kill + durable soft pause.
+ * Writes the pause file (reason: force-stop) so the supervisor cannot relaunch,
+ * then `systemctl --user stop <scope>` to kill the live session. Inherits the
+ * owner/admin controlGuard. Returns the merged state on success (paused:true);
+ * a systemctl failure surfaces a generic 502 (never leaks systemctl stderr).
+ */
+router.post('/:projectId/force-stop', controlGuard, async (req, res) => {
+  const resolved = await resolveOr404(req, res);
+  if (!resolved) return;
+  const user = (req as AuthenticatedRequest).user;
+  const ok = await forceStopRunner(resolved.name, user?.username ?? String(user?.id ?? 'owner'));
+  if (!ok) {
+    // The pause file was still written (durable soft-stop), so the runner is
+    // halted; only the immediate scope kill failed. Report a generic upstream
+    // failure without leaking systemctl internals.
+    return res.status(502).json({ error: 'Force-stop could not terminate the runner session' });
+  }
   await respondWithState(req, res);
 });
 

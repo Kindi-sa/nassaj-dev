@@ -58,6 +58,8 @@ const {
   runnerPaths,
 } = await import('./runner-bridge.service.js');
 
+type PauseFileBody = { reason?: string; by?: string; at?: string };
+
 after(() => {
   rmSync(runnerRoot, { recursive: true, force: true });
 });
@@ -394,6 +396,32 @@ test('pauseRunner then resumeRunner creates and removes ONLY the pause control f
 
   await resumeRunner('kappa');
   assert.equal(await exists(paths.pause), false, 'pause file must be removed after resume');
+});
+
+test('pauseRunner writes a JSON body with reason/by/at; resume removes it', async () => {
+  const paths = runnerPaths('kappa-reason');
+  await mkdir(path.dirname(paths.pause), { recursive: true });
+
+  await pauseRunner('kappa-reason', 'ui-user', 'ui');
+  assert.equal(await exists(paths.pause), true);
+  const body = JSON.parse(await readFile(paths.pause, 'utf8')) as PauseFileBody;
+  assert.equal(body.reason, 'ui', 'pause file must record the request reason');
+  assert.equal(body.by, 'ui-user', 'pause file must record the requesting user');
+  assert.equal(typeof body.at, 'string');
+  assert.ok(!Number.isNaN(Date.parse(body.at as string)), 'at must be an ISO timestamp');
+
+  await resumeRunner('kappa-reason');
+  assert.equal(await exists(paths.pause), false);
+});
+
+test('pauseRunner defaults reason to "ui" and by to "owner" when omitted', async () => {
+  const paths = runnerPaths('kappa-defaults');
+  await mkdir(path.dirname(paths.pause), { recursive: true });
+
+  await pauseRunner('kappa-defaults');
+  const body = JSON.parse(await readFile(paths.pause, 'utf8')) as PauseFileBody;
+  assert.equal(body.reason, 'ui');
+  assert.equal(body.by, 'owner');
 });
 
 test('resumeRunner is idempotent when no pause file exists', async () => {
