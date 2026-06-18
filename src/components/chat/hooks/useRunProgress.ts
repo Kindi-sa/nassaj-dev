@@ -7,16 +7,39 @@
  *   - Pure message scan, memoized on `[chatMessages]` ONLY. It does not read the
  *     clock, so it recomputes only when the transcript actually changes, not
  *     every second.
- *   - A single full tail→head pass, NO early exit. The latest TodoWrite wins by
- *     timestamp (it may be top-level or nested in a sub-agent's childTools);
- *     every container row (Task/Agent) is still visited and deduped by toolId so
- *     all unique sub-agents are counted and the newest incomplete one is the
- *     active one. One pass, no map/filter over the whole array. (Do NOT add a
- *     `break`: it would stop counting older container rows and undercount the
- *     sub-agents.)
+ *   - CURRENT-REPLY SCOPE (T-170): the scan is bounded to the messages AFTER the
+ *     last genuine human user prompt — i.e. the start of the reply now in
+ *     flight. The snapshot (agents, agentsTotal/agentsDone, activeSubagent, and
+ *     the TodoWrite fraction) therefore reflects ONLY the current reply. This is
+ *     required because the AgentActivityStrip is a per-reply indicator that must
+ *     "appear and disappear with each reply": an unbounded pass folded in Task/
+ *     Agent containers from PRIOR turns, so a new prompt showed the previous
+ *     reply's sub-agents (e.g. "0/8 running" with 8 ✓ agents from an earlier
+ *     search) before the new run had delegated anything.
+ *   - The boundary is the index of the last genuine human user message. The
+ *     loop runs `i > boundaryIndex` (not `>= 0`). The "last human prompt"
+ *     discriminator is `type === 'user' && !isToolUse && !originKind`: in Claude
+ *     transcripts a `tool_result` row can also carry role `user`, but the
+ *     normalizer (useChatMessages) never emits those as `type:'user'` (they
+ *     become `assistant`/`ToolResult`), and machine-authored user rows
+ *     (coordinator/peer/channel/task-notification) always carry `originKind`.
+ *     So only a real written prompt is a boundary — never a tool_result or a
+ *     coordinator-to-subagent prompt — and the scan is not truncated mid-reply.
+ *     Fallback: no human prompt found ⇒ boundaryIndex = -1 ⇒ `i > -1` scans all
+ *     messages (the original whole-transcript behaviour).
+ *   - A single tail→head pass over that window, NO early exit. The latest
+ *     TodoWrite wins by timestamp (it may be top-level or nested in a
+ *     sub-agent's childTools); every container row (Task/Agent) IN THE CURRENT
+ *     REPLY is still visited and deduped by toolId so all of this reply's
+ *     sub-agents are counted and the newest incomplete one is the active one.
+ *     One pass, no map/filter over the whole array. (Do NOT add a `break`: the
+ *     boundary already stops the pass at the reply edge; a `break` *inside* the
+ *     window would stop counting older container rows of the SAME reply and
+ *     undercount its sub-agents.)
  *   - Consumes the FULL `chatMessages`, never the windowed `visibleMessages`
- *     (last ~100), so Task containers scrolled out of the visible window are
- *     still counted.
+ *     (last ~100), so Task containers of the current reply scrolled out of the
+ *     visible window are still counted — a single delegation reply can exceed
+ *     the ~100-message window (agents with 60+ tool calls each).
  *
  * Counter model (nested, TodoWrite-primary):
  *   - Numerator/denominator come ONLY from the most recent TodoWrite list.
@@ -39,7 +62,34 @@
  */
 
 import { useMemo } from 'react';
+
 import type { ChatMessage } from '../types/types';
+
+/**
+ * One delegated sub-agent (a `Task`/`Agent` container row), surfaced for the
+ * AgentActivityStrip: a *per-agent* view that the legacy single-`activeSubagent`
+ * field cannot express. Derived in the SAME scan pass — no new data path.
+ *
+ * Ordering: emitted in the order the containers first appear in the transcript
+ * (delegation order), so the strip lists agents top-to-bottom as they launched
+ * and rows don't reshuffle as one finishes.
+ */
+export interface RunAgent {
+  /** container toolId — stable React key */
+  id: string;
+  /** `subagent_type` from the container toolInput (an identifier, not translated). */
+  type: string;
+  /** `description` from the container toolInput; '' when absent. */
+  description: string;
+  /** running = no tool_result yet; done = container resolved. */
+  status: 'running' | 'done';
+  /** name of the most recent child tool while running (e.g. 'Read'); undefined when done or idle. */
+  currentTool?: string;
+  /** number of child tool calls this sub-agent has issued so far. */
+  callCount: number;
+  /** epoch ms of the container row, for stable ordering / future elapsed display. */
+  startedAt: number;
+}
 
 export interface RunProgress {
   /** completed todos in the latest TodoWrite list */
@@ -55,9 +105,17 @@ export interface RunProgress {
   /**
    * The single currently-running sub-agent (isComplete === false), if any.
    * `callCount` = number of child tool calls it has issued so far. `null` when
-   * no sub-agent is active.
+   * no sub-agent is active. Retained for ClaudeStatus's single-agent chip; the
+   * full per-agent list lives in `agents`.
    */
   activeSubagent: { callCount: number } | null;
+  /**
+   * Per-agent rows for the AgentActivityStrip — one entry per unique delegated
+   * sub-agent (running OR done) seen in this run, in delegation order. Empty
+   * when no sub-agent has been delegated, in which case the strip is not shown
+   * and ClaudeStatus keeps its unchanged behaviour.
+   */
+  agents: RunAgent[];
 }
 
 const EMPTY_PROGRESS: RunProgress = {
@@ -67,7 +125,31 @@ const EMPTY_PROGRESS: RunProgress = {
   agentsTotal: 0,
   agentsDone: 0,
   activeSubagent: null,
+  agents: [],
 };
+
+/**
+ * Read `subagent_type` / `description` off a container's `toolInput`, mirroring
+ * SubagentContainer.tsx (verified against real transcripts: the `Agent` tool —
+ * the one nassaj actually delegates with, 723 uses vs 1 `Task` — carries the
+ * SAME `{ subagent_type, description, prompt }` shape as native `Task`).
+ * `toolInput` on a normalized row is a string (JSON) or, in tests, the raw
+ * object; handle both. Returns safe fallbacks on any malformed payload.
+ */
+function readAgentMeta(toolInput: unknown): { type: string; description: string } {
+  let parsed: unknown = toolInput;
+  if (typeof toolInput === 'string') {
+    try {
+      parsed = JSON.parse(toolInput);
+    } catch {
+      parsed = {};
+    }
+  }
+  const obj = (typeof parsed === 'object' && parsed !== null ? parsed : {}) as Record<string, unknown>;
+  const type = typeof obj.subagent_type === 'string' && obj.subagent_type ? obj.subagent_type : 'Agent';
+  const description = typeof obj.description === 'string' ? obj.description : '';
+  return { type, description };
+}
 
 /** Same guard the renderer uses (TodoListContent.isTodoItem): drop malformed entries. */
 function isTodoItem(value: unknown): value is { content: string; status: string } {
@@ -126,6 +208,9 @@ export function useRunProgress(
     const taskIds = new Set<string>();
     let agentsDone = 0;
     let activeSubagent: { callCount: number } | null = null;
+    // Per-agent rows for the strip, collected in tail→head order (newest first);
+    // reversed to delegation order before return. Keyed dedup is via `taskIds`.
+    const agentsRev: RunAgent[] = [];
 
     // Read a timestamp (string|number|Date) as epoch ms; non-finite → -Infinity
     // so a row with no usable timestamp never displaces a properly-stamped list.
@@ -155,15 +240,35 @@ export function useRunProgress(
       inProgress = p;
     };
 
-    // Full tail→head pass, no early exit. The *latest* TodoWrite wins by
-    // timestamp via `considerTodos` (it may live top-level OR inside a
-    // sub-agent's childTools, so a pure first-hit lock is no longer enough).
-    // Container rows (Task/Agent) must ALL be visited and deduped by toolId so
-    // every unique sub-agent is counted; the active sub-agent is the first
-    // incomplete container hit scanning backwards (= the most recent one still
-    // running). Intentionally `continue`, never `break`: an early break would
-    // skip older container rows and undercount the sub-agents.
+    // Current-reply boundary (T-170): index of the last GENUINE human user
+    // prompt. The scan is restricted to rows after it so the snapshot reflects
+    // only the reply now in flight and the strip never shows prior turns' agents.
+    // Discriminator: a written prompt is `type:'user'` with no `isToolUse` and no
+    // `originKind`. A Claude `tool_result` may have role `user`, but the
+    // normalizer never emits it as `type:'user'` (it becomes assistant/ToolResult),
+    // and machine-authored user rows always carry `originKind` — so neither is a
+    // boundary, and the scan is not cut off mid-reply. -1 when no human prompt
+    // exists ⇒ the loop bound `i > -1` falls back to the whole transcript.
+    let boundaryIndex = -1;
     for (let i = chatMessages.length - 1; i >= 0; i--) {
+      const m = chatMessages[i];
+      if (m.type === 'user' && !m.isToolUse && !m.originKind) {
+        boundaryIndex = i;
+        break;
+      }
+    }
+
+    // Tail→head pass over the current reply only (i > boundaryIndex), no early
+    // exit *within* the window. The *latest* TodoWrite wins by timestamp via
+    // `considerTodos` (it may live top-level OR inside a sub-agent's childTools,
+    // so a pure first-hit lock is no longer enough). Container rows (Task/Agent)
+    // of this reply must ALL be visited and deduped by toolId so every unique
+    // sub-agent is counted; the active sub-agent is the first incomplete
+    // container hit scanning backwards (= the most recent one still running).
+    // Intentionally `continue`, never `break`: the boundary stops the pass at the
+    // reply edge, but a `break` inside the window would skip older container rows
+    // of the SAME reply and undercount its sub-agents.
+    for (let i = chatMessages.length - 1; i > boundaryIndex; i--) {
       const msg = chatMessages[i];
       if (!msg.isToolUse) continue;
 
@@ -199,12 +304,29 @@ export function useRunProgress(
         if (id && !taskIds.has(id)) {
           taskIds.add(id);
           const complete = msg.subagentState?.isComplete ?? Boolean(msg.toolResult);
+          const callCount = childTools?.length ?? 0;
           if (complete) {
             agentsDone++;
           } else if (activeSubagent === null) {
             // First incomplete container scanning backwards = the active one.
-            activeSubagent = { callCount: childTools?.length ?? 0 };
+            activeSubagent = { callCount };
           }
+
+          // Per-agent row for the strip. `currentTool` (running only) is the
+          // most recent child tool name — the same "last child" the container
+          // UI treats as current (useChatMessages sets currentToolIndex to the
+          // last child). Done agents expose no current tool.
+          const meta = readAgentMeta(msg.toolInput);
+          const lastChild = childTools && childTools.length > 0 ? childTools[childTools.length - 1] : undefined;
+          agentsRev.push({
+            id,
+            type: meta.type,
+            description: meta.description,
+            status: complete ? 'done' : 'running',
+            currentTool: complete ? undefined : lastChild?.toolName || undefined,
+            callCount,
+            startedAt: tsMs(msg.timestamp),
+          });
         }
         continue;
       }
@@ -223,6 +345,8 @@ export function useRunProgress(
       agentsTotal: taskIds.size,
       agentsDone,
       activeSubagent,
+      // tail→head collection reversed → delegation (head→tail) order for the strip.
+      agents: agentsRev.reverse(),
     };
   }, [chatMessages, isLoading]);
 }

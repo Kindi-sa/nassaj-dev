@@ -12,14 +12,9 @@ import type {
   TouchEvent,
 } from 'react';
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
+
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
 import type { RunProgress } from '../../hooks/useRunProgress';
-import CommandMenu from './CommandMenu';
-import ClaudeStatus from './ClaudeStatus';
-import ImageAttachment from './ImageAttachment';
-import PermissionRequestsBanner from './PermissionRequestsBanner';
-import ThinkingModeSelector from './ThinkingModeSelector';
-import TokenUsageSummary from './TokenUsageSummary';
 import {
   PromptInput,
   PromptInputHeader,
@@ -30,6 +25,14 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
+
+import CommandMenu from './CommandMenu';
+import ClaudeStatus from './ClaudeStatus';
+import AgentActivityStrip from './AgentActivityStrip';
+import ImageAttachment from './ImageAttachment';
+import PermissionRequestsBanner from './PermissionRequestsBanner';
+import ThinkingModeSelector from './ThinkingModeSelector';
+import TokenUsageSummary from './TokenUsageSummary';
 
 interface MentionableFile {
   name: string;
@@ -193,17 +196,34 @@ export default function ChatComposer({
 
   return (
     <div className="flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6">
-      {!hasPendingPermissions && (
-        <ClaudeStatus
-          status={claudeStatus}
-          isLoading={isLoading}
-          frozen={isSessionFrozen}
-          onAbort={onAbortSession}
-          provider={displayProvider}
-          runStartedAt={runStartedAt}
-          progress={runProgress}
-        />
-      )}
+      {!hasPendingPermissions && (() => {
+        // When one or more sub-agents are delegated this run, the per-agent strip
+        // renders ABOVE the status row to show the live per-agent activity — but
+        // ClaudeStatus is ALWAYS kept mounted below it so the STOP button, ESC
+        // hint, elapsed timer and task counter never disappear at the longest
+        // waiting moment. `suppressActionWord` then hides only ClaudeStatus's
+        // spinning action word (the strip already conveys "working"), leaving the
+        // entire control/metrics row intact. `useRunProgress` empties `agents` on
+        // !isLoading, so a non-empty list already implies a live run; the strip
+        // therefore appears with the reply and disappears when it ends, and the
+        // no-agents path is byte-for-byte the previous ClaudeStatus behaviour.
+        const hasAgents = (runProgress?.agents?.length ?? 0) > 0;
+        return (
+          <>
+            {hasAgents && <AgentActivityStrip agents={runProgress!.agents} frozen={isSessionFrozen} />}
+            <ClaudeStatus
+              status={claudeStatus}
+              isLoading={isLoading}
+              frozen={isSessionFrozen}
+              onAbort={onAbortSession}
+              provider={displayProvider}
+              runStartedAt={runStartedAt}
+              progress={runProgress}
+              suppressActionWord={hasAgents}
+            />
+          </>
+        );
+      })()}
 
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-4xl">
@@ -426,7 +446,7 @@ export default function ChatComposer({
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
                 onClick={onClearInput}
-                className="hidden sm:No-flex"
+                className="sm:No-flex hidden"
               >
                 <XIcon />
               </PromptInputButton>

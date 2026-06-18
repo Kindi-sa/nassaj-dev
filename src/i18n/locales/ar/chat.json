@@ -348,6 +348,17 @@
     "estimating": "يُقدّر…",
     "estimateTooltip": "تقدير تقريبي — مبني على المهام المكتملة حتى الآن."
   },
+  "agentActivity": {
+    "title": "نشاط الوكلاء",
+    "summary": "{{running}}/{{total}} يعمل",
+    "running": "يعمل",
+    "done": "انتهى",
+    "currently": "الآن",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} استدعاء أداة",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "سجلّ الأدوات قريباً."
+  },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
   },

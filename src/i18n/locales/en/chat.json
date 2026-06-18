@@ -345,6 +345,17 @@
     "estimating": "estimating…",
     "estimateTooltip": "Rough estimate — based on completed tasks so far."
   },
+  "agentActivity": {
+    "title": "Agent activity",
+    "summary": "{{running}}/{{total}} running",
+    "running": "Running",
+    "done": "Done",
+    "currently": "now",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} tool calls",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "Tool history coming soon."
+  },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
   },

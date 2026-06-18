@@ -151,5 +151,83 @@ describe('B-63 live task-progress counter (commit 95574f9)', () => {
     const progress = runHook(() => useRunProgress(chat, /* isLoading */ false));
     assert.equal(progress.total, 0);
     assert.equal(progress.activeSubagent, null);
+    assert.deepEqual(progress.agents, [], 'no per-agent rows when not loading');
+  });
+
+  // AgentActivityStrip data: the per-agent `agents` array derived in the SAME
+  // scan, without disturbing the legacy counter fields above.
+  it('emits a per-agent row for the running sub-agent (strip data)', () => {
+    const chat = normalizedToChatMessages(liveDelegationStream());
+    const progress = runHook(() => useRunProgress(chat, /* isLoading */ true));
+
+    assert.equal(progress.agents.length, 1, 'one delegated sub-agent → one strip row');
+    const a = progress.agents[0];
+    assert.equal(a.id, PARENT_ID, 'row keyed by the container toolId');
+    assert.equal(a.type, 'general', 'subagent_type read from the Agent container toolInput');
+    assert.equal(a.description, 'multi-step task', 'description read from the container toolInput');
+    assert.equal(a.status, 'running', 'mid-run container → running');
+    // Two live children folded (TodoWrite then Read); the most recent is current.
+    assert.equal(a.callCount, 2, 'callCount = number of folded child tools');
+    assert.equal(a.currentTool, 'Read', 'currentTool = the most recent child tool while running');
+  });
+
+  // T-170: the AgentActivityStrip is a per-reply indicator — the scan must be
+  // bounded to the messages after the last genuine human prompt, so a NEW prompt
+  // never surfaces the PRIOR reply's sub-agents. Transcript: (user1 + a COMPLETED
+  // agent) then (user2 + a RUNNING agent). Only the second reply's agent counts.
+  it('scopes agents to the current reply, excluding a prior reply\'s sub-agents', () => {
+    const prevDone = 'toolu_prev_agent_done';
+    const curRunning = 'toolu_cur_agent_running';
+    const stream: NormalizedMessage[] = [
+      // ── Reply 1: a human prompt + a sub-agent that finished. ──
+      { id: 'u1', kind: 'text', role: 'user', content: 'ابحث عن شيء', timestamp: ts(0) },
+      {
+        id: 'a1', kind: 'tool_use', role: 'assistant',
+        toolName: 'Agent', toolId: prevDone,
+        toolInput: { description: 'prior search', subagent_type: 'researcher' },
+        timestamp: ts(2),
+      },
+      // tool_result for the prior agent → normalizer marks it isComplete=true.
+      { id: 'r1', kind: 'tool_result', role: 'user', toolId: prevDone, content: 'done', timestamp: ts(5) },
+      // ── Reply 2: a NEW human prompt + a sub-agent still running. ──
+      { id: 'u2', kind: 'text', role: 'user', content: 'مهمة جديدة', timestamp: ts(10) },
+      {
+        id: 'a2', kind: 'tool_use', role: 'assistant',
+        toolName: 'Agent', toolId: curRunning,
+        toolInput: { description: 'new task', subagent_type: 'general' },
+        timestamp: ts(12),
+      },
+    ] as NormalizedMessage[];
+
+    const chat = normalizedToChatMessages(stream);
+    const progress = runHook(() => useRunProgress(chat, /* isLoading */ true));
+
+    // Only the second reply's agent is in scope.
+    assert.equal(progress.agentsTotal, 1, 'only the current reply\'s sub-agent counted');
+    assert.equal(progress.agents.length, 1, 'one strip row — the prior reply\'s agent is excluded');
+    assert.equal(progress.agents[0].id, curRunning, 'the in-scope agent is the current reply\'s one');
+    assert.equal(progress.agents[0].status, 'running', 'current reply\'s agent is running');
+    // The prior reply\'s completed agent must NOT leak into the done count.
+    assert.equal(progress.agentsDone, 0, 'prior reply\'s done agent excluded from agentsDone');
+    assert.ok(progress.activeSubagent, 'the current reply\'s running agent is active');
+  });
+
+  it('marks a finished sub-agent as done with no currentTool', () => {
+    const stream = liveDelegationStream();
+    // Resolve the container: a tool_result for the Agent container toolId makes
+    // normalizedToChatMessages set subagentState.isComplete = true.
+    stream.push({
+      id: 'm5', kind: 'tool_result', role: 'user', toolId: PARENT_ID,
+      content: 'done', timestamp: ts(20),
+    } as NormalizedMessage);
+    const chat = normalizedToChatMessages(stream);
+    const progress = runHook(() => useRunProgress(chat, /* isLoading */ true));
+
+    assert.equal(progress.agents.length, 1, 'still one unique sub-agent');
+    const a = progress.agents[0];
+    assert.equal(a.status, 'done', 'resolved container → done');
+    assert.equal(a.currentTool, undefined, 'done agents expose no current tool');
+    assert.equal(progress.activeSubagent, null, 'no active sub-agent once it resolved');
+    assert.equal(progress.agentsDone, 1, 'legacy agentsDone still counts the finished agent');
   });
 });

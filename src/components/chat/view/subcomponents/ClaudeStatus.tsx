@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../../lib/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type { RunProgress } from '../../hooks/useRunProgress';
@@ -32,6 +33,15 @@ type ClaudeStatusProps = {
    * behaves exactly as before (elapsed + status only). Never recomputed here.
    */
   progress?: RunProgress | null;
+  /**
+   * When true, hide ONLY the rotating action word (the "Thinking…/Working…"
+   * line and its animated dots). Everything else — the STOP button, ESC hint,
+   * elapsed timer, task counter/bar and the spinner — stays exactly as is. Set
+   * by ChatComposer when the AgentActivityStrip is shown above this row (the
+   * strip already conveys "working", so the duplicated spinning word is dropped
+   * to avoid two competing activity labels). Defaults to false → no change.
+   */
+  suppressActionWord?: boolean;
 };
 
 const ACTION_KEYS = [
@@ -75,6 +85,7 @@ export default function ClaudeStatus({
   provider = 'claude',
   runStartedAt = null,
   progress = null,
+  suppressActionWord = false,
 }: ClaudeStatusProps) {
   const { t, i18n } = useTranslation('chat');
   const locale = i18n.language;
@@ -268,6 +279,11 @@ export default function ClaudeStatus({
   const statusText = isFrozenLoading
     ? t('claudeStatus.frozen', { defaultValue: 'Paused (process frozen)' })
     : (status?.text || actionWords[Math.floor(elapsedTime / 3) % actionWords.length]).replace(/[.]+$/, '');
+  // Hide only the rotating action word (+ its dots) when the AgentActivityStrip
+  // above already conveys "working". The frozen "Paused" state is NOT a rotating
+  // word but a real status, so it is always kept so the user still sees the
+  // process is halted even while sub-agents are listed above.
+  const showActionWordLine = !suppressActionWord || isFrozenLoading;
 
   const providerLabel = t(PROVIDER_LABEL_KEYS[provider] || 'claudeStatus.providers.assistant', { defaultValue: 'Assistant' });
 
@@ -358,12 +374,14 @@ export default function ClaudeStatus({
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
               {providerLabel}
             </span>
-            <div className="flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 rounded-full", isLoading && !frozen ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
-              <p className="truncate text-xs font-medium text-foreground">
-                {statusText}<span className="inline-block w-4 text-primary">{isLoading && !frozen ? dots : ''}</span>
-              </p>
-            </div>
+            {showActionWordLine && (
+              <div className="flex items-center gap-1.5">
+                <span className={cn("h-1.5 w-1.5 rounded-full", isLoading && !frozen ? "bg-emerald-500 animate-pulse" : "bg-amber-500")} />
+                <p className="truncate text-xs font-medium text-foreground">
+                  {statusText}<span className="inline-block w-4 text-primary">{isLoading && !frozen ? dots : ''}</span>
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -410,7 +428,7 @@ export default function ClaudeStatus({
                 defaultValue: 'Agent working: {{calls}} calls',
               })}
             >
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500 animate-pulse" />
+              <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-violet-500" />
               <span className="shrink-0 tabular-nums">
                 {t('runProgress.agentWorking', {
                   calls: localeNum(activeSubagent.callCount),
