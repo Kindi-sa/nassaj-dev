@@ -187,33 +187,36 @@ export function useSlashCommands({
 
       try {
         const workspacePath = selectedProject.fullPath || selectedProject.path || '';
-        const response = await authenticatedFetch('/api/commands/list', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectPath: workspacePath || selectedProject.path,
-            provider,
+        const skillsParams = new URLSearchParams();
+        if (workspacePath) {
+          skillsParams.set('workspacePath', workspacePath);
+        }
+
+        const [response, skillsResponse] = await Promise.all([
+          authenticatedFetch('/api/commands/list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              projectPath: workspacePath || selectedProject.path,
+              provider,
+            }),
           }),
-        });
+          authenticatedFetch(
+            `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
+          ).catch(() => null as unknown as Response),
+        ]);
 
         if (!response.ok) {
           throw new Error('Failed to fetch commands');
         }
 
         const data = await response.json();
-        const skillsParams = new URLSearchParams();
-        if (workspacePath) {
-          skillsParams.set('workspacePath', workspacePath);
-        }
-
-        const skillsResponse = await authenticatedFetch(
-          `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
-        );
-        const skillsData = skillsResponse.ok
-          ? ((await skillsResponse.json()) as ProviderSkillsResponse)
-          : null;
+        const skillsData =
+          skillsResponse !== null && skillsResponse.ok
+            ? ((await skillsResponse.json()) as ProviderSkillsResponse)
+            : null;
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
         // The CLI's dynamic built-in list (server /list probe) echoes the user's
