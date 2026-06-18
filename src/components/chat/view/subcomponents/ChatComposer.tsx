@@ -427,20 +427,27 @@ export default function ChatComposer({
 
             <TokenUsageSummary usage={tokenBudget} />
 
-            <PromptInputButton
-              tooltip={{ content: t('input.showAllCommands') }}
-              onClick={onToggleCommandMenu}
-              className="relative"
-            >
-              <MessageSquareIcon />
+            {/* Wrapper span establishes the containing block for the badge.
+              * Firefox/Gecko (bug 1392476) does not let a <button> with
+              * position:relative anchor absolutely-positioned descendants, so
+              * the badge must be a SIBLING of the button inside a non-button
+              * positioned ancestor — otherwise it escapes and the form's
+              * overflow-hidden clips it (works in Chromium, hidden in FF/Zen). */}
+            <span className="relative inline-flex">
+              <PromptInputButton
+                tooltip={{ content: t('input.showAllCommands') }}
+                onClick={onToggleCommandMenu}
+              >
+                <MessageSquareIcon />
+              </PromptInputButton>
               {slashCommandsCount > 0 && (
                 <span
-                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                  className="pointer-events-none absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
                 >
                   {slashCommandsCount}
                 </span>
               )}
-            </PromptInputButton>
+            </span>
 
             {hasInput && (
               <PromptInputButton
