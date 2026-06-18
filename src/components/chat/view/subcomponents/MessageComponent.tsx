@@ -21,6 +21,7 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../share
 
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
+import { shouldHideToolCallMessage } from './hideToolCalls';
 
 type DiffLine = {
   type: string;
@@ -39,6 +40,7 @@ type MessageComponentProps = {
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolCalls?: boolean;
   selectedProject?: Project | null;
   // Owner of the active session (C-MU-UX-MSG-IDENTITY). Threaded from the chat
   // view's selectedSession.owner. `null`/undefined for legacy sessions, where
@@ -59,7 +61,7 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onStartNewSession, autoExpandTools, showRawParameters, showThinking, selectedProject, owner, participantsById, provider }: MessageComponentProps) => {
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, onStartNewSession, autoExpandTools, showRawParameters, showThinking, hideToolCalls, selectedProject, owner, participantsById, provider }: MessageComponentProps) => {
   const { t, i18n } = useTranslation('chat');
   const { user } = useAuth();
   // Build a minimal participant view of the signed-in user so the chat reuses
@@ -286,12 +288,19 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     return Number.isNaN(d.getTime()) ? '' : d.toISOString();
   }, [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
+  // "Hide tool calls": drop tool-use cards and sub-agent containers from the
+  // transcript while keeping interactive prompts and errored results visible.
+  const shouldHideToolCall = shouldHideToolCallMessage(message, hideToolCalls);
   // Stale-resume error: the backend reported the conversation no longer exists
   // instead of silently restarting. Surface an explicit retry action.
   const isSessionNotResumable =
     message.type === 'error' && message.errorCode === 'conversation_not_found';
 
   if (shouldHideThinkingMessage) {
+    return null;
+  }
+
+  if (shouldHideToolCall) {
     return null;
   }
 

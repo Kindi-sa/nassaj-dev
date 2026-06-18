@@ -61,6 +61,7 @@
     "autoExpandTools": "Espandi strumenti automaticamente",
     "showRawParameters": "Mostra parametri grezzi",
     "showThinking": "Mostra ragionamento",
+    "hideToolCalls": "Nascondi chiamate agli strumenti",
     "autoScrollToBottom": "Scorrimento automatico in basso",
     "sendByCtrlEnter": "Invia con Ctrl+Invio",
     "sendByCtrlEnterDescription": "Se abilitato, premere Ctrl+Invio invierà il messaggio invece di Invio. Utile per gli utenti IME per evitare invii accidentali.",

@@ -2,6 +2,7 @@ import {
   ArrowDown,
   Brain,
   Eye,
+  EyeOff,
   Languages,
   Maximize2,
 } from 'lucide-react';
@@ -37,6 +38,11 @@ export const TOOL_DISPLAY_TOGGLES: PreferenceToggleItem[] = [
     key: 'showThinking',
     labelKey: 'quickSettings.showThinking',
     icon: Brain,
+  },
+  {
+    key: 'hideToolCalls',
+    labelKey: 'quickSettings.hideToolCalls',
+    icon: EyeOff,
   },
 ];
 

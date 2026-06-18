@@ -61,6 +61,7 @@
     "autoExpandTools": "Araçları otomatik genişlet",
     "showRawParameters": "Ham parametreleri göster",
     "showThinking": "Düşünmeyi göster",
+    "hideToolCalls": "Araç çağrılarını gizle",
     "autoScrollToBottom": "Otomatik en alta kaydır",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler.",

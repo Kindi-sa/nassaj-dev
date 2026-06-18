@@ -79,6 +79,7 @@ interface ChatMessagesPaneProps {
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolCalls?: boolean;
   selectedProject: Project;
 }
 
@@ -136,6 +137,7 @@ export default function ChatMessagesPane({
   autoExpandTools,
   showRawParameters,
   showThinking,
+  hideToolCalls,
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
@@ -317,6 +319,7 @@ export default function ChatMessagesPane({
                   autoExpandTools={autoExpandTools}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
+                  hideToolCalls={hideToolCalls}
                   selectedProject={selectedProject}
                   owner={selectedSession?.owner ?? null}
                   participantsById={participantsById}

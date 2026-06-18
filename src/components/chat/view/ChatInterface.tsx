@@ -90,6 +90,7 @@ function ChatInterface({
   autoExpandTools,
   showRawParameters,
   showThinking,
+  hideToolCalls,
   autoScrollToBottom,
   sendByCtrlEnter,
   externalMessageUpdate,
@@ -614,6 +615,7 @@ function ChatInterface({
           autoExpandTools={autoExpandTools}
           showRawParameters={showRawParameters}
           showThinking={showThinking}
+          hideToolCalls={hideToolCalls}
           selectedProject={selectedProject}
         />
 
