@@ -71,10 +71,10 @@
 
 ### Phase 0 — Foundation ✅
 | B-01 | fork + clone | Kindi-sa/nassaj-dev (private, AGPL-3.0) |
-| B-02 | package.json | name=nassaj-dev, homepage=nassaj-dev.alkindy.tech |
+| B-02 | package.json | name=nassaj-dev, homepage=nassaj.alkindy.tech |
 | B-03 | LLMProvider union | 'antigravity' في 10 ملفات |
 | B-04 | PM2 ecosystem | port 3004, DATABASE_PATH مستقل |
-| B-05 | Cloudflare tunnel | nassaj-dev.alkindy.tech → 127.0.0.1:3004 |
+| B-05 | Cloudflare tunnel | nassaj.alkindy.tech → 127.0.0.1:3004 (تقاعد nassaj-dev.alkindy.tech 2026-06-15) |
 
 ### Phase 1 — AntigravityProvider Backend ✅
 | B-10 | agy-cli.js | spawn agy -p, streaming حقيقي, SIGTERM/SIGKILL |
@@ -116,7 +116,7 @@
 **إجمالي: 29/29 اختبار ناجح**
 
 ## البيئة
-- URL: https://nassaj-dev.alkindy.tech
+- URL: https://nassaj.alkindy.tech
 - Port: 3004, PM2: nassaj-dev
 - DB: /home/nassaj/.local/share/nassaj-dev/db.sqlite
 - GitHub: Kindi-sa/nassaj-dev (private, AGPL-3.0)

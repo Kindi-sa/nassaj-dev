@@ -181,7 +181,6 @@ app.locals.wss = wss;
 // code changes.  Falls back to a safe default list when the variable is absent.
 // This middleware must remain before all route mounts.
 const _corsDefaultOrigins = [
-  'https://nassaj-dev.alkindy.tech',
   'https://nassaj.alkindy.tech',
   'http://localhost:3004',
   'http://localhost:3001',

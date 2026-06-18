@@ -189,7 +189,7 @@ function usePasskey() {
 ### B-PK-1 — إضافة display_name وenv vars
 
 - إضافة `WEBAUTHN_RP_ID` و `WEBAUTHN_ORIGIN` لـ `.env.example` و startup validation.
-- قيم افتراضية: `RP_ID=nassaj-dev.alkindy.tech`، `ORIGIN=https://nassaj-dev.alkindy.tech`.
+- قيم افتراضية: `RP_ID=nassaj.alkindy.tech`، `ORIGIN=https://nassaj.alkindy.tech` (القيم الحيّة في `ecosystem.config.cjs`؛ تقاعد `nassaj-dev.alkindy.tech` 2026-06-15).
 
 ### B-PK-2 — تعديل authenticateToken middleware
 

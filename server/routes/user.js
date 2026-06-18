@@ -105,7 +105,7 @@ router.get('/onboarding-status', authenticateToken, async (req, res) => {
 // the token itself — so the onboarding UI can render "connected/not connected".
 //
 //   curl -H "Authorization: Bearer <jwt>" \
-//        https://nassaj-dev.alkindy.tech/api/user/claude-connection
+//        https://nassaj.alkindy.tech/api/user/claude-connection
 router.get('/claude-connection', authenticateToken, async (req, res) => {
   try {
     const status = await getClaudeConnectionStatus(req.user.id);
@@ -122,7 +122,7 @@ router.get('/claude-connection', authenticateToken, async (req, res) => {
 // userId comes from the JWT, never from input.
 //
 //   curl -H "Authorization: Bearer <jwt>" \
-//        https://nassaj-dev.alkindy.tech/api/user/agy-connection
+//        https://nassaj.alkindy.tech/api/user/agy-connection
 router.get('/agy-connection', authenticateToken, async (req, res) => {
   try {
     const status = await getAgyConnectionStatus(req.user.id);

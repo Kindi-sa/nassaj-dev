@@ -64,7 +64,7 @@
 > **مبدأ:** كل مرحلة مرتبطة بكود Work Items مفصَّل في `docs/workitems/PHASE-N.md`. تُبنى المرحلتان 1 و 3 على أساس المرحلة 0، وتُبنى المرحلة 4 على نواتج 1+2+3 معاً.
 
 ### المرحلة 0 — Foundation (إعداد بيئة التطوير المستقلة)
-- **الهدف:** repo مستقل + PM2 على port 3004 + domain `nassaj-dev.alkindy.tech` + DB معزولة.
+- **الهدف:** repo مستقل + PM2 على port 3004 + domain `nassaj.alkindy.tech` (تقاعد `nassaj-dev.alkindy.tech` 2026-06-15) + DB معزولة.
 - **المسؤول:** devops + backend-dev
 - **الحالة:** 🟡 جارية
 - **التواريخ:** 2026-05-24 → 2026-05-24
@@ -242,7 +242,7 @@ per-user**. الحكم من دراسة الجدوى: البنية مبنية ~80
   - `claudecodeui-official` (الإنتاج، port 3001) — مرجع لمنع regression. (port 3001 يخص الإنتاج فقط.)
   - `nassaj.alkindy.tech` — الوجهة النهائية للميزات بعد اجتياز شرط الانتقال.
 - **فرق/أشخاص:** فريق نسَّاج الداخلي للاختبار.
-- **البنية التحتية:** سيرفر `nassaj` (192.168.8.3)، PM2، Nginx، subdomain `nassaj-dev.alkindy.tech`.
+- **البنية التحتية:** سيرفر `nassaj` (192.168.8.3)، PM2، Cloudflare Tunnel، subdomain `nassaj.alkindy.tech` (تقاعد `nassaj-dev.alkindy.tech` 2026-06-15).
 
 ---
 
@@ -262,7 +262,7 @@ per-user**. الحكم من دراسة الجدوى: البنية مبنية ~80
 | المتغير | nassaj-dev (تطوير) | nassaj الرئيسية (إنتاج) |
 |---|---|---|
 | المسار | `/home/nassaj/Project/nassaj-dev/` | `/home/nassaj/Project/claudecodeui-official/` |
-| النطاق | `nassaj-dev.alkindy.tech` | `nassaj.alkindy.tech` |
+| النطاق | `nassaj.alkindy.tech` (سابقاً `nassaj-dev.alkindy.tech`، تقاعد 2026-06-15) | `nassaj.alkindy.tech` |
 | Port | 3004 | 3001 |
 | PM2 process | `nassaj-dev` | `claudecodeui` |
 | DB | معزولة عبر `NASSAJ_DB_PATH` | افتراضية |

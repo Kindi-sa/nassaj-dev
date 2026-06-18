@@ -10,7 +10,7 @@
 |---|---|
 | **الإصدار / Version** | 0.1 — Draft |
 | **التاريخ / Date** | 2026-06-09 |
-| **النطاق / Scope** | تثبيت `nassaj-dev` متعدّد المستخدمين على `nassaj-dev.alkindy.tech:3004` (داخلي) |
+| **النطاق / Scope** | تثبيت `nassaj-dev` متعدّد المستخدمين على `nassaj.alkindy.tech:3004` (داخلي) |
 | **المالك / Owner** | i.rukhaimi |
 | **مرتبط بـ / Related** | ADR-023 (Decision 1 — ToS، الإطلاق العلني) · `[B-MU-LEGAL]` · `docs/RUNBOOK-MULTI-USER.md` |
 | **الحالة / Status** | 🟡 مسوّدة داخلية — كافية للاستخدام الداخلي، **حاجبة للإطلاق العلني** |

@@ -2,11 +2,11 @@
 
 > الإصدار: 1.0 — 2026-05-26
 > النطاق: تشغيل وإدارة نسخة `nassaj-dev` متعددة المستخدمين (Phase-MU) وميزة مشاركة الـ providers من لوحة الإدارة.
-> الخدمة: `nassaj-dev` على المنفذ `3004` — محلياً `http://localhost:3004`، عبر الويب `https://nassaj-dev.alkindy.tech`.
+> الخدمة: `nassaj-dev` على المنفذ `3004` — محلياً `http://localhost:3004`، عبر الويب `https://nassaj.alkindy.tech`.
 
 > Version: 1.0 — 2026-05-26
 > Scope: Operating and administering the multi-user `nassaj-dev` install (Phase-MU) and the admin provider-sharing feature.
-> Service: `nassaj-dev` on port `3004` — locally `http://localhost:3004`, public `https://nassaj-dev.alkindy.tech`.
+> Service: `nassaj-dev` on port `3004` — locally `http://localhost:3004`, public `https://nassaj.alkindy.tech`.
 
 ثنائي اللغة: كل قسم بالعربية أولاً ثم الإنجليزي. أسماء الكود والأوامر إنجليزية دائماً.
 
@@ -269,7 +269,7 @@ curl -s -X DELETE http://localhost:3004/api/auth/invites/<INVITE_ID> \
 
 **العربية**
 
-المدعوّ يفتح الرابط (عام، بدون مصادقة): `https://nassaj-dev.alkindy.tech/join?token=<INVITE_TOKEN>` ويختار اسم مستخدم وكلمة مرور.
+المدعوّ يفتح الرابط (عام، بدون مصادقة): `https://nassaj.alkindy.tech/join?token=<INVITE_TOKEN>` ويختار اسم مستخدم وكلمة مرور.
 
 ما يحدث خلف الكواليس (POST إلى `/api/auth/invite/accept`، محدود المعدل):
 
@@ -284,7 +284,7 @@ curl -s -X POST http://localhost:3004/api/auth/invite/accept \
 
 **English**
 
-The invitee opens the link (public, no auth): `https://nassaj-dev.alkindy.tech/join?token=<INVITE_TOKEN>` and picks a username and password.
+The invitee opens the link (public, no auth): `https://nassaj.alkindy.tech/join?token=<INVITE_TOKEN>` and picks a username and password.
 
 Behind the scenes (POST to `/api/auth/invite/accept`, rate-limited):
 
@@ -965,7 +965,7 @@ chmod 600 "$DB" "$DB"-wal "$DB"-shm 2>/dev/null
 
 ### 10.2 خطوات التسجيل عبر الطرفية / Terminal login steps
 
-1. يسجّل المستخدم دخوله إلى الواجهة بهويّته (`https://nassaj-dev.alkindy.tech`).
+1. يسجّل المستخدم دخوله إلى الواجهة بهويّته (`https://nassaj.alkindy.tech`).
 2. يفتح الطرفية المدمجة (Shell / Terminal). جلسة الـ PTY تحقن بيئته المعزولة تلقائياً (`B-MU-PTY-ENV`) فيكتب الاعتماد في **دليله** هو لا دليل غيره.
 3. يشغّل أمر تسجيل اشتراك Claude:
 
@@ -1010,7 +1010,7 @@ Under `isolated`, each user's credential is read from their isolated dir `~/.nas
 
 ### 10.2 Terminal login steps
 
-1. The user logs into the UI under their own identity (`https://nassaj-dev.alkindy.tech`).
+1. The user logs into the UI under their own identity (`https://nassaj.alkindy.tech`).
 2. They open the built-in terminal (Shell / Terminal). The PTY session injects their isolated env automatically (`B-MU-PTY-ENV`), so the credential is written to **their** dir, not anyone else's.
 3. They run the Claude subscription login command:
 

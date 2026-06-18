@@ -48,7 +48,7 @@
 ### Decision 4 — rpID/origin من env
 
 - `server/constants/webauthn.js`: ‏`WEBAUTHN_RP_ID` / ‏`WEBAUTHN_ORIGIN` (قائمة مفصولة بفواصل مدعومة) / ‏`WEBAUTHN_RP_NAME` من env؛ fallback تطوير ‏(`localhost` + ‏`http://localhost:5173`)؛ تحذير إقلاع عند production بلا `WEBAUTHN_RP_ID`.
-- القيم مضبوطة في `ecosystem.config.cjs` و`.env.example` لـ`nassaj-dev.alkindy.tech`.
+- القيم مضبوطة في `ecosystem.config.cjs` و`.env.example` لـ`nassaj.alkindy.tech` (تقاعد `nassaj-dev.alkindy.tech` 2026-06-15 — B-66).
 - **قيد مقبول:** ‏rpID مثبّت على النطاق — تغيير النطاق يُبطل المفاتيح المسجّلة (سلوك WebAuthn الفطري).
 
 ### انحرافات موثّقة عن مسودة `PHASE-PK.md`

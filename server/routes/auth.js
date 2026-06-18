@@ -367,7 +367,7 @@ router.patch('/users/:id/status', authenticateToken, requireRole('owner'), (req,
 // resolve the deleted id.
 //
 //   curl -X DELETE -H "Authorization: Bearer <owner-jwt>" \
-//        https://nassaj-dev.alkindy.tech/api/auth/users/7
+//        https://nassaj.alkindy.tech/api/auth/users/7
 router.delete('/users/:id', authenticateToken, requireRole('owner'), async (req, res) => {
   try {
     const id = Number(req.params.id);

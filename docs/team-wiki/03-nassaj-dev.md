@@ -6,7 +6,7 @@
 
 ## العنوان والوصول
 
-- **الموقع:** https://nassaj-dev.alkindy.tech
+- **الموقع:** https://nassaj.alkindy.tech
 - **المتصفح:** أي متصفح حديث (Chrome, Firefox, Safari)
 - **الجهاز:** أي جهاز (هاتف، تابلت، حاسوب) — الموقع متجاوب
 

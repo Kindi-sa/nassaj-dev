@@ -3,7 +3,7 @@
  *
  * Read once at boot from the environment:
  *   - WEBAUTHN_RP_ID    relying party ID — the registrable domain the passkeys
- *                       are bound to (e.g. nassaj-dev.alkindy.tech). No scheme,
+ *                       are bound to (e.g. nassaj.alkindy.tech). No scheme,
  *                       no port.
  *   - WEBAUTHN_ORIGIN   expected origin(s) of the WebAuthn ceremony. Full
  *                       origin(s) including scheme; comma-separated list
