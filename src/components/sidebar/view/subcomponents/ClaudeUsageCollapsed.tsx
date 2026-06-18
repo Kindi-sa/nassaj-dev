@@ -69,14 +69,15 @@ const WINDOWS: WindowEntry[] = [
 export function ClaudeUsageCollapsed() {
   // All hooks must be called unconditionally before any conditional return.
   const { t, i18n } = useTranslation('settings');
-  const { status, data } = useClaudeUsage(true);
+  const usage = useClaudeUsage(true);
   // Complementary to HeaderUsageIndicator's (min-width: 1280px) guard.
   const isNarrow = useMediaQuery('(max-width: 1279px)');
 
   // On wide viewports the header already shows usage — skip rendering here.
   if (!isNarrow) return null;
 
-  if (status !== 'success') return null;
+  if (usage.status !== 'success') return null;
+  const { data } = usage;
 
   const visible = WINDOWS.filter(({ key }) => data[key] !== null);
   if (visible.length === 0) return null;
