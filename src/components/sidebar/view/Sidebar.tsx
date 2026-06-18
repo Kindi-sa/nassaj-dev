@@ -224,6 +224,8 @@ function Sidebar({
           onShowSettings={onShowSettings}
           updateAvailable={updateAvailable}
           onShowVersionModal={() => setShowVersionModal(true)}
+          projects={projects}
+          onProjectSelect={handleProjectSelect}
           t={t}
         />
       ) : (

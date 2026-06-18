@@ -1,6 +1,8 @@
 import { Settings, Sparkles, PanelLeftOpen } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import type { Project } from '../../../../types/app';
+
 import { SystemStatsCollapsed } from './SystemStats';
 import { ClaudeUsageCollapsed } from './ClaudeUsageCollapsed';
 import { PresenceCountCollapsed } from './PresenceCountCollapsed';
@@ -10,6 +12,10 @@ type SidebarCollapsedProps = {
   onShowSettings: () => void;
   updateAvailable: boolean;
   onShowVersionModal: () => void;
+  /** Project list — used by the active-conversations popover to name projects. */
+  projects?: Project[];
+  /** Select a project from the active-conversations popover. */
+  onProjectSelect?: (project: Project) => void;
   t: TFunction;
 };
 
@@ -18,6 +24,8 @@ export default function SidebarCollapsed({
   onShowSettings,
   updateAvailable,
   onShowVersionModal,
+  projects,
+  onProjectSelect,
   t,
 }: SidebarCollapsedProps) {
   return (
@@ -50,8 +58,14 @@ export default function SidebarCollapsed({
       {/* Claude usage windows — divider rendered inside component */}
       <ClaudeUsageCollapsed />
 
-      {/* Active conversations count — divider rendered inside component */}
-      <PresenceCountCollapsed />
+      {/* Active conversations count — divider rendered inside component.
+        * Hover/focus/click reveals the per-project breakdown; selecting a row
+        * expands the sidebar and surfaces that project. */}
+      <PresenceCountCollapsed
+        projects={projects}
+        onProjectSelect={onProjectSelect}
+        onExpand={onExpand}
+      />
 
       {/* Update indicator */}
       {updateAvailable && (
