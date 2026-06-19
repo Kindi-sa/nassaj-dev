@@ -59,6 +59,24 @@ import {
     isOpenCodeSessionActive,
     getActiveOpenCodeSessions,
 } from './opencode-cli.js';
+import {
+    spawnKimi,
+    abortKimiSession,
+    isKimiSessionActive,
+    getActiveKimiSessions,
+} from './kimi-cli.js';
+import {
+    spawnDeepSeek,
+    abortDeepSeekSession,
+    isDeepSeekSessionActive,
+    getActiveDeepSeekSessions,
+} from './deepseek-cli.js';
+import {
+    spawnGlm,
+    abortGlmSession,
+    isGlmSessionActive,
+    getActiveGlmSessions,
+} from './glm-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -113,6 +131,9 @@ const wss = createWebSocketServer(server, {
         spawnGemini,
         spawnAntigravity,
         spawnOpenCode,
+        spawnKimi,
+        spawnDeepSeek,
+        spawnGlm,
         // Authoritative provider lookup for resumed sessions. Routing must follow
         // the provider persisted in the DB, not the client-chosen message type,
         // so an antigravity session is never resumed through the Claude SDK.
@@ -134,6 +155,9 @@ const wss = createWebSocketServer(server, {
         abortGeminiSession,
         abortAntigravitySession,
         abortOpenCodeSession,
+        abortKimiSession,
+        abortDeepSeekSession,
+        abortGlmSession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
@@ -141,6 +165,9 @@ const wss = createWebSocketServer(server, {
         isGeminiSessionActive,
         isAntigravitySessionActive,
         isOpenCodeSessionActive,
+        isKimiSessionActive,
+        isDeepSeekSessionActive,
+        isGlmSessionActive,
         reconnectSessionWriter,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
@@ -149,6 +176,9 @@ const wss = createWebSocketServer(server, {
         getActiveGeminiSessions,
         getActiveAntigravitySessions,
         getActiveOpenCodeSessions,
+        getActiveKimiSessions,
+        getActiveDeepSeekSessions,
+        getActiveGlmSessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),

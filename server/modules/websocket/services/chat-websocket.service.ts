@@ -31,6 +31,9 @@ type ChatWebSocketDependencies = {
   spawnGemini: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnAntigravity: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnOpenCode: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnKimi: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnDeepSeek: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnGlm: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   /**
    * Resolves the authoritative provider for an existing session from the
    * database. Returns null when the session is unknown (e.g. a brand-new
@@ -43,6 +46,9 @@ type ChatWebSocketDependencies = {
   abortGeminiSession: (sessionId: string) => boolean;
   abortAntigravitySession: (sessionId: string) => boolean;
   abortOpenCodeSession: (sessionId: string) => boolean;
+  abortKimiSession: (sessionId: string) => boolean;
+  abortDeepSeekSession: (sessionId: string) => boolean;
+  abortGlmSession: (sessionId: string) => boolean;
   resolveToolApproval: (
     requestId: string,
     payload: {
@@ -58,6 +64,9 @@ type ChatWebSocketDependencies = {
   isGeminiSessionActive: (sessionId: string) => boolean;
   isAntigravitySessionActive: (sessionId: string) => boolean;
   isOpenCodeSessionActive: (sessionId: string) => boolean;
+  isKimiSessionActive: (sessionId: string) => boolean;
+  isDeepSeekSessionActive: (sessionId: string) => boolean;
+  isGlmSessionActive: (sessionId: string) => boolean;
   reconnectSessionWriter: (sessionId: string, ws: WebSocket) => boolean;
   getPendingApprovalsForSession: (sessionId: string) => unknown[];
   getActiveClaudeSDKSessions: () => unknown;
@@ -66,6 +75,9 @@ type ChatWebSocketDependencies = {
   getActiveGeminiSessions: () => unknown;
   getActiveAntigravitySessions: () => unknown;
   getActiveOpenCodeSessions: () => unknown;
+  getActiveKimiSessions: () => unknown;
+  getActiveDeepSeekSessions: () => unknown;
+  getActiveGlmSessions: () => unknown;
 };
 
 /**
@@ -79,6 +91,9 @@ function readProvider(value: unknown): LLMProvider {
     || value === 'gemini'
     || value === 'antigravity'
     || value === 'opencode'
+    || value === 'kimi'
+    || value === 'deepseek'
+    || value === 'glm'
   ) {
     return value;
   }
@@ -97,6 +112,9 @@ const COMMAND_TYPE_TO_PROVIDER: Record<string, LLMProvider> = {
   'codex-command': 'codex',
   'gemini-command': 'gemini',
   'antigravity-command': 'antigravity',
+  'kimi-command': 'kimi',
+  'deepseek-command': 'deepseek',
+  'glm-command': 'glm',
 };
 
 /**
@@ -162,6 +180,18 @@ async function dispatchProviderCommand(
   }
   if (targetProvider === 'antigravity') {
     await dependencies.spawnAntigravity(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'kimi') {
+    await dependencies.spawnKimi(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'deepseek') {
+    await dependencies.spawnDeepSeek(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'glm') {
+    await dependencies.spawnGlm(command, data.options, writer);
     return;
   }
 
@@ -255,6 +285,12 @@ export function handleChatConnection(
           success = dependencies.abortAntigravitySession(sessionId);
         } else if (provider === 'opencode') {
           success = dependencies.abortOpenCodeSession(sessionId);
+        } else if (provider === 'kimi') {
+          success = dependencies.abortKimiSession(sessionId);
+        } else if (provider === 'deepseek') {
+          success = dependencies.abortDeepSeekSession(sessionId);
+        } else if (provider === 'glm') {
+          success = dependencies.abortGlmSession(sessionId);
         } else {
           success = await dependencies.abortClaudeSDKSession(sessionId);
         }
