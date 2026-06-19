@@ -324,11 +324,12 @@ test('providerMcpService handles gemini and cursor MCP JSON config formats', { c
 
 /**
  * This test covers the global MCP adder requirement: only http/stdio are allowed
- * and one payload is written to every registered provider. The result has 6
- * entries — one per provider (claude, codex, cursor, gemini, opencode,
- * antigravity). Five are created; antigravity reports created:false because it
- * does not support MCP server management (MCP_NOT_SUPPORTED_BY_PROVIDER), which
- * is surfaced as a contained per-provider error rather than aborting the add.
+ * and one payload is written to every registered provider. The result has 9
+ * entries — one per registered provider (claude, codex, cursor, gemini, opencode,
+ * antigravity, kimi, deepseek, glm). Five are created; antigravity and the three
+ * hosted vendor providers (kimi/deepseek/glm) report created:false because they
+ * do not support MCP server management, surfaced as contained per-provider errors
+ * rather than aborting the add.
  */
 test('providerMcpService global adder writes to all providers and rejects unsupported transports', { concurrency: false }, async () => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'llm-mcp-global-'));
@@ -345,14 +346,16 @@ test('providerMcpService global adder writes to all providers and rejects unsupp
       workspacePath,
     });
 
-    assert.equal(globalResult.length, 6);
-    // Five real-config providers are created; antigravity does not support MCP
-    // management and is reported as a contained per-provider failure.
+    assert.equal(globalResult.length, 9);
+    // Five real-config providers are created; antigravity and the three hosted
+    // vendor providers do not support MCP management and are reported as contained
+    // per-provider failures.
     const created = globalResult.filter((entry) => entry.created === true);
     const failed = globalResult.filter((entry) => entry.created === false);
     assert.equal(created.length, 5);
-    assert.equal(failed.length, 1);
-    assert.equal(failed[0].provider, 'antigravity');
+    assert.equal(failed.length, 4);
+    const failedProviders = failed.map((entry) => entry.provider).sort();
+    assert.deepEqual(failedProviders, ['antigravity', 'deepseek', 'glm', 'kimi']);
 
     const claudeProject = await readJson(path.join(workspacePath, '.mcp.json'));
     assert.ok((claudeProject.mcpServers as Record<string, unknown>)['global-http']);
