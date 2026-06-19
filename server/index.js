@@ -21,6 +21,7 @@ import { listenWithGuard, resolveBindWindowMs } from '@/services/listen-with-gua
 import { getConnectableHost } from '../shared/networkHosts.js';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import { clientIp } from './utils/client-ip.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
@@ -94,7 +95,8 @@ import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole } from './middleware/auth.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole, JWT_SECRET } from './middleware/auth.js';
+import { recordAuthRejection } from './middleware/auth-rejection-audit.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
@@ -117,6 +119,12 @@ const wss = createWebSocketServer(server, {
     verifyClient: {
         isPlatform: IS_PLATFORM,
         authenticateWebSocket,
+        // Cross-boundary collaborators injected from the composition root so the
+        // websocket module never imports middleware/utils across the boundary
+        // (eslint-plugin-boundaries). T-182 auth_rejected auditing on the WS path.
+        jwtSecret: JWT_SECRET,
+        recordRejection: recordAuthRejection,
+        clientIp,
     },
     chat: {
         queryClaudeSDK,
@@ -302,7 +310,8 @@ const ANTIGRAVITY_RATE_LIMIT = 60;
 const ANTIGRAVITY_WINDOW_MS = 60_000;
 
 app.use('/api/providers/antigravity', (req, res, next) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    // Unified IP source (T-182/ADR-040): real client behind the tunnel.
+    const ip = clientIp(req) || 'unknown';
     const now = Date.now();
     const entry = antigravityRateMap.get(ip);
 

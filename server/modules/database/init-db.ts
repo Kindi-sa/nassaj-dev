@@ -1,5 +1,5 @@
 import { getConnection } from "@/modules/database/connection.js";
-import { runMigrations } from "@/modules/database/migrations.js";
+import { pruneAuditLog, runMigrations } from "@/modules/database/migrations.js";
 import { startReconcileScheduler } from "@/modules/database/project-reconcile.service.js";
 import { INIT_SCHEMA_SQL } from "@/modules/database/schema.js";
 
@@ -10,6 +10,10 @@ export const initializeDatabase = async () => {
         db.exec(INIT_SCHEMA_SQL);
         console.log('Database schema applied');
         runMigrations(db);
+
+        // One-shot audit_log retention prune (T-182): drop rows older than the
+        // 90-day window. Best-effort — a failure here must not block boot.
+        pruneAuditLog(db);
 
         // Start the project-reconcile scheduler after migrations complete so
         // the boot pass sees a fully migrated schema. (B-38.)

@@ -473,6 +473,28 @@ const migrateMultiUserAuth = (db: Database, userColumnNames: string[]): void => 
 };
 
 /**
+ * audit_log diagnostic enrichment (T-182). Adds the `user_agent` column to the
+ * audit_log table on existing installs so auth events can record the caller's
+ * User-Agent string for forensics (e.g. distinguishing a real browser from a
+ * scripted client during an account-takeover investigation). Fresh installs get
+ * the column from AUDIT_LOG_TABLE_SCHEMA_SQL; this migration is the additive,
+ * idempotent backstop for upgraded databases.
+ *
+ * Forward-only: no backfill (historical rows keep NULL), no index (the column is
+ * read for inspection, never filtered/joined on). Guarded by tableExists so it
+ * is a no-op on a pre-bootstrap database that has not created audit_log yet.
+ */
+const migrateAuditLogUserAgent = (db: Database): void => {
+  if (!tableExists(db, 'audit_log')) {
+    return;
+  }
+  const cols = (db.prepare('PRAGMA table_info(audit_log)').all() as { name: string }[]).map(
+    (r) => r.name
+  );
+  addColumnToTableIfNotExists(db, 'audit_log', cols, 'user_agent', 'TEXT DEFAULT NULL');
+};
+
+/**
  * Password-lifecycle migration (C-1): adds the columns backing JWT invalidation
  * on password change and forced password rotation.
  *
@@ -770,6 +792,9 @@ export const runMigrations = (db: Database) => {
     );
 
     migrateMultiUserAuth(db, userColumnNames);
+    // audit_log.user_agent (T-182) — after migrateMultiUserAuth has ensured the
+    // audit_log table exists, so the additive column migration finds its target.
+    migrateAuditLogUserAgent(db);
     migratePasswordLifecycle(db, userColumnNames);
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
@@ -835,5 +860,33 @@ export const runMigrations = (db: Database) => {
   } catch (error: any) {
     console.error('Error running migrations:', error.message);
     throw error;
+  }
+};
+
+/** Retention horizon for audit_log rows (T-182, qa-critic D-3): 90 days. */
+const AUDIT_LOG_RETENTION_DAYS = 90;
+
+/**
+ * Prunes audit_log rows older than the retention horizon (T-182, qa-critic D-3).
+ * The audit log is append-only and grows unbounded otherwise; this bounds it to
+ * a rolling 90-day window. Called once at boot after runMigrations (best-effort:
+ * a prune failure must never block startup). Parameterized + guarded by
+ * tableExists so it is a safe no-op on a pre-bootstrap database.
+ */
+export const pruneAuditLog = (db: Database): void => {
+  try {
+    if (!tableExists(db, 'audit_log')) {
+      return;
+    }
+    const cutoff = `-${AUDIT_LOG_RETENTION_DAYS} days`;
+    const result = db
+      .prepare("DELETE FROM audit_log WHERE created_at < datetime('now', ?)")
+      .run(cutoff);
+    if (result.changes > 0) {
+      console.log('Pruned old audit_log rows', { deleted: result.changes });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Failed to prune audit_log (non-fatal)', { error: message });
   }
 };

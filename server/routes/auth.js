@@ -11,6 +11,7 @@ import { generateToken, authenticateToken, requireRole } from '../middleware/aut
 import { createRateLimiter } from '../middleware/rate-limit.js';
 import { verifyPassword, needsRehash, hashPassword } from '../services/password.service.js';
 import { createInvite, acceptInvite, InviteError } from '../services/invite.service.js';
+import { clientIp } from '../utils/client-ip.js';
 
 import webauthnRouter from './webauthn.js';
 
@@ -129,12 +130,16 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
+    const ip = clientIp(req);
+    const userAgent = req.headers['user-agent'] ?? null;
+
     const user = userDb.getUserByUsername(username);
     // Always run a verification path; generic error to avoid user enumeration.
     if (!user) {
       auditLogDb.record('login_failure', {
         metadata: { reason: 'unknown_user' },
-        ipAddress: req.ip ?? null,
+        ipAddress: ip,
+        userAgent,
       });
       return res.status(401).json({ error: 'Invalid username or password' });
     }
@@ -144,7 +149,8 @@ router.post('/login', authLimiter, async (req, res) => {
       auditLogDb.record('login_failure', {
         userId: user.id,
         metadata: { reason: 'bad_password' },
-        ipAddress: req.ip ?? null,
+        ipAddress: ip,
+        userAgent,
       });
       return res.status(401).json({ error: 'Invalid username or password' });
     }
@@ -161,7 +167,7 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const token = generateToken(user);
     userDb.updateLastLogin(user.id);
-    auditLogDb.record('login_success', { userId: user.id, ipAddress: req.ip ?? null });
+    auditLogDb.record('login_success', { userId: user.id, ipAddress: ip, userAgent });
 
     res.json({
       success: true,
@@ -180,7 +186,12 @@ router.post('/login', authLimiter, async (req, res) => {
 
 router.post('/refresh', authenticateToken, (req, res) => {
   const token = generateToken(req.user);
-  auditLogDb.record('token_refresh', { userId: req.user.id, ipAddress: req.ip ?? null });
+  auditLogDb.record('token_refresh', {
+    userId: req.user.id,
+    ipAddress: clientIp(req),
+    userAgent: req.headers['user-agent'] ?? null,
+    metadata: { via: 'endpoint' },
+  });
   res.json({ success: true, token });
 });
 
@@ -214,6 +225,13 @@ router.get('/me', authenticateToken, (req, res) => {
 });
 
 router.post('/logout', authenticateToken, (req, res) => {
+  // Behind authenticateToken, so req.user is guaranteed. Record the explicit
+  // logout for the auth timeline (T-182). Best-effort: never blocks the response.
+  auditLogDb.record('logout', {
+    userId: req.user.id,
+    ipAddress: clientIp(req),
+    userAgent: req.headers['user-agent'] ?? null,
+  });
   res.json({ success: true, message: 'Logged out successfully' });
 });
 
@@ -225,7 +243,7 @@ router.post('/logout', authenticateToken, (req, res) => {
 router.post('/invite/accept', authLimiter, async (req, res) => {
   try {
     const { token, username, password } = req.body ?? {};
-    const user = await acceptInvite({ token, username, password }, req.ip ?? null);
+    const user = await acceptInvite({ token, username, password }, clientIp(req));
     const jwtToken = generateToken(user);
     res.json({
       success: true,
@@ -318,7 +336,7 @@ router.patch('/users/:id/role', authenticateToken, requireRole('owner'), (req, r
   auditLogDb.record('role_changed', {
     userId: req.user.id,
     metadata: { targetUserId: id, from: target.role, to: role },
-    ipAddress: req.ip ?? null,
+    ipAddress: clientIp(req),
   });
   res.json({ success: true });
 });
@@ -354,7 +372,7 @@ router.patch('/users/:id/status', authenticateToken, requireRole('owner'), (req,
   auditLogDb.record(status === 'disabled' ? 'user_disabled' : 'user_enabled', {
     userId: req.user.id,
     metadata: { targetUserId: id },
-    ipAddress: req.ip ?? null,
+    ipAddress: clientIp(req),
   });
   res.json({ success: true });
 });
@@ -407,7 +425,7 @@ router.delete('/users/:id', authenticateToken, requireRole('owner'), async (req,
     auditLogDb.record('user_deleted', {
       userId: req.user.id,
       metadata: { targetUserId: id, targetUsername: target.username, targetRole: target.role },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
     });
 
     res.json({ success: true });
@@ -453,7 +471,8 @@ router.patch('/me/password', authenticateToken, authLimiter, async (req, res) =>
       auditLogDb.record('login_failure', {
         userId: req.user.id,
         metadata: { reason: 'bad_current_password', context: 'password_change' },
-        ipAddress: req.ip ?? null,
+        ipAddress: clientIp(req),
+        userAgent: req.headers['user-agent'] ?? null,
       });
       return res.status(401).json({ error: 'Current password is incorrect' });
     }
@@ -468,7 +487,7 @@ router.patch('/me/password', authenticateToken, authLimiter, async (req, res) =>
 
     auditLogDb.record('password_changed', {
       userId: req.user.id,
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
     });
 
     res.json({ success: true, token });
@@ -502,7 +521,7 @@ router.patch('/me/username', authenticateToken, (req, res) => {
     auditLogDb.record('username_changed', {
       userId: req.user.id,
       metadata: { from: req.user.username, to: username },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
     });
 
     res.json({ success: true, username });
@@ -563,7 +582,7 @@ router.patch('/me/avatar', authenticateToken, (req, res) => {
       auditLogDb.record('avatar_updated', {
         userId,
         metadata: { ext, size: file.size },
-        ipAddress: req.ip ?? null,
+        ipAddress: clientIp(req),
       });
 
       res.json({ success: true, avatarUrl });
@@ -621,7 +640,7 @@ router.patch('/me/avatar-choice', authenticateToken, (req, res) => {
     auditLogDb.record('avatar_updated', {
       userId,
       metadata: { kind: typeof color === 'string' ? 'color' : 'gallery' },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
     });
 
     res.json({ success: true, avatarUrl });
@@ -683,7 +702,7 @@ router.post(
       auditLogDb.record('password_reset', {
         userId: req.user.id,
         metadata: { targetUserId: id },
-        ipAddress: req.ip ?? null,
+        ipAddress: clientIp(req),
       });
 
       res.json({ tempPassword });

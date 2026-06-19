@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action TEXT NOT NULL,
     metadata TEXT,
     ip_address TEXT,
+    user_agent TEXT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );

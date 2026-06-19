@@ -21,6 +21,7 @@ import express from 'express';
 import { authenticateToken, generateToken } from '../middleware/auth.js';
 import { createRateLimiter } from '../middleware/rate-limit.js';
 import { auditLogDb, userDb, webauthnCredentialsDb } from '../modules/database/index.js';
+import { clientIp } from '../utils/client-ip.js';
 import {
   WebAuthnError,
   createAuthenticationOptions,
@@ -83,7 +84,8 @@ router.post('/register/verify', authenticateToken, async (req, res) => {
     auditLogDb.record('passkey_registered', {
       userId: req.user.id,
       metadata: { credentialId: credential.id, deviceType: credential.device_type ?? null },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
+      userAgent: req.headers['user-agent'] ?? null,
     });
 
     res.status(201).json({ success: true, credential });
@@ -135,7 +137,8 @@ router.delete('/credentials/:id', authenticateToken, (req, res) => {
     auditLogDb.record('passkey_removed', {
       userId: req.user.id,
       metadata: { credentialId: req.params.id },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
+      userAgent: req.headers['user-agent'] ?? null,
     });
 
     res.json({ success: true });
@@ -174,7 +177,8 @@ router.post('/login/verify', loginLimiter, async (req, res) => {
     auditLogDb.record('login_success', {
       userId: user.id,
       metadata: { method: 'passkey', credentialId },
-      ipAddress: req.ip ?? null,
+      ipAddress: clientIp(req),
+      userAgent: req.headers['user-agent'] ?? null,
     });
 
     res.json({
@@ -187,7 +191,8 @@ router.post('/login/verify', loginLimiter, async (req, res) => {
       auditLogDb.record('login_failure', {
         userId: error.userId ?? null,
         metadata: { method: 'passkey', reason: error.reason ?? 'webauthn_error' },
-        ipAddress: req.ip ?? null,
+        ipAddress: clientIp(req),
+        userAgent: req.headers['user-agent'] ?? null,
       });
     }
     handleError(res, error, 'login/verify');

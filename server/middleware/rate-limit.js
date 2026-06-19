@@ -7,6 +7,8 @@
  * PM2 process this app runs as. Stale buckets are pruned lazily.
  */
 
+import { clientIp } from '../utils/client-ip.js';
+
 export function createRateLimiter({ windowMs, max, message } = {}) {
   const windowSize = windowMs ?? 60_000;
   const limit = max ?? 10;
@@ -14,7 +16,9 @@ export function createRateLimiter({ windowMs, max, message } = {}) {
   const buckets = new Map();
 
   return function rateLimit(req, res, next) {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    // Unified IP source (T-182/ADR-040): the real client behind the tunnel, not
+    // the loopback peer — so the brute-force counter keys on the actual caller.
+    const ip = clientIp(req) || 'unknown';
     const now = Date.now();
     const entry = buckets.get(ip);
 
