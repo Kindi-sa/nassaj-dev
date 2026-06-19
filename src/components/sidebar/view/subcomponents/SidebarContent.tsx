@@ -108,6 +108,8 @@ type SidebarContentProps = {
   isRefreshing: boolean;
   onCreateProject: () => void;
   onCollapseSidebar: () => void;
+  /** Select a project — forwarded to PresencePanel's active-conversations menu. */
+  onProjectSelect: (project: Project) => void;
   updateAvailable: boolean;
   releaseInfo: ReleaseInfo | null;
   latestVersion: string | null;
@@ -142,6 +144,7 @@ export default function SidebarContent({
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
+  onProjectSelect,
   updateAvailable,
   releaseInfo,
   latestVersion,
@@ -184,7 +187,7 @@ export default function SidebarContent({
           additive strip so it never touches the sidebar's project-list logic.
           `projects` is forwarded so the active-conversations tooltip can map
           running sessions to their project display names. */}
-      <PresencePanel projects={projects} />
+      <PresencePanel projects={projects} onProjectSelect={onProjectSelect} />
 
       <ScrollArea className="flex-1 overflow-y-auto overscroll-contain md:px-1.5 md:py-2">
         {searchMode === 'archived' ? (

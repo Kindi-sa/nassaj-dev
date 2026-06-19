@@ -264,6 +264,7 @@ function Sidebar({
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
+            onProjectSelect={handleProjectSelect}
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}
             latestVersion={latestVersion}

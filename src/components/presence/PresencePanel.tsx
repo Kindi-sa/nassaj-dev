@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import { MessagesSquare } from 'lucide-react';
 
 import { useAuth } from '../auth/context/AuthContext';
 import { cn } from '../../lib/utils';
@@ -9,6 +8,7 @@ import { Tooltip } from '../../shared/view/ui';
 import type { Project } from '../../types/app';
 
 import { usePresence, type PresenceUser } from './usePresence';
+import { ActiveConversationsMenu } from './ActiveConversationsMenu';
 
 /**
  * Live presence panel (C-MU-UX-PRESENCE, compact redesign
@@ -68,9 +68,14 @@ function toParticipant(user: PresenceUser): SessionParticipant {
 type PresencePanelProps = {
   /** Project list from the sidebar — used to map running sessions to project names. */
   projects?: Project[];
+  /**
+   * Select a project — forwarded to the active-conversations menu so clicking a
+   * project row in the (now interactive) popover navigates to it.
+   */
+  onProjectSelect?: (project: Project) => void;
 };
 
-export default function PresencePanel({ projects = [] }: PresencePanelProps) {
+export default function PresencePanel({ projects = [], onProjectSelect }: PresencePanelProps) {
   const { t, i18n } = useTranslation('presence');
   const { user: currentUser } = useAuth();
   const { users: presenceUsers, activeConversations } = usePresence();
@@ -127,33 +132,6 @@ export default function PresencePanel({ projects = [] }: PresencePanelProps) {
         defaultValue: '{{users}} users · {{agents}} agents',
       })
     : t('connectedUsers', { count: totalConnected, defaultValue: '{{count}} users' });
-
-  const activeConversationsLabel = t('activeConversations', {
-    defaultValue: 'Active conversations',
-  });
-  const activeConversationsCount = t('activeConversationsCount', {
-    count: activeConversations?.total ?? 0,
-    defaultValue: '{{count}} active',
-  });
-
-  /**
-   * Resolve a projectPath from byProject to a display name.
-   * Tries to match against the projects prop via fullPath or path; falls back
-   * to the last path segment (mirrors projectLabel logic above).
-   */
-  function resolveProjectDisplayName(projectPath: string): string {
-    const match = projects.find(
-      (p) =>
-        p.fullPath === projectPath ||
-        (p as unknown as Record<string, unknown>).path === projectPath,
-    );
-    if (match) {
-      return match.displayName;
-    }
-    const trimmed = projectPath.replace(/[/\\]+$/, '');
-    const segments = trimmed.split(/[/\\]+/).filter(Boolean);
-    return segments[segments.length - 1] ?? projectPath;
-  }
 
   if (presenceUsers.length === 0) {
     return null;
@@ -239,74 +217,17 @@ export default function PresencePanel({ projects = [] }: PresencePanelProps) {
       </div>
 
       {/* Active conversations counter — pinned to inline-end of the full row.
-        * Hidden until the first presence snapshot arrives (activeConversations != null).
-        * The tooltip lists each visible project from byProject, then a «N elsewhere»
-        * line when hiddenCount > 0 — so total always equals the badge count. */}
-      {activeConversations != null && (
-        <Tooltip
-          content={
-            activeConversations.byProject.length > 0 ? (
-              <span className="flex flex-col gap-0.5 text-start">
-                <span className="mb-0.5 font-semibold opacity-90">
-                  {t('activeConversations', { defaultValue: 'Active conversations' })}
-                </span>
-                {activeConversations.byProject.map(({ projectPath, count }) => (
-                  <span key={projectPath} className="flex items-center gap-1">
-                    <span className="truncate max-w-[160px]">
-                      {resolveProjectDisplayName(projectPath)}
-                    </span>
-                    <span className="opacity-70">
-                      {t('activeConversationsProjectCount', {
-                        count,
-                        defaultValue: '— {{count}}',
-                      })}
-                    </span>
-                  </span>
-                ))}
-                {activeConversations.hiddenCount > 0 && (
-                  <span className="opacity-60 italic">
-                    {t('activeConversationsElsewhere', {
-                      count: activeConversations.hiddenCount,
-                      defaultValue: '{{count}} elsewhere',
-                    })}
-                  </span>
-                )}
-              </span>
-            ) : (
-              activeConversationsLabel
-            )
-          }
-        >
-          <span
-            className="inline-flex flex-shrink-0 items-center gap-0.5 text-[10px] tabular-nums text-muted-foreground/70"
-            aria-label={
-              activeConversations.byProject.length > 0
-                ? t('activeConversationsAriaLabel', {
-                    count: activeConversations.total,
-                    projects: [
-                      ...activeConversations.byProject.map(
-                        ({ projectPath, count }) =>
-                          `${resolveProjectDisplayName(projectPath)} ${count}`,
-                      ),
-                      ...(activeConversations.hiddenCount > 0
-                        ? [
-                            t('activeConversationsElsewhere', {
-                              count: activeConversations.hiddenCount,
-                              defaultValue: '{{count}} elsewhere',
-                            }),
-                          ]
-                        : []),
-                    ].join(', '),
-                    defaultValue: 'Active conversations: {{count}} across {{projects}}',
-                  })
-                : `${activeConversationsLabel}: ${activeConversations.total}`
-            }
-          >
-            <MessagesSquare className="h-2.5 w-2.5 flex-shrink-0 opacity-60" aria-hidden="true" />
-            <span>{activeConversationsCount}</span>
-          </span>
-        </Tooltip>
-      )}
+        * Now the *same* interactive popover as the collapsed rail (shared
+        * ActiveConversationsMenu, placement="bottom"): clicking a project row
+        * navigates to it. Renders nothing until the first snapshot arrives
+        * (activeConversations === null), and lists each visible project from
+        * byProject plus a «N elsewhere» line so total equals the badge count. */}
+      <ActiveConversationsMenu
+        activeConversations={activeConversations}
+        projects={projects}
+        onProjectSelect={onProjectSelect}
+        placement="bottom"
+      />
     </div>
   );
 }
