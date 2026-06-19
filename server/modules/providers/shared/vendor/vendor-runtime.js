@@ -27,7 +27,7 @@ import path from 'node:path';
 import { resolveProviderEnv } from '../../../../services/isolation/resolve-provider-env.js';
 import { sessionsService } from '../../services/sessions.service.js';
 import { providerModelsService } from '../../services/provider-models.service.js';
-import { createNormalizedMessage, generateMessageId, normalizeSessionName } from '../../../../shared/utils.js';
+import { createNormalizedMessage, normalizeSessionName } from '../../../../shared/utils.js';
 
 import { VENDOR_RUNTIME } from './vendor-config.js';
 import { vendorTranscriptPath } from './vendor-transcript.js';
@@ -253,8 +253,7 @@ async function streamResponse({ provider, sessionId, projectPath, body, ws }) {
     }
   };
 
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
+  for (;;) {
     const { done, value } = await reader.read();
     if (done) {
       break;
