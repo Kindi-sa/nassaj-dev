@@ -18,7 +18,12 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the default model (currently Opus 4.7 (1M context)) · $5/$25 per Mtok',
+      description: 'Use the default model (currently Opus 4.8 (1M context)) · $5/$25 per Mtok',
+    },
+    {
+      value: 'claude-fable-5',
+      label: 'Fable 5',
+      description: 'Claude Fable 5 · Most capable, long-horizon agentic work (1M context) · $10/$50 per Mtok',
     },
     {
       value: 'sonnet',
