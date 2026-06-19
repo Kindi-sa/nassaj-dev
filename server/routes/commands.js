@@ -307,12 +307,20 @@ const builtInCommands = [
  * keep the cache's effectiveness; isolated users each get their own entry.
  */
 const DYNAMIC_BUILTIN_TTL_MS = 10 * 60 * 1000; // 10 minutes
-// How long a cold-cache /list request waits for the first probe before falling
-// back to the static list. The probe itself typically completes in <1s; its own
-// hard timeout (4s in getClaudeBuiltInCommands) still bounds the background run.
-// Env override exists for tests and operational tuning.
+// How long a cold-cache /list request blocks waiting for the first probe before
+// falling back to the static list. Tuned just above the probe's typical warm
+// latency (~700ms on this host) so the happy path still returns the full merged
+// set in one fetch, while a slow/cold probe no longer stalls the first menu open
+// for 2.5s. On overrun we return the static (FS-backed) list immediately; the
+// SAME probe keeps running single-flighted and, on completion, stores its
+// COMPLETE result in the cache (refreshDynamicBuiltIns only writes a non-null
+// array), so the next request within seconds gets the dynamic built-ins. The
+// read-side timeout NEVER writes a partial result — the cache write-site is the
+// sole place a result is stored, and only when the probe fully resolved. The
+// probe's own hard timeout (4s in getClaudeBuiltInCommands) bounds the
+// background run. Env override exists for tests and operational tuning.
 const COLD_PROBE_WAIT_MS =
-  Number(process.env.COMMANDS_COLD_PROBE_WAIT_MS || "") || 2500;
+  Number(process.env.COMMANDS_COLD_PROBE_WAIT_MS || "") || 1000;
 const dynamicBuiltInCache = new Map(); // cacheKey -> { commands, expiresAt }
 const dynamicBuiltInInFlight = new Map(); // cacheKey -> Promise<commands|null>
 
