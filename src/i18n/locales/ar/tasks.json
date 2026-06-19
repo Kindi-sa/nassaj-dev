@@ -1,0 +1,142 @@
+{
+  "notConfigured": {
+    "title": "TaskMaster AI غير مهيأ",
+    "description": "يساعدك TaskMaster على تقسيم المشاريع المعقدة إلى مهام قابلة للإدارة بمساعدة الذكاء الاصطناعي",
+    "whatIsTitle": "🎯 ما هو TaskMaster؟",
+    "features": {
+      "aiPowered": "إدارة مهام مدعومة بالذكاء الاصطناعي: تقسيم المشاريع المعقدة إلى مهام فرعية قابلة للإدارة",
+      "prdTemplates": "قوالب PRD: توليد المهام من وثائق متطلبات المنتج",
+      "dependencyTracking": "تتبع التبعيات: فهم علاقات المهام وترتيب تنفيذها",
+      "progressVisualization": "تصور التقدم: لوحات كانبان وتحليلات مفصلة للمهام",
+      "cliIntegration": "تكامل سطر الأوامر: استخدام أوامر taskmaster لسير العمل المتقدم"
+    },
+    "initializeButton": "تهيئة TaskMaster AI"
+  },
+  "gettingStarted": {
+    "title": "البدء مع TaskMaster",
+    "subtitle": "تمت تهيئة TaskMaster! إليك ما يجب فعله بعد ذلك:",
+    "steps": {
+      "createPRD": {
+        "title": "إنشاء وثيقة متطلبات المنتج (PRD)",
+        "description": "ناقش فكرة مشروعك وأنشئ وثيقة PRD تصف ما تريد بناءه.",
+        "addButton": "إضافة PRD",
+        "existingPRDs": "وثائق PRD الموجودة:"
+      },
+      "generateTasks": {
+        "title": "توليد المهام من PRD",
+        "description": "بمجرد توفر وثيقة PRD، اطلب من مساعد الذكاء الاصطناعي تحليلها وسيقوم TaskMaster تلقائياً بتقسيمها إلى مهام قابلة للإدارة مع تفاصيل التنفيذ."
+      },
+      "analyzeTasks": {
+        "title": "تحليل المهام وتوسيعها",
+        "description": "اطلب من مساعد الذكاء الاصطناعي تحليل تعقيد المهام وتوسيعها إلى مهام فرعية مفصلة لتسهيل التنفيذ."
+      },
+      "startBuilding": {
+        "title": "ابدأ البناء",
+        "description": "اطلب من مساعد الذكاء الاصطناعي البدء بالعمل على المهام وتحديث حالتها وإضافة مهام جديدة مع تطور مشروعك."
+      }
+    },
+    "tip": "💡 نصيحة: ابدأ بوثيقة PRD للاستفادة القصوى من توليد المهام المدعوم بالذكاء الاصطناعي في TaskMaster"
+  },
+  "setupModal": {
+    "title": "إعداد TaskMaster",
+    "subtitle": "واجهة سطر أوامر تفاعلية لـ {{projectName}}",
+    "willStart": "ستبدأ تهيئة TaskMaster تلقائياً",
+    "completed": "اكتمل إعداد TaskMaster! يمكنك الآن إغلاق هذه النافذة.",
+    "closeButton": "إغلاق",
+    "closeContinueButton": "إغلاق ومتابعة"
+  },
+  "helpGuide": {
+    "title": "البدء مع TaskMaster",
+    "subtitle": "دليلك لإدارة مهام منتجة",
+    "examples": {
+      "parsePRD": "💬 مثال:\n\"لقد هيأت للتو مشروعاً جديداً باستخدام Claude Task Master. لدي وثيقة PRD في .taskmaster/docs/prd.txt. هل يمكنك مساعدتي في تحليلها وإعداد المهام الأولية؟\"",
+      "expandTask": "💬 مثال:\n\"تبدو المهمة 5 معقدة. هل يمكنك تقسيمها إلى مهام فرعية؟\"",
+      "addTask": "💬 مثال:\n\"الرجاء إضافة مهمة جديدة لتنفيذ رفع صور الملف الشخصي للمستخدم باستخدام Cloudinary، مع البحث عن أفضل نهج.\""
+    },
+    "moreExamples": "عرض المزيد من الأمثلة وأنماط الاستخدام ←",
+    "proTips": {
+      "title": "💡 نصائح احترافية",
+      "search": "استخدم شريط البحث للعثور بسرعة على مهام محددة",
+      "views": "بدّل بين عروض كانبان والقائمة والشبكة باستخدام أزرار التبديل",
+      "filters": "استخدم المرشحات للتركيز على حالات أو أولويات مهام محددة",
+      "details": "انقر على أي مهمة لعرض معلومات مفصلة وإدارة المهام الفرعية"
+    },
+    "learnMore": {
+      "title": "📚 اعرف المزيد",
+      "description": "TaskMaster AI نظام متقدم لإدارة المهام مبني للمطورين. احصل على التوثيق والأمثلة وساهم في المشروع.",
+      "githubButton": "عرض على GitHub"
+    }
+  },
+  "search": {
+    "placeholder": "البحث في المهام..."
+  },
+  "filters": {
+    "button": "المرشحات",
+    "status": "الحالة",
+    "priority": "الأولوية",
+    "sortBy": "الترتيب حسب",
+    "allStatuses": "كل الحالات",
+    "allPriorities": "كل الأولويات",
+    "showing": "عرض {{filtered}} من أصل {{total}} مهمة",
+    "clearFilters": "مسح المرشحات"
+  },
+  "sort": {
+    "id": "المعرّف",
+    "status": "الحالة",
+    "priority": "الأولوية",
+    "idAsc": "المعرّف (تصاعدي)",
+    "idDesc": "المعرّف (تنازلي)",
+    "titleAsc": "العنوان (أ-ي)",
+    "titleDesc": "العنوان (ي-أ)",
+    "statusAsc": "الحالة (المعلقة أولاً)",
+    "statusDesc": "الحالة (المنجزة أولاً)",
+    "priorityAsc": "الأولوية (المرتفعة أولاً)",
+    "priorityDesc": "الأولوية (المنخفضة أولاً)"
+  },
+  "views": {
+    "kanban": "عرض كانبان",
+    "list": "عرض القائمة",
+    "grid": "عرض الشبكة"
+  },
+  "kanban": {
+    "pending": "📋 للتنفيذ",
+    "inProgress": "🚀 قيد التنفيذ",
+    "done": "✅ منجز",
+    "blocked": "🚫 محظور",
+    "deferred": "⏳ مؤجل",
+    "cancelled": "❌ ملغى",
+    "noTasksYet": "لا توجد مهام بعد",
+    "tasksWillAppear": "ستظهر المهام هنا",
+    "moveTasksHere": "انقل المهام إلى هنا عند البدء بها",
+    "completedTasksHere": "تظهر المهام المكتملة هنا",
+    "statusTasksHere": "ستظهر المهام بهذه الحالة هنا"
+  },
+  "buttons": {
+    "help": "دليل البدء مع TaskMaster",
+    "prds": "وثائق PRD",
+    "addPRD": "إضافة PRD",
+    "addTask": "إضافة مهمة",
+    "createNewPRD": "إنشاء PRD جديد",
+    "prdsAvailable": "{{count}} وثيقة PRD متاحة"
+  },
+  "prd": {
+    "modified": "آخر تعديل: {{date}}"
+  },
+  "statuses": {
+    "pending": "معلقة",
+    "in-progress": "قيد التنفيذ",
+    "done": "منجزة",
+    "blocked": "محظورة",
+    "deferred": "مؤجلة",
+    "cancelled": "ملغاة"
+  },
+  "priorities": {
+    "high": "مرتفعة",
+    "medium": "متوسطة",
+    "low": "منخفضة"
+  },
+  "noMatchingTasks": {
+    "title": "لا توجد مهام تطابق مرشحاتك",
+    "description": "حاول تعديل معايير البحث أو التصفية."
+  }
+}
