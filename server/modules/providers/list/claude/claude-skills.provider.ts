@@ -19,6 +19,64 @@ import {
 
 const getClaudeHomePath = (): string => path.join(os.homedir(), '.claude');
 
+/**
+ * Server-side TTL cache for the Claude skills scan.
+ *
+ * Each `listSkills` call walks `~/.claude/skills`, `{workspace}/.claude/skills`,
+ * the Claude `settings.json` (`enabledPlugins`), `installed_plugins.json`, and
+ * every enabled plugin folder (commands/skills markdown). That is a sizable
+ * filesystem sweep repeated on every `/api/providers/claude/skills` request and
+ * was the source of the slash-command/badge latency. Skills rarely change inside
+ * a session, so a short TTL (mirroring `dynamicBuiltInCache` in
+ * server/routes/commands.js) removes the repeated I/O without a complex
+ * invalidation scheme.
+ *
+ * Cache-key correctness (multi-user isolation — B-26 sibling concern):
+ * the scan result is fully determined by three inputs and the key folds in ALL
+ * of them so entries can never cross a user/project boundary:
+ *   1. provider              — this adapter only scans Claude paths; included for
+ *                              clarity and to stay correct if the cache is ever
+ *                              shared across provider instances.
+ *   2. resolved Claude home  — `getClaudeHomePath()` (= os.homedir()/.claude).
+ *                              This drives the user-scope skills dir, the plugin
+ *                              settings, the installed-plugins manifest, and every
+ *                              plugin folder. Today the skills route does NOT
+ *                              apply a per-user CLAUDE_CONFIG_DIR override, so this
+ *                              is the operator's single home for all callers; but
+ *                              keying on it explicitly means that if a per-user
+ *                              HOME/config override is ever wired into this path,
+ *                              isolated users automatically get distinct cache
+ *                              entries instead of leaking one user's skills to
+ *                              another. The cost is zero today (constant per
+ *                              process) and the safety is structural.
+ *   3. resolved workspace    — `{workspace}/.claude/skills` is project-scoped, so
+ *                              two projects must never share an entry. Resolved
+ *                              the same way the scan resolves it (path.resolve of
+ *                              the workspace, defaulting to process.cwd()).
+ *
+ * When in doubt the key carries MORE (correctness before hit-rate): a redundant
+ * input only fragments the cache, while a missing one would leak data.
+ */
+const SKILLS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+type SkillsCacheEntry = {
+  skills: ProviderSkill[];
+  expiresAt: number;
+};
+
+const skillsScanCache = new Map<string, SkillsCacheEntry>();
+
+const buildSkillsCacheKey = (
+  provider: string,
+  claudeHomePath: string,
+  workspacePath: string,
+): string =>
+  [
+    provider,
+    path.resolve(claudeHomePath),
+    path.resolve(workspacePath),
+  ].join('::');
+
 const getClaudePluginName = (pluginId: string): string | null => {
   const normalizedPluginId = pluginId.trim();
   if (!normalizedPluginId || normalizedPluginId === '@') {
@@ -76,10 +134,33 @@ export class ClaudeSkillsProvider extends SkillsProvider {
   }
 
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
-    return [
-      ...(await super.listSkills(options)),
-      ...(await this.listPluginSkills(getClaudeHomePath())),
+    const claudeHomePath = getClaudeHomePath();
+    // Resolve the workspace exactly as the base scan does (path.resolve, default
+    // cwd) so the cache key matches the directory actually walked.
+    const resolvedWorkspacePath = path.resolve(options?.workspacePath ?? process.cwd());
+    const cacheKey = buildSkillsCacheKey(
+      this.provider,
+      claudeHomePath,
+      resolvedWorkspacePath,
+    );
+
+    const now = Date.now();
+    const cached = skillsScanCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      return cached.skills;
+    }
+
+    const skills = [
+      ...(await super.listSkills({ ...options, workspacePath: resolvedWorkspacePath })),
+      ...(await this.listPluginSkills(claudeHomePath)),
     ];
+
+    skillsScanCache.set(cacheKey, {
+      skills,
+      expiresAt: now + SKILLS_CACHE_TTL_MS,
+    });
+
+    return skills;
   }
 
   protected async getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]> {
