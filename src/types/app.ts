@@ -1,4 +1,16 @@
-export type LLMProvider = 'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity' | 'opencode';
+export type LLMProvider =
+  | 'claude'
+  | 'cursor'
+  | 'codex'
+  | 'gemini'
+  | 'antigravity'
+  | 'opencode'
+  // Hosted vendor providers (ADR-036, internal single-user). Each is its own
+  // provider over server/modules/providers and surfaces in the model picker /
+  // auth-status the moment its API key is configured (ADR-030 behavior).
+  | 'kimi'
+  | 'deepseek'
+  | 'glm';
 
 export type ProviderModelOption = {
   value: string;

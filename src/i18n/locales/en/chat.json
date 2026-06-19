@@ -34,7 +34,10 @@
     "codex": "Codex",
     "gemini": "Gemini",
     "antigravity": "Antigravity",
-    "opencode": "OpenCode"
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
   },
   "subagent": {
     "badge": "Sub-agent",
@@ -215,7 +218,11 @@
       "gemini": "Ready to use Gemini with {{model}}. Start typing your message below.",
       "antigravity": "Ready to use Antigravity (agy). The model is chosen from agy's own settings.",
       "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
-      "default": "Select a provider above to begin"
+      "default": "Select a provider above to begin",
+      "kimi": "Ready to use Kimi with {{model}}. Start typing your message below.",
+      "deepseek": "Ready to use DeepSeek with {{model}}. Start typing your message below.",
+      "glm": "Ready to use GLM with {{model}}. Start typing your message below.",
+      "claudeEngine": "Ready: the Claude engine runs on {{provider}} with {{model}}. Start typing your message below."
     },
     "antigravity": {
       "activeModel": "Active model",
@@ -223,7 +230,9 @@
       "loading": "Loading…",
       "unknown": "Unknown"
     },
-    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
+    "addApiKey": "Add {{provider}} API key to enable",
+    "engineOnVendor": "Claude engine on {{provider}}"
   },
   "session": {
     "continue": {

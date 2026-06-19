@@ -57,6 +57,8 @@ type ClaudePermissionsProps = {
   onAllowedToolsChange: (value: string[]) => void;
   disallowedTools: string[];
   onDisallowedToolsChange: (value: string[]) => void;
+  allowVendorDelegation: boolean;
+  onAllowVendorDelegationChange: (value: boolean) => void;
 };
 
 function ClaudePermissions({
@@ -66,6 +68,8 @@ function ClaudePermissions({
   onAllowedToolsChange,
   disallowedTools,
   onDisallowedToolsChange,
+  allowVendorDelegation,
+  onAllowVendorDelegationChange,
 }: Omit<ClaudePermissionsProps, 'agent'>) {
   const { t } = useTranslation('settings');
   const [newAllowedTool, setNewAllowedTool] = useState('');
@@ -112,6 +116,25 @@ function ClaudePermissions({
               </div>
               <div className="text-sm text-orange-700 dark:text-orange-300">
                 {t('permissions.skipPermissions.claudeDescription')}
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card/50 p-4">
+          <label className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              checked={allowVendorDelegation}
+              onChange={(event) => onAllowVendorDelegationChange(event.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-input bg-card text-primary focus:ring-2 focus:ring-primary"
+            />
+            <div>
+              <div className="font-medium text-foreground">
+                {t('permissions.allowVendorDelegation.label')}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {t('permissions.allowVendorDelegation.description')}
               </div>
             </div>
           </label>

@@ -100,6 +100,59 @@ single-user mode). `resolveProviderEnv` decrypts and injects per spawn. The thre
 vendors default to `'isolated'` in `provider-sharing.js`, so they never fall back
 to a shared operator key.
 
+## Claude engine on a vendor endpoint (ADR-037)
+
+A second, distinct path (separate from the iron-rule-bound RUN seam above): the
+**Claude engine itself** can run against a vendor's Anthropic-compatible endpoint
+(`api.moonshot.ai/anthropic`, `api.deepseek.com/anthropic`, `api.z.ai/api/anthropic`)
+by setting `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` on the spawn env. Because
+that is the opposite of the iron rule's default posture, it is fenced so an
+off-Anthropic base URL can never reach a spawn implicitly.
+
+Modules (all in `server/services/isolation/`, intentionally **outside** the
+ADR-036 `SEAM_FILES`):
+
+- `provider-anthropic-endpoints.js` — `PROVIDER_ANTHROPIC_ENDPOINT`,
+  `ENGINE_PROVIDERS`, `OFFICIAL_ANTHROPIC_HOSTS` (pure constants).
+- `apply-claude-engine-provider-env.js` — `applyClaudeEngineProviderEnv(env,
+  userId, provider)`: only for an engine provider **with** a stored per-user key,
+  injects **both** base URL and token (never half-injects), **on the passed env
+  only** (never `process.env`), and returns the authorized host `Set`.
+- `anthropic-base-url-guard.js` — `assertAnthropicBaseUrlAllowed(env, ctx)`:
+  fail-closed over every `*_BASE_URL` (env + settings.json values). Parses each
+  URL (unparseable → reject) and requires the host to be official, OR this spawn's
+  engine host (`ctx.engineProviderHosts`), OR the **escape hatch**
+  (`CLAUDE_CODE_USE_BEDROCK`/`CLAUDE_CODE_USE_VERTEX` flags, or the
+  `NASSAJ_ALLOWED_ANTHROPIC_HOSTS` env list) — else it throws.
+- `collect-settings-base-urls.js` — reads the same `settings.json` `env` channel
+  Claude Code reads at spawn and returns its `*_BASE_URL` values for the guard
+  (degrades to `[]` on a missing/corrupt file).
+
+Wired in `server/claude-sdk.js` after env/MCP are built and **before** `query()`
+(apply → collect → assert); the no-hooks retry reuses the same `sdkOptions.env`,
+so one guard covers every spawn path. The Claude model filter is bypassed only
+when an engine provider was actually engaged.
+
+The escape hatch keeps legitimate Bedrock/Vertex/proxy Claude Code setups working
+(read from env, never hard-coded — the default install stays fail-closed).
+Enforced by `server/services/isolation/claude-engine-provider.test.ts` and the
+consolidated five-case isolation surface
+`server/services/isolation/engine-provider-isolation.test.ts` (no process.env
+leak; fail-closed on a foreign/unparseable `*_BASE_URL`; a settings.json-smuggled
+base URL blocked via the collect→guard channel; no half-injection; per-user keys
+never cross; and the per-spawn delegate uses each spawn's own user key).
+
+### Vendor-delegate MCP (ADR-037, opt-in)
+
+`server/modules/providers/shared/vendor/vendor-delegate-mcp.js` —
+`buildVendorDelegateMcp(userId)` builds a **per-spawn** in-process MCP server
+exposing `delegate_to_vendor`, letting a Claude run send a single prompt to a
+vendor model without changing its own engine. The tool calls the vendor
+`/v1/messages` as an independent `fetch` with `x-api-key`; it never touches
+`ANTHROPIC_*`/`CLAUDE_*` or `sdkOptions.env`. Registered only when the agent's
+"allow delegation" flag is set; the user id is captured in the tool closure (no
+global instance) so the key is always per-user.
+
 ### Transcript & history
 
 nassaj owns the vendor transcript (the remote API stores nothing locally): one

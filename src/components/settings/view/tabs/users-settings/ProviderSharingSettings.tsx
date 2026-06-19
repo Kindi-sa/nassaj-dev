@@ -17,6 +17,9 @@ const PROVIDER_ACCENT: Record<SharingProvider, string> = {
   codex: 'bg-emerald-500',
   agy: 'bg-purple-500',
   cursor: 'bg-slate-500',
+  kimi: 'bg-rose-500',
+  deepseek: 'bg-sky-500',
+  glm: 'bg-violet-500',
 };
 
 const SHARING_MODES: SharingMode[] = ['shared', 'isolated'];

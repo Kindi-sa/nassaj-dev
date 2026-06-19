@@ -71,6 +71,57 @@ seam تشغيل المورّد لا يمكنه أبداً توجيه عميل Cl
 spawn. المورّدون الثلاثة افتراضهم `'isolated'` في `provider-sharing.js`، فلا
 يرتدّون أبداً إلى مفتاح مشغّل مشترك.
 
+## محرّك Claude على واجهة مورّد (ADR-037)
+
+مسار ثانٍ مستقل (منفصل عن seam التشغيل المحكوم بالقاعدة الحديدية أعلاه): يمكن تشغيل
+**محرّك Claude نفسه** مقابل واجهة المورّد المتوافقة مع Anthropic
+(`api.moonshot.ai/anthropic` و`api.deepseek.com/anthropic` و`api.z.ai/api/anthropic`)
+بضبط `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` على بيئة الـspawn. ولأنّ ذلك عكس
+الوضع الافتراضي للقاعدة الحديدية، فهو مُسيَّج بحيث لا يمكن أبداً أن يصل أي base URL
+غير Anthropic إلى الـspawn ضمنياً.
+
+الوحدات (كلها في `server/services/isolation/`، مقصودٌ إبقاؤها **خارج**
+`SEAM_FILES` الخاص بـADR-036):
+
+- `provider-anthropic-endpoints.js` — `PROVIDER_ANTHROPIC_ENDPOINT` و
+  `ENGINE_PROVIDERS` و`OFFICIAL_ANTHROPIC_HOSTS` (ثوابت صرفة).
+- `apply-claude-engine-provider-env.js` — `applyClaudeEngineProviderEnv(env,
+  userId, provider)`: فقط لمزوّد محرّك **لديه** مفتاح مخزَّن لكل مستخدم، يحقن **كِلا**
+  الـbase URL والـtoken (لا نصف-حقن)، **على الكائن env المُمرَّر فقط** (لا يلمس
+  `process.env`)، ويعيد `Set` المضيف المسموح.
+- `anthropic-base-url-guard.js` — `assertAnthropicBaseUrlAllowed(env, ctx)`:
+  fail-closed على كل `*_BASE_URL` (قيم البيئة + settings.json). يحلّل كل URL (غير
+  القابل للتحليل = رفض) ويشترط أن يكون المضيف رسمياً، أو مضيف محرّك هذا الـspawn
+  (`ctx.engineProviderHosts`)، أو ضمن **escape hatch** (علَما
+  `CLAUDE_CODE_USE_BEDROCK`/`CLAUDE_CODE_USE_VERTEX`، أو قائمة
+  `NASSAJ_ALLOWED_ANTHROPIC_HOSTS` من البيئة) — وإلا رمى استثناءً.
+- `collect-settings-base-urls.js` — يقرأ نفس قناة `settings.json` (`env`) التي
+  يقرؤها Claude Code عند الـspawn ويعيد قيم `*_BASE_URL` للحارس (يتراجع إلى `[]` عند
+  الغياب/الفساد).
+
+مُدمَج في `server/claude-sdk.js` بعد بناء البيئة/الـMCP و**قبل** `query()`
+(apply → collect → assert)؛ ومحاولة الإعادة بلا hooks تعيد استخدام نفس
+`sdkOptions.env`، فحارس واحد يغطّي كل المسارات. ويُتجاوز فلتر نماذج Claude فقط عند
+تفعيل مزوّد محرّك فعلياً.
+
+الـescape hatch يُبقي إعدادات Claude Code المشروعة (Bedrock/Vertex/بروكسي) عاملةً
+(يُقرأ من البيئة لا مثبَّتاً — والتنصيب الافتراضي يبقى fail-closed). يفرضه
+`server/services/isolation/claude-engine-provider.test.ts` وسطح العزل المُجمَّع
+بالحالات الخمس `server/services/isolation/engine-provider-isolation.test.ts` (لا
+تسرّب لـprocess.env؛ رفض fail-closed لأي `*_BASE_URL` أجنبي أو غير قابل للتحليل؛
+حجب BASE_URL مدسوس في settings.json عبر قناة collect→guard؛ منع نصف-الحقن؛ عدم
+تقاطع مفاتيح المستخدمين؛ واستخدام كل spawn مفتاحَ مستخدمه في التفويض).
+
+### MCP تفويض المورّد (ADR-037، اختياري)
+
+`server/modules/providers/shared/vendor/vendor-delegate-mcp.js` —
+`buildVendorDelegateMcp(userId)` يبني خادم MCP داخلي **لكل spawn** يعرض
+`delegate_to_vendor`، يتيح لجلسة Claude إرسال موجَّه واحد إلى نموذج مورّد دون تغيير
+محرّكها. تستدعي الأداة `/v1/messages` للمورّد عبر `fetch` مستقل بترويسة `x-api-key`؛
+ولا تلمس `ANTHROPIC_*`/`CLAUDE_*` ولا `sdkOptions.env`. تُسجَّل فقط عند تفعيل علم
+«السماح بالتفويض» للوكيل؛ ومُعرّف المستخدم مُلتقَط في closure الأداة (لا نسخة عالمية)
+فيبقى المفتاح لكل مستخدم.
+
 ### النصوص والتاريخ
 
 نسّاج يملك نص جلسة المورّد (الواجهة البعيدة لا تخزّن محلياً): سطر JSONL واحد لكل

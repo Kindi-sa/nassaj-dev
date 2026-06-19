@@ -1,8 +1,15 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, KeyRound } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 
 import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel";
+import { useVendorKeyStatuses } from "../../../provider-auth/hooks/useVendorKeyStatuses";
+import {
+  VENDOR_PROVIDERS,
+  VENDOR_PROVIDER_META,
+  isVendorProvider,
+  type VendorProvider,
+} from "../../../provider-auth/vendorProviders";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import type {
   ProjectSession,
@@ -31,6 +38,9 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "antigravity", name: "Antigravity (agy)" },
   { id: "cursor", name: "Cursor" },
   { id: "opencode", name: "OpenCode" },
+  { id: "kimi", name: "Kimi" },
+  { id: "deepseek", name: "DeepSeek" },
+  { id: "glm", name: "GLM" },
 ];
 
 const MOD_KEY =
@@ -41,6 +51,12 @@ type ProviderSelectionEmptyStateProps = {
   currentSessionId: string | null;
   provider: LLMProvider;
   setProvider: (next: LLMProvider) => void;
+  /** Active "Claude engine on a vendor endpoint" selection (ADR-037), or null. */
+  engineProvider: VendorProvider | null;
+  /** Sets/clears the engine provider; used to clear it when a plain model is picked. */
+  setEngineProvider: (next: VendorProvider | null) => void;
+  /** Selects the Claude engine routed through a vendor endpoint + a vendor model. */
+  onSelectClaudeEngineProvider: (vendor: VendorProvider, model: string) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
@@ -54,12 +70,20 @@ type ProviderSelectionEmptyStateProps = {
   setAntigravityModel: (model: string) => void;
   opencodeModel: string;
   setOpenCodeModel: (model: string) => void;
+  kimiModel: string;
+  setKimiModel: (model: string) => void;
+  deepseekModel: string;
+  setDeepSeekModel: (model: string) => void;
+  glmModel: string;
+  setGlmModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
   setInput: React.Dispatch<React.SetStateAction<string>>;
+  /** Opens settings so the operator can add a vendor API key (ADR-030 CTA). */
+  onShowSettings?: () => void;
 };
 
 type ProviderGroup = {
@@ -76,21 +100,8 @@ function getModelConfig(
   return entry ?? { OPTIONS: [], DEFAULT: "" };
 }
 
-function getCurrentModel(
-  p: LLMProvider,
-  c: string,
-  cu: string,
-  co: string,
-  g: string,
-  a: string,
-  o: string,
-) {
-  if (p === "claude") return c;
-  if (p === "codex") return co;
-  if (p === "gemini") return g;
-  if (p === "antigravity") return a;
-  if (p === "opencode") return o;
-  return cu;
+function getCurrentModel(p: LLMProvider, models: Record<LLMProvider, string>): string {
+  return models[p];
 }
 
 function getProviderDisplayName(p: LLMProvider) {
@@ -99,6 +110,9 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "codex") return "Codex";
   if (p === "antigravity") return "Antigravity (agy)";
   if (p === "opencode") return "OpenCode";
+  if (p === "kimi") return "Kimi";
+  if (p === "deepseek") return "DeepSeek";
+  if (p === "glm") return "GLM";
   return "Gemini";
 }
 
@@ -107,6 +121,9 @@ export default function ProviderSelectionEmptyState({
   currentSessionId,
   provider,
   setProvider,
+  engineProvider,
+  setEngineProvider,
+  onSelectClaudeEngineProvider,
   textareaRef,
   claudeModel,
   setClaudeModel,
@@ -120,15 +137,25 @@ export default function ProviderSelectionEmptyState({
   setAntigravityModel,
   opencodeModel,
   setOpenCodeModel,
+  kimiModel,
+  setKimiModel,
+  deepseekModel,
+  setDeepSeekModel,
+  glmModel,
+  setGlmModel,
   providerModelCatalog,
   providerModelsLoading,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
   setInput,
+  onShowSettings,
 }: ProviderSelectionEmptyStateProps) {
   const { t } = useTranslation("chat");
   const [dialogOpen, setDialogOpen] = useState(false);
+  // ADR-030: gate the three hosted vendor providers in the picker behind a
+  // configured API key. Fetch existence only (never the value).
+  const { statuses: vendorKeyStatuses } = useVendorKeyStatuses();
 
   // agy ignores UI model selection: it picks the model from its own settings.
   // So for antigravity we hide the selectable picker and show a read-only label
@@ -165,23 +192,44 @@ export default function ProviderSelectionEmptyState({
     defaultValue: "Start the next task",
   });
 
-  const currentModel = getCurrentModel(
-    provider,
-    claudeModel,
-    cursorModel,
-    codexModel,
-    geminiModel,
-    antigravityModel,
-    opencodeModel,
+  const modelByProvider = useMemo<Record<LLMProvider, string>>(
+    () => ({
+      claude: claudeModel,
+      cursor: cursorModel,
+      codex: codexModel,
+      gemini: geminiModel,
+      antigravity: antigravityModel,
+      opencode: opencodeModel,
+      kimi: kimiModel,
+      deepseek: deepseekModel,
+      glm: glmModel,
+    }),
+    [
+      claudeModel,
+      cursorModel,
+      codexModel,
+      geminiModel,
+      antigravityModel,
+      opencodeModel,
+      kimiModel,
+      deepseekModel,
+      glmModel,
+    ],
   );
 
+  const currentModel = getCurrentModel(provider, modelByProvider);
+
   const currentModelLabel = useMemo(() => {
-    const config = getModelConfig(provider, providerModelCatalog);
+    // In engine-on-vendor mode the active model id is a vendor model, so resolve
+    // its label against the vendor catalog rather than the Claude one.
+    const lookupProvider =
+      provider === "claude" && engineProvider ? engineProvider : provider;
+    const config = getModelConfig(lookupProvider, providerModelCatalog);
     const found = config.OPTIONS.find(
       (o: { value: string; label: string }) => o.value === currentModel,
     );
     return found?.label || currentModel;
-  }, [provider, currentModel, providerModelCatalog]);
+  }, [provider, engineProvider, currentModel, providerModelCatalog]);
 
   const setModelForProvider = useCallback(
     (providerId: LLMProvider, modelValue: string) => {
@@ -200,24 +248,74 @@ export default function ProviderSelectionEmptyState({
       } else if (providerId === "opencode") {
         setOpenCodeModel(modelValue);
         localStorage.setItem("opencode-model", modelValue);
+      } else if (providerId === "kimi") {
+        setKimiModel(modelValue);
+        localStorage.setItem("kimi-model", modelValue);
+      } else if (providerId === "deepseek") {
+        setDeepSeekModel(modelValue);
+        localStorage.setItem("deepseek-model", modelValue);
+      } else if (providerId === "glm") {
+        setGlmModel(modelValue);
+        localStorage.setItem("glm-model", modelValue);
       } else {
         setCursorModel(modelValue);
         localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel, setAntigravityModel, setOpenCodeModel],
+    [
+      setClaudeModel,
+      setCursorModel,
+      setCodexModel,
+      setGeminiModel,
+      setAntigravityModel,
+      setOpenCodeModel,
+      setKimiModel,
+      setDeepSeekModel,
+      setGlmModel,
+    ],
   );
 
   const handleModelSelect = useCallback(
     (providerId: LLMProvider, modelValue: string) => {
       setProvider(providerId);
       localStorage.setItem("selected-provider", providerId);
+      // Picking any plain model leaves engine-on-vendor mode. (Switching to a
+      // non-Claude provider also clears it in the hook, but a plain *Claude*
+      // model keeps provider==='claude', so clear it explicitly here.)
+      setEngineProvider(null);
       setModelForProvider(providerId, modelValue);
       setDialogOpen(false);
       setTimeout(() => textareaRef.current?.focus(), 100);
     },
-    [setProvider, setModelForProvider, textareaRef],
+    [setProvider, setEngineProvider, setModelForProvider, textareaRef],
   );
+
+  // ADR-037 (m-FE-9): "Claude engine on <vendor>" entries. Each vendor that has a
+  // configured key (ADR-030) lists its Anthropic-compatible models — the same
+  // live catalog the standalone vendor path uses — but selecting one keeps the
+  // provider as Claude and routes the engine through that vendor endpoint.
+  const claudeEngineGroups = useMemo(
+    () =>
+      VENDOR_PROVIDERS.map((vendorId) => ({
+        id: vendorId,
+        name: VENDOR_PROVIDER_META[vendorId].name,
+        models: providerModelCatalog[vendorId]?.OPTIONS ?? [],
+      })),
+    [providerModelCatalog],
+  );
+
+  const handleEngineSelect = useCallback(
+    (vendorId: VendorProvider, modelValue: string) => {
+      onSelectClaudeEngineProvider(vendorId, modelValue);
+      setDialogOpen(false);
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    },
+    [onSelectClaudeEngineProvider, textareaRef],
+  );
+
+  // True only while the Claude engine is actively pointed at a vendor endpoint.
+  const isEngineActive = provider === "claude" && engineProvider != null;
+  const engineProviderName = engineProvider ? VENDOR_PROVIDER_META[engineProvider].name : null;
 
   if (!selectedSession && !currentSessionId) {
     return (
@@ -279,7 +377,12 @@ export default function ProviderSelectionEmptyState({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1">
                       <span className="text-xs font-semibold text-foreground">
-                        {getProviderDisplayName(provider)}
+                        {isEngineActive
+                          ? t("providerSelection.engineOnVendor", {
+                              provider: engineProviderName,
+                              defaultValue: "Claude engine on {{provider}}",
+                            })
+                          : getProviderDisplayName(provider)}
                       </span>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="truncate text-xs text-foreground">
@@ -320,7 +423,12 @@ export default function ProviderSelectionEmptyState({
                         ? { ...group, models: group.models.slice(0, 1) }
                         : group,
                     )
-                    .map((group, idx) => (
+                    .map((group, idx) => {
+                    // ADR-030: a vendor provider with no configured API key is
+                    // shown but locked, with a CTA to add a key instead of models.
+                    const isLockedVendor =
+                      isVendorProvider(group.id) && !vendorKeyStatuses[group.id];
+                    return (
                     <CommandGroup
                       key={group.id}
                       className={
@@ -335,13 +443,37 @@ export default function ProviderSelectionEmptyState({
                         </span>
                       }
                     >
-                      {group.models.length === 0 && providerModelsLoading ? (
+                      {isLockedVendor ? (
+                        <CommandItem
+                          value={`${group.name} add api key`}
+                          onSelect={() => {
+                            setDialogOpen(false);
+                            onShowSettings?.();
+                          }}
+                          className="ml-4 border-l border-border/40 pl-4"
+                        >
+                          <KeyRound className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                            {t("providerSelection.addApiKey", {
+                              provider: group.name,
+                              defaultValue: "Add {{provider}} API key to enable",
+                            })}
+                          </span>
+                        </CommandItem>
+                      ) : null}
+                      {!isLockedVendor && group.models.length === 0 && providerModelsLoading ? (
                         <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
                           {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                         </CommandItem>
                       ) : null}
-                      {group.models.map((model) => {
-                        const isSelected = provider === group.id && currentModel === model.value;
+                      {(isLockedVendor ? [] : group.models).map((model) => {
+                        // While the engine runs on a vendor, the plain Claude
+                        // models are never the active selection (the engine entry
+                        // below owns the check mark).
+                        const isSelected =
+                          provider === group.id &&
+                          currentModel === model.value &&
+                          !(group.id === "claude" && isEngineActive);
                         return (
                           <CommandItem
                             key={`${group.id}-${model.value}`}
@@ -364,7 +496,79 @@ export default function ProviderSelectionEmptyState({
                         );
                       })}
                     </CommandGroup>
-                  ))}
+                    );
+                  })}
+
+                  {/* ADR-037 (m-FE-9): Claude engine routed through a vendor's
+                      Anthropic-compatible endpoint. Same ADR-030 gate as the
+                      standalone vendor groups: a vendor with no key is shown
+                      locked with a CTA; otherwise its models pick the engine. */}
+                  {claudeEngineGroups.map((group) => {
+                    const isLocked = !vendorKeyStatuses[group.id];
+                    return (
+                      <CommandGroup
+                        key={`engine-${group.id}`}
+                        className="border-t border-border/40 [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                        heading={
+                          <span className="flex items-center gap-1.5">
+                            <SessionProviderLogo provider="claude" className="h-3.5 w-3.5 shrink-0" />
+                            {t("providerSelection.engineOnVendor", {
+                              provider: group.name,
+                              defaultValue: "Claude engine on {{provider}}",
+                            })}
+                          </span>
+                        }
+                      >
+                        {isLocked ? (
+                          <CommandItem
+                            value={`claude engine ${group.name} add api key`}
+                            onSelect={() => {
+                              setDialogOpen(false);
+                              onShowSettings?.();
+                            }}
+                            className="ml-4 border-l border-border/40 pl-4"
+                          >
+                            <KeyRound className="mr-2 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                              {t("providerSelection.addApiKey", {
+                                provider: group.name,
+                                defaultValue: "Add {{provider}} API key to enable",
+                              })}
+                            </span>
+                          </CommandItem>
+                        ) : null}
+                        {!isLocked && group.models.length === 0 && providerModelsLoading ? (
+                          <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
+                            {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
+                          </CommandItem>
+                        ) : null}
+                        {(isLocked ? [] : group.models).map((model) => {
+                          const isSelected =
+                            isEngineActive && engineProvider === group.id && claudeModel === model.value;
+                          return (
+                            <CommandItem
+                              key={`engine-${group.id}-${model.value}`}
+                              value={`claude engine ${group.name} ${model.label} ${model.description || ''}`}
+                              onSelect={() => handleEngineSelect(group.id, model.value)}
+                              className="ml-4 border-l border-border/40 pl-4"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate">{model.label}</div>
+                                {model.description && (
+                                  <div className="truncate text-xs text-muted-foreground">
+                                    {model.description}
+                                  </div>
+                                )}
+                              </div>
+                              {isSelected && (
+                                <Check className="ml-auto h-4 w-4 shrink-0 text-primary" />
+                              )}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    );
+                  })}
                 </CommandList>
               </Command>
             </DialogContent>
@@ -372,8 +576,14 @@ export default function ProviderSelectionEmptyState({
           )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
-            {
-              {
+            {isEngineActive
+              ? t("providerSelection.readyPrompt.claudeEngine", {
+                  provider: engineProviderName,
+                  model: currentModelLabel,
+                  defaultValue:
+                    "Ready: the Claude engine runs on {{provider}} with {{model}}. Start typing your message below.",
+                })
+              : {
                 claude: t("providerSelection.readyPrompt.claude", {
                   model: claudeModel,
                 }),
@@ -393,6 +603,18 @@ export default function ProviderSelectionEmptyState({
                 opencode: t("providerSelection.readyPrompt.opencode", {
                   model: opencodeModel,
                   defaultValue: "Ready with OpenCode {{model}}",
+                }),
+                kimi: t("providerSelection.readyPrompt.kimi", {
+                  model: kimiModel,
+                  defaultValue: "Ready to use Kimi with {{model}}. Start typing your message below.",
+                }),
+                deepseek: t("providerSelection.readyPrompt.deepseek", {
+                  model: deepseekModel,
+                  defaultValue: "Ready to use DeepSeek with {{model}}. Start typing your message below.",
+                }),
+                glm: t("providerSelection.readyPrompt.glm", {
+                  model: glmModel,
+                  defaultValue: "Ready to use GLM with {{model}}. Start typing your message below.",
                 }),
               }[provider]
             }

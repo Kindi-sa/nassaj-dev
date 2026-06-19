@@ -33,7 +33,10 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "gemini": "Gemini",
-    "antigravity": "Antigravity"
+    "antigravity": "Antigravity",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
   },
   "subagent": {
     "badge": "وكيل فرعي",
@@ -213,7 +216,12 @@
       "codex": "جاهز لاستخدام Codex مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "gemini": "جاهز لاستخدام Gemini مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
-      "default": "اختر provider أعلاه للبدء"
+      "default": "اختر provider أعلاه للبدء",
+      "kimi": "جاهز لاستخدام Kimi مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "deepseek": "جاهز لاستخدام DeepSeek مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "glm": "جاهز لاستخدام GLM مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "opencode": "جاهز لاستخدام OpenCode مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "claudeEngine": "جاهز: محرّك Claude يعمل على {{provider}} بنموذج {{model}}. ابدأ بكتابة رسالتك أدناه."
     },
     "antigravity": {
       "activeModel": "النموذج النشط",
@@ -221,7 +229,9 @@
       "loading": "جارٍ التحميل…",
       "unknown": "غير معروف"
     },
-    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits"
+    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits",
+    "addApiKey": "أضف مفتاح {{provider}} API للتفعيل",
+    "engineOnVendor": "محرّك Claude على {{provider}}"
   },
   "session": {
     "continue": {

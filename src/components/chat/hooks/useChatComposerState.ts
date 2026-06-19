@@ -36,6 +36,12 @@ interface UseChatComposerStateArgs {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   provider: LLMProvider;
+  /**
+   * Active "Claude engine on a vendor endpoint" selection (ADR-037). Non-null
+   * only while provider==='claude'; when set, the claude-command carries
+   * options.engineProvider so the server points the engine at that vendor.
+   */
+  engineProvider: 'kimi' | 'deepseek' | 'glm' | null;
   permissionMode: PermissionMode | string;
   cyclePermissionMode: () => void;
   cursorModel: string;
@@ -44,6 +50,9 @@ interface UseChatComposerStateArgs {
   geminiModel: string;
   antigravityModel: string;
   opencodeModel: string;
+  kimiModel: string;
+  deepseekModel: string;
+  glmModel: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -168,6 +177,7 @@ export function useChatComposerState({
   selectedSession,
   currentSessionId,
   provider,
+  engineProvider,
   permissionMode,
   cyclePermissionMode,
   cursorModel,
@@ -176,6 +186,9 @@ export function useChatComposerState({
   geminiModel,
   antigravityModel,
   opencodeModel,
+  kimiModel,
+  deepseekModel,
+  glmModel,
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -345,7 +358,13 @@ export function useChatComposerState({
                     ? antigravityModel
                     : provider === 'opencode'
                       ? opencodeModel
-                      : claudeModel,
+                      : provider === 'kimi'
+                        ? kimiModel
+                        : provider === 'deepseek'
+                          ? deepseekModel
+                          : provider === 'glm'
+                            ? glmModel
+                            : claudeModel,
           tokenUsage: tokenBudget,
         };
 
@@ -399,6 +418,9 @@ export function useChatComposerState({
       cursorModel,
       geminiModel,
       opencodeModel,
+      kimiModel,
+      deepseekModel,
+      glmModel,
       handleBuiltInCommand,
       handleCustomCommand,
       input,
@@ -616,6 +638,36 @@ export function useChatComposerState({
             resume, model: opencodeModel, sessionSummary,
           },
         });
+      } else if (provider === 'kimi') {
+        sendMessage({
+          type: 'kimi-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: kimiModel, sessionSummary,
+          },
+        });
+      } else if (provider === 'deepseek') {
+        sendMessage({
+          type: 'deepseek-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: deepseekModel, sessionSummary,
+          },
+        });
+      } else if (provider === 'glm') {
+        sendMessage({
+          type: 'glm-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: glmModel, sessionSummary,
+          },
+        });
       } else {
         sendMessage({
           type: 'claude-command',
@@ -624,12 +676,24 @@ export function useChatComposerState({
             projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
             resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
             images: uploadedImages,
+            // ADR-037 (B-DEL-6): the "allow delegating subtasks to other models"
+            // toggle lives in the Claude agent settings (claude-settings, the same
+            // blob toolsSettings is for provider==='claude'). When on, the server
+            // registers the per-spawn vendor-delegate MCP server keyed to the user.
+            // Omitted entirely (falsy) on the default path.
+            ...(toolsSettings?.allowVendorDelegation ? { allowVendorDelegation: true } : {}),
+            // ADR-037: when the Claude engine is routed through a vendor endpoint,
+            // the server reads options.engineProvider to inject that vendor's
+            // ANTHROPIC_BASE_URL/AUTH_TOKEN and passes `model` (a vendor model id)
+            // through unchanged. Omitted entirely on the normal official path.
+            ...(engineProvider ? { engineProvider } : {}),
           },
         });
       }
     },
     [
       antigravityModel, claudeModel, codexModel, cursorModel, geminiModel, opencodeModel,
+      kimiModel, deepseekModel, glmModel, engineProvider,
       getToolsSettings, permissionMode, provider, selectedProject, selectedSession, sendMessage,
     ],
   );

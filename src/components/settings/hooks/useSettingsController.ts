@@ -32,6 +32,7 @@ type ClaudeSettingsStorage = {
   allowedTools?: string[];
   disallowedTools?: string[];
   skipPermissions?: boolean;
+  allowVendorDelegation?: boolean;
   projectSortOrder?: ProjectSortOrder;
 };
 
@@ -97,6 +98,7 @@ const createEmptyClaudePermissions = (): ClaudePermissionsState => ({
   allowedTools: [],
   disallowedTools: [],
   skipPermissions: false,
+  allowVendorDelegation: false,
 });
 
 const createEmptyCursorPermissions = (): CursorPermissionsState => ({
@@ -156,6 +158,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         allowedTools: savedClaudeSettings.allowedTools || [],
         disallowedTools: savedClaudeSettings.disallowedTools || [],
         skipPermissions: Boolean(savedClaudeSettings.skipPermissions),
+        allowVendorDelegation: Boolean(savedClaudeSettings.allowVendorDelegation),
       });
       setProjectSortOrder(savedClaudeSettings.projectSortOrder === 'date' ? 'date' : 'name');
 
@@ -237,6 +240,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
         allowedTools: claudePermissions.allowedTools,
         disallowedTools: claudePermissions.disallowedTools,
         skipPermissions: claudePermissions.skipPermissions,
+        allowVendorDelegation: claudePermissions.allowVendorDelegation,
         projectSortOrder,
         lastUpdated: now,
       }));
@@ -275,6 +279,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     claudePermissions.allowedTools,
     claudePermissions.disallowedTools,
     claudePermissions.skipPermissions,
+    claudePermissions.allowVendorDelegation,
     codexPermissionMode,
     cursorPermissions.allowedCommands,
     cursorPermissions.disallowedCommands,
@@ -383,6 +388,7 @@ export function useSettingsController({ isOpen, initialTab }: UseSettingsControl
     codexPermissionMode,
     setCodexPermissionMode,
     providerAuthStatus,
+    checkProviderAuthStatus,
     geminiPermissionMode,
     setGeminiPermissionMode,
     openLoginForProvider,

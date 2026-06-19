@@ -78,6 +78,9 @@ const PROVIDER_LABELS: Record<string, string> = {
   codex: 'Codex',
   gemini: 'Gemini',
   opencode: 'OpenCode',
+  kimi: 'Kimi',
+  deepseek: 'DeepSeek',
+  glm: 'GLM',
 };
 
 const FALLBACK_COMMANDS: CommandEntry[] = [

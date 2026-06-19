@@ -1,8 +1,18 @@
 # ADR-036: Hosted Vendor Model Integration (Kimi / DeepSeek / GLM + Fable 5)
 
-- Status: Accepted
+- Status: Accepted (Superseded-in-part by ADR-037 for the session-run path)
 - Date: 2026-06-19
 - Scope: **Internal, single-user** (one operator, their own data)
+
+> **Superseded-in-part by [ADR-037](037-claude-engine-on-vendor-endpoints.md) for
+> the session-run path.** This ADR governs the *independent run seam* — the
+> Anthropic-free HTTP clients for kimi/deepseek/glm, whose iron rule forbids any
+> `ANTHROPIC_*` use. ADR-037 adds a separate, opt-in path that runs the Claude
+> engine itself against a vendor's Anthropic-compatible endpoint by setting
+> `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`, fenced by a fail-closed base-URL
+> guard. The run seam, its `SEAM_FILES`, and the iron-rule tests below are
+> unchanged; only the claim "the only vendor path is the Anthropic-free run seam"
+> is narrowed.
 
 ## Context
 

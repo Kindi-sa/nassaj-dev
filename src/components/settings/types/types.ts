@@ -23,6 +23,14 @@ export type ClaudePermissionsState = {
   allowedTools: string[];
   disallowedTools: string[];
   skipPermissions: boolean;
+  /**
+   * Whether a Claude run may delegate a subtask to a hosted vendor model
+   * (kimi/deepseek/glm) via the in-process `vendor-delegate` MCP tool (ADR-037,
+   * B-DEL-6). Off by default; when on, the composer sets
+   * options.allowVendorDelegation so the server registers the per-spawn delegate
+   * server keyed to the spawning user.
+   */
+  allowVendorDelegation: boolean;
 };
 
 export type NotificationPreferencesState = {

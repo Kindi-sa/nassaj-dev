@@ -20,6 +20,8 @@ export type ProviderAuthStatusByProvider = Record<AgentProvider, AuthStatus>;
 export type AgentsSettingsTabProps = {
   providerAuthStatus: ProviderAuthStatusByProvider;
   onProviderLogin: (provider: AgentProvider) => void;
+  /** Re-probes a provider's `/auth/status` (used after a vendor key change). */
+  onRefreshAuthStatus: (provider: AgentProvider) => void;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;
@@ -47,6 +49,8 @@ export type AgentCategoryContentSectionProps = {
   selectedAgent: AgentProvider;
   selectedCategory: AgentCategory;
   agentContextById: AgentContextByProvider;
+  /** Bound to the selected agent; refreshes its `/auth/status` after a key change. */
+  onRefreshAuthStatus?: () => void;
   claudePermissions: ClaudePermissionsState;
   onClaudePermissionsChange: (value: ClaudePermissionsState) => void;
   cursorPermissions: CursorPermissionsState;

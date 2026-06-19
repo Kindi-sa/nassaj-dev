@@ -10,6 +10,7 @@ import AgentSelectorSection from './sections/AgentSelectorSection';
 export default function AgentsSettingsTab({
   providerAuthStatus,
   onProviderLogin,
+  onRefreshAuthStatus,
   claudePermissions,
   onClaudePermissionsChange,
   cursorPermissions,
@@ -24,7 +25,7 @@ export default function AgentsSettingsTab({
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+    return ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'kimi', 'deepseek', 'glm'];
   }, []);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
@@ -55,6 +56,20 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.opencode,
       onLogin: () => onProviderLogin('opencode'),
     },
+    // Vendor providers (kimi/deepseek/glm) have no login flow; `onLogin` is a
+    // no-op and AccountContent renders the API-key panel instead.
+    kimi: {
+      authStatus: providerAuthStatus.kimi,
+      onLogin: () => onProviderLogin('kimi'),
+    },
+    deepseek: {
+      authStatus: providerAuthStatus.deepseek,
+      onLogin: () => onProviderLogin('deepseek'),
+    },
+    glm: {
+      authStatus: providerAuthStatus.glm,
+      onLogin: () => onProviderLogin('glm'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -63,6 +78,9 @@ export default function AgentsSettingsTab({
     providerAuthStatus.gemini,
     providerAuthStatus.antigravity,
     providerAuthStatus.opencode,
+    providerAuthStatus.kimi,
+    providerAuthStatus.deepseek,
+    providerAuthStatus.glm,
   ]);
 
   return (
@@ -84,6 +102,7 @@ export default function AgentsSettingsTab({
           selectedAgent={selectedAgent}
           selectedCategory={selectedCategory}
           agentContextById={agentContextById}
+          onRefreshAuthStatus={() => onRefreshAuthStatus(selectedAgent)}
           claudePermissions={claudePermissions}
           onClaudePermissionsChange={onClaudePermissionsChange}
           cursorPermissions={cursorPermissions}

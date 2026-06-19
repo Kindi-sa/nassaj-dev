@@ -2,12 +2,16 @@ import { LogIn, Terminal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
+import { isVendorProvider } from '../../../../../../provider-auth/vendorProviders';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
+import VendorApiKeySection from './VendorApiKeySection';
 
 type AccountContentProps = {
   agent: AgentProvider;
   authStatus: AuthStatus;
   onLogin: () => void;
+  /** Re-probes `/auth/status` after a vendor key is set/removed. */
+  onRefreshAuthStatus?: () => void;
 };
 
 type AgentVisualConfig = {
@@ -72,9 +76,36 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-zinc-700 dark:text-zinc-300',
     buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
   },
+  kimi: {
+    name: 'Kimi',
+    description: 'Moonshot Kimi via API key',
+    bgClass: 'bg-rose-50 dark:bg-rose-900/20',
+    borderClass: 'border-rose-200 dark:border-rose-800',
+    textClass: 'text-rose-900 dark:text-rose-100',
+    subtextClass: 'text-rose-700 dark:text-rose-300',
+    buttonClass: 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    description: 'DeepSeek via API key',
+    bgClass: 'bg-sky-50 dark:bg-sky-900/20',
+    borderClass: 'border-sky-200 dark:border-sky-800',
+    textClass: 'text-sky-900 dark:text-sky-100',
+    subtextClass: 'text-sky-700 dark:text-sky-300',
+    buttonClass: 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800',
+  },
+  glm: {
+    name: 'GLM',
+    description: 'Zhipu / Z.ai GLM via API key',
+    bgClass: 'bg-violet-50 dark:bg-violet-900/20',
+    borderClass: 'border-violet-200 dark:border-violet-800',
+    textClass: 'text-violet-900 dark:text-violet-100',
+    subtextClass: 'text-violet-700 dark:text-violet-300',
+    buttonClass: 'bg-violet-600 hover:bg-violet-700 active:bg-violet-800',
+  },
 };
 
-export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
+export default function AccountContent({ agent, authStatus, onLogin, onRefreshAuthStatus }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
   const isAntigravity = agent === 'antigravity';
@@ -129,7 +160,11 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
             </div>
           </div>
 
-          {isAntigravity ? (
+          {isVendorProvider(agent) ? (
+            // Hosted vendor providers have no CLI login: connection is driven by
+            // an API key in the encrypted per-user store (ADR-036 / ADR-030).
+            <VendorApiKeySection provider={agent} onConfiguredChange={onRefreshAuthStatus} />
+          ) : isAntigravity ? (
             /*
              * agy authenticates via Google OAuth from its own CLI; we cannot drive
              * that flow from here. Instead we surface the CLI instruction and a

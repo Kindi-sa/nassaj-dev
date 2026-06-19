@@ -10,6 +10,9 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   gemini: 'Gemini',
   antigravity: 'Antigravity',
   opencode: 'OpenCode',
+  kimi: 'Kimi',
+  deepseek: 'DeepSeek',
+  glm: 'GLM',
 };
 
 export default function AgentSelectorSection({

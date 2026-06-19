@@ -12,7 +12,7 @@ type AgentListItemProps = {
 
 type AgentConfig = {
   name: string;
-  color: 'blue' | 'purple' | 'gray' | 'indigo' | 'zinc';
+  color: 'blue' | 'purple' | 'gray' | 'indigo' | 'zinc' | 'rose' | 'sky' | 'violet';
 };
 
 // Placeholder entry for `antigravity`: provider is declared in the LLMProvider
@@ -44,6 +44,18 @@ const agentConfig: Record<AgentProvider, AgentConfig> = {
     name: 'OpenCode',
     color: 'zinc',
   },
+  kimi: {
+    name: 'Kimi',
+    color: 'rose',
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    color: 'sky',
+  },
+  glm: {
+    name: 'GLM',
+    color: 'violet',
+  },
 };
 
 const colorClasses = {
@@ -61,6 +73,15 @@ const colorClasses = {
   },
   zinc: {
     dot: 'bg-zinc-500',
+  },
+  rose: {
+    dot: 'bg-rose-500',
+  },
+  sky: {
+    dot: 'bg-sky-500',
+  },
+  violet: {
+    dot: 'bg-violet-500',
   },
 } as const;
 
