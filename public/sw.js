@@ -1,7 +1,7 @@
 // Service Worker for CloudCLI PWA
 // Cache only manifest (needed for PWA install). HTML and JS are never pre-cached
 // so a rebuild + refresh always picks up the latest assets.
-const CACHE_NAME = 'claude-ui-v4';
+const CACHE_NAME = 'claude-ui-v5';
 const urlsToCache = [
   '/manifest.json'
 ];
@@ -18,6 +18,13 @@ self.addEventListener('install', event => {
 // Fetch event — network-first for everything except hashed assets
 self.addEventListener('fetch', event => {
   const url = event.request.url;
+
+  // Never intercept cross-origin requests (e.g. cloudflareinsights beacon, CDNs).
+  // Passing them through prevents TypeError when the response can't be cloned or
+  // cached, and stops console errors from third-party fetches.
+  if (!url.startsWith(self.location.origin)) {
+    return;
+  }
 
   // Never intercept API requests or WebSocket upgrades
   if (url.includes('/api/') || url.includes('/ws')) {
@@ -45,15 +52,20 @@ self.addEventListener('fetch', event => {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           return response;
-        });
+        }).catch(() => Response.error());
       })
     );
     return;
   }
 
-  // Everything else — network-first
+  // Everything else — network-first with safe cache fallback.
+  // caches.match() resolves to undefined when there is no cached entry;
+  // wrapping with || Response.error() ensures respondWith always receives a
+  // valid Response and never throws TypeError.
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(() =>
+      caches.match(event.request).then(cached => cached || Response.error())
+    )
   );
 });
 

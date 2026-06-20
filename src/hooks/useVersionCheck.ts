@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+
 import { version } from '../../package.json';
 import { ReleaseInfo } from '../types/sharedTypes';
 
@@ -48,6 +49,8 @@ export const useVersionCheck = (owner: string, repo: string) => {
     const checkVersion = async () => {
       try {
         const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
+        // 404 = private repo / no public releases. Treat silently like "no update".
+        if (!response.ok) return;
         const data = await response.json();
 
         // Handle the case where there might not be any releases
@@ -70,9 +73,9 @@ export const useVersionCheck = (owner: string, repo: string) => {
           setLatestVersion(null);
           setReleaseInfo(null);
         }
-      } catch (error) {
-        console.error('Version check failed:', error);
-        // On error, don't show update notification
+      } catch {
+        // Version check failed (e.g. private repo, network error, rate limit).
+        // Stay silent — no update notification shown, no console noise.
         setUpdateAvailable(false);
         setLatestVersion(null);
         setReleaseInfo(null);
