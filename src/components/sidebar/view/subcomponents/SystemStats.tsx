@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Cpu, MemoryStick } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { authenticatedFetch } from '../../../../utils/api';
@@ -22,46 +22,63 @@ function formatGb(bytes: number): string {
  */
 function useSystemStats(): SystemStats | null {
   const [stats, setStats] = useState<SystemStats | null>(null);
-  const unsupportedRef = useRef(false);
-  const cancelledRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const poll = useCallback(async () => {
-    if (cancelledRef.current || unsupportedRef.current) return;
-    if (!document.hidden) {
-      try {
-        const res = await authenticatedFetch('/api/system/stats');
-        if (res.ok) {
-          setStats(await res.json());
-        } else if (res.status === 404) {
-          // Old server without the route — give up quietly.
-          unsupportedRef.current = true;
-          return;
-        }
-      } catch {
-        // Network hiccup: keep the last value and retry on the next tick.
-      }
-    }
-    if (cancelledRef.current) return;
-    timerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
-  }, []);
 
   useEffect(() => {
-    cancelledRef.current = false;
-    poll();
-    const onVisibility = () => {
-      if (!document.hidden && !unsupportedRef.current && !cancelledRef.current) {
-        if (timerRef.current) clearTimeout(timerRef.current);
-        poll();
-      }
+    // Effect-scoped state (NOT refs): every mount — including a StrictMode
+    // remount — gets its own isolated closure, so a previous mount's in-flight
+    // poll can never re-arm THIS mount's timer (the bug the old cancelledRef
+    // guard could not prevent, since refs persist across the remount).
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let unsupported = false; // 404 → route absent → stop permanently
+    let stopped = false;     // unmounted → stop everything
+    let inFlight = false;    // a request is awaiting → never overlap
+
+    const controller = new AbortController();
+
+    const schedule = () => {
+      if (stopped || unsupported) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(poll, POLL_INTERVAL_MS);
     };
+
+    const poll = async () => {
+      if (stopped || unsupported || inFlight) return;
+      if (document.hidden) {
+        schedule();
+        return;
+      }
+      inFlight = true;
+      try {
+        const res = await authenticatedFetch('/api/system/stats', { signal: controller.signal });
+        if (res.ok) {
+          const data = await res.json();
+          if (!stopped) setStats(data);
+        } else if (res.status === 404) {
+          unsupported = true;
+          return; // finally still runs; the schedule() below is skipped
+        }
+      } catch {
+        // Network hiccup or abort-on-unmount: keep the last value.
+      } finally {
+        inFlight = false;
+      }
+      schedule();
+    };
+
+    const onVisibility = () => {
+      if (!document.hidden) poll();
+    };
+
+    poll();
     document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
-      cancelledRef.current = true;
-      if (timerRef.current) clearTimeout(timerRef.current);
+      stopped = true;
+      controller.abort();
+      if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [poll]);
+  }, []);
 
   return stats;
 }
