@@ -81,6 +81,24 @@ export const userDb = {
   },
 
   /**
+   * Number of active accounts (is_active=1 AND status='active') — the set whose
+   * sessions the server will actually serve. Used by the platform-mode boot
+   * guard (B-5) to detect a silent shared-subscription condition: in platform
+   * mode every WS session authenticates as the first active user, so more than
+   * one active account on an isolated Claude provider means several people would
+   * silently run on the operator's single subscription.
+   */
+  getActiveUserCount(): number {
+    const db = getConnection();
+    const row = db
+      .prepare(
+        "SELECT COUNT(*) as count FROM users WHERE is_active = 1 AND status = 'active'"
+      )
+      .get() as { count: number };
+    return row.count;
+  },
+
+  /**
    * Inserts a new user with an explicit role and optional inviter.
    * Returns the created id, username, and role.
    */

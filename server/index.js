@@ -95,6 +95,7 @@ import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
+import { enforcePlatformIsolationGuard } from './services/platform-isolation-guard.service.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole, JWT_SECRET } from './middleware/auth.js';
 import { recordAuthRejection } from './middleware/auth-rejection-audit.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -1959,6 +1960,12 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // B-5 fail-closed guard: in platform mode every WS session resolves to
+        // the first active user, so an isolated Claude provider + >1 active user
+        // would silently share one subscription (ToS violation). Throws here to
+        // abort boot (the catch below exits 1) before any listener is opened.
+        enforcePlatformIsolationGuard();
 
         // Bootstrap the initial owner on first run (no-op once an owner exists).
         if (!IS_PLATFORM) {
