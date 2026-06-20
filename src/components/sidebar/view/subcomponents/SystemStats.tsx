@@ -23,10 +23,11 @@ function formatGb(bytes: number): string {
 function useSystemStats(): SystemStats | null {
   const [stats, setStats] = useState<SystemStats | null>(null);
   const unsupportedRef = useRef(false);
+  const cancelledRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const poll = useCallback(async () => {
-    if (unsupportedRef.current) return;
+    if (cancelledRef.current || unsupportedRef.current) return;
     if (!document.hidden) {
       try {
         const res = await authenticatedFetch('/api/system/stats');
@@ -41,20 +42,22 @@ function useSystemStats(): SystemStats | null {
         // Network hiccup: keep the last value and retry on the next tick.
       }
     }
+    if (cancelledRef.current) return;
     timerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
   }, []);
 
   useEffect(() => {
+    cancelledRef.current = false;
     poll();
     const onVisibility = () => {
-      if (!document.hidden && !unsupportedRef.current) {
+      if (!document.hidden && !unsupportedRef.current && !cancelledRef.current) {
         if (timerRef.current) clearTimeout(timerRef.current);
         poll();
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      unsupportedRef.current = true;
+      cancelledRef.current = true;
       if (timerRef.current) clearTimeout(timerRef.current);
       document.removeEventListener('visibilitychange', onVisibility);
     };
