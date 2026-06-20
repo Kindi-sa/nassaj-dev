@@ -41,6 +41,7 @@ jobs:
         run: |
           npm run typecheck
           npm test
+          npm run test:client
 
       - name: Security audit
         run: npm audit --audit-level=high

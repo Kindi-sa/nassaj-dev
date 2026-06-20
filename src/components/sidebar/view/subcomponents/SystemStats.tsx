@@ -20,7 +20,7 @@ function formatGb(bytes: number): string {
  * A 404 (live server predates the route) stops polling permanently and the
  * widgets render a graceful em-dash / nothing — no console noise.
  */
-function useSystemStats(): SystemStats | null {
+export function useSystemStats(): SystemStats | null {
   const [stats, setStats] = useState<SystemStats | null>(null);
 
   useEffect(() => {

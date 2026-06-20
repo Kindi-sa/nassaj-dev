@@ -1,8 +1,23 @@
 import { fileURLToPath, URL } from 'node:url'
 import { execSync } from 'node:child_process'
+import { readFileSync, globSync } from 'node:fs'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { getConnectableHost, normalizeLoopbackHost } from './shared/networkHosts.js'
+
+// The src/ tree hosts BOTH vitest tests (import from 'vitest') and legacy
+// node:test tests (import from 'node:test') under the same .test.ts(x) name.
+// vitest cannot run node:test files, so route them out by their import source
+// — the only honest discriminator — instead of a brittle hand-kept path list.
+// Computed lazily and only consulted by the `test` block (ignored by builds).
+function nodeTestFiles() {
+  try {
+    return globSync('src/**/*.test.{ts,tsx}')
+      .filter((f) => /from ['"]node:test['"]/.test(readFileSync(f, 'utf8')))
+  } catch {
+    return []
+  }
+}
 
 // Single source of truth for BUILD_ID — used in both the inline asset plugin
 // and the define constant so dist/version.json and __BUILD_ID__ are guaranteed
@@ -103,6 +118,16 @@ export default defineConfig(({ mode }) => {
           }
         }
       }
+    },
+    // Frontend unit tests (vitest). Test code imports { describe, it, expect, vi }
+    // explicitly from 'vitest', so globals stay off and cleanup is called by hand.
+    // This block is inert for `vite build` — Vite ignores `test` at build time.
+    test: {
+      environment: 'jsdom',
+      globals: false,
+      include: ['src/**/*.test.{ts,tsx}'],
+      // Keep node:test files out of vitest (they run under tsx --test).
+      exclude: nodeTestFiles(),
     }
   }
 })

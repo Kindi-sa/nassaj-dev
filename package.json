@@ -31,6 +31,7 @@
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.js",
     "server:dev-watch": "tsx watch --tsconfig server/tsconfig.json server/index.js",
     "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" && tsx --tsconfig server/tsconfig.json --test \"server/claude-sdk.model.test.js\" \"server/claude-sdk.effort.test.js\"",
+    "test:client": "NODE_ENV=test vitest run",
     "client": "vite",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
@@ -139,6 +140,8 @@
     "@dicebear/core": "^9.4.2",
     "@eslint/js": "^9.39.3",
     "@release-it/conventional-changelog": "^10.0.5",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/cross-spawn": "^6.0.6",
     "@types/express": "^5.0.6",
@@ -173,7 +176,8 @@
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "undici": "^6.24.0",
