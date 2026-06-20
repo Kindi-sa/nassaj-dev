@@ -19,7 +19,10 @@ function GitHubIcon({ className }: { className?: string }) {
 export default function AboutTab() {
   const { t } = useTranslation('settings');
   const { isDarkMode } = useTheme();
-  const { updateAvailable, latestVersion, currentVersion, releaseInfo } = useVersionCheck('Kindi-sa', 'nassaj-dev');
+  // fetchEnabled=false: Kindi-sa/nassaj-dev is a private fork with no public releases.
+  // GitHub would return 404 which the browser logs at network level regardless of JS handling.
+  // Disabling the fetch entirely silences the 404; updateAvailable stays false.
+  const { updateAvailable, latestVersion, currentVersion, releaseInfo } = useVersionCheck('Kindi-sa', 'nassaj-dev', false);
   const releasesUrl = releaseInfo?.htmlUrl || `${NASSAJ_GITHUB_URL}/releases`;
 
   return (

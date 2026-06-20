@@ -42,9 +42,13 @@ function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
+  // fetchEnabled=false: Kindi-sa/nassaj-dev is a private fork with no public releases.
+  // GitHub would return 404 which the browser logs at network level regardless of JS handling.
+  // Disabling the fetch entirely silences the 404; updateAvailable stays false.
   const { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
     'Kindi-sa',
     'nassaj-dev',
+    false,
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;

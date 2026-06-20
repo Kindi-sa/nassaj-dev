@@ -24,7 +24,7 @@ export const compareVersions = (v1: string, v2: string) => {
 
 export type InstallMode = 'git' | 'npm';
 
-export const useVersionCheck = (owner: string, repo: string) => {
+export const useVersionCheck = (owner: string, repo: string, fetchEnabled = true) => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [releaseInfo, setReleaseInfo] = useState<ReleaseInfo | null>(null);
@@ -46,6 +46,11 @@ export const useVersionCheck = (owner: string, repo: string) => {
   }, []);
 
   useEffect(() => {
+    // Skip GitHub releases fetch when disabled (e.g. private fork with no public releases).
+    // Browser console logs a network-level 404 for any failed fetch regardless of JS error
+    // handling, so the only way to silence it is to not send the request at all.
+    if (!fetchEnabled) return;
+
     const checkVersion = async () => {
       try {
         const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`);
@@ -85,7 +90,7 @@ export const useVersionCheck = (owner: string, repo: string) => {
     checkVersion();
     const interval = setInterval(checkVersion, 5 * 60 * 1000); // Check every 5 minutes
     return () => clearInterval(interval);
-  }, [owner, repo]);
+  }, [owner, repo, fetchEnabled]);
 
   return { updateAvailable, latestVersion, currentVersion: version, releaseInfo, installMode };
 }; 
