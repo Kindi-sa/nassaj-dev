@@ -25,7 +25,16 @@ import { appConfigDb } from '../modules/database/index.js';
 const CONFIG_KEY = 'provider_sharing';
 
 /** Providers the policy recognizes. Any other key is rejected on write. */
-export const KNOWN_PROVIDERS = Object.freeze(['claude', 'gemini', 'codex', 'agy', 'cursor']);
+export const KNOWN_PROVIDERS = Object.freeze([
+  'claude',
+  'gemini',
+  'codex',
+  'agy',
+  'cursor',
+  'kimi',
+  'deepseek',
+  'glm',
+]);
 
 /** Allowed sharing modes. */
 export const SHARING_MODES = Object.freeze(['shared', 'isolated']);
@@ -40,6 +49,12 @@ const DEFAULT_CONFIG = Object.freeze({
   codex: 'isolated',
   agy: 'shared',
   cursor: 'shared',
+  // Hosted vendor providers default to 'isolated': each user's API key is held
+  // in the encrypted per-user secrets store and injected per spawn, so they must
+  // never fall back to a shared operator key (B-VR-2B).
+  kimi: 'isolated',
+  deepseek: 'isolated',
+  glm: 'isolated',
 });
 
 /**

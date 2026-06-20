@@ -40,7 +40,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the default model (currently Opus 4.7 (1M context)) · Most capable for complex work',
+      description: 'Use the default model (currently Opus 4.8 (1M context)) · $5/$25 per Mtok',
     },
     {
       value: 'sonnet',

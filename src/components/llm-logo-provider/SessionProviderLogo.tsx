@@ -1,10 +1,12 @@
 import type { LLMProvider } from '../../types/app';
+import { VENDOR_PROVIDERS, type VendorProvider } from '../provider-auth/vendorProviders';
 import AntigravityLogo from './AntigravityLogo';
 import ClaudeLogo from './ClaudeLogo';
 import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
 import GeminiLogo from './GeminiLogo';
 import OpenCodeLogo from './OpenCodeLogo';
+import VendorLogo from './VendorLogo';
 
 type SessionProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -33,6 +35,10 @@ export default function SessionProviderLogo({
 
   if (provider === 'opencode') {
     return <OpenCodeLogo className={className} />;
+  }
+
+  if (typeof provider === 'string' && (VENDOR_PROVIDERS as readonly string[]).includes(provider)) {
+    return <VendorLogo provider={provider as VendorProvider} className={className} />;
   }
 
   return <ClaudeLogo className={className} />;

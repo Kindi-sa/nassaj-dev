@@ -2,7 +2,10 @@ import { AntigravityProvider } from '@/modules/providers/list/antigravity/antigr
 import { ClaudeProvider } from '@/modules/providers/list/claude/claude.provider.js';
 import { CodexProvider } from '@/modules/providers/list/codex/codex.provider.js';
 import { CursorProvider } from '@/modules/providers/list/cursor/cursor.provider.js';
+import { DeepSeekProvider } from '@/modules/providers/list/deepseek/deepseek.provider.js';
 import { GeminiProvider } from '@/modules/providers/list/gemini/gemini.provider.js';
+import { GlmProvider } from '@/modules/providers/list/glm/glm.provider.js';
+import { KimiProvider } from '@/modules/providers/list/kimi/kimi.provider.js';
 import { OpenCodeProvider } from '@/modules/providers/list/opencode/opencode.provider.js';
 import type { IProvider } from '@/shared/interfaces.js';
 import type { LLMProvider } from '@/shared/types.js';
@@ -22,6 +25,12 @@ const providers: Partial<Record<LLMProvider, IProvider>> = {
   cursor: new CursorProvider(),
   gemini: new GeminiProvider(),
   opencode: new OpenCodeProvider(),
+  // Hosted vendor providers (single internal user). Registered here so their
+  // models surface automatically in /api/providers/:provider/models and the
+  // model picker, and resolveProvider returns them for the chat dispatch.
+  kimi: new KimiProvider(),
+  deepseek: new DeepSeekProvider(),
+  glm: new GlmProvider(),
 };
 
 /**

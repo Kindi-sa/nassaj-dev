@@ -19,6 +19,7 @@ export default function AgentCategoryContentSection({
   onCodexPermissionModeChange,
   geminiPermissionMode,
   onGeminiPermissionModeChange,
+  onRefreshAuthStatus,
   projects,
 }: AgentCategoryContentSectionProps) {
   return (
@@ -46,6 +47,7 @@ export default function AgentCategoryContentSection({
           agent={selectedAgent}
           authStatus={agentContextById[selectedAgent].authStatus}
           onLogin={agentContextById[selectedAgent].onLogin}
+          onRefreshAuthStatus={onRefreshAuthStatus}
         />
       )}
 
@@ -63,6 +65,10 @@ export default function AgentCategoryContentSection({
           disallowedTools={claudePermissions.disallowedTools}
           onDisallowedToolsChange={(value) => {
             onClaudePermissionsChange({ ...claudePermissions, disallowedTools: value });
+          }}
+          allowVendorDelegation={claudePermissions.allowVendorDelegation}
+          onAllowVendorDelegationChange={(value) => {
+            onClaudePermissionsChange({ ...claudePermissions, allowVendorDelegation: value });
           }}
         />
       )}

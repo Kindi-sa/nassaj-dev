@@ -70,7 +70,16 @@ export type AuthenticatedWebSocketRequest = IncomingMessage & {
  * Use this as the source of truth whenever a function or payload needs to identify
  * a specific LLM integration.
  */
-export type LLMProvider = 'claude' | 'codex' | 'gemini' | 'cursor' | 'antigravity' | 'opencode';
+export type LLMProvider =
+  | 'claude'
+  | 'codex'
+  | 'gemini'
+  | 'cursor'
+  | 'antigravity'
+  | 'opencode'
+  | 'kimi'
+  | 'deepseek'
+  | 'glm';
 
 /**
  * One selectable model row (matches the documentation `public/modelConstants.js` option shape).

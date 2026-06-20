@@ -11,8 +11,15 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   gemini: 'Gemini',
   antigravity: 'Antigravity',
   opencode: 'OpenCode',
+  kimi: 'Kimi',
+  deepseek: 'DeepSeek',
+  glm: 'GLM',
 };
 
+// Hosted vendor providers (kimi/deepseek/glm) are remote HTTP APIs with no
+// local MCP config store, so — like antigravity — they support no MCP scopes or
+// transports (see VendorMcpProvider). The entries exist only to satisfy the
+// exhaustive Record<McpProvider, X> constraint; the empty lists hide MCP for them.
 export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   claude: ['user', 'project', 'local'],
   cursor: ['user', 'project'],
@@ -20,6 +27,9 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   gemini: ['user', 'project'],
   antigravity: [],
   opencode: ['user', 'project'],
+  kimi: [],
+  deepseek: [],
+  glm: [],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
@@ -29,6 +39,9 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   gemini: ['stdio', 'http', 'sse'],
   antigravity: [],
   opencode: ['stdio', 'http'],
+  kimi: [],
+  deepseek: [],
+  glm: [],
 };
 
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
@@ -42,6 +55,9 @@ export const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   gemini: 'bg-blue-600 text-white hover:bg-blue-700',
   antigravity: 'bg-slate-600 text-white hover:bg-slate-700',
   opencode: 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  kimi: 'bg-rose-600 text-white hover:bg-rose-700',
+  deepseek: 'bg-sky-600 text-white hover:bg-sky-700',
+  glm: 'bg-violet-600 text-white hover:bg-violet-700',
 };
 
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
@@ -51,6 +67,9 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   gemini: true,
   antigravity: false,
   opencode: false,
+  kimi: false,
+  deepseek: false,
+  glm: false,
 };
 
 export const DEFAULT_MCP_FORM: McpFormState = {

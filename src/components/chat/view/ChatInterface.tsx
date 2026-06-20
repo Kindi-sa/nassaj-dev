@@ -170,6 +170,9 @@ function ChatInterface({
   const {
     provider,
     setProvider,
+    engineProvider,
+    setEngineProvider,
+    selectClaudeEngineProvider,
     cursorModel,
     setCursorModel,
     claudeModel,
@@ -182,6 +185,12 @@ function ChatInterface({
     setAntigravityModel,
     opencodeModel,
     setOpenCodeModel,
+    kimiModel,
+    setKimiModel,
+    deepseekModel,
+    setDeepSeekModel,
+    glmModel,
+    setGlmModel,
     permissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -324,6 +333,7 @@ function ChatInterface({
     selectedSession,
     currentSessionId,
     provider,
+    engineProvider,
     permissionMode,
     cyclePermissionMode,
     cursorModel,
@@ -332,6 +342,9 @@ function ChatInterface({
     geminiModel,
     antigravityModel,
     opencodeModel,
+    kimiModel,
+    deepseekModel,
+    glmModel,
     isLoading,
     canAbortSession,
     tokenBudget,
@@ -572,6 +585,9 @@ function ChatInterface({
           provider={provider}
           displayProvider={displayProvider}
           setProvider={(nextProvider) => setProvider(nextProvider as Provider)}
+          engineProvider={engineProvider}
+          setEngineProvider={setEngineProvider}
+          onSelectClaudeEngineProvider={selectClaudeEngineProvider}
           textareaRef={textareaRef}
           claudeModel={claudeModel}
           setClaudeModel={setClaudeModel}
@@ -585,6 +601,12 @@ function ChatInterface({
           setAntigravityModel={setAntigravityModel}
           opencodeModel={opencodeModel}
           setOpenCodeModel={setOpenCodeModel}
+          kimiModel={kimiModel}
+          setKimiModel={setKimiModel}
+          deepseekModel={deepseekModel}
+          setDeepSeekModel={setDeepSeekModel}
+          glmModel={glmModel}
+          setGlmModel={setGlmModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
           providerModelsRefreshing={providerModelsRefreshing}

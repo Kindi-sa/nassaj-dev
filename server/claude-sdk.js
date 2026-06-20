@@ -33,6 +33,9 @@ import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './services/isolation/anthropic-base-url-guard.js';
+import { applyClaudeEngineProviderEnv } from './services/isolation/apply-claude-engine-provider-env.js';
+import { collectSettingsBaseUrls } from './services/isolation/collect-settings-base-urls.js';
+import { buildVendorDelegateMcp } from './modules/providers/shared/vendor/vendor-delegate-mcp.js';
 import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
   PROCESS_TAG_ENV_VAR,
@@ -1076,6 +1079,63 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
       sdkOptions.mcpServers = mcpServers;
+    }
+
+    // SEAM-ONLY WIRING (tracked on the board): both options.allowVendorDelegation
+    // (below) and options.engineProvider (B-ENG, further down) are read here and the
+    // transport already forwards them — chat-websocket.service forwards data.options
+    // verbatim to queryClaudeSDK with no allow-list/strip — so they are wired end to
+    // end on the server. They are intentionally NOT surfaced by the default chat UI
+    // yet: no route/WS handler sets them, so in normal operation engineProvider is
+    // undefined (injectedHosts stays null, the base-URL guard is a no-op, the Claude
+    // model is untouched) and allowVendorDelegation is falsy (no vendor-delegate MCP
+    // is registered). Do not treat these as user-reachable features until the UI
+    // surface lands; this is the seam, the activation is later work on the board.
+    //
+    // B-DEL-6: when the agent is permitted to delegate subtasks to hosted vendor
+    // models, register the per-spawn vendor-delegate MCP server. Built fresh here
+    // with the spawning user's id captured in its closure — no global instance —
+    // so each user's delegation uses only their own stored vendor key.
+    if (options.allowVendorDelegation) {
+      sdkOptions.mcpServers = {
+        ...(sdkOptions.mcpServers || {}),
+        'vendor-delegate': buildVendorDelegateMcp(ws?.userId ?? null),
+      };
+    }
+
+    // B-ENG-4: "Claude engine on a vendor endpoint" (ADR-037).
+    // 1) Optionally point the SDK's ANTHROPIC_BASE_URL/AUTH_TOKEN at the selected
+    //    per-user engine provider (returns the authorized host set, or null when
+    //    no engine provider is engaged / no key is stored — never half-injects).
+    // 2) Collect any *_BASE_URL declared in the resolved settings.json (the same
+    //    channel Claude Code reads at spawn) so the guard vets them too.
+    // 3) Fail-closed guard: throw unless every base URL the SDK will see points at
+    //    the official Anthropic host, this spawn's engine host, or an operator
+    //    escape hatch (Bedrock/Vertex flags or NASSAJ_ALLOWED_ANTHROPIC_HOSTS).
+    // This runs before BOTH query() calls below (the no-hooks retry reuses the
+    // same sdkOptions.env), so it covers every spawn path.
+    const injectedHosts = applyClaudeEngineProviderEnv(
+      sdkOptions.env,
+      ws?.userId ?? null,
+      options.engineProvider,
+    ) ?? null;
+    const settingsBaseUrls = await collectSettingsBaseUrls(sdkOptions.env);
+    assertAnthropicBaseUrlAllowed(sdkOptions.env, {
+      engineProviderHosts: injectedHosts ?? undefined,
+      extraValues: settingsBaseUrls,
+    });
+
+    // When (and only when) an engine provider was actually engaged, re-assert the
+    // caller's model id verbatim. mapCliOptionsToSDK already passes options.model
+    // through without coercion (claude-sdk.js: `options.model || DEFAULT`), so for
+    // the current code path this is a behavioural no-op — it does NOT undo any
+    // existing coercion because none exists here. It is kept as an explicit,
+    // narrowly-gated guard (injectedHosts !== null) documenting that a vendor model
+    // id must survive untouched, so that if a Claude-model normalizer is ever added
+    // to the mapping step it cannot silently rewrite an engaged vendor model. With
+    // no engine engaged we leave sdkOptions.model exactly as mapped.
+    if (injectedHosts !== null && options.model) {
+      sdkOptions.model = options.model;
     }
 
     // Handle images - save to temp files and modify prompt
