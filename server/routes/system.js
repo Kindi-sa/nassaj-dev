@@ -6,7 +6,7 @@
  *
  *   GET /api/system/stats →
  *     {
- *       cpu:    { percent: number },                            // 0..100, 1 decimal
+ *       cpu:    { percent: number },                            // 0..100, 2 decimals
  *       memory: { usedBytes, totalBytes, percent }              // percent 0..100, 1 decimal
  *     }
  *
@@ -92,6 +92,7 @@ export function cpuPercentFromSamples(prev, cur) {
 }
 
 const round1 = (n) => Math.round(n * 10) / 10;
+const round2 = (n) => Math.round(n * 100) / 100;
 
 async function readCpuSample() {
     const text = await fsPromises.readFile('/proc/stat', 'utf8');
@@ -158,7 +159,7 @@ router.get('/stats', async (req, res) => {
     try {
         const [cpuPercent, memory] = await Promise.all([getCpuPercent(), getMemoryStats()]);
         res.json({
-            cpu: { percent: round1(cpuPercent) },
+            cpu: { percent: round2(cpuPercent) },
             memory,
         });
     } catch (error) {

@@ -70,7 +70,7 @@ function useSystemStats(): SystemStats | null {
 export function SystemStatsFooter({ t }: { t: TFunction }) {
   const stats = useSystemStats();
 
-  const cpuText = stats ? `${Math.round(stats.cpu.percent)}%` : '—';
+  const cpuText = stats ? `${stats.cpu.percent.toFixed(2)}%` : '—';
   const ramText = stats
     ? `${formatGb(stats.memory.usedBytes)}/${formatGb(stats.memory.totalBytes)}GB (${Math.round(stats.memory.percent)}%)`
     : '—';
@@ -132,12 +132,12 @@ export function SystemStatsCollapsed({ t }: { t: TFunction }) {
     <>
       <div
         className="flex flex-col items-center gap-0.5 py-1 text-muted-foreground"
-        title={`${t('systemStats.cpuUsage')}: ${Math.round(stats.cpu.percent)}%`}
+        title={`${t('systemStats.cpuUsage')}: ${stats.cpu.percent.toFixed(2)}%`}
         aria-label={t('systemStats.cpuUsage')}
       >
         <Cpu className="h-3.5 w-3.5" />
         <span className="text-[9px] leading-none tabular-nums">
-          {Math.round(stats.cpu.percent)}%
+          {stats.cpu.percent.toFixed(2)}%
         </span>
       </div>
       <div
