@@ -19,7 +19,10 @@
   },
   "phases": {
     "title": "Phases",
-    "current": "Current"
+    "current": "Current",
+    "planned": "Planned",
+    "runnerHere": "al-Minwāl here",
+    "progressCount": "{{progress}}% ({{done}}/{{total}})"
   },
   "sprint": {
     "current": "Current sprint",
@@ -171,6 +174,13 @@
       "paused": "Paused",
       "awaiting_approval": "Awaiting approval",
       "disabled": "Disabled"
+    },
+    "statusLine": {
+      "running": "🟢 al-Minwāl working",
+      "awaiting": "🔵 al-Minwāl awaiting approval",
+      "interrupted": "🟡 al-Minwāl paused",
+      "failed": "🔴 al-Minwāl failed",
+      "idle": "⚪ al-Minwāl idle"
     },
     "stages": {
       "review": "Review",

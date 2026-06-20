@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
+  Bot,
   Bug,
   CheckCircle2,
   Circle,
@@ -12,12 +13,14 @@ import {
 } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
-import { RunnerPhaseBadge, RunnerTaskDot } from '../../runner/RunnerOverlayBits';
+import { RunnerTaskDot } from '../../runner/RunnerOverlayBits';
 import RunnerJourney from '../../runner/RunnerJourney';
+import RunnerStatusLine from '../../runner/RunnerStatusLine';
 import type { CycleHistory } from '../../runner/useRunner';
 import type {
   BoardDecision,
   BoardIssue,
+  BoardPhase,
   BoardSprint,
   BoardTask,
   IssueSeverity,
@@ -91,8 +94,10 @@ function overallProgress(state: ProjectBoardState): number | null {
   let weightSum = 0;
   let progressSum = 0;
   for (const phase of phases) {
-    const progress =
-      phase.status === 'done' ? 100 : Math.max(0, Math.min(100, Number(phase.progress) || 0));
+    // Real progress from the phase's tasks (falls back to phases[].progress only
+    // when the phase has no tasks) — keeps the overall bar consistent with the
+    // per-phase bars below, which now also derive from tasks.
+    const progress = phaseTaskStats(state, phase).progress;
     const weight = tasks.length ? Math.max(1, taskCounts.get(phase.id) ?? 0) : 1;
     weightSum += weight;
     progressSum += progress * weight;
@@ -107,6 +112,39 @@ function sprintTaskStats(state: ProjectBoardState, sprintId: string) {
   const done = sprintTasks.filter((task) => task.status === 'done').length;
   const total = sprintTasks.length;
   return { done, total, progress: total ? Math.round((done / total) * 100) : 0 };
+}
+
+/**
+ * Real completion of one phase, computed from the phase's tasks (spec: owner
+ * complaint — the file's phases[].progress was stale and contradicted the tasks).
+ * Percentage = done ÷ (total − cancelled). Cancelled tasks are excluded from the
+ * denominator so a dropped task never drags the bar down. A phase marked
+ * status:"done" always reads 100%. When the phase has no tasks at all we fall
+ * back to the legacy phases[].progress field (`hasTasks=false`), so phase-only
+ * (taskless) boards keep rendering exactly as before.
+ */
+function phaseTaskStats(
+  state: ProjectBoardState,
+  phase: BoardPhase,
+): { done: number; total: number; progress: number; hasTasks: boolean } {
+  // Some boards carry statuses beyond the typed union (e.g. "cancelled") — a
+  // cancelled task is dropped from the denominator so it never drags the bar
+  // down. Compared as a string since the type is narrower than the data.
+  const phaseTasks = (state.tasks ?? []).filter(
+    (task) => task.phase === phase.id && (task.status as string) !== 'cancelled',
+  );
+  const total = phaseTasks.length;
+  const done = phaseTasks.filter((task) => task.status === 'done').length;
+
+  if (phase.status === 'done') {
+    return { done, total, progress: 100, hasTasks: total > 0 };
+  }
+  if (total === 0) {
+    // No tasks for this phase → use the legacy manual progress field as fallback.
+    const legacy = Math.max(0, Math.min(100, Number(phase.progress) || 0));
+    return { done: 0, total: 0, progress: legacy, hasTasks: false };
+  }
+  return { done, total, progress: Math.round((done / total) * 100), hasTasks: true };
 }
 
 function PhaseTimeline({
@@ -129,8 +167,13 @@ function PhaseTimeline({
       <h3 className="mb-3 text-sm font-semibold text-foreground">{t('phases.title')}</h3>
       <ol className="relative space-y-0 border-s-2 border-border ps-5">
         {state.phases.map((phase) => {
-          const isCurrent = phase.status === 'current';
-          const progress = Math.max(0, Math.min(100, Number(phase.progress) || 0));
+          // Planned-current: the phase the plan marks status:"current". Kept as a
+          // muted «planned» chip so it never competes with the live runner marker.
+          const isPlannedCurrent = phase.status === 'current';
+          // The single, unambiguous answer to «where is the runner?»: the phase
+          // the runner is actually working on right now (checkpoint pointer).
+          const isRunnerHere = Boolean(runnerRunning) && runnerActivePhaseId === phase.id;
+          const { done, total, progress, hasTasks } = phaseTaskStats(state, phase);
 
           return (
             <li key={phase.id} className="relative pb-5 last:pb-0">
@@ -138,14 +181,22 @@ function PhaseTimeline({
                 className={cn(
                   'absolute -start-[1.65rem] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 bg-background',
                   phase.status === 'done' && 'border-green-500 text-green-500',
-                  isCurrent && 'border-primary text-primary',
-                  phase.status === 'pending' && 'border-border text-muted-foreground',
+                  isRunnerHere && 'border-sky-500 text-sky-500',
+                  isPlannedCurrent && !isRunnerHere && 'border-primary text-primary',
+                  phase.status === 'pending' && !isRunnerHere && 'border-border text-muted-foreground',
                   phase.status === 'cancelled' && 'border-border text-muted-foreground',
                 )}
               >
                 {phase.status === 'done' && <CheckCircle2 className="h-3.5 w-3.5" />}
-                {isCurrent && <CircleDot className="h-3.5 w-3.5" />}
-                {phase.status === 'pending' && <Circle className="h-3 w-3" />}
+                {phase.status !== 'done' && isRunnerHere && (
+                  <Bot className="h-3.5 w-3.5 motion-safe:animate-pulse" />
+                )}
+                {phase.status !== 'done' && !isRunnerHere && isPlannedCurrent && (
+                  <CircleDot className="h-3.5 w-3.5" />
+                )}
+                {phase.status === 'pending' && !isRunnerHere && !isPlannedCurrent && (
+                  <Circle className="h-3 w-3" />
+                )}
                 {phase.status === 'cancelled' && <XCircle className="h-3.5 w-3.5" />}
               </span>
 
@@ -161,16 +212,24 @@ function PhaseTimeline({
                 >
                   {phase.title}
                 </span>
-                {isCurrent && (
-                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                    {t('phases.current')}
+                {/* Live runner marker — the clear «🔵 al-Minwāl here» badge. */}
+                {isRunnerHere && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/10 px-2 py-0.5 text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                    <span
+                      aria-hidden="true"
+                      className="inline-block h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse"
+                    />
+                    <Bot className="h-3 w-3" aria-hidden="true" />
+                    {t('phases.runnerHere')}
                   </span>
                 )}
-                <RunnerPhaseBadge
-                  phaseId={phase.id}
-                  activePhaseId={runnerActivePhaseId}
-                  running={Boolean(runnerRunning)}
-                />
+                {/* Planning «current» kept muted as «planned», suppressed when the
+                    runner marker is already on this phase to avoid double signals. */}
+                {isPlannedCurrent && !isRunnerHere && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {t('phases.planned')}
+                  </span>
+                )}
               </div>
 
               <div className="mt-2 flex max-w-md items-center gap-2">
@@ -178,13 +237,21 @@ function PhaseTimeline({
                   <div
                     className={cn(
                       'h-full rounded-full transition-all',
-                      phase.status === 'done' ? 'bg-green-500' : 'bg-primary',
+                      phase.status === 'done'
+                        ? 'bg-green-500'
+                        : isRunnerHere
+                          ? 'bg-sky-500'
+                          : 'bg-primary',
                     )}
-                    style={{ width: `${phase.status === 'done' ? 100 : progress}%` }}
+                    style={{ width: `${progress}%` }}
                   />
                 </div>
-                <span className="w-9 text-end text-[11px] tabular-nums text-muted-foreground">
-                  {phase.status === 'done' ? 100 : progress}%
+                {/* «N% (done/total)» — the real, task-derived figure. The count is
+                    omitted for taskless phases that fall back to manual progress. */}
+                <span className="text-end text-[11px] tabular-nums text-muted-foreground">
+                  {hasTasks
+                    ? t('phases.progressCount', { progress, done, total })
+                    : `${progress}%`}
                 </span>
               </div>
             </li>
@@ -652,6 +719,15 @@ export default function BoardOverview({
             </div>
           )}
         </header>
+
+        {/* Explicit one-line runner status — «where is al-Minwāl right now».
+            Additive: renders null unless the project is registered with it. */}
+        <RunnerStatusLine
+          phases={state.phases ?? []}
+          history={runnerHistory ?? null}
+          registered={Boolean(runnerRegistered)}
+          sessionExitReason={runnerSessionExitReason ?? null}
+        />
 
         <PhaseTimeline
           state={state}
