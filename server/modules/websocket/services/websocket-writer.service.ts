@@ -78,6 +78,32 @@ function fanOutToMirrors(
 }
 
 /**
+ * ADR-042 (B-80c) listener-detection seam. Returns the number of LIVE mirrors a
+ * session still has, pruning dead sockets on the way (same eviction discipline
+ * as `fanOutToMirrors`). Used by the claude-sdk ghost sweep to decide whether a
+ * session has lost every listener; it imports this — never the reverse — so the
+ * dependency stays one-directional (claude-sdk → writer) with no circularity.
+ */
+export function countLiveMirrors(sessionId: string): number {
+  const mirrors = sessionMirrors.get(sessionId);
+  if (!mirrors || mirrors.size === 0) {
+    return 0;
+  }
+  let live = 0;
+  for (const mirror of mirrors) {
+    if (mirror.readyState !== WS_OPEN_STATE) {
+      mirrors.delete(mirror);
+      continue;
+    }
+    live += 1;
+  }
+  if (mirrors.size === 0) {
+    sessionMirrors.delete(sessionId);
+  }
+  return live;
+}
+
+/**
  * Thin transport adapter that gives WebSocket connections the same interface as
  * SSE writers used by API routes (`send`, `setSessionId`, `getSessionId`).
  */
@@ -121,5 +147,15 @@ export class WebSocketWriter {
 
   getSessionId(): string | null {
     return this.sessionId;
+  }
+
+  /**
+   * ADR-042 (B-80c): true when this session's PRIMARY socket is still open. The
+   * ghost sweep treats `false` here (and zero live mirrors) as "no listener",
+   * the precondition for detaching the session from the drain count. Read-only —
+   * it never swaps or closes the socket (honours the no-swap veto).
+   */
+  isPrimarySocketAlive(): boolean {
+    return this.ws?.readyState === WS_OPEN_STATE;
   }
 }

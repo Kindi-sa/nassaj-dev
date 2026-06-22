@@ -41,8 +41,11 @@ import {
 } from './services/session-process-monitor.js';
 import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
 import { SessionRegistry } from './session-registry.js';
+// ADR-042 (B-80c) ghost-detach: read-only listener-detection seam. Imported one
+// way only (writer service NEVER imports claude-sdk — verified, no circularity).
+import { countLiveMirrors } from './modules/websocket/services/websocket-writer.service.js';
 
-// ADR-036 (B-80): per-session read-only replay registry for claude, isolated in
+// ADR-041 (B-80): per-session read-only replay registry for claude, isolated in
 // its OWN SessionRegistry instance gated behind SESSION_REGISTRY_claude. When the
 // flag is OFF every call here is a cheap no-op and the live stream path is
 // byte-for-byte the pre-slice behaviour (coexistence contract). This is a SECOND
@@ -97,6 +100,85 @@ const pendingToolApprovals = new Map();
 // the same sessionId — a writer swap during this gap would mismatch the new ws.
 const recentlyEndedSessions = new Map(); // sessionId → expiry timestamp
 const RECENTLY_ENDED_GRACE_MS = 2000;
+
+// ─── ADR-042 (B-80c): ghost-session DETACH (not abort) ──────────────────────
+// A claude run keeps its for-await loop consuming the SDK child's stdout even
+// after every listener (primary socket + read-only mirrors) is gone — the loop
+// is a stdout CONSUMER, not the CLI turn driver. The child owns the session and
+// writes its <sessionId>.jsonl incrementally regardless of the socket, so the
+// work is on disk independent of the stream. The remaining problem is purely
+// the DRAIN COUNT: such a "ghost" stays counted active in `activeSessions`, so
+// every `pm2 restart` enters the unbounded graceful drain and hangs until PM2's
+// kill_timeout (5min). Fix = DETACH: after a grace period with no listener, flag
+// the session `detached` so the drain stops counting it — WITHOUT aborting. We
+// never call child.kill()/interrupt/close and never stop the generator; the
+// child finishes the turn and writes complete jsonl (zero work lost, matching
+// the B-N-DRAIN philosophy that children complete). detach only changes whether
+// the session BLOCKS the drain; it never touches the no-swap veto or the stream
+// (the writer still fans out to any returning mirror normally).
+const GHOST_DETACH_SWEEP_MS = parseInt(process.env.CLAUDE_GHOST_DETACH_SWEEP_MS, 10) || 30000;
+const GHOST_DETACH_GRACE_MS = parseInt(process.env.CLAUDE_GHOST_DETACH_GRACE_MS, 10) || 180000;
+let ghostSweepTimer = null;
+
+// Separate flag from SESSION_REGISTRY_claude (which gates B-80a replay/buffer —
+// an orthogonal concern). OFF by default: the sweep never starts, no session is
+// ever flagged detached, and index.js keeps using getActiveClaudeSDKSessions()
+// for the drain count byte-for-byte. Coexistence: zero behaviour change until
+// explicitly enabled.
+function ghostDetachEnabled() {
+  const raw = process.env.CLAUDE_GHOST_DETACH;
+  if (typeof raw !== 'string') return false;
+  const v = raw.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+// One pass over activeSessions: any session whose primary socket is dead AND has
+// zero live mirrors for longer than the grace period gets flagged `detached`.
+// A session that still has any listener resets its grace counter. NO abort: the
+// generator is left to complete and clean itself up via the normal removeSession
+// path when the turn ends. Exported for unit tests (ADR-042 test plan).
+function sweepGhostSessions(now = Date.now()) {
+  if (activeSessions.size === 0) {
+    stopGhostSweep();
+    return;
+  }
+  for (const [sid, session] of activeSessions) {
+    if (session.detached) continue; // already excluded from the drain count
+    const writerAlive = session.writer?.isPrimarySocketAlive?.() === true;
+    const liveMirrors = countLiveMirrors(sid);
+    if (writerAlive || liveMirrors > 0) {
+      // Still has a listener — reset the no-listener clock.
+      session.lastListenerSeenAt = now;
+      session.noListenerSince = null;
+      continue;
+    }
+    // No listener. Start/continue the grace countdown.
+    if (!session.noListenerSince) session.noListenerSince = now;
+    if (now - session.noListenerSince >= GHOST_DETACH_GRACE_MS) {
+      session.detached = true; // ← excluded from getDrainBlockingClaudeSessions()
+      console.log(
+        `[GHOST-DETACH] session=${sid} detached after no-listener grace; `
+          + 'generator left to complete and write jsonl (no abort)'
+      );
+    }
+  }
+}
+
+// Lazy periodic sweep, mirroring session-process-monitor.js: started on first
+// addSession (only when the flag is ON), stopped when activeSessions empties.
+// .unref() so it never keeps the event loop alive at shutdown/drain.
+function startGhostSweep() {
+  if (ghostSweepTimer || !ghostDetachEnabled()) return;
+  ghostSweepTimer = setInterval(() => sweepGhostSessions(), GHOST_DETACH_SWEEP_MS);
+  ghostSweepTimer.unref?.();
+}
+
+function stopGhostSweep() {
+  if (!ghostSweepTimer) return;
+  clearInterval(ghostSweepTimer);
+  ghostSweepTimer = null;
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
@@ -641,9 +723,15 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
     status: 'active',
     tempImagePaths,
     tempDir,
-    writer
+    writer,
+    // ADR-042 (B-80c) ghost-detach bookkeeping. `detached` excludes the session
+    // from the drain count ONLY (never aborts). The clocks are managed by the
+    // lazy sweep; harmless dead fields when CLAUDE_GHOST_DETACH is OFF.
+    detached: false,
+    noListenerSince: null,
+    lastListenerSeenAt: Date.now()
   });
-  // ADR-036: mark the session live in the replay registry (single source of
+  // ADR-041: mark the session live in the replay registry (single source of
   // truth for the active flag + replay buffer). Cancel any pending post-close
   // drop first so a quick resume reuses the entry instead of losing it. No-op
   // when SESSION_REGISTRY_claude is off. addSession is called twice on a fresh
@@ -656,6 +744,9 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
   if (writer && runTag) {
     registerSessionProcess(sessionId, { provider: 'claude', writer, runTag, projectPath });
   }
+  // ADR-042 (B-80c): start the lazy ghost sweep (no-op unless the flag is ON or
+  // the timer already runs). Stopped again in removeSession when the map empties.
+  startGhostSweep();
 }
 
 /**
@@ -664,6 +755,8 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // ADR-042 (B-80c): tear down the lazy ghost sweep once no session remains.
+  if (activeSessions.size === 0) stopGhostSweep();
   // Stop process-state monitoring and tell every viewer the session is idle.
   unregisterSessionProcess(sessionId);
   // Mark as recently ended to block writer swaps during the race window
@@ -1306,7 +1399,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       + `rawSocketReadyState=${wsDiagRawAtStart} isWebSocketWriter=${Boolean(ws && ws.isWebSocketWriter)}`
     );
 
-    // ADR-036 (B-80): RingBuffer injection point. Buffer each LIVE payload under
+    // ADR-041 (B-80): RingBuffer injection point. Buffer each LIVE payload under
     // the current session key, stamp it with the assigned monotonic `sequence`,
     // THEN forward it to the socket. A socket that reconnects mid-stream is then
     // brought up to date by differential replay (attach re-emits seq > lastSeq)
@@ -1351,7 +1444,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        // ADR-036 / B-N-RESUME clean buffer (mirrors agy-cli.js): the SDK reports
+        // ADR-041 / B-N-RESUME clean buffer (mirrors agy-cli.js): the SDK reports
         // its real session_id only now. A resumed run for a sessionId that carries
         // a prior, already-terminated registry entry must NOT inherit the previous
         // run's buffered payloads. Drop the stale INACTIVE entry (and cancel its
@@ -1443,7 +1536,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // Clean up temporary image files
     await cleanupTempFiles(tempImagePaths, tempDir);
 
-    // Send completion event. ADR-036: routed through sendAndBuffer so the
+    // Send completion event. ADR-041: routed through sendAndBuffer so the
     // terminal `complete` is buffered too — a socket reconnecting inside the
     // post-close retention window then replays it (re-emitting `complete` is
     // read-only and idempotent on the client, so it is safe unlike the live
@@ -1451,7 +1544,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // so the buffer survives for the retention window but the session is no
     // longer reported processing.
     sendAndBuffer(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
-    // ADR-036: terminal state — flip the single source of truth to inactive and
+    // ADR-041: terminal state — flip the single source of truth to inactive and
     // schedule a deferred buffer drop (post-close replay window, not an immediate
     // drop). No-op when SESSION_REGISTRY_claude is off.
     if (capturedSessionId || sessionId) {
@@ -1481,7 +1574,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     if (capturedSessionId) {
       removeSession(capturedSessionId);
     }
-    // ADR-036: terminal (error) state — flip the registry's active flag to
+    // ADR-041: terminal (error) state — flip the registry's active flag to
     // inactive and schedule the deferred buffer drop (post-close replay window),
     // mirroring the success path. The structured `error` payload below keeps its
     // direct ws.send so a failure is never gated on the registry; we only manage
@@ -1653,6 +1746,26 @@ function getActiveClaudeSDKSessions() {
 }
 
 /**
+ * ADR-042 (B-80c): the claude sessions the DRAIN must still wait for — active
+ * sessions that are NOT detached. A detached ghost (lost every listener past the
+ * grace period) keeps running in the background and writes complete jsonl, so it
+ * must not hold `pm2 restart` hostage until kill_timeout. Consumed EXCLUSIVELY
+ * by the drain count in index.js (behind the CLAUDE_GHOST_DETACH flag).
+ *
+ * `getActiveClaudeSDKSessions()` stays unchanged — a detached session is still
+ * "active" for display (UI / get-active-sessions / WS-DIAG); it is just no
+ * longer "drain-blocking". Clean split between the two concepts.
+ * @returns {Array<string>} Active, non-detached session IDs.
+ */
+function getDrainBlockingClaudeSessions() {
+  const out = [];
+  for (const [sid, session] of activeSessions) {
+    if (!session.detached) out.push(sid);
+  }
+  return out;
+}
+
+/**
  * B-40a: Cancel all pending tool-approval callbacks for a session and signal
  * each one as cancelled. Called on abort and on session error so dangling
  * approval promises are resolved instead of waiting for TOOL_APPROVAL_TIMEOUT_MS.
@@ -1730,7 +1843,7 @@ function reconnectSessionWriter(sessionId, newRawWs) {
 }
 
 /**
- * ADR-036 (B-80): read-only differential replay for a reconnecting socket on a
+ * ADR-041 (B-80): read-only differential replay for a reconnecting socket on a
  * claude session. Re-emits ONLY the buffered payloads with `seq > lastSeq` to
  * `send`, oldest-first. Performs NO writer swap and NO abort of the running SDK
  * query — it strictly reads the per-session RingBuffer (the active writer of the
@@ -1766,5 +1879,14 @@ export {
   mapCliOptionsToSDK,
   buildValidClaudeModelValues,
   resolveEffortLevel,
-  maybeApplyUltracodeKeywords
+  maybeApplyUltracodeKeywords,
+  // ADR-042 (B-80c) ghost-detach.
+  getDrainBlockingClaudeSessions,
+  ghostDetachEnabled,
+  // Test seam for the ghost sweep (ADR-042 test plan). addSession/removeSession
+  // are the real production paths — using them keeps the unit tests faithful.
+  sweepGhostSessions,
+  addSession,
+  removeSession,
+  getSession
 };

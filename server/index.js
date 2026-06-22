@@ -27,6 +27,8 @@ import {
     abortClaudeSDKSession,
     isClaudeSDKSessionActive,
     getActiveClaudeSDKSessions,
+    getDrainBlockingClaudeSessions,
+    ghostDetachEnabled,
     resolveToolApproval,
     getPendingApprovalsForSession,
     reconnectSessionWriter,
@@ -2040,7 +2042,15 @@ async function startServer() {
             server,
             wss,
             countActiveSessionsByProvider: () => ({
-                claude: getActiveClaudeSDKSessions().length,
+                // ADR-042 (B-80c): behind CLAUDE_GHOST_DETACH the drain stops
+                // counting detached ghost sessions (lost every listener past the
+                // grace period — still running + writing jsonl, just not blocking
+                // restart). Flag OFF ⇒ byte-for-byte the previous behaviour
+                // (every active session counts). Only the drain count changes;
+                // getActiveClaudeSDKSessions() stays the display/WS-DIAG source.
+                claude: (ghostDetachEnabled()
+                    ? getDrainBlockingClaudeSessions()
+                    : getActiveClaudeSDKSessions()).length,
                 cursor: getActiveCursorSessions().length,
                 codex: getActiveCodexSessions().length,
                 gemini: getActiveGeminiSessions().length,
