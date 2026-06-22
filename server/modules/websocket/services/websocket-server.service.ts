@@ -41,6 +41,17 @@ export function createWebSocketServer(
     wss.clients.forEach((client) => {
       const ws = client as AliveWebSocket;
       if (ws.isAlive === false) {
+        // [WS-DIAG] Keepalive terminate (point #3). Fires when a socket missed the
+        // previous ping/pong cycle (>30s unresponsive). This is the server-initiated
+        // path that drops a live socket WITHOUT a close code, surfacing on the client
+        // as a 1006 abnormal close. If this line precedes a freeze, the keepalive
+        // (not the browser/reload) killed the active stream's socket. `userId` is the
+        // JWT stamp set by the chat handler; readyState shows the socket's state pre-terminate.
+        const diagUserId = (ws as unknown as { userId?: unknown }).userId ?? null;
+        console.log(
+          `[WS-DIAG] keepalive-terminate userId=${JSON.stringify(diagUserId)} `
+          + `readyState=${ws.readyState} reason=missed-pong-30s`
+        );
         ws.terminate();
         return;
       }

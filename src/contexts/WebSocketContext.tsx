@@ -146,7 +146,21 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         }
       };
 
-      websocket.onclose = () => {
+      websocket.onclose = (event) => {
+        // [WS-DIAG] (point #5) Client-side close forensics. The server-side close
+        // code (1006 abnormal/no-frame, 1001 going-away/reload, 1000 normal) lets us
+        // correlate the browser's view with the server log. `wasClean=false` + code
+        // 1006 = network/proxy/keepalive drop (the active-stream freeze case);
+        // 1001 = reload/navigation. A reconnect is scheduled below in either case,
+        // but the active session's stream is only re-bound if a component re-issues
+        // check-session-status AND the run is idle (active runs are vetoed server-side).
+        // eslint-disable-next-line no-console
+        console.log(
+          `[WS-DIAG] client-onclose code=${event.code} `
+          + `reason=${JSON.stringify(event.reason || '')} wasClean=${event.wasClean} `
+          + `superseded=${myEpoch !== connEpochRef.current} `
+          + `hadConnected=${hasConnectedRef.current}`
+        );
         // A superseded socket (token rotated, newer connect already running)
         // must not touch shared state or schedule a reconnect — that newer
         // connection owns the lifecycle now.

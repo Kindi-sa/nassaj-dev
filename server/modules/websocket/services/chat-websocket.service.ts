@@ -279,6 +279,14 @@ export function handleChatConnection(
   dependencies: ChatWebSocketDependencies
 ): void {
   console.log('[INFO] Chat WebSocket connected');
+  // [WS-DIAG] Socket birth marker — used to compute socket lifetime at close and
+  // to correlate a reconnecting socket with a prior active stream. Diagnostic only.
+  const wsDiagOpenedAt = Date.now();
+  const wsDiagSocketId = `s${wsDiagOpenedAt.toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+  console.log(
+    `[WS-DIAG] open socket=${wsDiagSocketId} activeClaudeSessions=`
+    + `${JSON.stringify(dependencies.getActiveClaudeSDKSessions())}`
+  );
   connectedClients.add(ws);
 
   // Live presence (B-MU-UX-PRESENCE): register this authenticated socket as
@@ -453,12 +461,28 @@ export function handleChatConnection(
           isActive = dependencies.isOpenCodeSessionActive(sessionId);
         } else {
           isActive = dependencies.isClaudeSDKSessionActive(sessionId);
+          // [WS-DIAG] Re-subscribe decision for a reconnecting socket (point #4).
+          // This is THE branch that decides whether an active Claude stream is
+          // re-bound to the new socket or left orphaned. `isActive===true` means
+          // the run is still streaming, so the writer swap is VETOED below and the
+          // new socket only gets future payloads via the mirror fan-out (it does
+          // NOT take over the primary writer, whose this.ws still points at the
+          // dead socket). `isActive===false` → writer swap is attempted.
+          console.log(
+            `[WS-DIAG] check-session-status claude socket=${wsDiagSocketId} `
+            + `session=${sessionId} isActive=${isActive} mirrorRegistered=${Boolean(sessionId)} `
+            + `writerSwapAttempted=${!isActive}`
+          );
           // Writer swap must NOT happen while a query is active (tool_use in progress).
           // Swapping the writer mid-query desynchronises the SDK from the WebSocket
           // and causes "The user doesn't want to proceed with this tool use." aborts.
           // Only reconnect when the session exists but is idle (not processing).
           if (!isActive) {
-            dependencies.reconnectSessionWriter(sessionId, ws);
+            const swapped = dependencies.reconnectSessionWriter(sessionId, ws);
+            console.log(
+              `[WS-DIAG] reconnectSessionWriter claude socket=${wsDiagSocketId} `
+              + `session=${sessionId} swapped=${swapped}`
+            );
           }
         }
 
@@ -507,8 +531,27 @@ export function handleChatConnection(
     }
   });
 
-  ws.on('close', () => {
+  ws.on('close', (code: number, reason: Buffer) => {
     console.log('[INFO] Chat client disconnected');
+    // [WS-DIAG] Socket close forensics (point #1). The current production code
+    // ignores (code, reason); capture them to distinguish:
+    //   1006 = abnormal/no-close-frame (proxy/network drop, Cloudflare idle, keepalive terminate)
+    //   1001 = going away (page reload / nav) — server graceful drain also uses 1001
+    //   1000 = normal closure
+    // `activeClaudeSessions` at close is the key signal: if it is non-empty, a run
+    // was streaming when this socket died — the writer is now detached (its this.ws
+    // points at this dead socket) and the run keeps consuming SDK output into a
+    // no-op send until it completes or aborts. `writerSessionId` is the session this
+    // socket's writer was bound to (the spawner of the run), null for a viewer/mirror.
+    const wsDiagActiveClaude = dependencies.getActiveClaudeSDKSessions();
+    console.log(
+      `[WS-DIAG] close socket=${wsDiagSocketId} code=${code} `
+      + `reason=${JSON.stringify(reason?.toString() ?? '')} `
+      + `lifetimeMs=${Date.now() - wsDiagOpenedAt} `
+      + `writerSessionId=${JSON.stringify(writer.getSessionId())} `
+      + `activeClaudeSessions=${JSON.stringify(wsDiagActiveClaude)} `
+      + `hadActiveStreamAtClose=${Array.isArray(wsDiagActiveClaude) && wsDiagActiveClaude.length > 0}`
+    );
     connectedClients.delete(ws);
     // Drop this socket from presence; the user stays "connected" while any of
     // their other tabs/devices keep a socket open (multi-tab dedupe).

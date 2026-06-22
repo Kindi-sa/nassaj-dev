@@ -1231,7 +1231,39 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    // [WS-DIAG] Active-stream lifecycle (point #2). Records the writer's bound raw
+    // socket readyState at stream start, and arms a one-time orphan probe: if the
+    // socket closes mid-stream, ws.send() below becomes a silent no-op (readyState
+    // guard in WebSocketWriter.send) while THIS generator keeps consuming SDK output.
+    // The SDK query is NOT aborted on socket close. We log the first iteration where
+    // the socket is no longer OPEN so the freeze is provable: stream alive, socket
+    // dead, payloads dropped, and (point #4) no re-subscribe re-binds the writer
+    // because the run is still 'active' so reconnectSessionWriter is vetoed.
+    // readyState codes: 0=CONNECTING 1=OPEN 2=CLOSING 3=CLOSED.
+    const wsDiagRawAtStart = ws && ws.ws ? ws.ws.readyState : 'no-raw-ws';
+    console.log(
+      `[WS-DIAG] stream-start session=${capturedSessionId || 'NEW'} `
+      + `rawSocketReadyState=${wsDiagRawAtStart} isWebSocketWriter=${Boolean(ws && ws.isWebSocketWriter)}`
+    );
+    let wsDiagOrphanLogged = false;
+    let wsDiagMessageCount = 0;
     for await (const message of queryInstance) {
+      // [WS-DIAG] One-time orphan detection: socket went away but the stream lives on.
+      wsDiagMessageCount += 1;
+      // OPEN readyState is the literal 1 (WebSocket.OPEN); avoid importing the
+      // websocket-state constant here to keep the diagnostic footprint local.
+      if (
+        !wsDiagOrphanLogged
+        && ws && ws.ws
+        && ws.ws.readyState !== 1
+      ) {
+        wsDiagOrphanLogged = true;
+        console.log(
+          `[WS-DIAG] stream-orphaned session=${capturedSessionId || sessionId || 'NEW'} `
+          + `rawSocketReadyState=${ws.ws.readyState} messagesSoFar=${wsDiagMessageCount} `
+          + `note=socket-closed-but-generator-still-running-sends-now-dropped`
+        );
+      }
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 
@@ -1447,6 +1479,15 @@ async function abortClaudeSDKSession(sessionId) {
 
   try {
     console.log(`Aborting SDK session: ${sessionId}`);
+    // [WS-DIAG] Abort path (point #2). Distinguishes an explicit user/abort-driven
+    // teardown of the SDK query from the silent orphaning that happens on socket
+    // close (where NO abort is issued and the run keeps streaming into a dead
+    // socket). If a freeze occurs WITHOUT this line, the run was orphaned, not aborted.
+    const wsDiagAbortRaw = session?.writer?.ws ? session.writer.ws.readyState : 'no-raw-ws';
+    console.log(
+      `[WS-DIAG] sdk-abort session=${sessionId} status=${session?.status ?? 'unknown'} `
+      + `writerRawReadyState=${wsDiagAbortRaw}`
+    );
 
     // B-40a: cancel any tool approval that is waiting for user interaction
     // so the approval promise resolves immediately instead of blocking for
@@ -1543,12 +1584,27 @@ function reconnectSessionWriter(sessionId, newRawWs) {
   // between removeSession() and the next addSession() for the same sessionId.
   if (recentlyEndedSessions.has(sessionId)) {
     console.log(`[RECONNECT] Skipped writer swap for ${sessionId} — in grace period`);
+    // [WS-DIAG] (point #4) Re-bind refused because the session just ended (grace
+    // window). The new socket will not receive the stream; expected for completed runs.
+    console.log(`[WS-DIAG] writer-swap-skipped session=${sessionId} reason=grace-period`);
     return false;
   }
   const session = getSession(sessionId);
-  if (!session?.writer?.updateWebSocket) return false;
+  if (!session?.writer?.updateWebSocket) {
+    // [WS-DIAG] (point #4) No writer to swap (session unknown or no writer). A
+    // reconnecting socket finds nothing to re-bind — stream cannot be resumed here.
+    console.log(
+      `[WS-DIAG] writer-swap-skipped session=${sessionId} `
+      + `reason=no-writer hasSession=${Boolean(session)}`
+    );
+    return false;
+  }
   session.writer.updateWebSocket(newRawWs);
   console.log(`[RECONNECT] Writer swapped for session ${sessionId}`);
+  // [WS-DIAG] (point #4) Writer successfully re-bound to the new socket. This only
+  // happens when the run is IDLE (isActive===false at the caller); an ACTIVE run is
+  // vetoed by the `if(!isActive)` guard in chat-websocket.service and never reaches here.
+  console.log(`[WS-DIAG] writer-swap-applied session=${sessionId}`);
   return true;
 }
 
