@@ -238,7 +238,7 @@ export function useChatRealtimeHandlers({
     /* ---------------------------------------------------------------- */
 
     const sid = msg.sessionId || activeViewSessionId;
-    // ADR-036 (B-80): record the highest server-stamped stream `sequence` for any
+    // ADR-041 (B-80): record the highest server-stamped stream `sequence` for any
     // normalized payload that carries one, so `lastSeq` in check-session-status is
     // an exact floor across all kinds (stream_delta, tool_use, complete, status…).
     // appendRealtime also records it for persisted kinds, but stream_delta on the
@@ -266,7 +266,7 @@ export function useChatRealtimeHandlers({
     if (msg.kind === 'stream_delta') {
       const text = msg.content || '';
       if (!text) return;
-      // (seq recorded at the top of this block for all kinds; ADR-036 B-80.)
+      // (seq recorded at the top of this block for all kinds; ADR-041 B-80.)
       accumulatedStreamRef.current += text;
       if (!streamTimerRef.current) {
         streamTimerRef.current = window.setTimeout(() => {

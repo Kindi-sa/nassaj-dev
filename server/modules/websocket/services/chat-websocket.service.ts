@@ -80,7 +80,7 @@ type ChatWebSocketDependencies = {
     send: (payload: unknown) => void
   ) => number;
   /**
-   * ADR-036 (B-80): read-only differential replay for claude — same contract as
+   * ADR-041 (B-80): read-only differential replay for claude — same contract as
    * attachAntigravitySession, on a separate SESSION_REGISTRY_claude-gated
    * registry instance. Re-emits buffered payloads with `seq > lastSeq` via
    * `send`, oldest-first, and returns the highest seq replayed. It performs NO
@@ -487,7 +487,7 @@ export function handleChatConnection(
             + `session=${sessionId} isActive=${isActive} mirrorRegistered=${Boolean(sessionId)} `
             + `writerSwapAttempted=${!isActive}`
           );
-          // ADR-036 (B-80): read-only differential replay for claude, mirroring the
+          // ADR-041 (B-80): read-only differential replay for claude, mirroring the
           // antigravity branch above. A reconnecting socket gets ONLY the buffered
           // payloads it has not seen (seq > lastSeq) re-emitted to ITS writer,
           // running BEFORE the isActive veto so an ACTIVE stream (the freeze case)

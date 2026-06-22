@@ -1,4 +1,4 @@
-# ADR-036 — Claude Live-Stream Replay على reconnect (إصلاح B-80)
+# ADR-041 — Claude Live-Stream Replay على reconnect (إصلاح B-80)
 
 > **سجلّ قرار معماري (ADR).** الصيغة: Context → Alternatives → Decision → Consequences → Status.
 > الكود في `/home/nassaj/Project/nassaj-dev`. يمدّ ADR-021 إلى مزوّد claude بمسار **replay-only** لا يكسر فيتو no-swap.

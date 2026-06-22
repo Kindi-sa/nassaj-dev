@@ -89,7 +89,7 @@ function makeDeps(overrides: Record<string, unknown>) {
     isOpenCodeSessionActive: () => false,
     reconnectSessionWriter: forbidden('reconnectSessionWriter'),
     attachAntigravitySession: () => 0,
-    // ADR-036 (B-80): the claude check-session-status branch now calls this
+    // ADR-041 (B-80): the claude check-session-status branch now calls this
     // unconditionally (read-only replay, no-op when the flag is off), so the
     // fixture must provide it just as it does attachAntigravitySession. Without
     // it the dispatcher throws on the claude idle path below and the writer swap

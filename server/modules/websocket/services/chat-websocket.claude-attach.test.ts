@@ -1,4 +1,4 @@
-// ADR-036 (B-80) integration test. Drives the real `handleChatConnection`
+// ADR-041 (B-80) integration test. Drives the real `handleChatConnection`
 // dispatcher to prove the CLAUDE check-session-status path performs read-only
 // differential replay (seq > lastSeq) WITHOUT swapping the writer and WITHOUT
 // aborting the live run — honouring the documented `if(!isActive)` no-swap veto
@@ -156,7 +156,7 @@ function sendCheckStatus(
 
 // (1) Disconnect mid text-stream → reconnect with lastSeq → only the delta is
 // replayed, no duplication; the run is never swapped or aborted.
-test('ADR-036: mid text-stream reconnect replays only seq>lastSeq, no swap/abort/dup', () => {
+test('ADR-041: mid text-stream reconnect replays only seq>lastSeq, no swap/abort/dup', () => {
   const reg = makeReplayDouble();
   const sid = 'claude-live-text';
   reg.open();
@@ -187,7 +187,7 @@ test('ADR-036: mid text-stream reconnect replays only seq>lastSeq, no swap/abort
 
 // (2) Disconnect in the middle of a tool_use → the buffered tool_use/tool_result
 // pair after lastSeq is replayed in order, still no swap.
-test('ADR-036: reconnect mid tool_use replays the unseen tool_use + tool_result in order', () => {
+test('ADR-041: reconnect mid tool_use replays the unseen tool_use + tool_result in order', () => {
   const reg = makeReplayDouble();
   const sid = 'claude-live-tool';
   reg.open();
@@ -221,7 +221,7 @@ test('ADR-036: reconnect mid tool_use replays the unseen tool_use + tool_result 
 
 // (3) Multiple mirrors: two independent reconnecting sockets each get only their
 // own delta relative to their own lastSeq; neither swaps the writer.
-test('ADR-036: multiple mirrors each receive their own differential slice', () => {
+test('ADR-041: multiple mirrors each receive their own differential slice', () => {
   const reg = makeReplayDouble();
   const sid = 'claude-live-multi';
   reg.open();
@@ -255,7 +255,7 @@ test('ADR-036: multiple mirrors each receive their own differential slice', () =
 // (4) Regression guard: an IDLE claude session (isActive=false) still takes the
 // LEGACY path and swaps the writer via reconnectSessionWriter. The active-stream
 // replay change must not have altered idle behaviour.
-test('ADR-036: idle claude still swaps the writer (legacy path unchanged)', () => {
+test('ADR-041: idle claude still swaps the writer (legacy path unchanged)', () => {
   let swapped = false;
   const reg = makeReplayDouble();
   // Session known to the registry but terminal/inactive.
@@ -284,7 +284,7 @@ test('ADR-036: idle claude still swaps the writer (legacy path unchanged)', () =
 // (5) Flag OFF: the registry is disabled → attach is a no-op (nothing replayed)
 // and no `sequence` is ever stamped. The active session still reports processing
 // and is still NOT swapped (veto holds independent of the flag).
-test('ADR-036: SESSION_REGISTRY_claude off → no replay, no sequence, no swap', () => {
+test('ADR-041: SESSION_REGISTRY_claude off → no replay, no sequence, no swap', () => {
   const reg = makeReplayDouble({ enabled: false });
   const sid = 'claude-flag-off';
   // open()/record() are no-ops while disabled; the live run is still active per
