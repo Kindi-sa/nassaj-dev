@@ -53,6 +53,11 @@ module.exports = {
       error_file: '/home/nassaj/.pm2/logs/nassaj-dev-error.log',
       env: {
         NODE_ENV: 'production',
+        // ADR-041 (B-80): يُفعّل سجل الإعادة (replay) القرائي لجلسات claude،
+        // المعزول في SessionRegistry خاص خلف هذا العلم (server/session-registry.js:
+        // flagEnabled يقبل 1/true/yes/on). إطفاؤه (حذف السطر) no-op كامل يعيد المسار
+        // الحيّ إلى ما قبل الشريحة بلا فقد بيانات. يُقرأ من process.env عبر getter حيّ.
+        SESSION_REGISTRY_claude: '1',
         SERVER_PORT: '3004',
         PORT: '3004',
         HOST: '127.0.0.1',
