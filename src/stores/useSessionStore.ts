@@ -298,6 +298,12 @@ export function useSessionStore() {
   const storeRef = useRef(new Map<string, SessionSlot>());
   const sessionAliasesRef = useRef(new Map<string, string>());
   const activeSessionIdRef = useRef<string | null>(null);
+  // ADR-036 (B-80): highest stream `sequence` seen per session. Sent as `lastSeq`
+  // in check-session-status so the server replays only the delta on reconnect.
+  // Kept in a ref (not slot state) because it must survive independently of the
+  // message arrays and is read synchronously; it monotonically increases and is
+  // never reset for the life of a session id.
+  const lastSeqRef = useRef(new Map<string, number>());
   // Bump to force re-render — only when the active session's data changes
   const [, setTick] = useState(0);
   const notify = useCallback((sessionId: string) => {
@@ -334,6 +340,28 @@ export function useSessionStore() {
 
   const setActiveSession = useCallback((sessionId: string | null) => {
     activeSessionIdRef.current = resolveSessionId(sessionId);
+  }, [resolveSessionId]);
+
+  // ADR-036 (B-80): record the highest stream `sequence` seen for a session.
+  // Monotonic max — an out-of-order or older payload never lowers it. No-op for
+  // a non-finite/absent sequence (legacy payloads, or the registry flag off
+  // server-side so no `sequence` is ever stamped). Keyed by the resolved session
+  // id so an alias (post session_created rename) shares one counter.
+  const recordSeq = useCallback((sessionId: string, sequence: unknown) => {
+    if (typeof sequence !== 'number' || !Number.isFinite(sequence)) return;
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    const prev = lastSeqRef.current.get(resolvedSessionId) ?? 0;
+    if (sequence > prev) {
+      lastSeqRef.current.set(resolvedSessionId, sequence);
+    }
+  }, [resolveSessionId]);
+
+  // ADR-036 (B-80): highest stream `sequence` seen for a session (0 when unknown).
+  // Sent as `lastSeq` in check-session-status so the server replays only seq >
+  // lastSeq on reconnect.
+  const getLastSeq = useCallback((sessionId: string): number => {
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    return lastSeqRef.current.get(resolvedSessionId) ?? 0;
   }, [resolveSessionId]);
 
   const getSlot = useCallback((sessionId: string): SessionSlot => {
@@ -459,6 +487,9 @@ export function useSessionStore() {
   const appendRealtime = useCallback((sessionId: string, msg: NormalizedMessage) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
+    // ADR-036 (B-80): track the highest server-stamped stream sequence so reconnect
+    // requests only the delta. No-op when `sequence` is absent (flag off / legacy).
+    recordSeq(resolvedSessionId, (msg as NormalizedMessage).sequence);
     const normalizedMessage =
       msg.sessionId === resolvedSessionId
         ? msg
@@ -479,6 +510,10 @@ export function useSessionStore() {
     if (msgs.length === 0) return;
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
+    // ADR-036 (B-80): track the highest server-stamped stream sequence in the batch.
+    for (const msg of msgs) {
+      recordSeq(resolvedSessionId, (msg as NormalizedMessage).sequence);
+    }
     const normalizedMessages = msgs.map((msg) =>
       msg.sessionId === resolvedSessionId
         ? msg
@@ -732,11 +767,14 @@ export function useSessionStore() {
     getMessages,
     getSessionSlot,
     replaceSessionId,
+    recordSeq,
+    getLastSeq,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
     clearRealtime, getMessages, getSessionSlot, replaceSessionId,
+    recordSeq, getLastSeq,
   ]);
 }
 

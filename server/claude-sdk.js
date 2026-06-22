@@ -40,6 +40,56 @@ import {
   unregisterSessionProcess
 } from './services/session-process-monitor.js';
 import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
+import { SessionRegistry } from './session-registry.js';
+
+// ADR-036 (B-80): per-session read-only replay registry for claude, isolated in
+// its OWN SessionRegistry instance gated behind SESSION_REGISTRY_claude. When the
+// flag is OFF every call here is a cheap no-op and the live stream path is
+// byte-for-byte the pre-slice behaviour (coexistence contract). This is a SECOND
+// instance of the same engine agy uses — session-registry.js itself is reused
+// unchanged. Exported so the websocket layer (check-session-status / attach)
+// reads the SAME instance: one source of truth for both the replay buffer and
+// the active flag. It NEVER swaps the active writer and NEVER aborts the run —
+// it only re-emits buffered payloads (seq > lastSeq) to a reconnecting socket,
+// honouring the ADR-021 `if(!isActive)` no-swap veto.
+const claudeSessionRegistry = new SessionRegistry('SESSION_REGISTRY_claude', { capacity: 500 });
+
+// B-N-DROP (mirrors agy-cli.js): how long a session's replay buffer is retained
+// AFTER the run reaches a terminal state (complete/error) before it is dropped —
+// the post-close replay window. A socket that reconnects within this grace
+// period can still receive the final payloads via differential attach. After it
+// elapses the entry is dropped so the registry never grows unbounded across
+// uptime. The timer is cancelled if the same key is reopened/reused first.
+const CLAUDE_BUFFER_RETENTION_MS = 120000;
+
+// Pending post-close drop timers keyed by sessionId, so a reopen/reuse of the key
+// (resume) can cancel the scheduled drop and keep the buffer alive for the run.
+const claudePendingDropTimers = new Map();
+
+// Cancel any scheduled post-close drop for `key`. Called whenever the key is
+// reopened or reused before its retention window elapses.
+function cancelClaudePendingDrop(key) {
+  if (!key) return;
+  const timer = claudePendingDropTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    claudePendingDropTimers.delete(key);
+  }
+}
+
+// B-N-DROP: schedule a deferred drop of `key` after CLAUDE_BUFFER_RETENTION_MS.
+// Replaces any previously scheduled drop for the same key. `.unref()` so a
+// pending drop never holds the event loop open at shutdown.
+function scheduleClaudeBufferDrop(key) {
+  if (!key) return;
+  cancelClaudePendingDrop(key);
+  const timer = setTimeout(() => {
+    claudePendingDropTimers.delete(key);
+    claudeSessionRegistry.drop(key);
+  }, CLAUDE_BUFFER_RETENTION_MS);
+  timer.unref?.();
+  claudePendingDropTimers.set(key, timer);
+}
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -593,6 +643,16 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
     tempDir,
     writer
   });
+  // ADR-036: mark the session live in the replay registry (single source of
+  // truth for the active flag + replay buffer). Cancel any pending post-close
+  // drop first so a quick resume reuses the entry instead of losing it. No-op
+  // when SESSION_REGISTRY_claude is off. addSession is called twice on a fresh
+  // run (once eagerly with the resume id when present, once with the real
+  // captured session_id); open() is idempotent so the double call is safe.
+  if (sessionId) {
+    cancelClaudePendingDrop(sessionId);
+    claudeSessionRegistry.open(sessionId);
+  }
   if (writer && runTag) {
     registerSessionProcess(sessionId, { provider: 'claude', writer, runTag, projectPath });
   }
@@ -1245,6 +1305,29 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       `[WS-DIAG] stream-start session=${capturedSessionId || 'NEW'} `
       + `rawSocketReadyState=${wsDiagRawAtStart} isWebSocketWriter=${Boolean(ws && ws.isWebSocketWriter)}`
     );
+
+    // ADR-036 (B-80): RingBuffer injection point. Buffer each LIVE payload under
+    // the current session key, stamp it with the assigned monotonic `sequence`,
+    // THEN forward it to the socket. A socket that reconnects mid-stream is then
+    // brought up to date by differential replay (attach re-emits seq > lastSeq)
+    // — read-only, no writer swap, no abort. record() returns null when the flag
+    // is OFF (then we forward the payload untouched, no `sequence` field, exactly
+    // as before). Buffering is keyed off `capturedSessionId` resolved at call
+    // time (it may be null for the very first payloads of a brand-new run, before
+    // the SDK reports session_id; those are not buffered — identical to agy,
+    // where the pre-id window is covered by a connectionId we do not have here).
+    // Only the live-stream payloads inside the for-await loop route through this;
+    // the terminal `error` payload keeps a direct ws.send so a failure is never
+    // gated on the registry.
+    const sendAndBuffer = (payload) => {
+      const sid = capturedSessionId || sessionId || null;
+      const seq = sid ? claudeSessionRegistry.record(sid, payload) : null;
+      if (seq !== null && seq !== undefined) {
+        payload.sequence = seq;
+      }
+      ws.send(payload);
+    };
+
     let wsDiagOrphanLogged = false;
     let wsDiagMessageCount = 0;
     for await (const message of queryInstance) {
@@ -1268,6 +1351,22 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
+        // ADR-036 / B-N-RESUME clean buffer (mirrors agy-cli.js): the SDK reports
+        // its real session_id only now. A resumed run for a sessionId that carries
+        // a prior, already-terminated registry entry must NOT inherit the previous
+        // run's buffered payloads. Drop the stale INACTIVE entry (and cancel its
+        // pending post-close drop) BEFORE addSession re-opens a fresh one, so the
+        // new run's seq line starts at 0 and a client reconnecting with lastSeq
+        // absent/0 replays only THIS run. A still-active entry under the same id is
+        // a live run we must never disturb, so it is left untouched. No-op when the
+        // flag is off.
+        if (
+          claudeSessionRegistry.enabled
+          && claudeSessionRegistry.entries.has(capturedSessionId)
+          && !claudeSessionRegistry.isActive(capturedSessionId)
+        ) {
+          claudeSessionRegistry.drop(capturedSessionId);
+        }
         addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag, options.cwd || options.projectPath || null);
         recordParticipant(capturedSessionId);
 
@@ -1279,7 +1378,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         // Send session-created event only once for new sessions
         if (!sessionId && !sessionCreatedSent) {
           sessionCreatedSent = true;
-          ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
+          sendAndBuffer(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
       } else {
         // session_id already captured
@@ -1311,7 +1410,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         // the spawner's mirrors) attribute the reply to the real participant
         // instead of the session owner. No-op for the user echo handled above.
         stampCoordinatorId(msg, ws?.userId);
-        ws.send(msg);
+        sendAndBuffer(msg);
       }
 
       // Fork: stale `resume` surfaces as an error result whose text names the
@@ -1332,7 +1431,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       // Extract and send token budget updates from assistant/result usage payloads (#807)
       const tokenBudgetData = extractTokenBudget(message);
       if (tokenBudgetData) {
-        ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+        sendAndBuffer(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       }
     }
 
@@ -1344,8 +1443,21 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // Clean up temporary image files
     await cleanupTempFiles(tempImagePaths, tempDir);
 
-    // Send completion event
-    ws.send(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
+    // Send completion event. ADR-036: routed through sendAndBuffer so the
+    // terminal `complete` is buffered too — a socket reconnecting inside the
+    // post-close retention window then replays it (re-emitting `complete` is
+    // read-only and idempotent on the client, so it is safe unlike the live
+    // critical path). The active flag is flipped to inactive immediately AFTER,
+    // so the buffer survives for the retention window but the session is no
+    // longer reported processing.
+    sendAndBuffer(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
+    // ADR-036: terminal state — flip the single source of truth to inactive and
+    // schedule a deferred buffer drop (post-close replay window, not an immediate
+    // drop). No-op when SESSION_REGISTRY_claude is off.
+    if (capturedSessionId || sessionId) {
+      claudeSessionRegistry.setActive(capturedSessionId || sessionId, false);
+      scheduleClaudeBufferDrop(capturedSessionId || sessionId);
+    }
     notifyRunStopped({
       userId: ws?.userId || null,
       provider: 'claude',
@@ -1368,6 +1480,15 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // Clean up session on error
     if (capturedSessionId) {
       removeSession(capturedSessionId);
+    }
+    // ADR-036: terminal (error) state — flip the registry's active flag to
+    // inactive and schedule the deferred buffer drop (post-close replay window),
+    // mirroring the success path. The structured `error` payload below keeps its
+    // direct ws.send so a failure is never gated on the registry; we only manage
+    // the lifecycle here. No-op when SESSION_REGISTRY_claude is off.
+    if (capturedSessionId || sessionId) {
+      claudeSessionRegistry.setActive(capturedSessionId || sessionId, false);
+      scheduleClaudeBufferDrop(capturedSessionId || sessionId);
     }
 
     // Clean up temporary image files on error
@@ -1608,6 +1729,26 @@ function reconnectSessionWriter(sessionId, newRawWs) {
   return true;
 }
 
+/**
+ * ADR-036 (B-80): read-only differential replay for a reconnecting socket on a
+ * claude session. Re-emits ONLY the buffered payloads with `seq > lastSeq` to
+ * `send`, oldest-first. Performs NO writer swap and NO abort of the running SDK
+ * query — it strictly reads the per-session RingBuffer (the active writer of the
+ * live session is left untouched, honouring the ADR-021 `if(!isActive)` no-swap
+ * veto). Returns the highest seq replayed, or the supplied `lastSeq` when nothing
+ * newer exists / the flag is off / the session is unknown. Mirrors
+ * attachAntigravitySession in agy-cli.js exactly.
+ *
+ * @param {string} sessionId - The session ID whose buffer to replay.
+ * @param {number} lastSeq - The highest seq the client already received.
+ * @param {(payload: unknown) => void} send - Sink for each replayed payload.
+ * @returns {number} Highest seq replayed (or lastSeq when nothing newer).
+ */
+function attachClaudeSDKSession(sessionId, lastSeq, send) {
+  const result = claudeSessionRegistry.attach(sessionId, lastSeq, send);
+  return result === null ? (Number.isFinite(lastSeq) ? lastSeq : 0) : result;
+}
+
 // Export public API
 export {
   queryClaudeSDK,
@@ -1618,6 +1759,8 @@ export {
   getPendingApprovalsForSession,
   cancelPendingApprovalsForSession,
   reconnectSessionWriter,
+  attachClaudeSDKSession,
+  claudeSessionRegistry,
   resolveContextWindow,
   getClaudeBuiltInCommands,
   mapCliOptionsToSDK,

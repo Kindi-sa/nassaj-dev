@@ -79,6 +79,20 @@ type ChatWebSocketDependencies = {
     lastSeq: number,
     send: (payload: unknown) => void
   ) => number;
+  /**
+   * ADR-036 (B-80): read-only differential replay for claude — same contract as
+   * attachAntigravitySession, on a separate SESSION_REGISTRY_claude-gated
+   * registry instance. Re-emits buffered payloads with `seq > lastSeq` via
+   * `send`, oldest-first, and returns the highest seq replayed. It performs NO
+   * writer swap and NO session abort (the `if(!isActive)` no-swap veto stays
+   * intact); it strictly reads the per-session RingBuffer. No-op (returns
+   * lastSeq) when the SESSION_REGISTRY_claude flag is off.
+   */
+  attachClaudeSDKSession: (
+    sessionId: string,
+    lastSeq: number,
+    send: (payload: unknown) => void
+  ) => number;
   getPendingApprovalsForSession: (sessionId: string) => unknown[];
   getActiveClaudeSDKSessions: () => unknown;
   getActiveCursorSessions: () => unknown;
@@ -473,6 +487,21 @@ export function handleChatConnection(
             + `session=${sessionId} isActive=${isActive} mirrorRegistered=${Boolean(sessionId)} `
             + `writerSwapAttempted=${!isActive}`
           );
+          // ADR-036 (B-80): read-only differential replay for claude, mirroring the
+          // antigravity branch above. A reconnecting socket gets ONLY the buffered
+          // payloads it has not seen (seq > lastSeq) re-emitted to ITS writer,
+          // running BEFORE the isActive veto so an ACTIVE stream (the freeze case)
+          // is caught up without ever swapping the primary writer or aborting the
+          // run. This deliberately does NOT call reconnectSessionWriter and never
+          // touches the `if(!isActive)` veto below. No-op when SESSION_REGISTRY_claude
+          // is off (returns lastSeq, sends nothing). The mirror registration above
+          // (addSessionMirror) still delivers FUTURE payloads; this replay closes
+          // the gap between socket death and mirror registration.
+          const rawLastSeq = typeof data.lastSeq === 'number' ? data.lastSeq : Number(data.lastSeq);
+          const lastSeq = Number.isFinite(rawLastSeq) ? rawLastSeq : 0;
+          dependencies.attachClaudeSDKSession(sessionId, lastSeq, (payload) => {
+            writer.send(payload);
+          });
           // Writer swap must NOT happen while a query is active (tool_use in progress).
           // Swapping the writer mid-query desynchronises the SDK from the WebSocket
           // and causes "The user doesn't want to proceed with this tool use." aborts.

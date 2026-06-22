@@ -494,9 +494,19 @@ export function useChatSessionState({
       sessionStorage.setItem('cursorSessionId', selectedSession.id);
     }
 
-    // Check session status
+    // Check session status. ADR-036 (B-80): carry the highest stream `sequence`
+    // this client has already seen for the session so the server can replay only
+    // the delta (seq > lastSeq) on reconnect, avoiding duplicate text on the
+    // active view. Defaults to 0 (replay-all) when unknown or the registry flag
+    // is off server-side. getLastSeq is optional-chained so older store shapes
+    // (and tests) degrade gracefully to 0.
     if (ws) {
-      sendMessage({ type: 'check-session-status', sessionId: selectedSession.id, provider });
+      sendMessage({
+        type: 'check-session-status',
+        sessionId: selectedSession.id,
+        provider,
+        lastSeq: sessionStore.getLastSeq?.(selectedSession.id) ?? 0,
+      });
     }
 
     lastLoadedSessionKeyRef.current = sessionKey;

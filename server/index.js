@@ -30,6 +30,7 @@ import {
     resolveToolApproval,
     getPendingApprovalsForSession,
     reconnectSessionWriter,
+    attachClaudeSDKSession,
     resolveContextWindow,
 } from './claude-sdk.js';
 import {
@@ -164,6 +165,7 @@ const wss = createWebSocketServer(server, {
         isOpenCodeSessionActive,
         reconnectSessionWriter,
         attachAntigravitySession,
+        attachClaudeSDKSession,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
         getActiveCursorSessions,

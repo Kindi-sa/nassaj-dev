@@ -238,6 +238,15 @@ export function useChatRealtimeHandlers({
     /* ---------------------------------------------------------------- */
 
     const sid = msg.sessionId || activeViewSessionId;
+    // ADR-036 (B-80): record the highest server-stamped stream `sequence` for any
+    // normalized payload that carries one, so `lastSeq` in check-session-status is
+    // an exact floor across all kinds (stream_delta, tool_use, complete, status…).
+    // appendRealtime also records it for persisted kinds, but stream_delta on the
+    // active view and the non-persisted control kinds bypass appendRealtime, so we
+    // cover them here. No-op when `sequence` is absent (registry flag off / legacy).
+    if (sid) {
+      sessionStore.recordSeq(sid, (msg as NormalizedMessage).sequence);
+    }
     // True only when the event belongs to the session currently on screen.
     // Mirror events for background sessions must NOT mutate the active view
     // (spinner, status text, pending permission prompts). When a payload has no
@@ -257,6 +266,7 @@ export function useChatRealtimeHandlers({
     if (msg.kind === 'stream_delta') {
       const text = msg.content || '';
       if (!text) return;
+      // (seq recorded at the top of this block for all kinds; ADR-036 B-80.)
       accumulatedStreamRef.current += text;
       if (!streamTimerRef.current) {
         streamTimerRef.current = window.setTimeout(() => {
