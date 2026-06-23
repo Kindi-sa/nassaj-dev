@@ -8,6 +8,7 @@ import {
   usageTextColorClass,
 } from '../../../quick-settings-panel/claudeUsageHelpers';
 import type { ClaudeUsage } from '../../../quick-settings-panel/claudeUsageTypes';
+import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 
 // ---------------------------------------------------------------------------
 // useMediaQuery — tiny hook that tracks a CSS media query result reactively.
@@ -61,14 +62,15 @@ const WINDOWS: { letter: string; key: WindowKey }[] = [
 // ---------------------------------------------------------------------------
 export default function HeaderUsageIndicator() {
   const { i18n, t } = useTranslation('settings');
+  const { preferences } = useUiPreferences();
 
-  // Only fetch and render when the viewport is at least xl (1280px).
-  const isWide = useMediaQuery('(min-width: 1280px)');
+  // In icon-only mode the tab bar is narrower, so indicators fit at a lower
+  // breakpoint. In normal mode keep the original xl (1280px) threshold.
+  const minWidth = preferences.tabsIconOnly ? 900 : 1280;
+  const isWide = useMediaQuery(`(min-width: ${minWidth}px)`);
 
   const usageState = useClaudeUsage(isWide);
 
-  // Hide on narrow viewports (CSS guard via hidden xl:flex is the primary
-  // mechanism; this JS guard stops any rendering work entirely).
   if (!isWide) return null;
 
   // Silent during loading / error — keep the header clean.
@@ -89,8 +91,9 @@ export default function HeaderUsageIndicator() {
 
   return (
     <div
-      // CSS double-guard: JS hides on narrow, CSS hides in case of SSR/hydration mismatch.
-      className="hidden xl:flex items-center gap-3 flex-shrink-0 select-none"
+      // JS guard above is the primary visibility control; inline flex here since
+      // the breakpoint is dynamic (900px or 1280px depending on tabsIconOnly).
+      className="flex items-center gap-3 flex-shrink-0 select-none"
       aria-label={t('claudeUsage.title')}
     >
       {items.map(({ letter, clamped, resetsAt }) => {
