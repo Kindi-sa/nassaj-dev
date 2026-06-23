@@ -46,8 +46,13 @@ export interface IProvider {
 export interface IProviderModels {
   /**
    * Returns the provider's currently supported model catalog.
+   *
+   * `userId` lets credential-isolating providers (e.g. Claude) probe the catalog
+   * under the user's own resolved environment, so the list reflects THAT
+   * subscription's entitlements instead of the operator's. Providers that are not
+   * per-user isolated may ignore it.
    */
-  getSupportedModels(): Promise<ProviderModelsDefinition>;
+  getSupportedModels(userId?: string | number | null): Promise<ProviderModelsDefinition>;
 
   /**
    * Returns the currently active model for one session or provider runtime.

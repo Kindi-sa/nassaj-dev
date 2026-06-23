@@ -9,8 +9,13 @@ import {
   assertAnthropicBaseUrlAllowed,
   assertSettingsEnvAllowed,
 } from '@/services/isolation/anthropic-base-url-guard.js';
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import type { ProviderModelOption, ProviderModelsDefinition } from '@/shared/types.js';
 
+import {
+  brokenModelsUserKey,
+  getBrokenModels,
+} from './claude-broken-models.store.js';
 import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
 
 /**
@@ -21,6 +26,16 @@ import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
  * then maps it into the provider-models `ProviderModelsDefinition` shape. The
  * live list automatically surfaces the newest model the account can use (e.g.
  * Opus 4.8 or later) without anyone editing a hand-maintained array.
+ *
+ * Real authentication (B-MODEL-DISCOVERY): the probe runs under the SAME
+ * CLAUDE_CONFIG_DIR a real spawn for this user would use, resolved through
+ * {@link resolveProviderEnv}(userId, 'claude', ...). That is what makes the list
+ * TRUE per-subscription: an UNauthenticated probe (the old `{ ...process.env }`)
+ * made `supportedModels()` answer from the CLI's static built-in list, which
+ * includes models Anthropic has not released for the account (e.g.
+ * claude-fable-5). Under the user's real credentials Anthropic's own filtering
+ * returns only the entitled models, so the unreleased ones disappear at the
+ * source — no hand-maintained hide-list is needed.
  *
  * Side-effect safety (the reason the original inline call was disabled):
  *  - The catalog is obtained from a control request (`supportedModels()`) that
@@ -36,9 +51,11 @@ import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
  *
  * Resilience (mirrors antigravity-catalog.client.ts):
  *  - Hard abort timeout so a hung probe never stalls a model lookup.
- *  - Process-level circuit breaker: after repeated failures we stop spawning the
- *    probe for a cooldown window and serve the fallback immediately.
- *  - Single-flight lock so concurrent callers share one in-flight probe.
+ *  - Process-level circuit breaker, KEYED PER USER: after repeated failures for a
+ *    given subscription we stop spawning that user's probe for a cooldown window
+ *    and serve the fallback immediately. One account's breaker never blocks
+ *    another's live fetch.
+ *  - Single-flight lock per user so concurrent callers share one in-flight probe.
  *  - Every failure mode degrades gracefully to {@link CLAUDE_FALLBACK_MODELS}
  *    flagged `degraded: true`. The live fetch is an enhancement, never a
  *    dependency — the UI must keep working with no Claude install at all.
@@ -46,11 +63,6 @@ import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
 
 /** Hard cap on the live probe; the control request returns well under this. */
 const PROBE_TIMEOUT_MS = 8_000;
-
-// Models the installed CLI may advertise in supportedModels() but Anthropic has
-// NOT released for use — selecting them fails silently. Hide until launched.
-// Remove an entry here once the model is actually usable. See feedback_workflow_agenttype_fable_fallback.
-const UNRELEASED_HIDDEN_MODELS = new Set<string>(['claude-fable-5']);
 
 /** Consecutive failures before the breaker opens. */
 const CIRCUIT_FAILURE_THRESHOLD = 3;
@@ -63,37 +75,43 @@ type CircuitState = {
   openUntil: number;
 };
 
-// Module-scoped breaker. Holds only counters/timestamps.
-const circuit: CircuitState = {
-  consecutiveFailures: 0,
-  openUntil: 0,
-};
+// Per-user breaker + single-flight maps. The key is the resolved user bucket
+// (resolveProviderEnv's isolation scope), so each subscription has independent
+// failure accounting and never shares an in-flight probe with another user.
+const circuits = new Map<string, CircuitState>();
+const inFlight = new Map<string, Promise<ProviderModelsDefinition>>();
 
-// Single-flight: a probe in progress is shared by every concurrent caller so two
-// requests can never spawn two SDK probes at once.
-let inFlight: Promise<ProviderModelsDefinition> | null = null;
-
-function isCircuitOpen(now: number): boolean {
-  return circuit.openUntil > now;
+function getCircuit(userKey: string): CircuitState {
+  let circuit = circuits.get(userKey);
+  if (!circuit) {
+    circuit = { consecutiveFailures: 0, openUntil: 0 };
+    circuits.set(userKey, circuit);
+  }
+  return circuit;
 }
 
-function recordSuccess(): void {
+function isCircuitOpen(userKey: string, now: number): boolean {
+  return getCircuit(userKey).openUntil > now;
+}
+
+function recordSuccess(userKey: string): void {
+  const circuit = getCircuit(userKey);
   circuit.consecutiveFailures = 0;
   circuit.openUntil = 0;
 }
 
-function recordFailure(now: number): void {
+function recordFailure(userKey: string, now: number): void {
+  const circuit = getCircuit(userKey);
   circuit.consecutiveFailures += 1;
   if (circuit.consecutiveFailures >= CIRCUIT_FAILURE_THRESHOLD) {
     circuit.openUntil = now + CIRCUIT_COOLDOWN_MS;
   }
 }
 
-/** Resets breaker + single-flight state. Exported for unit tests only. */
+/** Resets breaker + single-flight state for ALL users. Exported for unit tests only. */
 export function __resetClaudeCatalogCircuit(): void {
-  circuit.consecutiveFailures = 0;
-  circuit.openUntil = 0;
-  inFlight = null;
+  circuits.clear();
+  inFlight.clear();
 }
 
 /**
@@ -136,18 +154,23 @@ function toModelOption(entry: unknown): ProviderModelOption | null {
 
 /**
  * Converts the SDK `supportedModels()` array into a
- * {@link ProviderModelsDefinition}. De-duplicates by value, preserves order, and
+ * {@link ProviderModelsDefinition}. De-duplicates by value, preserves order,
+ * drops any model in `excluded` (the per-user lazy-detection broken set), and
  * keeps the existing fallback DEFAULT (`'default'`) when present so the picker's
  * default selection semantics never shift under the user. Returns `null` when no
  * usable model entries are found so the caller can fall back.
  *
  * Exported for unit testing.
+ *
+ * @param supportedModels Raw SDK ModelInfo[] (or partial records under test).
+ * @param excluded Model values to drop (lazy-detected broken models). Optional.
  */
 export function buildClaudeModelsDefinition(
   // Accepts the SDK's ModelInfo[] but typed loosely on purpose: the entries are
   // validated/normalized at runtime by toModelOption, and tests exercise partial
   // shapes (missing description, missing value) that ModelInfo would reject.
   supportedModels: readonly (ModelInfo | Record<string, unknown>)[] | null | undefined,
+  excluded?: ReadonlySet<string>,
 ): ProviderModelsDefinition | null {
   if (!Array.isArray(supportedModels) || supportedModels.length === 0) {
     return null;
@@ -157,9 +180,9 @@ export function buildClaudeModelsDefinition(
   const options: ProviderModelOption[] = [];
   for (const entry of supportedModels) {
     const option = toModelOption(entry);
-    // Drop models the CLI advertises but Anthropic has not released (selecting
-    // them fails silently), in addition to de-duplicating by value.
-    if (option && !UNRELEASED_HIDDEN_MODELS.has(option.value) && !seen.has(option.value)) {
+    // Drop de-duplicates and any model lazy-detection has flagged broken for this
+    // user (it advertised in supportedModels() but failed at real use).
+    if (option && !seen.has(option.value) && !(excluded?.has(option.value))) {
       seen.add(option.value);
       options.push(option);
     }
@@ -182,10 +205,15 @@ export function buildClaudeModelsDefinition(
 
 /**
  * Runs the side-effect-free `supportedModels()` probe in an isolated temp cwd
- * with a zero-turn streaming-input prompt. Returns the parsed catalog, or `null`
- * on any failure/timeout. Never throws.
+ * with a zero-turn streaming-input prompt, UNDER the resolved per-user Claude
+ * environment. Returns the parsed catalog, or `null` on any failure/timeout.
+ * Never throws.
+ *
+ * @param userId Authenticated user whose CLAUDE_CONFIG_DIR the probe runs under.
  */
-async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> {
+async function probeSupportedModels(
+  userId: string | number | null,
+): Promise<ProviderModelsDefinition | null> {
   // Isolated throwaway working directory: even if a future SDK build touched the
   // workspace, it would only touch this empty dir, never the real project.
   let probeCwd: string | null = null;
@@ -242,11 +270,22 @@ async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> 
   };
 
   try {
-    // Forward host env (credentials / CLAUDE_CONFIG_DIR) so the probe reports the
-    // catalog for the operator's authenticated subscription. Held in a definite
-    // local so the fail-closed guard below sees a concrete env (Options.env is
-    // typed optional, which would otherwise widen back to `| undefined`).
-    const probeEnv: NodeJS.ProcessEnv = { ...process.env };
+    // Resolve the SAME environment a real spawn for this user uses so the probe
+    // reports the catalog for the user's authenticated subscription (their own
+    // CLAUDE_CONFIG_DIR). When claude is admin-marked "shared", or userId is
+    // null/anon/platform, resolveProviderEnv returns the operator base env
+    // unchanged — identical to the previous behaviour for those cases. Held in a
+    // definite local so the fail-closed guard below sees a concrete env
+    // (Options.env is typed optional, which would otherwise widen to `| undefined`).
+    let probeEnv: NodeJS.ProcessEnv;
+    try {
+      probeEnv = resolveProviderEnv(userId, 'claude', process.env);
+    } catch {
+      // Never let env resolution (e.g. a provisioning hiccup) break the probe —
+      // fall back to the base env, which still yields a usable catalog.
+      probeEnv = { ...process.env };
+    }
+
     const options: Options = {
       env: probeEnv,
       cwd: probeCwd,
@@ -261,7 +300,9 @@ async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> 
     // Anthropic). Mirrors the three spawn seams in server/claude-sdk.js. The
     // throw is caught by probeSupportedModels()'s catch and degrades to the
     // fallback catalog — never silently routes Claude traffic to an unknown
-    // vendor. See server/services/isolation/anthropic-base-url-guard.js.
+    // vendor. The settings.json check now targets the RESOLVED per-user config
+    // dir, so a competitor base URL placed in a user's own settings.json is
+    // caught too. See server/services/isolation/anthropic-base-url-guard.js.
     assertAnthropicBaseUrlAllowed(probeEnv);
     assertSettingsEnvAllowed(probeEnv.CLAUDE_CONFIG_DIR ?? '', probeEnv);
 
@@ -280,7 +321,10 @@ async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> 
       return null;
     }
 
-    return buildClaudeModelsDefinition(result);
+    // Lazy-detection backstop: hide any model this user already proved broken at
+    // real use, even though the authenticated catalog still advertises it.
+    const excluded = await getBrokenModels(userId).catch(() => new Set<string>());
+    return buildClaudeModelsDefinition(result, excluded);
   } catch {
     // Old SDK without supportedModels, spawn error, not-installed, etc. → null.
     return null;
@@ -290,40 +334,50 @@ async function probeSupportedModels(): Promise<ProviderModelsDefinition | null> 
 }
 
 /**
- * Returns the Claude model catalog: the live subscription catalog when the probe
- * succeeds, otherwise {@link CLAUDE_FALLBACK_MODELS} flagged `degraded: true`.
- * Honours a circuit breaker and a single-flight lock. Never throws.
+ * Returns the Claude model catalog for one user: the live subscription catalog
+ * when the probe succeeds, otherwise {@link CLAUDE_FALLBACK_MODELS} flagged
+ * `degraded: true`. Honours a per-user circuit breaker and a per-user
+ * single-flight lock. Never throws.
  *
  * A successful live fetch returns its parsed catalog (no `degraded` flag) and is
  * cached by the provider-models service for the normal multi-day TTL. A fallback
  * result is flagged `degraded: true`, so the service caches it only briefly and
  * re-attempts the live probe within minutes (around when the breaker reopens),
  * instead of pinning the fallback for days.
+ *
+ * @param userId Authenticated user whose subscription the catalog reflects.
+ *   `null`/`undefined` (system/anon/platform) uses the operator's shared env.
  */
-export async function getClaudeModelCatalog(): Promise<ProviderModelsDefinition> {
+export async function getClaudeModelCatalog(
+  userId: string | number | null = null,
+): Promise<ProviderModelsDefinition> {
+  const userKey = brokenModelsUserKey(userId);
   const now = Date.now();
 
-  if (isCircuitOpen(now)) {
+  if (isCircuitOpen(userKey, now)) {
     return degradedFallbackCatalog();
   }
 
-  // Single-flight: join an in-progress probe instead of spawning a second one.
-  if (inFlight) {
-    return inFlight;
+  // Single-flight per user: join an in-progress probe for the SAME user instead
+  // of spawning a second one. Different users still probe independently.
+  const existing = inFlight.get(userKey);
+  if (existing) {
+    return existing;
   }
 
-  inFlight = (async (): Promise<ProviderModelsDefinition> => {
-    const liveCatalog = await probeSupportedModels();
+  const probe = (async (): Promise<ProviderModelsDefinition> => {
+    const liveCatalog = await probeSupportedModels(userId);
     if (liveCatalog) {
-      recordSuccess();
+      recordSuccess(userKey);
       return liveCatalog;
     }
 
-    recordFailure(Date.now());
+    recordFailure(userKey, Date.now());
     return degradedFallbackCatalog();
   })().finally(() => {
-    inFlight = null;
+    inFlight.delete(userKey);
   });
 
-  return inFlight;
+  inFlight.set(userKey, probe);
+  return probe;
 }

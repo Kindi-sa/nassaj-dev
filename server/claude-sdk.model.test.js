@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { mapCliOptionsToSDK, buildValidClaudeModelValues } from './claude-sdk.js';
+import { mapCliOptionsToSDK, buildValidClaudeModelValues, isUnreleasedModelFailure } from './claude-sdk.js';
 import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
 // Client-side mirror of the Claude catalog. This test runs under
 // server/tsconfig.json, and the client constants module only imports types
@@ -205,4 +205,39 @@ test('an empty Set for validModelValues degrades to the static list (size-0 guar
   const stat = mapAndCaptureWarn({ model: 'sonnet[1m]' }, new Set());
   assert.equal(stat.model, 'sonnet[1m]', 'empty set must not lock out static models');
   assert.equal(stat.warnings.length, 0);
+});
+
+// --- Lazy model-discovery: unreleased-model failure detector ---
+
+test('isUnreleasedModelFailure: true for an assistant message with error model_not_found', () => {
+  assert.equal(
+    isUnreleasedModelFailure({ type: 'assistant', error: 'model_not_found' }),
+    true,
+  );
+});
+
+test('isUnreleasedModelFailure: true for a result message with api_error_status 404', () => {
+  assert.equal(
+    isUnreleasedModelFailure({ type: 'result', subtype: 'success', api_error_status: 404 }),
+    true,
+  );
+});
+
+test('isUnreleasedModelFailure: false for unrelated errors and non-404 statuses', () => {
+  // A different assistant error is NOT a model-unreleased signal.
+  assert.equal(isUnreleasedModelFailure({ type: 'assistant', error: 'rate_limit' }), false);
+  // A non-404 api_error_status on a result is NOT this signal.
+  assert.equal(isUnreleasedModelFailure({ type: 'result', api_error_status: 500 }), false);
+  // A 404 on a non-result message type does not match the result branch.
+  assert.equal(isUnreleasedModelFailure({ type: 'assistant', api_error_status: 404 }), false);
+  // model_not_found on a non-assistant type does not match the assistant branch.
+  assert.equal(isUnreleasedModelFailure({ type: 'result', error: 'model_not_found' }), false);
+});
+
+test('isUnreleasedModelFailure: false for normal/empty messages', () => {
+  assert.equal(isUnreleasedModelFailure(null), false);
+  assert.equal(isUnreleasedModelFailure(undefined), false);
+  assert.equal(isUnreleasedModelFailure({}), false);
+  assert.equal(isUnreleasedModelFailure({ type: 'assistant', message: { model: 'claude-opus-4-8' } }), false);
+  assert.equal(isUnreleasedModelFailure({ type: 'result', subtype: 'success', api_error_status: null }), false);
 });
