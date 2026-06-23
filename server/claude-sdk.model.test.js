@@ -32,10 +32,12 @@ function mapAndCaptureWarn(options, validModelValues) {
 // A representative dynamic catalog: the live picker source surfaces models that
 // are NOT in the static CLAUDE_FALLBACK_MODELS list (e.g. claude-opus-4-9). This
 // mirrors the shape of providerModelsService.getProviderModels('claude').models.
+// Note: claude-fable-5 is deliberately NOT used as the example here — it is
+// hidden from the live catalog as an unreleased model, so it is no longer a
+// representative selectable value (see claude-catalog.client.ts).
 const DYNAMIC_CATALOG = {
   OPTIONS: [
     { value: 'default', label: 'Default' },
-    { value: 'claude-fable-5', label: 'Fable 5' },
     { value: 'claude-opus-4-9', label: 'Opus 4.9' },
   ],
   DEFAULT: 'default',
@@ -123,7 +125,7 @@ test('buildValidClaudeModelValues unions the dynamic catalog with the static fal
   const values = buildValidClaudeModelValues(DYNAMIC_CATALOG);
 
   // Dynamic-only model is accepted.
-  assert.equal(values.has('claude-fable-5'), true, 'dynamic catalog value must be included');
+  assert.equal(values.has('claude-opus-4-9'), true, 'dynamic catalog value must be included');
   // Static safety-net values survive even though the dynamic catalog omits them.
   for (const option of CLAUDE_FALLBACK_MODELS.OPTIONS) {
     assert.equal(values.has(option.value), true, `static value ${option.value} must remain valid`);
@@ -139,11 +141,11 @@ test('buildValidClaudeModelValues degrades to the static list when the catalog i
   }
 });
 
-test('mapCliOptionsToSDK passes through a dynamic-catalog model (claude-fable-5) verbatim', () => {
+test('mapCliOptionsToSDK passes through a dynamic-catalog model (claude-opus-4-9) verbatim', () => {
   const valid = buildValidClaudeModelValues(DYNAMIC_CATALOG);
-  const { model, warnings } = mapAndCaptureWarn({ model: 'claude-fable-5' }, valid);
+  const { model, warnings } = mapAndCaptureWarn({ model: 'claude-opus-4-9' }, valid);
 
-  assert.equal(model, 'claude-fable-5', 'a live picker model must be sent as-is, not coerced to default');
+  assert.equal(model, 'claude-opus-4-9', 'a live picker model must be sent as-is, not coerced to default');
   assert.equal(warnings.length, 0, 'a model present in the dynamic catalog must not warn');
 });
 
@@ -179,10 +181,13 @@ test('mapCliOptionsToSDK falls back to the static list when no validModelValues 
   assert.equal(dyn.model, DEFAULT, 'without a catalog, a dynamic-only model is rejected (static floor)');
   assert.equal(dyn.warnings.length, 1);
 
-  // claude-fable-5 is now in the static list and must pass through without a catalog.
+  // claude-fable-5 is an unreleased model removed from the static list (and
+  // hidden from the live catalog). With no catalog backing it, it must be
+  // rejected and coerced to DEFAULT with a non-silent warning.
   const fable = mapAndCaptureWarn({ model: 'claude-fable-5' });
-  assert.equal(fable.model, 'claude-fable-5', 'fable-5 is a static-list model since the catalog addition');
-  assert.equal(fable.warnings.length, 0);
+  assert.equal(fable.model, DEFAULT, 'fable-5 is not a static-list model and must coerce to default');
+  assert.equal(fable.warnings.length, 1, 'rejecting the unreleased fable-5 must warn (non-silent)');
+  assert.match(fable.warnings[0], /"claude-fable-5"/);
 
   // sonnet[1m] is in the static list and must still pass through.
   const stat = mapAndCaptureWarn({ model: 'sonnet[1m]' });

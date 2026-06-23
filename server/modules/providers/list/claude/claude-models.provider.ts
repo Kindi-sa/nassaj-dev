@@ -29,14 +29,15 @@ import {
  * against the live SDK output) so the degraded picker stays plausible. Keep
  * `sonnet[1m]` — it is a real selectable value but consumes 1M-context usage
  * credits, hence the explicit note.
+ *
+ * `claude-fable-5` is intentionally absent: the installed CLI advertises it in
+ * `supportedModels()` but Anthropic has not released it for use (selecting it
+ * fails silently), so the live catalog hides it via UNRELEASED_HIDDEN_MODELS in
+ * claude-catalog.client.ts and this fallback must match. Do NOT re-add it until
+ * the model is actually usable.
  */
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
-    {
-      value: 'claude-fable-5',
-      label: 'Fable 5',
-      description: 'Fable 5 · Most powerful, most intelligent model · $10/$50 per Mtok',
-    },
     {
       value: 'default',
       label: 'Default (recommended)',

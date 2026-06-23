@@ -38,13 +38,11 @@ import type { LLMProvider, ProviderModelOption, ProviderModelsDefinition } from 
 // Code via the server's getClaudeModelCatalog(); this client copy is only the
 // last-resort safety net used when /api/providers/claude/models cannot load.
 // Keep it byte-for-byte aligned with the server fallback (values + DEFAULT).
+// `claude-fable-5` is intentionally omitted here too: it is advertised by the
+// CLI but not released by Anthropic (hidden in claude-catalog.client.ts). A
+// server-side drift-guard test asserts these option values + DEFAULT match.
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
-    {
-      value: 'claude-fable-5',
-      label: 'Fable 5',
-      description: 'Fable 5 · Most powerful, most intelligent model · $10/$50 per Mtok',
-    },
     {
       value: 'default',
       label: 'Default (recommended)',

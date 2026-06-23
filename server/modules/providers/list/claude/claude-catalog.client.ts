@@ -47,6 +47,11 @@ import { CLAUDE_FALLBACK_MODELS } from './claude-models.provider.js';
 /** Hard cap on the live probe; the control request returns well under this. */
 const PROBE_TIMEOUT_MS = 8_000;
 
+// Models the installed CLI may advertise in supportedModels() but Anthropic has
+// NOT released for use — selecting them fails silently. Hide until launched.
+// Remove an entry here once the model is actually usable. See feedback_workflow_agenttype_fable_fallback.
+const UNRELEASED_HIDDEN_MODELS = new Set<string>(['claude-fable-5']);
+
 /** Consecutive failures before the breaker opens. */
 const CIRCUIT_FAILURE_THRESHOLD = 3;
 
@@ -152,7 +157,9 @@ export function buildClaudeModelsDefinition(
   const options: ProviderModelOption[] = [];
   for (const entry of supportedModels) {
     const option = toModelOption(entry);
-    if (option && !seen.has(option.value)) {
+    // Drop models the CLI advertises but Anthropic has not released (selecting
+    // them fails silently), in addition to de-duplicating by value.
+    if (option && !UNRELEASED_HIDDEN_MODELS.has(option.value) && !seen.has(option.value)) {
       seen.add(option.value);
       options.push(option);
     }
