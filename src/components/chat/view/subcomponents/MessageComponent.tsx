@@ -255,14 +255,8 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     // thinking events arrive without one) so we never render "Invalid Date".
     if (Number.isNaN(d.getTime())) return '';
     const now = new Date();
-    const isToday =
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
-    const timeStr = d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
-    if (isToday) return timeStr;
-    // Older messages: short date (day + month) + time, no year unless different year
     const isThisYear = d.getFullYear() === now.getFullYear();
+    const timeStr = d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
     const dateStr = d.toLocaleDateString(i18n.language, {
       day: 'numeric',
       month: 'short',
