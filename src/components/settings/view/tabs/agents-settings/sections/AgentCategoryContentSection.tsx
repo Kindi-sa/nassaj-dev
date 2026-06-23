@@ -4,6 +4,7 @@ import { McpServers } from '../../../../../mcp';
 
 import AccountContent from './content/AccountContent';
 import AgyConnectionSection from './content/AgyConnectionSection';
+import ApiSetupContent from './content/ApiSetupContent';
 import ClaudeConnectionSection from './content/ClaudeConnectionSection';
 import PermissionsContent from './content/PermissionsContent';
 
@@ -103,6 +104,10 @@ export default function AgentCategoryContentSection({
 
       {selectedCategory === 'permissions' && selectedAgent === 'antigravity' && (
         <PermissionsContent agent="antigravity" />
+      )}
+
+      {selectedCategory === 'setup' && (
+        <ApiSetupContent agent={selectedAgent} />
       )}
 
       {selectedCategory === 'mcp' && (

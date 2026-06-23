@@ -1,4 +1,5 @@
-import { Link2, LogIn, RefreshCw } from 'lucide-react';
+import { Check, Copy, Link2, LogIn, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
@@ -137,6 +138,47 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   },
 };
 
+const INSTALL_INFO: Partial<Record<AgentProvider, { label: string; command: string; note?: string }>> = {
+  cursor: {
+    label: 'Cursor Agent is not installed',
+    command: '# Install Cursor IDE from cursor.com',
+    note: 'cursor-agent ships with Cursor IDE — there is no standalone npm package.',
+  },
+  codex: {
+    label: 'Codex CLI is not installed',
+    command: 'npm install -g @openai/codex',
+  },
+  opencode: {
+    label: 'OpenCode CLI is not installed',
+    command: 'npm install -g opencode@latest',
+  },
+};
+
+/** Inline copy button: icon toggles to checkmark for 1 second after click. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1000);
+    });
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? 'Copied' : 'Copy to clipboard'}
+      className="flex-shrink-0 rounded p-1.5 text-amber-700 transition-colors hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-800/30"
+    >
+      {copied
+        ? <Check className="h-4 w-4" aria-hidden />
+        : <Copy className="h-4 w-4" aria-hidden />}
+    </button>
+  );
+}
+
 /**
  * Single unified credential card per agent [C-MU-UX-AGENT-CREDS].
  *
@@ -169,6 +211,9 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
   const onReauth = isAntigravity ? userLink?.onLink : onLogin;
   const showLoginRow = Boolean(onReauth) && authStatus.method !== 'api_key' && !showLinkBanner;
 
+  const installInfo = INSTALL_INFO[agent];
+  const showInstallBanner = authStatus.installed === false && Boolean(installInfo);
+
   return (
     <div className="space-y-6">
       <div className="mb-4 flex items-center gap-3">
@@ -182,6 +227,24 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
           </p>
         </div>
       </div>
+
+      {/* Install banner — shown when the CLI is not installed */}
+      {showInstallBanner && installInfo && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/15 p-4 space-y-3">
+          <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+            {installInfo.label}
+          </p>
+          <div className="flex items-center gap-2">
+            <code dir="ltr" className="flex-1 rounded bg-muted px-3 py-2 font-mono text-xs text-foreground">
+              {installInfo.command}
+            </code>
+            <CopyButton text={installInfo.command} />
+          </div>
+          {installInfo.note && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">{installInfo.note}</p>
+          )}
+        </div>
+      )}
 
       <div className={`${config.bgClass} border ${config.borderClass} rounded-lg p-4`}>
         <div className="space-y-4">

@@ -101,6 +101,7 @@ export default function AgentsSettingsTab({
         <AgentCategoryTabsSection
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
+          selectedAgent={selectedAgent}
         />
 
         <AgentCategoryContentSection
