@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-16T19:14:13.919Z",
+  "updated": "2026-06-23T10:03:37.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -74,6 +74,89 @@
   ],
   "tasks": [
     {
+      "id": "T-200",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "done",
+      "title": "104 الرخيمي: nassaj.alrukhaimi.com منشور عبر نفق Cloudflare (config محلي، protocol http2 + edge-ip-version \"4\"؛ ingress→localhost:3004) — 200+CORS مُتحقَّق. Tailscale Serve أُلغي، pm2 startup مُثبَّت. الجذر كان CORS (ALLOWED_ORIGINS) لا SW. تفاصيل: reference_rukhaimi_domain_cloudflare."
+    },
+    {
+      "id": "T-199",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "done",
+      "title": "السبب الجذري للصفحة البيضاء = CORS: الخادم يرفض origin الخاص بـTailscale Serve (ts.net)؛ يسمح فقط بـnassaj.alkindy.tech+localhost. الإصلاح على 104: /opt/nassaj/.env بـALLOWED_ORIGINS يتضمّن رابط العقدة + restart؛ مُتحقَّق (طلب مع Origin=200 + رأس CORS). متبقٍّ: أتمتة ALLOWED_ORIGINS=ts.net في bootstrap/node-setup لـ105/الكندي."
+    },
+    {
+      "id": "T-198",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "in_progress",
+      "title": "نشر إصلاح الصفحة البيضاء على 104: السبب = نشر الوسم القديم v1.34.0 (SW/PWA معطوب). nassaj-core مرفوع (تبديل النموذج + سكربتات + bump DEV_TAG→v1.34.1). وسم v1.34.1-nassaj أُنشئ عند 42cc5ee (B-80+system-stats+PWA fix). متبقٍّ: push فرع verify/b63 + الوسم (حارس صلاحيات منع push من العميل → ينفّذه المالك بطرفيته) ثم إعادة نشر 104."
+    },
+    {
+      "id": "T-197",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "done",
+      "title": "104 الرخيمي: نسّاج مثبَّت ويعمل (PM2 nassaj-dev online على 3004؛ Node24+claude+core+dev؛ Debian13 Trixie؛ مستخدم ibrahim؛ Tailscale صعد). يتبقى claude /login + تصليب UFW/swap. م1 جزئياً."
+    },
+    {
+      "id": "T-187",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "done",
+      "title": "provision-node.sh — سكربت تهيئة عقدة كامل (تصليب + UFW + Tailscale + Cloudflare اختياري مطفأ) يلفّ bootstrap-node.sh + توسيع wiki/fleet-install.md. مُتحقَّق: bash -n يمرّ + مراحل [0/4]→[4/4] + يستدعي bootstrap بحارس."
+    },
+    {
+      "id": "T-192",
+      "kind": "decision",
+      "phase": "P7",
+      "status": "done",
+      "title": "قرار المالك 2026-06-20: استبدال Fable‑5 بـ Opus‑4.8 كأرضية نماذج (Fable غير متاح على المنصة). نُفِّذ: _models.yaml default=claude-opus-4-8 + 17 بطاقة وكيل + سياسة NASSAJ.md. devops/architect/qa-critic تعمل الآن على opus."
+    },
+    {
+      "id": "T-188",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "pending",
+      "title": "م1 — تهيئة الرخيمي(104) [مكتمل] + مجتنى(105) [مُعلَّق حتى حسم طوبولوجيا الأسطول]",
+      "description": "104 الرخيمي حيّ وكامل. 105 مجتنى مُعلَّق بقرار قسري (fleet-centralized-access-study.md §8): طوبولوجيا خيار 0/B تركيب instance كامل، خيار A عميل خفيف — لا يُحسم حتى ADR طوبولوجيا الأسطول (T-201) + موافقة مالك."
+    },
+    {
+      "id": "T-189",
+      "kind": "feature",
+      "phase": "P7",
+      "status": "pending",
+      "title": "م2 — سدرة: تبيّن (تحقّق أرضي) أنها قاعدة معرفة Git-native خاصة قائمة فعلاً (/Project/sidra، ADR-T2، شركات alkindy/holding/traventure، LICENSE=Proprietary). التصميم الموحّد 4 طبقات (L0 معرفة قائمة + L1 إدخال PR + L2 Seafile + L3 MinIO نسخ/WORM) في docs/design/sidra-design.md؛ MinIO/Seafile طبقتان تحتها لا بديل لها. يحتاج بوابة مشروع قبل أي بناء."
+    },
+    {
+      "id": "T-190",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "pending",
+      "title": "م3 — فصل الرخيمي: نقل ملفاته من ترافنشر (عقدة mina، بروكسموكس-2) → الرخيمي(104). يعتمد على اكتمال م1 لـ104."
+    },
+    {
+      "id": "T-191",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "pending",
+      "title": "م4 — سيرفر الكندي (إنتاج): VM جديد + تهيئة كاملة. الموضع مؤجَّل بقرار المالك؛ يلزم مراجعة qa-critic للسكربت قبل التشغيل الإنتاجي."
+    },
+    {
+      "id": "T-181",
+      "phase": "P2",
+      "sprint": null,
+      "kind": "feature",
+      "issue": null,
+      "title": "إطلاق Workflow لتضمين 4 نماذج كمزوّدات في nassaj-dev (Fable 5 = كتالوج Anthropic؛ Kimi K2.6 وDeepSeek V4 وGLM 5.2 = مزوّدات مستقلة): دراسة ← تخطيط ← مراجعة ببوابة فيتو من الناقد + امتثال ← تنفيذ في git worktree معزول. /goal: أن تُضاف النماذج وتعمل جيداً",
+      "status": "in_progress",
+      "owner": "architect",
+      "closed": null,
+      "note": "[مطابقة abf770a8 2026-06-16] مكتمل على فرع منفصل feat/multimodel-providers (49fc9fb، ليس سلف HEAD النشط): engineProvider/VendorApiKey صفر على HEAD. ينتظر دمج الفرع + مفاتيح API من المالك. || سابقاً: [2026-06-19] Workflow اكتمل (run wf_bb7c4c6b-281، 13 وكيلاً، تحقّق فعلي من الكود). الناقد+الامتثال وافقا في الدورة 3 على الخطة لنطاق «تطوير محلي خلف علم معطّل» (لا نداء حيّ ولا بيانات). حالة blocked-at-plan جاءت لأن منطق بوابة السكربت عدّ شروط التفعيل الحيّ حواجزَ — وهي شروط نشر لا عيوب خطة. التفعيل الحيّ للمزوّدات الصينية (Kimi/DeepSeek/GLM) محجوب ببوابة M-VR-0/G1 بيد المالك: نقل القرار المتعقِّب (ADR-033، proposed، due 2026-06-21) إلى Accepted + مراجعة محامٍ مرخّص + موافقة PDPL مكتوبة + DPA لكل مورّد + قرار data-residency + إثبات فصل تخزيني (شرط Anthropic) + فحص تراخيص AGPL + حجب خروج netns + مفاتيح API. Fable 5 نظيف (نموذج Anthropic، catalog-only، محكوم بالحارس) قابل للتنفيذ/التفعيل فوراً بلا بوابة. اكتشافات كود: لا مخزن أسرار per-user (يُبنى B-VR-2A)، تسريب env في cursor-cli.js:166، مهام Fable الوهمية مُلغاة (التطبيق يستخدم Agent SDK لا messages.create). الخطة الكاملة في مخرج الـWorkflow. المالك صحّح النطاق (فردي داخلي → بلا بوابة PDPL/legal). التنفيذ (wf_116f8454-02b) أنجز الـbackend واعتمده qa-critic (approved): 4 نماذج على فرع feat/multimodel-providers — Fable 5 كتالوج claude؛ Kimi/DeepSeek/GLM مزوّدات مستقلة فوق shared/vendor/ + مخزن أسرار AES-256-GCM per-user + seam HTTP مستقل لا يستورد SDK أنثروبيك. البناء أخضر (client+server)، 187/187 اختبار (+35، node:test)، القاعدة الحديدية مُثبَتة 3 طبقات، 10 commits محلية (لا push/restart)، ADR-036 جديد. المتابعة (wf_941ba18f-dca) أغلقت الفجوتين واعتمدها qa-critic: route إدارة المفاتيح (POST/PUT/DELETE/GET /api/providers/:provider/api-key فوق المخزن، لا يعرض القيمة) + تكامل الواجهة (LLMProvider موسّع، المنتقي يُظهر الثلاثة بفلترة ADR-030+CTA، VendorApiKeySection في الإعدادات←Agents←Account، شعارات vendor، i18n ar+en). البناء أخضر client+server، 195/195، صفر regressions. الميزة مكتملة الكود ومُتحقَّقة end-to-end على فرع feat/multimodel-providers (worktree .claude/worktrees/wf_116f8454-02b-1). تنبيه: الفرع مبني على HEAD verify/b63 لا main → يُنصح rebase على main قبل الدمج. يتبقّى للمالك: إدخال مفاتيح API (الإعدادات←Agents←Account) + دمج + build:server + restart. تحوّل معماري (قرار المالك 2026-06-19): المالك اختار الخيارين 1+2 — (1) محرّك نسّاج/Claude كاملاً يعمل على Kimi/DeepSeek/GLM عبر نقاطها المتوافقة مع Anthropic بمفاتيح المالك (توجيه Claude SDK + تدقيق حارس iron-rule ليسمح بـwhitelist الثلاثة معزولاً، استخدام داخلي فردي)، (2) المنسق على Claude يفوّض مهاماً لها. «الخيار 3» (seam مستقل، المبني سابقاً) يُعاد استخدامه/يُستبدَل جزئياً. workflow الأول (w94npfft5) توقّف عند التصميم — وكيل الاستقصاء قرأ الفرع الخطأ (verify/b63 لا فرع الميزة) فصمّم على شجرة وهمية، والناقد كشفه. تحقّقتُ بـgit: بناء الخيار 3 قائم فعلاً (195/195)، والحارس runtime + حقل engineProvider غير موجودَين (يُبنيان). أُعيد الإطلاق مصحّحاً (wukisby4f): أرض مثبّتة + إجبار الوكلاء على الشجرة الصحيحة (TREE_OK self-check + مسارات مطلقة) + نموذج أمان معتمد (حقن ANTHROPIC_BASE_URL+token معزول per-call عبر applyClaudeEngineProviderEnv بشرط المفتاح + حارس runtime fail-closed يمنع تسرّب جلسات Claude الحقيقية، + أداة MCP للخيار 2). الخيار 1 يَعكِس ADR-036 عمداً (قرار مالك) ويُحدِّثه. التصميم المصحّح (wukisby4f) اعتمده الناقد (approved، الدورة 2) واكتشف+أصلح ثغرة أمنية حقيقية (قناة settings.json.env الثانية لحقن ANTHROPIC_BASE_URL يقرؤها Claude Code عند spawn ويتجاوز حارس sdkOptions.env — تُسدّ بـcollectSettingsBaseUrls). ملاحظة: «blocked-at-design» في w94npfft5 وwukisby4f كان خطأ منطق بوابة سكربتي (عدّ «الشروط التنفيذية» في حقل blockers رفضاً) لا فشل تصميم. أُطلق التنفيذ (wn4ymfnno): provider-anthropic-endpoints + applyClaudeEngineProviderEnv معزول + حارس runtime fail-closed (يشمل قناة settings.json) + أداة MCP delegate_to_vendor للخيار 2 + 5 اختبارات عزل + ADR-037، ثم مراجعة عدائية. التنفيذ (wn4ymfnno) اكتمل واعتمده الناقد: approved، 229/229 اختبار، option1Works+option2Works+isolationOk، صفر regressions؛ المراجعة العدائية عالجت 5 ملاحظات (أهمها توثيق NASSAJ_ALLOWED_ANTHROPIC_HOSTS في .env.example كمَنفَذ للبروكسي المشروع). الواجهة موصولة end-to-end (المنتقي يبعث engineProvider عبر useChatComposerState؛ تبديل allowVendorDelegation في الإعدادات←Agents←Permissions). التُزم محلياً commit 49fc9fb (50 ملف، 3342 سطراً)، الـworktree نظيف. يتبقّى للمالك: مفاتيح API (الإعدادات←Agents) + دمج الفرع + build:server + restart + تأكيد لا ANTHROPIC_BASE_URL مضيف مشروع (آمن لـnassaj-dev). نُشِر (2026-06-20): اكتُشف أن feat/multimodel-providers متأخّر 20 commit عن الفرع الحيّ verify/b63 (نشره كما هو كان سيرجع ميزات حيّة)؛ فدُمج فوق الحيّ في فرع deploy/multimodel (merge 3d0fdf9 = الحيّ 97a8a95 + الميزة 49fc9fb، 15 تعارضاً حُلّت بالحفاظ على الجانبين، 562/562+29/29 اختبار، والدمج وحّد حارس iron-rule على أساس الحيّ الأدقّ + قدرة ADR-037). نُشِر بتبديل artifacts (dist/dist-server) في شجرة النشر مع نسخة احتياطية dist.predeploy-20260620-113257؛ يبقى restart بيد المالك (env -u PORT pm2 restart nassaj-dev) + إدخال مفاتيح API. متابعة دائمية: دمج deploy/multimodel في الفرع الحيّ ليُبنى أصلاً (النشر الحالي artifact-swap، يُراجَع عند أول rebuild). مرتبط: ADR-039، ADR-033، ADR-036، ADR-037 (جديد)."
+    },
+    {
       "id": "T-1",
       "phase": "P1",
       "title": "إصلاح replay عند استئناف agy: الردّ من transcript.jsonl لا stdout",
@@ -109,18 +192,19 @@
       "id": "T-5",
       "phase": "P2",
       "title": "دمج 15 commit من upstream v1.33.0 (الفرع chore/sync-upstream-v1.33)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null,
-      "note": "[WF w06wyxyet 2026-06-16] تحقّق الناقد: merge-base نحو v1.32.0 صحيح والوسم موجود. لكن فرضية «تعطيل Antigravity» باطلة — مُعاد تفعيله في provider.registry.ts:19. الدمج 57 ملفاً (6 add/add على طبقة المزوّدات/iron-rule egress) + هدف 457 اختباراً (لا 275). autonomousOk=false: يلزم إقرار المالك + ADR لقرار «عدم دمج الوسم/نقل انتقائي» + مراجعة qa-critic لكل hunk يمسّ egress قبل أي commit. لا push/merge-to-main."
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: جوهر #715 مدموج (44edf94 سلف HEAD، معمارية session DB-driven/sessionId-first + طبقة المزوّدات + iron-rule egress). دُمج انتقائياً على المعمارية الجديدة لا كوسم. تبقّي دلتا upstream الطفيفة تُمسح ضمن مطابقة دورية. || سابقاً: [WF w06wyxyet 2026-06-16] تحقّق الناقد: merge-base نحو v1.32.0 صحيح والوسم موجود. لكن فرضية «تعطيل Antigravity» باطلة — مُعاد تفعيله في provider.registry.ts:19. الدمج 57 ملفاً (6 add/add على طبقة المزوّدات/iron-rule egress) + هدف 457 اختباراً (لا 275). autonomousOk=false: يلزم إقرار المالك + ADR لقرار «عدم دمج الوسم/نقل انتقائي» + مراجعة qa-critic لكل hunk يمسّ egress قبل أي commit. لا push/merge-to-main."
     },
     {
       "id": "T-6",
       "phase": "P2",
       "title": "تعطيل Antigravity مؤقتاً وإضافة مزوّد Cursor",
-      "status": "open",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] تجاوزه القرار + Cursor منجَز: 7 ملفات modules/providers/list/cursor مُتحقَّقة. وAntigravity أُعيد تفعيله عمداً (provider.registry.ts:19) فبطل شطر «تعطيل Antigravity» من العنوان بقرار."
     },
     {
       "id": "T-7",
@@ -158,17 +242,19 @@
       "id": "T-11",
       "phase": "P4",
       "title": "عزل اشتراكات Claude/agy لكل مستخدم (CLAUDE_CONFIG_DIR لكل عملية)",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH (البنية) مُتحقَّق: provision-user-dirs.js + resolve-provider-env.js + isolation.e2e.test.ts + CLAUDE_CONFIG_DIR. التفعيل الكامل الافتراضي يبقى مهمة T-13."
     },
     {
       "id": "T-12",
       "phase": "P4",
       "title": "onboarding ربط حسابات Claude وagy من تبويب الملف الشخصي",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: 6 ملفات onboarding (useClaudeConnection/useAgyConnection/AccountContent) + claude-onboarding.service. ربط حسابات Claude/agy منجَز."
     },
     {
       "id": "T-13",
@@ -507,7 +593,8 @@
       "title": "B-ISO-SHARE-ALL: تعميم كل إمكانيات نسّاج على كل المستخدمين تلقائياً — (1) plugins/ ‏symlink في provisionUserDirs + اختبارات (e3604b9) وربط يدوي للمستخدمين 1–3 (مجلد u2 الحقيقي حُفظ في plugins.bak-20260611)؛ (2) سياسة مُدارة: ‏~/.claude/managed-settings.json (permissions+hooks+enabledPlugins فقط — بلا model/theme/effortLevel لتبقى شخصية) تُفعَّل بربط /etc/claude-code/managed-settings.json إليها (sudo بيد المستخدم)",
       "status": "in_progress",
       "owner": "backend-dev",
-      "closed": null
+      "closed": null,
+      "note": "[مطابقة abf770a8 2026-06-16] PARTIAL مُتحقَّق: plugins symlink منجَز (provision-user-dirs.js:262)؛ managed-settings خطوة sudo بيد المالك (موثّقة، لا كود توليد)."
     },
     {
       "id": "T-50",
@@ -1718,10 +1805,11 @@
       "kind": "bug",
       "issue": null,
       "owner": "backend-dev",
-      "status": "review",
-      "closed": null,
+      "status": "done",
+      "closed": "2026-06-16",
       "title": "وضع الجهد ultracode لا يُفعَّل: الخادم كان يعيّنه xhigh بصمت بدل أقصى جهد + كلمات CLI السحرية",
-      "summary": "commit ca11b14: الواجهة ترسل effort:ultracode سليماً، لكن server/claude-sdk.js (SDK_EFFORT_LEVELS بلا ultracode) كان يعيّنه EFFORT_ALIASES إلى xhigh — فيصير xhigh (شدة 3 لا 4) ويُسقط سلوكه الخاص. بفحص ثنائي الـSDK: الـCLI يكتشف ultrathink (تفكير أعمق) وultrawork (تفعيل Workflow) في نص الطلب لا كقيمة effort. الإصلاح: ultracode→max + maybeApplyUltracodeKeywords تحقن ultrathink ultrawork في نص الطلب لوضع ultracode حصراً (no-op لغيره). 29/29 اختبار، tsc نظيف. يحتاج restart (تغيير خادم)."
+      "summary": "commit ca11b14: الواجهة ترسل effort:ultracode سليماً، لكن server/claude-sdk.js (SDK_EFFORT_LEVELS بلا ultracode) كان يعيّنه EFFORT_ALIASES إلى xhigh — فيصير xhigh (شدة 3 لا 4) ويُسقط سلوكه الخاص. بفحص ثنائي الـSDK: الـCLI يكتشف ultrathink (تفكير أعمق) وultrawork (تفعيل Workflow) في نص الطلب لا كقيمة effort. الإصلاح: ultracode→max + maybeApplyUltracodeKeywords تحقن ultrathink ultrawork في نص الطلب لوضع ultracode حصراً (no-op لغيره). 29/29 اختبار، tsc نظيف. يحتاج restart (تغيير خادم).",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: ca11b14 سلف HEAD + كود ultracode في claude-sdk.js. تبقّى restart للتفعيل."
     },
     {
       "id": "T-139",
@@ -1733,7 +1821,7 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-14",
-      "summary": "منفَّذ في commit 51f7903 (عميل فقط، بلا تغيير خادم). الملفات: useRunProgress.ts (جديد) + ClaudeStatus/ChatInterface/ChatComposer + i18n ar/en. نموذج متداخل TodoWrite-أساسي؛ شريحة «وكيل يعمل» نابضة تظهر كلما وُجد وكيل نشط (FIX qa-critic)؛ تقدير بالاستقراء EMA رتيب يُعاد ضبطه عند نمو الخطة؛ مرساة زمن مثبّتة عند isLoading false→true (تُصلح أيضاً مؤقّت العرض المنقضي)؛ إغلاق بـ!isLoading؛ الحساب في هوك مفصول عن tick. مراجعتان qa-critic (الثانية CLEARED-FOR-MERGE) + architect SOUND-WITH-CHANGES. build:client نجح، tsc نظيف للملفات (خطأ ClaudeUsageCollapsed سابق خارج النطاق). حيّ على nassaj-dev.alkindy.tech. متبقٍّ طفيف اختياري: تصحيح تعليق reset-on-growth + 13 تحذير eslint نمطي (import/tailwind order يتساهل بها الريبو)."
+      "summary": "منفَّذ في commit 51f7903 (عميل فقط، بلا تغيير خادم). الملفات: useRunProgress.ts (جديد) + ClaudeStatus/ChatInterface/ChatComposer + i18n ar/en. نموذج متداخل TodoWrite-أساسي؛ شريحة «وكيل يعمل» نابضة تظهر كلما وُجد وكيل نشط (FIX qa-critic)؛ تقدير بالاستقراء EMA رتيب يُعاد ضبطه عند نمو الخطة؛ مرساة زمن مثبّتة عند isLoading false→true (تُصلح أيضاً مؤقّت العرض المنقضي)؛ إغلاق بـ!isLoading؛ الحساب في هوك مفصول عن tick. مراجعتان qa-critic (الثانية CLEARED-FOR-MERGE) + architect SOUND-WITH-CHANGES. build:client نجح، tsc نظيف للملفات (خطأ ClaudeUsageCollapsed سابق خارج النطاق). حيّ على nassaj.alkindy.tech. متبقٍّ طفيف اختياري: تصحيح تعليق reset-on-growth + 13 تحذير eslint نمطي (import/tailwind order يتساهل بها الريبو)."
     },
     {
       "id": "T-140",
@@ -1795,7 +1883,7 @@
       "status": "done",
       "owner": "frontend-dev",
       "closed": "2026-06-14",
-      "summary": "AgentSummaryBadge في AgentChipRow: بادج «N وكيل · M استدعاء» (المتمايزون = agent_kind==='subagent'؛ الإجمالي = مجموع invocation_count؛ النموذج مستثنى) + tooltip تفصيلي per-agent بالاسم. كل شريحة AgentChip تعرض «الاسم ×N» بلا عدّاد على النموذج. زر «إظهار شريط المشاركين» (ChevronDown) في ChatInterface يعيد الشريط المخفيّ بنقرة. مصدر البيانات: GET /api/sessions/:id/agents عبر transcript-parser (عدّ Agent+Task لكل subagent_type) — بلا تغيير خادم. مراجعة qa-critic (opus، احتياط لغياب fable-5): CONDITIONAL APPROVE؛ أُصلح H-1 (اسم الوكيل في breakdown عبر دمج يدوي مع مفتاح invocations القائم محافظاً على صيغ الجمع العربية الخمس) وM-1 (إزالة «×1» عن شريحة النموذج)؛ برهان i18next «architect: 3 استدعاءات». build:client نجح، tsc نظيف، حيّ على nassaj-dev.alkindy.tech:3004. جلسات متوازية: الكود مُلتزَم مستقلاً في commit 4e7b4d5 (feat(participants))؛ كان قد التُقط سهواً في commit B-63 عبر git add -A ثم أسقطته الجلسة الموازية بـamend فأُعيد التزامه مستقلاً — لا فقد بيانات. عيوب L-1/L-3/M-2 من المراجعة تخص useChatMessages/useRunProgress (مهمة B-63) لا هذه الميزة."
+      "summary": "AgentSummaryBadge في AgentChipRow: بادج «N وكيل · M استدعاء» (المتمايزون = agent_kind==='subagent'؛ الإجمالي = مجموع invocation_count؛ النموذج مستثنى) + tooltip تفصيلي per-agent بالاسم. كل شريحة AgentChip تعرض «الاسم ×N» بلا عدّاد على النموذج. زر «إظهار شريط المشاركين» (ChevronDown) في ChatInterface يعيد الشريط المخفيّ بنقرة. مصدر البيانات: GET /api/sessions/:id/agents عبر transcript-parser (عدّ Agent+Task لكل subagent_type) — بلا تغيير خادم. مراجعة qa-critic (opus، احتياط لغياب fable-5): CONDITIONAL APPROVE؛ أُصلح H-1 (اسم الوكيل في breakdown عبر دمج يدوي مع مفتاح invocations القائم محافظاً على صيغ الجمع العربية الخمس) وM-1 (إزالة «×1» عن شريحة النموذج)؛ برهان i18next «architect: 3 استدعاءات». build:client نجح، tsc نظيف، حيّ على nassaj.alkindy.tech:3004. جلسات متوازية: الكود مُلتزَم مستقلاً في commit 4e7b4d5 (feat(participants))؛ كان قد التُقط سهواً في commit B-63 عبر git add -A ثم أسقطته الجلسة الموازية بـamend فأُعيد التزامه مستقلاً — لا فقد بيانات. عيوب L-1/L-3/M-2 من المراجعة تخص useChatMessages/useRunProgress (مهمة B-63) لا هذه الميزة."
     },
     {
       "id": "T-145",
@@ -2023,7 +2111,8 @@
       "kind": "bug",
       "title": "إصلاح ارتدادات حزمة D قبل دمج T-158: (1حرج) حفظ terminalId لكل تبويب في sessionStorage/localStorage مفتاحاً بالمشروع/الجلسة لاسترداده عند mount (وإلا تحديث الصفحة يهجر PTY ويكسر reattach القائم)؛ (2) تسليح مؤقّت التحذير عند init لا close فقط؛ (3) عدم جدولة قتل لجلسة متصلة في keepalive؛ (4) onContextLoss لـWebglAddon + حدّ تبويبات. الكود على worktree 4c8-9 commit 7daaf96.",
       "status": "open",
-      "owner": "backend-dev"
+      "owner": "backend-dev",
+      "note": "[WF wu3xbm20p 2026-06-16] إعادة عمل D مكتملة ومُتحقَّقة (qa-critic confirmed، commit 5340b19: تبويبات ShellTabBar + مهلة قابلة للضبط + إصلاحات الناقد الأربعة incl. حفظ terminalId). لكنها مبنيّة على معمارية shell قديمة (7daaf96←52e7aeb) — الفرع النشط هاجر لمعمارية DB-driven/sessionId-first (#715/44edf94) + عزل PTY per-user JWT (78671d8 B-MU-PTY-AUTH) + إغلاق B-36 (6bf00d7)، فالـcherry-pick فشل (تعارض 8 ملفات + add/add على pty-isolation.test الموجود أصلاً على الفرع). ShellTabBar غير موجود على الفرع النشط = الميزة مطلوبة لكن تحتاج إعادة تنفيذ على المعمارية الجديدة (5340b19 كمواصفة مرجعية). قرار أولوية للمالك. ملاحظة: فيتو B-MU-PTY-KEY الذي خشيه D مُعالَج أصلاً على الفرع النشط بنهج مختلف."
     },
     {
       "id": "T-169",
@@ -2031,10 +2120,296 @@
       "kind": "bug",
       "title": "إصلاح B-16 (UX مشروع خاص: وميض زر الرؤية مقابل شارة القفل) على chore/sync-upstream-v1.33 — الرموز موجودة فعلاً في SidebarProjectItem.tsx (isPrivate/canManageVisibility/Globe/Lock). إصلاح مساري الجوال (272-288) والديسكتوب (453-473) معاً + تمييز بصري بين القفل (حالة) وزر التبديل (إجراء). ملاحظة: منفّذ E السابق فبرك تقريره (فيتو الناقد) — يُعاد لمنفّذ آخر.",
       "status": "open",
-      "owner": "frontend-dev"
+      "owner": "frontend-dev",
+      "note": "[WF wu3xbm20p 2026-06-16] المنفّذ الأول توقّف (blocked، لا كود) لعدم تطابق أرقام الأسطر مع الفرع النشط المتباعد. لكن رموز الرؤية موجودة فعلاً (SidebarProjectItem.tsx:127-220: isPrivate/canManageVisibility/privateBadgeLabel/toggleVisibilityLabel + الشارة 215-220) فالخطأ قابل للإصلاح على هذا الفرع — يُعاد بمنفّذ يقرأ الأسطر ديناميكياً على worktree من HEAD الحالي (959bbf3) فيدمج نظيفاً بلا تعارض أساس."
+    },
+    {
+      "id": "T-170",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "C-AGENTS-STRIP: شريط نشاط الوكلاء الحيّ فوق الإدخال — صفّ لكل وكيل مُوكَّل (النوع/الوصف/حالة يعمل-انتهى/الأداة الجارية/عدّاد الاستدعاءات) يظهر مع الرد ويختفي بانتهائه؛ يستبدل الكلمة الدوّارة «يفكّر» (مؤشّر حالة حيّ في ClaudeStatus لا تفكير النموذج) مع إبقاء STOP/ESC/المؤقّت/شريط المهام عبر suppressActionWord؛ توسعة useRunProgress بحقل agents دون كسر عقد B-63؛ مكوّن AgentActivityStrip جديد قابل للتوسيع (Collapsible) + i18n ar/en؛ تحقّق بنية أداة Agent من transcripts حقيقية (723 Agent مقابل 1 Task)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-17",
+      "note": "مُلتزَم في c425bc0 (7 ملفات، فرع verify/b63-live-counter-pkgC). شمل إصلاح حصر الشريط على الرد الجاري فقط (ما بعد آخر رسالة مستخدم) فلا تظهر وكلاء ردود سابقة — المُميِّز type==='user' && !isToolUse && !originKind. qa-critic معتمَد، ESLint 0، اختبارات b63 6/6، build:client حيّ. مستثنى من الـcommit: package.json/lock (تغييرات جلسة متوازية). متابعة منفصلة: خطأ typecheck سابق في ClaudeUsageCollapsed.tsx خارج هذه الميزة."
+    },
+    {
+      "id": "T-171",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": null,
+      "title": "إصلاح خطأ typecheck TS2339 في ClaudeUsageCollapsed.tsx: السطر 72 كان يفكّك {status,data} من discriminated union (useClaudeUsage) قبل التضييق وdata في فرع success فقط؛ الإصلاح موضعي — ربط النتيجة بـusage ثم const{data}=usage بعد حارس usage.status==='success' (نمط HeaderUsageIndicator/ClaudeUsageSection)؛ لا تمويه (لا any/@ts-ignore). أُنجز عبر workflow: تشخيص→مرشّحان→حَكَم→تطبيق→تحقّق نقدي مستقل (confirmed)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-18",
+      "note": "مُلتزَم ab154af (ملف واحد، +3/-2). typecheck صفر أخطاء client+server، build:client حيّ، ESLint نظيف. type-only لا خطأ تشغيلي. كان قائماً في كود مُلتزَم سابقاً لأن pre-commit يشغّل eslint لا tsc."
+    },
+    {
+      "id": "T-172",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "إعداد «إخفاء استدعاءات الأدوات» (hideToolCalls): تفضيل opt-in يُخفي بطاقات tool_use/tool_result وحاويات الوكلاء من سجل المحادثة لعرض نظيف (الحوار + شريط الوكلاء الحيّ)؛ يُبقي دائماً AskUserQuestion/ExitPlanMode (تفاعل) وأي نتيجة isError؛ حارس نقي shouldHideToolCallMessage + زر في Tool Display + i18n تسع لغات",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-18",
+      "note": "مُلتزَم f65b61e (20 ملفاً، +168/-2). qa-critic معتمَد (قائمة الاستثناءات كاملة عبر فحص ToolRenderer؛ interactive_prompt وطلبات الإذن خارج النطاق). tsc صفر، build:client حيّ، اختبار الحارس 6/6. الافتراضي off — يفعّله المستخدم من الإعدادات. متابعة low مؤجَّلة: لا سكربت npm يشغّل اختبارات src/**."
+    },
+    {
+      "id": "T-173",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "title": "قلب افتراضي hideToolCalls إلى true: إخفاء استدعاءات الأدوات هو الوضع الافتراضي الآن، والمستخدم يُظهرها يدوياً عند الحاجة (متابعة T-172)",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-18",
+      "note": "مُلتزَم 4b28bb2 (سطر واحد في useUiPreferences.ts). الدمج parseBoolean(stored[key], DEFAULTS[key]) يملأ المفاتيح الغائبة فيسري الافتراضي الجديد على المستخدمين الحاليين بلا المفتاح. build:client حيّ."
+    },
+    {
+      "id": "T-174",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": null,
+      "title": "إصلاح اختفاء شارة عدّاد أوامر الـslash في Firefox/Zen: علّة Gecko bug 1392476 — button بـposition:relative لا يُنشئ containing block لابنه المطلق فتهرب الشارة ويقصّها الـform ذو overflow-hidden؛ الحل لفّ الزر في span relative والشارة شقيقته",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-18",
+      "note": "مُلتزَم 65dc5cf (ChatComposer.tsx، +15/-8). أكّده المستخدم بصرياً في Zen. محاولة أولى (إزاحة right-0 top-0 z-10) فشلت فكُشف السبب الأعمق. build:client حيّ. متابعة مفتوحة: تأخّر ظهور الشارة (تحميل slashCommands) قيد التشخيص."
+    },
+    {
+      "id": "T-175",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "title": "تسريع ظهور أوامر الـslash وشارة عدّادها: توازي طلبَي /api/commands/list و/api/providers/{provider}/skills (كانا تسلسليّين) عبر Promise.all مع إبقاء skills أفضل-جهد؛ متابعة لتأخّر T-174",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-19",
+      "note": "مُلتزَم 927e89c (useSlashCommands.ts، client فقط، build:client حيّ بلا restart). تحسينات أعمق متبقّية تحتاج restart خادم ومعروضة على المالك: كاش server-side لمسح skills (نمط dynamicBuiltInCache في commands.js)، وخفض COMMANDS_COLD_PROBE_WAIT_MS من 2500ms."
+    },
+    {
+      "id": "T-176",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-69",
+      "title": "تثبيت بروتوكول نفق Cloudflare على http2 لإنهاء انقطاعات الاتصال المتكررة: UDP الصادر على منفذ 7844 (لازم لـQUIC) محجوب/يفقد حزماً على الشبكة الأمامية، فكان النفق يتذبذب بين محاولة QUIC الفاشلة وسقوط الاتصالات (756 control-stream failure/24س ≈ مرة كل دقيقتين). الحل: protocol: http2 في config.yml (مسار TCP/HTTP2 مثبت PASS).",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-19",
+      "note": "تشخيص devops من فحوص cloudflared الذاتية (UDP FAIL / TCP PASS / suggested_protocol=http2). نفّذ المالك السطور بطرفيته (restart محجوب بحارس العميل): cp نسخة احتياطية + sed سطر protocol أعلى /home/nassaj/.cloudflared/config.yml + systemctl --user restart cloudflared. تحقّق بعد إعادة التشغيل (00:32 +03): كل الاتصالات الأربعة protocol=http2 واختفى control-stream failure تماماً. عاملان ثانويان مؤجَّلان للمالك: رفع net.core.rmem_max/wmem_max (تحذير receive buffer، sudo)، وتحديث cloudflared 2026.5.2→2026.6.1 (صيانة، لا يخص العلّة)."
+    },
+    {
+      "id": "T-177",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-70",
+      "title": "تشخيص «تسجيل خروج عشوائي» للمستخدم نورس (Nawras): خروج متكرر عشوائي أثناء الاستخدام (لا مرتبط بتحديث الصفحة) + خروج بعد restart جهازه. السبب المرجّح جهة عميل/متصفح Helium يفقد localStorage — لا عيب في المنتج: السيرفر مُبرَّأ نهائياً (صفر 401/403، JWT_SECRET ثابت).",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "closed": null,
+      "note": "ثلاث موجات تشخيص backend-dev. مُبرَّأ: الخادم (200 لتوكن نورس + صفر 401/403، التقاط حيّ بتوكن مسكوك)، بيانات حساب نورس (password_changed_at في الماضي لا يرفض)، ومسار passkey (يحفظ auth-token بنفس آلية كلمة المرور setSession→persistToken، والخادم يُصدر توكناً متطابقاً). المرحلة 1 (فحص الوضع الراهن، architect+backend-dev، 2026-06-19): كل الزوايا الكودية نُفيت قطعياً (clearSession مشروط بـ401/403 أو جسم بلا user فقط، لا storage-event يمسّ auth-token، لا منطق owner في الإقلاع، لا كتابة توكن فارغ عبر X-Refreshed-Token، لا redirect بين origins). الحل المعماري httpOnly cookie: (أ) عالي المخاطر — CSWSH على WS (لا Origin-check حالياً) + تحويل WS/SSE من ?token= + نافذة ترحيل مزدوجة لتجنّب طرد الجميع؛ (ب) قد لا يعالج نورس لأن إخلاء «بيانات الموقع» في Helium/Ungoogled-Chromium يطال الكوكيز كاللocalStorage. البوابة قبل أي حل (لا fix-before-diagnosis): فحص probe على جهاز نورس — localStorage.setItem('probe',Date.now()) ثم F5 ثم قراءته + location.origin + طول auth-token — يفصل «إخلاء متصفح» (الحل: إعداد Helium بلا كود) عن «منطق عميل/خادم» (حل كودي مستهدف). httpOnly يبقى تحسين XSS مستقلاً لا علاجاً لنورس؛ وWS Origin-check تحسين أمني مفيد بذاته. البحث العميق (backend-dev، 2026-06-19، بطلب المالك «هل فيه لوق»): استُخرج audit_log لـuser_id=1 — 14 حدث login، **صفر logout**، فجوات بالساعات بل 14 دقيقة (≪ TTL 7 أيام = التوكن يُفقد لا ينتهي)، توقيتات عشوائية لا دورية (= بيئة عميل لا cron خادمي)، وتكثُّف الطرد منذ 2026-06-15 (يوم passkey جديد + إضافة .env + هجرة الدومين B-65). JWT_SECRET ثابت في .env (96 محرف، الأولوية على app_config) — restart الخادم لا يُبطل التوكنات (أكّدته restartات 06-19 ونجاة توكنات نورس). معطى «restart الجهاز ← خروج» = clear-on-close لـHelium (إغلاق المتصفح يمسح التخزين). القيد: السجل أعمى عن لحظة الفقد (لا user_agent، لا logout، لا سبب رفض 401، لا token_refresh عبر الهيدر) فلا يُحسم السبب الدقيق من جهتنا. سيناريو جديد محتمل: سباق كتابة X-Refreshed-Token بين تبويبات/مرايا متعددة (نورس owner الوحيدة المعرَّضة). توصية: (1) اختبار حاسم بسيط — نورس يجرّب Chrome/Firefox؛ (2) تحسين السجل (T-183): إضافة user_agent + تسجيل logout + auth_rejected{reason} + token_refresh → يجعل النظام يكشف السبب بنفسه."
+    },
+    {
+      "id": "T-183",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": "B-70",
+      "title": "تحسين سجل المصادقة (audit_log) كأداة تشخيص لطرد نورس + إصلاح IP الأعمى: عمود user_agent + تسجيل logout الفعلي + auth_rejected{reason} + token_refresh التلقائي (best-effort) + دالة clientIp(req) تقرأ CF-Connecting-IP خلف حارس loopback (تصحّح ip_address=127.0.0.1 الحالي). تشخيصي: يكشف سبب أي طرد قادم بنفسه. (كان T-179 ثم T-182، صُحّح لتعارض ترقيم متكرر مع جلسة موازية.)",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: 1e84b88 سلف HEAD (client-ip.ts + auth-rejection-audit + websocket-auth.service + bad_signature). الكود منشور؛ تبقّى restart بطرفية المالك. || سابقاً: B-70. خطّطه backend-dev، راجعه qa-critic + architect (2026-06-19، المرحلة 3). qa-critic: اعتماد مشروط (فيتو مرفوع بـ6 اشتراطات إلزامية): (1) تصحيح المراجع — logout في routes/auth.js:216، refresh التلقائي بالهيدر في middleware/auth.js:88 المميَّز عن endpoint /refresh الصريح المُسجَّل سلفاً؛ (2) سياسة تقليم فعلية لـaudit_log (شرط دمج: احتفاظ ~90 يوماً أو سقف صفوف)؛ (3) منع صف لكل رفض WS/REST لـno_token/expired (تجميع دوري بدلها) لتفادي إغراق القرص وقت الحادثة؛ (4) jwt.decode→userId فقط + unverified:true، لا username/role من توكن غير موثوق؛ (5) clientIp بحارس loopback؛ (6) اختبارات محقَّقة (record لا يرمي + لا تسريب توكن). architect (ADR-040): clientIp يثق بـCF-Connecting-IP فقط عند remoteAddress=loopback، ممنوع trust proxy:true وX-Forwarded-For؛ تسجيل WS داخل verifyWebSocketClient لا بتغيير توقيع authenticateWebSocket؛ عمود ip_address موجود (migration لـuser_agent فقط)؛ توحيد مواقع IP (audit+rate-limit+antigravity) على clientIp. النشر: build:server + restart (المالك). نُفِّذ واعتُمد (المرحلة 4، 2026-06-19): التنفيذ تمّ ملتزماً بالاشتراطات الستة، qa-critic راجع الكود الفعلي ورفع الفيتو للنشر، eslint 0/0 + build:server + tsc نظيفة + 8/8 اختبارات. مُلتزَم 1e84b88 (14 ملف، 668+/29-). تسجيل WS بحقن تبعية (WebSocketAuthDependencies، لا اختراق حدود، توقيع authenticateWebSocket سليم). ينتظر build:server+restart المالك ليسري، ثم مراقبة audit_log عند الطرد التالي لنورس (auth_rejected/clientIp يكشفان السبب). متابعة backlog غير قاطعة: سقف حجم لـpending Map في auth-rejection-audit، وتوحيد admin.js:58 على clientIp. نجاح مثبت (2026-06-20): كشف السبب الجذري الحقيقي (bad_signature/تضارب JWT_SECRET) خلال دقائق من النشر، وصحّح مسار التشخيص من فرضية المتصفح (التي بُنيت على سجل أعمى) إلى السبب الخادمي الفعلي — مبرّر قيمة الأداة وإصرار qa-critic عليها. السبب الجذري وإصلاحه في T-184."
+    },
+    {
+      "id": "T-184",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-70",
+      "title": "إصلاح وقائي لتضارب JWT_SECRET (السبب الجذري لـB-70): مواءمة app_config.jwt_secret مع .env(96) لإلغاء التضارب جذرياً فلا ينقلب السرّ عند أي restart مستقبلي مهما كان مصدر التحميل، + توثيق أن .env هو المصدر الوحيد. لا تدوير سرّ.",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-20",
+      "note": "نُفِّذ 2026-06-20 (backend-dev، بإذن المالك): نسختان احتياطيتان (لقطة Online-Backup db.sqlite.bak-20260620-015550 integrity=ok + خام ثلاثية main/wal/shm)؛ before DIFFERENT(96 vs 128) ← after SAME(96، sha مطابق)؛ سكربت node عابر بـprepared statement (السرّ لم يُطبع) ثم حُذف؛ صفر طرد (توكن 96→HTTP 200، صفر bad_signature جديد، nassaj-dev online نفس PID بلا restart)؛ لا git. القنبلة الموقوتة أُلغيت: لو حُذف .env مستقبلاً يُقرأ app_config المطابق(96) فلا قلب سرّ. الخلفية: بانتظار إذن المالك (كتابة على القاعدة الحيّة /home/nassaj/.local/share/nassaj-dev/db.sqlite). السبب الجذري مثبت (T-183): resolveJwtSecret env-first؛ .env(96) حيّ وapp_config(128) ميت لكنه باقٍ كقنبلة موقوتة (لو حُذف/أُفرِغ .env يعود 128 ويطرد الجميع). المواءمة: UPDATE app_config SET value=<.env> WHERE key='jwt_secret' تجعل المصدرين متطابقين. تجنّب وضع السرّ في ecosystem.config.cjs المتعقّب بـgit (تسريب). المشكلة مستقرة ذاتياً الآن (السرّ ثابت، التوكنات القديمة تنتهي 06-22) فهذا وقائي لا عاجل. لا تدوير سرّ (يزعج الجميع بلا داعٍ)."
+    },
+    {
+      "id": "T-178",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "قائمة أسماء المحادثات الجارية على عدّاد الشريط المطوي: PresenceCountCollapsed صار زرّاً يفتح Popover (portal+position:fixed، توافق Firefox/Zen) عند التمرير/التركيز/النقر يعرض المشاريع ذات المحادثات الجارية بأسمائها وعددها، كل سطر ينقل للمشروع",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-19",
+      "note": "مُلتزَم 676b916 (3 ملفات، +283/-18). البيانات من usePresence.activeConversations.byProject (محادثات جارية فعلاً على السيرفر). qa-critic معتمَد: تنظيف المستمعات/المؤقتات + i18n العربية بصيغ الجمع سليمة، توافق Firefox صحيح؛ a11y خُفّض role من menu إلى مجموعة أزرار بتنقّل Tab. build:client حيّ."
+    },
+    {
+      "id": "T-179",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "title": "كاش server-side TTL لمسح المهارات (claude-skills.provider): listSkills كان يُعيد مسح نظام الملفات كل طلب فيُبطئ /api/providers/{provider}/skills وظهور أوامر/شارة السلاش؛ كاش 5 دقائق بمفتاح provider+claudeHome+workspace آمن لعزل تعدّد المستخدمين؛ متابعة T-175",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-19",
+      "note": "مُلتزَم 246c56d (ملف واحد، +84/-3). build:server وtsc نظيفان. تحليل عزل مؤرَّض بالكود: مسح skills ليس per-user اليوم (home مشترك عبر symlink)، والمفتاح يشمل claudeHome فيبقى آمناً لو وُصِّل per-user مستقبلاً؛ قسمة workspace تمنع خلط المشاريع. يحتاج pm2 restart (المالك) ليسري؛ cold-probe لم يُمَس."
+    },
+    {
+      "id": "T-180",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "chore",
+      "issue": null,
+      "title": "خفض مهلة probe الأوامر المدمجة (COLD_PROBE_WAIT_MS) من 2500 إلى 1000ms لتسريع أول فتحة للسلاش بعد إقلاع الخادم؛ متابعة T-179/T-175",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-19",
+      "note": "مُلتزَم 91a2a67 (commands.js، +13/-5). اكتشاف موثَّق: المهلة سباق قراءة فقط لا كتابة — بنية الإكمال الخلفي + single-flight + كتابة الكاش بنتيجة كاملة فقط (موضع واحد، غير فارغة) موجودة أصلاً، فلا يُخزَّن probe ناقص أبداً (اختبارات 8/8). 1000ms فوق الزمن النموذجي ~700ms فالمسار المعتاد يبقى كاملاً بطلب واحد. يحتاج pm2 restart (المالك) ليسري."
+    },
+    {
+      "id": "T-182",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "issue": null,
+      "title": "توحيد عرض «المحادثات النشطة» بين الشريط المطوي والموسَّع: استخراج مكوّن مشترك ActiveConversationsMenu (placement inline-end/bottom) يعرض المشاريع الجارية بقائمة تفاعلية قابلة للنقر في الحالتين؛ أُزيل Tooltip القراءة-فقط من PresencePanel؛ الأفاتارات وProjectBusyDot لم تُمسّ",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-19",
+      "note": "مُلتزَم cfe0f62 (5 ملفات، +409/-367؛ ActiveConversationsMenu.tsx جديد). qa-critic معتمَد: تنظيف المستمعات/المؤقتات وتوافق Firefox (portal+fixed) وa11y وi18n العربية محفوظة، وفرع inline-end مطابق بايت-ببايت (لا انحدار في المطوي). build:client حيّ. تنبيه نظافة طفيف: عاد cast في resolveProject (مكافئ سلوكياً)."
+    },
+    {
+      "id": "T-185",
+      "phase": "P2",
+      "kind": "chore",
+      "title": "[WF wu3xbm20p 2026-06-16] مطابقة اللوحة مع الفرع النشط verify/b63-live-counter-pkgC — اكتشاف بنيوي: الفرع متقدّم كثيراً عن الأساس المفترض في اللوحة (chore/sync-upstream-v1.33@52e7aeb). مدموج فعلاً عليه: #715 (معمارية session DB-driven)، عزل PTY per-user JWT (78671d8، يلامس T-11/T-12/T-48/B-14)، إغلاق ثغرات عزل B-36 (6bf00d7)، أزرار disconnect/restart shell (#831)، توحيد الشريط الجانبي، الهوية/الشعار. يلزم مسح بنود اللوحة المفتوحة (خاصة T-5 وعزل المستخدمين) مقابل واقع الفرع النشط لإغلاق ما أُنجز فعلاً. الأساس القديم لا يعكس الواقع.",
+      "status": "done",
+      "owner": "coordinator",
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] مطابقة اللوحة مع الفرع النشط منجَزة: 9 إغلاقات مؤكَّدة + دحض B-67. التقرير الكامل في سجل الجلسة."
+    },
+    {
+      "id": "T-186",
+      "phase": "P2",
+      "kind": "bug",
+      "issue": "B-73",
+      "title": "ترحيل بيانات إعادة تسمية مشروع AlRukhaimi→Mujtana بعد mv يدوي من المستخدم: إعادة كتابة حقل cwd في 314 ملف JSONL (11 محادثة + 303 وكيل فرعي، 14171 استبدالاً للمسار المطلق فقط دون مسّ النثر)، وتحديث صفّ المشروع وجلساته الـ11 في db.sqlite إلى مسار Mujtana، وإعادة تسمية مفتاح projects في ثلاثة .claude.json (مستخدمون 1/2/5). نسخة احتياطية كاملة قبل التنفيذ.",
+      "status": "done",
+      "owner": "backend-dev",
+      "closed": "2026-06-20",
+      "note": "تحقّق المنسّق مستقلاً (لا اعتماد على ادعاء الوكيل): صفّ Mujtana واحد f8aef1f4 (created_by=1 مُستعاد، public، غير مؤرشف)؛ 11 جلسة على مسار Mujtana؛ صفر بقايا مسار قديم في DB وفي 314 JSONL؛ f37a8519 سليم (233 سطر/0 parse errors، cwd=Mujtana وحيداً). انحراف الوكيل: حذف الصفّ الأصلي a3eee37f لتعارض UNIQUE مع صفّ Mujtana ظهر بين التشخيص والتنفيذ — مُتحقَّق أن project_members كان فارغاً (CASCADE بلا أثر) والمشاركة محفوظة عبر session_participants (19 صف/3 مستخدمين). بلا restart. نسخة احتياطية: /home/nassaj/backups/mujtana-rename-20260620-092203."
+    },
+    {
+      "id": "T-193",
+      "phase": "P2",
+      "kind": "chore",
+      "status": "done",
+      "owner": "coordinator",
+      "closed": "2026-06-20",
+      "title": "[WF w94pxb707] مراجعة شاملة متعددة الوكلاء لميزة عدّاد الموارد الحيّ B-63 (8 أبعاد، 47 وكيلاً، تحقّق عدائي لكل نتيجة): 38 خاماً → 33 مؤكَّدة (1 medium، 13 low، 19 info) + 5 مرفوضة كإيجابيات كاذبة. صفر critical/high.",
+      "note": "أُكِّدت صحّة كوميتي الجلسة: 9ef40b8 يفكّ التجمّد فعلاً، وb4956ea يعرض CPU بخانتين حقيقية دون تقريب مزدوج أو ارتداد بصري. اختبار الباكند موجود ويمرّ 6/6. النتائج المؤكَّدة فُرزت B-74..B-79 (backlog، صفر يقطع العمل). أعلى توصية: ربط اختبار الواجهة بـCI (B-74)."
+    },
+    {
+      "id": "T-194",
+      "phase": "P2",
+      "kind": "bug",
+      "issue": "B-75",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-20",
+      "title": "إصلاح سباق إلغاء useSystemStats: استبدال refs (cancelledRef/unsupportedRef/timerRef) بحالة محصورة في الـeffect + AbortController + inFlight. كل دورة StrictMode تملك إغلاقها المعزول فلا تُعاد جدولة من mount سابق.",
+      "note": "commit ea9e0f6. build:client أخضر، dist محدَّث (حيّ بلا restart). تحقّق المنسّق مستقلاً: لا بقايا refs، الاستيراد نظيف. حارس الارتداد في T-195 يثبت سقوطه على كود ما-قبل-الإصلاح."
+    },
+    {
+      "id": "T-195",
+      "phase": "P2",
+      "kind": "bug",
+      "issue": "B-74",
+      "status": "done",
+      "owner": "tester",
+      "closed": "2026-06-20",
+      "title": "طبقة اختبار واجهة (vitest+jsdom+@testing-library/react) واختبار سلوكي لـuseSystemStats (6 حالات: أول جلب، استمرار الاستطلاع، StrictMode بلا تجمّد/مضاعفة، 404 يوقف، إخفاء/إظهار، unmount يُلغي) + ربط CI.",
+      "note": "commit d25d7ae. تحقّق المنسّق مستقلاً: test:client 6/6 pass، الباكند 485+74 pass. أُثبت أن الحالة (c) تسقط على كود ea9e0f6^ (cancelledRef) وتمرّ على الحالي → حارس حقيقي لـ9ef40b8+B-75. ربط CI: npm run test:client بعد npm test في release.yml وdocker.yml. ملاحظة: تغييرا الجلسة المتوازية على package.json (homepage/glob) غير ملتقَطين (سليمان غير ملتزمين)."
+    },
+    {
+      "id": "T-196",
+      "phase": "P2",
+      "kind": "bug",
+      "issue": "B-80",
+      "status": "pending",
+      "title": "تفعيل replay claude (B-80/ADR-041): قرار مالك — ضبط SESSION_REGISTRY_claude=1 + pm2 restart عبر ecosystem (محجوب بحارس العميل، ينفّذه المالك بطرفيته) تحت مراقبة RSS أول ورشة claude طويلة متزامنة. الكود مدموج خلف العلم المطفأ (commit 8a13377)، صفر تغيير سلوك حتى التفعيل؛ عند تجاوز RSS الحدّ فإطفاء العلم آمن (no-op). المرحلة 2 (B-80c: إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة بمراجعة qa-critic مستقلة."
+    },
+    {
+      "id": "T-201",
+      "title": "قرار: طوبولوجيا الأسطول (0=قائم / B=فيدرالي-SSO / A=تنفيذ-مركزي) — يتطلب ADR + موافقة مالك",
+      "status": "open",
+      "phase": "P7",
+      "priority": "high",
+      "due": "2026-07-07",
+      "description": "يحسم الطوبولوجيا قبل تركيب 105/مجتنى والكندي. الخيارات في fleet-centralized-access-study.md §3. الموصى به: B (instance لكل عقدة + SSO موحّد). شروط حاجبة: (1) تحليل امتثال فعلي (ToS + AGPL §13)، (2) ADR في alkindy/decisions/، (3) خطة JWT/SSO. السؤال الحاسم للمالك: هل الألم تكرار إنشاء المستخدمين (B) أم غياب لوحة مركزية (بوابة روابط ≈ ساعات)؟",
+      "blockedBy": []
+    },
+    {
+      "id": "T-202",
+      "title": "UI: icon-only tabs + wiki في شريط جانبي + مزوّدات (DeepSeek/GLM/Hermes/Sakana+حذف Gemini)",
+      "status": "done",
+      "phase": "P4",
+      "priority": "medium",
+      "description": "ثلاثة تعديلات UI: (1) زر في القائمة اليمنى يُخفي نصوص التبويبات ويُبقي الأيقونات مع tooltip، (2) نقل Wiki من الشريط العلوي لبجوار \"New Project\" يفتح في تبويب جديد، (3) صفّ المزوّدات في الإعدادات: شعارات-فقط+hover، حذف Gemini chip، إضافة DeepSeek/GLM5.2/Hermes/Sakana. DeepSeek+GLM موجودان على branch feat/multimodel-providers (غير مدموج) — يُضافان كـchips مع backend registration أولاً.\n\nمكتمل: 23 ملف، TypeScript passes clean، build:client+server ناجح. restartNeeded=true لأجل session-synchronizer.service.ts (يُشغِّله المستخدم).",
+      "completedAt": "2026-06-23T10:03:37.000Z"
     }
   ],
   "issues": [
+    {
+      "id": "B-81",
+      "severity": "critical",
+      "status": "open",
+      "found": "2026-06-22",
+      "title": "تصميم سدرة يدّعي توافق AGPL بينما LICENSE الفعلي لـ/Project/sidra هو Proprietary (مؤسسة الرخيمي)؛ خلط ترخيص المحتوى بتراخيص أدوات AGPLv3 والتزام §13. يلزم فصل + تحليل §13 قبل اعتماد ADR-SEDRA-001.",
+      "triage": "P7/م2 — حاجز قبل النشر",
+      "resolved": null
+    },
+    {
+      "id": "B-82",
+      "severity": "high",
+      "status": "open",
+      "found": "2026-06-22",
+      "title": "حذف PII الآلي في تصميم سدرة على مدد retention مسوّدة غير معتمدة قانونياً؛ يبقى dry-run/تنبيه حتى اعتماد محامٍ + تأكيد بشري في المرحلة الأولى.",
+      "triage": "P7/م2 — حاجز قانوني",
+      "resolved": null
+    },
+    {
+      "id": "B-69",
+      "severity": "high",
+      "status": "fixed",
+      "found": "2026-06-19",
+      "title": "عدم استقرار نفق Cloudflare: 756 حدث control-stream failure + 280 connection terminated + 305 retrying خلال 24 ساعة (≈ كل دقيقتين)، تسبّب انقطاعات لحظية للاتصال لكل المستخدمين عبر nassaj.alkindy.tech. السبب الجذري: النفق يبدأ بـQUIC (UDP 7844) بينما UDP الصادر محجوب/يفقد حزماً على الشبكة الأمامية (فحص cloudflared الذاتي: UDP Connectivity FAIL لكلا الإقليمين، TCP/HTTP2 PASS).",
+      "triage": "high → الحل تثبيت protocol: http2 (T-176). أُصلح ونُفّذ 2026-06-19 (بيد المالك، restart محجوب بحارس العميل). تحقّق: كل الاتصالات http2 واختفاء control-stream failure. أدلة نافية للأسباب البديلة: DNS PASS، Cloudflare API PASS، لا ضغط موارد (76M/4دق CPU عبر 32س)، النسخة متأخرة إصداراً واحداً فقط (ليست السبب).",
+      "resolved": "2026-06-19"
+    },
+    {
+      "id": "B-70",
+      "severity": "high",
+      "status": "fixed",
+      "found": "2026-06-19",
+      "title": "مستخدمون يُسجَّل خروجهم «عشوائياً» (بدا نورس Nawras id=1 owner فقط لأنه الأنشط/الوحيد المبلّغ، لكنه عامّ). السبب الجذري النهائي المثبت (T-183): bad_signature — تضارب JWT_SECRET بين .env(96 محرف) وapp_config(128 محرف)؛ أول restart بعد ولادة .env (2026-06-15 23:45) قلب السرّ الحيّ من 128 إلى 96 فصارت كل التوكنات الأقدم bad_signature ← طرد. ليس متصفح Helium ولا فقد localStorage (فرضية مبكرة بُنيت على سجل أعمى لا يسجّل الرفض، صُحّحت بـT-183).",
+      "triage": "medium → T-177. تشخيص خادمي+كودي قاطع (موجتا backend-dev): (1) نورس = id 1 owner، الوحيد بـpassword_changed_at غير فارغ (backfill migration 2026-05-26، في الماضي لا يرفض)، والوحيد الذي يدخل بـpasskey/WebAuthn. (2) الخادم مُبرَّأ تماماً: توكن نورس يُرجِع 200 على /api/auth/user وكل المسارات (التقاط حيّ بتوكن مسكوك)، صفر 401/403 في السجلات، WS نورس يُصادَق عشرات المرات. (3) فرضية «مسار passkey لا يحفظ auth-token» مرفوضة قطعياً: المساران يستدعيان نفس setSession→persistToken→localStorage.setItem('auth-token') (AuthContext.tsx:201 و:236)، والخادم يُصدر توكناً متطابق العقد (auth.js:162 / webauthn.js:172 عبر نفس generateToken). الكود والخادم مبرّآن. السبب الوحيد المتسق: متصفح نورس يمسح localStorage بين التحميلات (الأرجح Helium/Firefox-Zen بوضع خصوصية أو «مسح بيانات المواقع عند الإغلاق»). «فقط نورس» = نورس وحده على ذلك المتصفح. الحسم النهائي سلوكي على جهازه (auth-token قبل/بعد F5). الحل: إعداد متصفح (استثناء الموقع) أو تحصين معماري httpOnly cookie (قرار مالك). ⟵ هذه الفرضية صُحّحت بالكامل. الحسم النهائي (T-183/audit_log بعد نشره 2026-06-20): أول auth_rejected سُجّل reason=bad_signature claimedUserId=2 (Jazari لا نورس ← المشكلة عامة لكل المستخدمين). اختبار حيّ قاطع: توكن مسكوك بـ.env(96)→HTTP 200، وبـapp_config(128)→401؛ السرّ الحيّ الآن =.env(96) قطعياً وapp_config(128) ميت. resolveJwtSecret env-first؛ load-env يحقن .env بلا منافس موروث (لا JWT_SECRET في /proc/PID/environ). القلب وقع 06-15 23:45 (أول restart بعد ولادة .env)، وrestart نشر T-183 (06-20 04:31) فقط فعّل التسجيل فصار الرفض مرئياً لأول مرة. مستقر الآن: السرّ حتمي عبر كل restart (صفر «No .env» منذ 06-15، لن يتذبذب)؛ التوكنات القديمة(128) العالقة تنتهي ذاتياً 2026-06-22. الحل: (أ) فوري — كل مستخدم يعيد الدخول مرة واحدة في كل تبويب/جهاز يحمل توكناً قديماً (توكن 96 طازج، لا يُطرد بعدها)؛ (ب) وقائي T-184 — مواءمة app_config.jwt_secret مع .env لإلغاء التضارب جذرياً (إذن المالك، كتابة DB حيّة). لا تدوير سرّ (غير ضروري، يزعج الجميع). صُعّدت severity إلى high (أثّر على كل المستخدمين لا نورس وحده). الإصلاح: T-184 نُفِّذ 2026-06-20 (مواءمة app_config=.env، صفر طرد، القنبلة الموقوتة أُلغيت). المتبقّي: المتأثرون حالياً (توكنات 128 عالقة في تبويبات/أجهزة) يعيدون الدخول مرة واحدة أو تنتهي ذاتياً 2026-06-22؛ يُغلق B-70 بعد تأكيد المالك توقّف طرد نورس عقب إعادة دخوله.",
+      "resolved": "2026-06-20",
+      "note": "[مطابقة abf770a8 2026-06-16] الجذر مُصلَح بـT-184 (done، مواءمة app_config=.env) وT-183 يكشفه. يُغلق بعد تأكيد المالك توقّف الطرد العشوائي (شرط اللوحة: بوابة بشرية). تحديث 2026-06-20: المالك أكّد مبدئياً «ما خرج» بعد التحديث عقب دخول نظيف (المخرج: المرة الأولى /api/auth/user→401 فطرد، وبعد الدخول النظيف لا 401 فلا طرد) — يؤكّد أن السبب الفعلي للطرد المتبقّي = توكن قديم تالف client-side (موقّع بسرّ ما قبل تصحيح 06-15) في كل أجهزة نورس، يُحَل بدخول نظيف واحد لكل جهاز؛ متّسق مع T-183/T-184. بانتظار تأكيد الاستقرار عبر عدة تحديثات/فترة. عيبان ثانويان ظهرا في console نورس (لا يطردان، يصيبان الجميع، مرشّحان لإصلاح): (1) sw.js respondWith(undefined)→'Failed to convert value to Response' يكسر beacon/session؛ (2) مراقب الإصدارات يطلب api.github.com/repos/Kindi-sa/nassaj-dev/releases/latest→404 متكرر (repo خاص/بلا releases عامة). أُصلحا 2026-06-20 commit c755e3c: sw.js (حارس عابر الأصل + respondWith يستقبل Response دائماً + CACHE_NAME→v5 لإلغاء SW القديم المكسور عند المستخدمين) وuseVersionCheck (ابتلاع 404 بصمت)؛ build:client حيّ بلا restart. تنبيه: ابتلاع console.error لم يُزِل network-404 (المتصفح يطبعه لأي fetch فاشل)، فأُصلح جذرياً commit 77db1a5: fetchEnabled=false يمنع طلب releases للمستودع الخاص نهائياً (currentVersion يبقى من package.json). تأكيد المالك 2026-06-20: بعد التحديث توقّف الطرد واختفى خطأ sw.js؛ بقي فقط beacon ERR_BLOCKED_BY_CLIENT = مانع إعلانات المستخدم لا عيب فينا. كل الالتزامات محلية بلا push."
+    },
     {
       "id": "B-66",
       "severity": "medium",
@@ -2468,12 +2843,14 @@
     {
       "id": "B-43",
       "severity": "low",
-      "status": "fixed",
+      "status": "resolved",
       "found": "2026-06-12",
       "title": "اختبارات wsConnectionBehavior.test.ts تكرّر منطق المصدر محلياً بدل استيراده (calcReconnectDelay، SERVER_ERROR_CODE_KEYS) — قد تمر بينما يكسر الإنتاج",
       "triage": "أُغلق: استيراد calcReconnectDelay/SERVER_ERROR_CODE_KEYS من المصدر (commit 32cde37)",
       "resolved": "2026-06-12",
-      "resolution": "commit 9a9f06f: معامل attribution لـupdateStreaming يختم coordinatorId/originKind على الصف المتدفّق (يحفظ القيمة السابقة)، مُمرَّر من stream_delta/stream_end/complete؛ finalizeStreaming يحملها بالـspread فيطابق الرسائل المكتملة. الخادم يختمها أصلاً عبر stampCoordinatorId."
+      "resolution": "commit 9a9f06f: معامل attribution لـupdateStreaming يختم coordinatorId/originKind على الصف المتدفّق (يحفظ القيمة السابقة)، مُمرَّر من stream_delta/stream_end/complete؛ finalizeStreaming يحملها بالـspread فيطابق الرسائل المكتملة. الخادم يختمها أصلاً عبر stampCoordinatorId.",
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: useSessionStore.ts:558-561 يختم coordinatorId على الصف المتدفّق (تعليق صريح يذكر B-43)."
     },
     {
       "id": "B-44",
@@ -2623,18 +3000,137 @@
       "status": "open",
       "found": "2026-06-16",
       "title": "[WF w06wyxyet 2026-06-16] فشل اختبار runner.routes.role-gate (runner-bridge): تشخيصان متضاربان من وكيلين — أحدهما يزعم import من .JS بينما التصدير في .TS:559، والآخر يزعم أن الاختبار لا يستورد approveApproval أصلاً والسبب مختلف. يلزم تحقيق محايد. انحدار بناء سابق لا يخصّ sync (T-5).",
-      "fix": null
+      "fix": null,
+      "note": "[مطابقة abf770a8 2026-06-16] دحض المنسّق ادعاء «14/14 يمرّ» من وكيل المطابقة: شغّلتُ runner.routes.role-gate.test.ts فعلياً → tests 1/fail 1/exit 1، فشل تحميل عند 1:1 (خطأ وحدة لا تأكيد). الخطأ حقيقي قائم ويحتاج إصلاح تحميل الوحدة. تشخيصا الدفعة السابقة متضاربان — يلزم تحقيق محايد."
     },
     {
       "id": "B-68",
       "severity": "low",
-      "status": "open",
+      "status": "resolved",
       "found": "2026-06-16",
       "title": "[WF w06wyxyet 2026-06-16] خطأ tsc في src/components/.../ClaudeUsageCollapsed.tsx رصده وكيلان أثناء حزمتي C/D — خارج نطاقهما، يُسجَّل للفرز.",
+      "fix": null,
+      "closed": "2026-06-16",
+      "note": "[مطابقة abf770a8 2026-06-16] DONE_ON_BRANCH مُتحقَّق: ab154af سلف HEAD يُصلح TS2339 في ClaudeUsageCollapsed."
+    },
+    {
+      "id": "B-71",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-06-19",
+      "title": "ActiveConversationsMenu فرع placement=bottom بلا معالجة تجاوز حافة الشاشة (clamping أفقي + flip لأعلى + قياس أبعاد البوبوفر الفعلية)؛ الموضع الفعلي آمن حالياً (المُطلِق أعلى الشريط الموسَّع) لكن قد يُقصّ في viewport صغير/قائمة طويلة. من مراجعة qa-critic لـcfe0f62.",
       "fix": null
+    },
+    {
+      "id": "B-72",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-19",
+      "title": "كود ميت سابق في PresencePanel.tsx (badgeLabel/badgeTooltip يُحسبان ولا يُستهلكان، من commit 716c22f، خارج صفّ الأفاتارات المصون)؛ حذف تنظيفي.",
+      "fix": null
+    },
+    {
+      "id": "B-73",
+      "severity": "high",
+      "status": "resolved",
+      "found": "2026-06-20",
+      "title": "إعادة تسمية مشروع يدوياً بـmv (AlRukhaimi→Mujtana) نقلت المجلدين على القرص فقط، وتركت هوية المشروع القديمة في طبقتين: صفّ projects + جلسات db.sqlite (مفتاحها project_path نصّاً) وحقل cwd داخل ملفات JSONL (منه يشتق المزامن project_path). النتيجة: الواجهة تعرض الاسم القديم وتعذّر فتح المحادثات الـ11، والمشروع مرشّح لأرشفة reconcile خلال ≤6 ساعات. لا توجد ميزة «نقل/إعادة تسمية مسار مشروع» (واجهة rename تغيّر custom_project_name فقط).",
+      "fix": "T-186: ترحيل بيانات متّسق (JSONL cwd + db.sqlite + ثلاثة .claude.json) مع نسخة احتياطية وتحقّق مستقل. فجوة الميزة (لا migration للمسار عند mv يدوي) تبقى قائمة كتحسين محتمل."
+    },
+    {
+      "id": "B-74",
+      "severity": "medium",
+      "status": "resolved",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] لا اختبار واجهة لـuseSystemStats؛ جوهر إصلاح التجمّد (9ef40b8) بلا حارس ارتداد. مصيدة تسمية: b63LiveCounter.test.ts يخصّ عدّاد تقدّم المهام لا الموارد. طبقة اختبار الواجهة غير مربوطة بـCI (npm test يشغّل server/** فقط) و@testing-library/react غير مثبّتة.",
+      "triage": "backlog (medium) — لا يقطع عملاً؛ يُجدول إصلاحه ربط طبقة اختبار الواجهة بـCI + اختبار الـhook.",
+      "fix": "T-195: طبقة اختبار واجهة vitest/jsdom + اختبار سلوكي لـuseSystemStats (6 حالات) + ربط CI في release.yml/docker.yml (commit d25d7ae). مُتحقَّق: 6/6 pass مستقلاً، والباكند 485+74 pass."
+    },
+    {
+      "id": "B-75",
+      "severity": "low",
+      "status": "resolved",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] سباق إلغاء cancelledRef يُنتج حلقتَي poll متوازيتين (مضاعفة المعدّل) عند تداخل fetch جارٍ مع mount/remount (StrictMode، dev غالباً) أو عبر visibilitychange (إنتاجياً). الحلقة اليتيمة تنتهي ذاتياً بعد unmount. SystemStats.tsx:29-64.",
+      "triage": "backlog (low) — الإصلاح المقترح: AbortController per-effect أو generation-token (يحلّ السباقين وإلغاء fetch فعلياً).",
+      "fix": "T-194: إعادة هيكلة useSystemStats إلى effect-scoped locals + AbortController + حارس inFlight (commit ea9e0f6). يفكّ سباق الحلقتين والتداخل وإلغاء fetch فعلياً. مُتحقَّق ببناء أخضر واختبار حارس."
+    },
+    {
+      "id": "B-76",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] /api/system/stats بلا rate-limit (createRateLimiter متاح وغير مطبّق) ومقروء لأي مستخدم مُصادَق بمن فيهم دور user (نظيره /api/system/update محروس بـrequireRole owner/admin). كشف CPU/RAM تجميعي، side-channel ضعيف لأداة داخلية. system.js:158 / index.js:304.",
+      "triage": "backlog (low) — قرار: تطبيق rate-limit و/أو requireRole، أو توثيق الإبقاء مفتوحاً للموثوقين.",
+      "fix": null
+    },
+    {
+      "id": "B-77",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] دقّة ذاكرة مُهدَرة وغير متّسقة: الباكند يقرّب النسبة round1 والواجهة تُلغيها بـMath.round (صحيح دائماً)، بينما CPU صار خانتين (toFixed(2)) بعد b4956ea؛ والتعليق system.js:9-11 مازال يقول memory 1 decimal خلافاً للمعروض. SystemStats.tsx:75,150.",
+      "triage": "backlog (low) — توحيد عقد الدقّة طرفياً (toFixed(1) أو Math.round) + تحديث التعليق.",
+      "fix": null
+    },
+    {
+      "id": "B-78",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] فجوات اختبار الباكند: round2/الخانتان (b4956ea) غير مُختبَرة (round2 غير مُصدَّرة)، وround1 للذاكرة، وآلة حالة getCpuPercent (عيّنة أولى/إعادة استخدام/fallback loadavg) غير مُغطّاة؛ وعنوان اختبار «and clamps» مُضلِّل (لا يمارس القَصّ). server/routes/tests/system.test.ts.",
+      "triage": "backlog (low) — تصدير round1/round2 واختبار التقريب صراحةً + حقن قارئ عيّنة لـgetCpuPercent.",
+      "fix": null
+    },
+    {
+      "id": "B-79",
+      "severity": "low",
+      "status": "open",
+      "found": "2026-06-20",
+      "title": "[WF w94pxb707] تجميل واجهة/RTL/تدويل: أسبان القيم بلا dir=\"ltr\" فتُعاد ترتيب «RAM x/yGB (z%)» بصرياً تحت العربية؛ الدُّرج المحمول يبقى يستطلع وهو مخفي بـCSS (document.hidden لا يغطّيه)؛ labels (CPU/RAM/GB) ثابتة نصاً؛ formatGb يحسب GiB(1024³) ويعرض «GB». SystemStats.tsx:87-149.",
+      "triage": "backlog (low) — تجميلي: dir=ltr للأسبان، prop enabled للدُّرج، GiB بدل GB إن لزمت الدقّة.",
+      "fix": null
+    },
+    {
+      "id": "B-80",
+      "severity": "high",
+      "status": "open",
+      "found": "2026-06-22",
+      "title": "بثّ WS الحيّ لا يُستأنف بعد إعادة اتصال السوكِت أثناء جلسة workflow ثقيلة، فـ«الردود تتوقف حتى تحديث الصفحة» (المستخدم Jazari، مشروع AlKindy BM، جلسة 0625cfbf). السبب الجذري البنيوي (مؤكَّد بقراءة الكود، بانتظار تأكيد تجريبي): عند إغلاق السوكِت أثناء بثّ نشط يصير WebSocketWriter.send عمليةً لاغية صامتة بينما حلقة async generator تستمر بلا abort للـSDK؛ وعند reconnect يمنع فيتو no-swap (isActive=true) إعادة ربط الـwriter فيُسجَّل السوكِت الجديد mirror قراءة-فقط يستقبل المُبثّ مستقبلاً فقط، وما بُثّ بين موت السوكِت وتسجيل المرآة يُفقَد؛ لا نظير لـClaude لآلية الإعادة التفاضلية الموجودة لـantigravity خلف علم SESSION_REGISTRY_agy. الملفات: server/claude-sdk.js (stream loop + reconnectSessionWriter)، chat-websocket.service.ts (check-session-status/no-swap)، websocket-writer.service.ts (fan-out + حارس readyState). استُبعدت بدليل: تلف JSONL، الأنواع الحديثة، المسافة في المسار، maxPayload، OOM، ازدحام watcher→terminate (صفر terminate في السجل).",
+      "triage": "high — ضمن S-2 (تصليب الواجهة وطبقة البيانات). instrumentation تشخيصي [WS-DIAG] منفّذ ومبني (4 ملفات مصدر، logging فقط بلا تغيير سلوك) وينتظر pm2 restart للتأكيد التجريبي: رمز إغلاق السوكِت (1006 وسيط مقابل 1001 reload)، سطر stream-orphaned، ومنع writer-swap عند reconnect. الإصلاح المقترَح (يحتاج اعتماداً، غير منفّذ): منح Claude إعادةً تفاضلية (ring-buffer لكل جلسة + إعادة تشغيل seq>lastSeq عند reconnect دون writer swap)، أو السماح بـwriter-swap آمن حين يكون الجري نشطاً لكن ليس وسط tool_use معلّق. تأكيد سلوكي جزئي (سجل restart 2026-06-22 11:12): جلسة 0625cfbf بقيت active وتكتب على القرص حتى 11:15 رغم ظهورها «متوقّفة» بالواجهة — أي البثّ يُتّم (orphaned) والعملية تستمر خلفياً. أثر جانبي مكتشَف: عدم إجهاض الـstream عند انقطاع السوكِت يُبقي الجلسة محسوبة active أبداً (تسريب جلسات شبحية)، فيُبطئ كل pm2 restart بمقدار kill_timeout=5min ما لم تُقتل بإشارة ثانية.",
+      "fix": "المرحلة 1 منفّذة ومدموجة خلف علم مطفأ (commit 8a13377، ADR-041): مثيل SessionRegistry معزول لـclaude (SESSION_REGISTRY_claude، capacity=500) يسجّل البثّ في ring-buffer، وattachClaudeSDKSession يعيد بثّ seq>lastSeq للسوكِت عند reconnect دون writer-swap (يحترم الفيتو حرفياً)؛ العميل يرسل/يتتبّع lastSeq/sequence. مُراجَع qa-critic: مقبول (شرط خفض السعة مطبّق). اختبارات: خادم 564/0، claude-attach 5/5، عميل 50/50؛ build:server+client موجود محلياً. معلّق على المالك: تفعيل SESSION_REGISTRY_claude=1 + pm2 restart تحت مراقبة RSS (T-196). المرحلة 2 (إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة لاحقاً."
+    },
+    {
+      "id": "B-83",
+      "title": "قرار معلَّق: طوبولوجيا الأسطول — تعليق 105/مجتنى والكندي حتى الحسم",
+      "status": "open",
+      "severity": "high",
+      "phase": "P7",
+      "description": "نتيجة fleet-centralized-access-study.md §8 (qa-critic): تركيب 105/مجتنى والكندي مُعلَّق لأن الطوبولوجيا تحدّد ما يُركَّب. التتبّع: T-201. يُغلق عند صدور ADR + موافقة مالك."
     }
   ],
   "decisions": [
+    {
+      "id": "ADR-041",
+      "date": "2026-06-22",
+      "status": "proposed",
+      "title": "replay تفاضلي حيّ لمزوّد claude (B-80): مدّ آلية ADR-021 (session-registry + attach التفاضلي المُثبَتة لـagy) إلى claude عبر مسار replay-only يحترم فيتو no-swap حرفياً (لا يلمس if(!isActive) ولا يبدّل الـwriter). مثيل SessionRegistry معزول ثانٍ خلف علم SESSION_REGISTRY_claude مُطفأ افتراضياً (تعايش قديم/جديد، صفر تغيير سلوك حتى التفعيل)؛ capacity=500 (شرط qa-critic: tool_result قد يكون ضخماً، قصّ ذروة RSS). يحلّ تجمّد الواجهة عند انقطاع WS أثناء بثّ claude نشط بإعادة بثّ seq>lastSeq عند reconnect. مُراجَع qa-critic: مقبول بشرطين (السعة مطبّقة + مراقبة RSS بعد التفعيل). Status: proposed بانتظار اعتماد المالك على التفعيل (SESSION_REGISTRY_claude=1 + restart). مرتبط: ADR-021، B-80، T-196.",
+      "_relTask": "T-196"
+    },
+    {
+      "id": "ADR-040",
+      "date": "2026-06-19",
+      "status": "proposed",
+      "title": "نموذج ثقة IP لسجل المصادقة خلف نفق Cloudflare (T-183): استخلاص IP العميل الحقيقي عبر دالة clientIp(req) تثق بهيدر CF-Connecting-IP فقط عندما يكون req.socket.remoteAddress عنوان loopback (الطلب قادم من النفق المحلي)، وإلا fallback إلى remoteAddress المباشر. ممنوع app.set('trust proxy', true) (يسمح لعميل مباشر بحقن X-Forwarded-For مزيّف يسمّم السجل الأمني بـIP كاذب) وممنوع قراءة X-Forwarded-For إطلاقاً. السبب: ip_address الحالي في audit_log = 127.0.0.1 (عنوان النفق) بلا قيمة تشخيصية لغياب trust proxy، فالسجل أعمى عن IP نورس الحقيقي. توحيد كل مواقع IP (audit_log + rate-limit.js + عدّاد antigravity) على clientIp لمنع انجراف الدلالة. قرار architect+qa-critic (المرحلة 3). Status: proposed بانتظار اعتماد المالك قبل النشر. مرتبط: T-182، B-70، B-66 (تقييد loopback).",
+      "_relTask": "T-183"
+    },
+    {
+      "id": "ADR-039",
+      "date": "2026-06-19",
+      "status": "accepted",
+      "title": "اعتماد المالك (2026-06-19) إضافة أربعة نماذج إلى nassaj-dev: Fable 5 (كتالوج Anthropic) + Kimi K2.6 وDeepSeek V4 وGLM 5.2 (مزوّدات طرف ثالث مستقلة، لكلٍّ endpoint ومفتاح خاص، دون توجيه ANTHROPIC_BASE_URL — احترام القاعدة الحديدية). يتقدّم على ADR-033/T-142 (Kimi K2.7 المعلّق) ويوسّعه لأربعة نماذج عبر طبقة provider-models القائمة (قالب Cursor/Codex). التنفيذ عبر Workflow ببوابة فيتو من qa-critic + مراجعة legal-compliance، والتزام في git worktree معزول (feat/multimodel-providers). تصحيح نطاق (قرار المالك 2026-06-19): الاستخدام داخلي فردي على بيانات المالك نفسه، فلا تُفعَّل PDPL/DPA/data-residency ولا تلزم مراجعة محامٍ (لا «صاحب بيانات» ثالث؛ متّسق مع سياسة «أداة داخلية فردية متوافقة» ودرس G4/G5). الحواجز الحقيقية الباقية: القاعدة الحديدية + مخزن أسرار معزول per-user + seam مستقل (لا استيراد SDK أنثروبيك) + عدم تقطير مخرجات Claude + فحص تراخيص التبعيات. المزوّد فعّال عند تهيئة مفتاحه؛ النشر يحتاج مفاتيح API + restart المالك. مرتبط: project_vendor_resilience_initiative (Track C)، ADR-030، ADR-033، T-6.",
+      "_relTask": "T-181"
+    },
     {
       "id": "ADR-035",
       "date": "2026-06-14",

@@ -10,6 +10,10 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   gemini: 'Gemini',
   antigravity: 'Antigravity',
   opencode: 'OpenCode',
+  deepseek: 'DeepSeek',
+  glm: 'GLM 5.2',
+  hermes: 'Hermes',
+  sakana: 'Sakana',
 };
 
 export default function AgentSelectorSection({
@@ -34,10 +38,11 @@ export default function AgentSelectorSection({
               key={agent}
               isActive={selectedAgent === agent}
               onClick={() => onSelectAgent(agent)}
+              title={AGENT_NAMES[agent]}
+              aria-label={AGENT_NAMES[agent]}
               className="min-w-0 flex-1 justify-center md:flex-initial"
             >
               <SessionProviderLogo provider={agent} className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">{AGENT_NAMES[agent]}</span>
               {agentContextById[agent].authStatus.authenticated && (
                 <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
               )}

@@ -721,6 +721,14 @@ export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
 };
 
 
+// Minimal placeholder catalog for providers declared in the LLMProvider union
+// that do not yet expose a live model list. `auto` keeps the picker valid until
+// a real catalog (live or fallback) is wired.
+export const PLACEHOLDER_FALLBACK_MODELS: ProviderModelsDefinition = {
+  OPTIONS: [{ value: 'auto', label: 'Default' }],
+  DEFAULT: 'auto',
+};
+
 export const PROVIDER_FALLBACK_MODELS: Record<LLMProvider, ProviderModelsDefinition> = {
   claude: CLAUDE_FALLBACK_MODELS,
   cursor: CURSOR_FALLBACK_MODELS,
@@ -728,6 +736,10 @@ export const PROVIDER_FALLBACK_MODELS: Record<LLMProvider, ProviderModelsDefinit
   gemini: GEMINI_FALLBACK_MODELS,
   antigravity: ANTIGRAVITY_FALLBACK_MODELS,
   opencode: OPENCODE_FALLBACK_MODELS,
+  deepseek: PLACEHOLDER_FALLBACK_MODELS,
+  glm: PLACEHOLDER_FALLBACK_MODELS,
+  hermes: PLACEHOLDER_FALLBACK_MODELS,
+  sakana: PLACEHOLDER_FALLBACK_MODELS,
 };
 
 /**
@@ -742,6 +754,10 @@ export const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   gemini: GEMINI_FALLBACK_MODELS.DEFAULT,
   antigravity: ANTIGRAVITY_FALLBACK_MODELS.DEFAULT,
   opencode: OPENCODE_FALLBACK_MODELS.DEFAULT,
+  deepseek: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
+  glm: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
+  hermes: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
+  sakana: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
 };
 
 /**

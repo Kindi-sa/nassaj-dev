@@ -63,6 +63,7 @@
     "showThinking": "إظهار التفكير",
     "hideToolCalls": "إخفاء استدعاءات الأدوات",
     "autoScrollToBottom": "التمرير التلقائي إلى الأسفل",
+    "tabsIconOnly": "أيقونات فقط (تبويبات مضغوطة)",
     "sendByCtrlEnter": "الإرسال بـ Ctrl+Enter",
     "sendByCtrlEnterDescription": "عند التفعيل، يؤدّي الضغط على Ctrl+Enter إلى إرسال الرسالة بدلاً من Enter فقط. مفيد لمستخدمي IME لتجنّب الإرسال غير المقصود.",
     "dragHandle": {

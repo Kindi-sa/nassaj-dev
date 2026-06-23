@@ -1,8 +1,10 @@
 import type { McpFormState, McpProvider, McpScope, McpTransport } from './types';
 
-// `antigravity` entries below are placeholders. The provider is declared in
-// the LLMProvider union before its UI integration lands; these literals only
-// exist to satisfy the exhaustive `Record<McpProvider, X>` type constraint.
+// `antigravity` and the placeholder providers (deepseek/glm/hermes/sakana)
+// entries below are placeholders. They are declared in the LLMProvider union
+// before their MCP integration lands; these literals only exist to satisfy the
+// exhaustive `Record<McpProvider, X>` type constraint. Placeholders advertise
+// no MCP scopes/transports until a real backend wires them.
 
 export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   claude: 'Claude',
@@ -11,6 +13,10 @@ export const MCP_PROVIDER_NAMES: Record<McpProvider, string> = {
   gemini: 'Gemini',
   antigravity: 'Antigravity',
   opencode: 'OpenCode',
+  deepseek: 'DeepSeek',
+  glm: 'GLM 5.2',
+  hermes: 'Hermes',
+  sakana: 'Sakana',
 };
 
 export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
@@ -20,6 +26,10 @@ export const MCP_SUPPORTED_SCOPES: Record<McpProvider, McpScope[]> = {
   gemini: ['user', 'project'],
   antigravity: [],
   opencode: ['user', 'project'],
+  deepseek: [],
+  glm: [],
+  hermes: [],
+  sakana: [],
 };
 
 export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
@@ -29,6 +39,10 @@ export const MCP_SUPPORTED_TRANSPORTS: Record<McpProvider, McpTransport[]> = {
   gemini: ['stdio', 'http', 'sse'],
   antigravity: [],
   opencode: ['stdio', 'http'],
+  deepseek: [],
+  glm: [],
+  hermes: [],
+  sakana: [],
 };
 
 export const MCP_GLOBAL_SUPPORTED_SCOPES: McpScope[] = ['user', 'project'];
@@ -42,6 +56,10 @@ export const MCP_PROVIDER_BUTTON_CLASSES: Record<McpProvider, string> = {
   gemini: 'bg-blue-600 text-white hover:bg-blue-700',
   antigravity: 'bg-slate-600 text-white hover:bg-slate-700',
   opencode: 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-700 dark:hover:bg-zinc-600',
+  deepseek: 'bg-blue-600 text-white hover:bg-blue-700',
+  glm: 'bg-cyan-600 text-white hover:bg-cyan-700',
+  hermes: 'bg-violet-600 text-white hover:bg-violet-700',
+  sakana: 'bg-teal-500 text-white hover:bg-teal-600',
 };
 
 export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
@@ -51,6 +69,10 @@ export const MCP_SUPPORTS_WORKING_DIRECTORY: Record<McpProvider, boolean> = {
   gemini: true,
   antigravity: false,
   opencode: false,
+  deepseek: false,
+  glm: false,
+  hermes: false,
+  sakana: false,
 };
 
 export const DEFAULT_MCP_FORM: McpFormState = {

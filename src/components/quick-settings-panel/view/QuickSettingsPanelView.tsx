@@ -28,6 +28,7 @@ export default function QuickSettingsPanelView() {
     hideToolCalls: preferences.hideToolCalls,
     autoScrollToBottom: preferences.autoScrollToBottom,
     sendByCtrlEnter: preferences.sendByCtrlEnter,
+    tabsIconOnly: preferences.tabsIconOnly,
   }), [
     preferences.autoExpandTools,
     preferences.autoScrollToBottom,
@@ -35,6 +36,7 @@ export default function QuickSettingsPanelView() {
     preferences.sendByCtrlEnter,
     preferences.showRawParameters,
     preferences.showThinking,
+    preferences.tabsIconOnly,
   ]);
 
   const handlePreferenceChange = useCallback(

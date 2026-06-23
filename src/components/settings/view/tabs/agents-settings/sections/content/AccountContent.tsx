@@ -96,6 +96,45 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-zinc-700 dark:text-zinc-300',
     buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
   },
+  // Placeholder providers: present to satisfy the exhaustive
+  // `Record<AgentProvider, …>` type; visual styling reuses existing palettes
+  // until dedicated brand assets land.
+  deepseek: {
+    name: 'DeepSeek',
+    description: 'DeepSeek assistant',
+    bgClass: 'bg-blue-50 dark:bg-blue-900/20',
+    borderClass: 'border-blue-200 dark:border-blue-800',
+    textClass: 'text-blue-900 dark:text-blue-100',
+    subtextClass: 'text-blue-700 dark:text-blue-300',
+    buttonClass: 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800',
+  },
+  glm: {
+    name: 'GLM 5.2',
+    description: 'GLM assistant',
+    bgClass: 'bg-cyan-50 dark:bg-cyan-900/20',
+    borderClass: 'border-cyan-200 dark:border-cyan-800',
+    textClass: 'text-cyan-900 dark:text-cyan-100',
+    subtextClass: 'text-cyan-700 dark:text-cyan-300',
+    buttonClass: 'bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800',
+  },
+  hermes: {
+    name: 'Hermes',
+    description: 'Hermes assistant',
+    bgClass: 'bg-violet-50 dark:bg-violet-900/20',
+    borderClass: 'border-violet-200 dark:border-violet-800',
+    textClass: 'text-violet-900 dark:text-violet-100',
+    subtextClass: 'text-violet-700 dark:text-violet-300',
+    buttonClass: 'bg-violet-600 hover:bg-violet-700 active:bg-violet-800',
+  },
+  sakana: {
+    name: 'Sakana',
+    description: 'Sakana assistant',
+    bgClass: 'bg-teal-50 dark:bg-teal-900/20',
+    borderClass: 'border-teal-200 dark:border-teal-800',
+    textClass: 'text-teal-900 dark:text-teal-100',
+    subtextClass: 'text-teal-700 dark:text-teal-300',
+    buttonClass: 'bg-teal-500 hover:bg-teal-600 active:bg-teal-700',
+  },
 };
 
 /**

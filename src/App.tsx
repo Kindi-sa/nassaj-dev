@@ -12,6 +12,7 @@ import { WebSocketProvider } from './contexts/WebSocketContext';
 import { PluginsProvider } from './contexts/PluginsContext';
 import { BrandingProvider } from './contexts/BrandingContext';
 import AppContent from './components/app/AppContent';
+import WikiPanel from './components/wiki/view/WikiPanel';
 import i18n from './i18n/config.js';
 
 // The authenticated application shell. Everything here sits behind
@@ -26,6 +27,7 @@ function AuthenticatedApp() {
               <Routes>
                 <Route path="/" element={<AppContent />} />
                 <Route path="/session/:sessionId" element={<AppContent />} />
+                <Route path="/wiki" element={<WikiPanel />} />
               </Routes>
             </ProtectedRoute>
           </TaskMasterProvider>

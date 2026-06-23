@@ -31,6 +31,12 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   gemini: '/api/providers/gemini/auth/status',
   antigravity: '/api/providers/antigravity/auth/status',
   opencode: '/api/providers/opencode/auth/status',
+  // Placeholder providers: declared in the union but not probed (absent from
+  // CLI_PROVIDERS). Endpoints follow the same shape for when a backend lands.
+  deepseek: '/api/providers/deepseek/auth/status',
+  glm: '/api/providers/glm/auth/status',
+  hermes: '/api/providers/hermes/auth/status',
+  sakana: '/api/providers/sakana/auth/status',
 };
 
 // fail-open: installed defaults to true so providers remain visible before the
@@ -42,4 +48,8 @@ export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuth
   gemini: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
   antigravity: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
   opencode: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
+  deepseek: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
+  glm: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
+  hermes: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
+  sakana: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
 });

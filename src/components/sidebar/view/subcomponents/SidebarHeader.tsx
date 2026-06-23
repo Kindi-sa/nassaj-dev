@@ -1,4 +1,4 @@
-import { Archive, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
+import { Archive, BookOpen, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -187,6 +187,17 @@ export default function SidebarHeader({
             >
               <Plus className="h-3.5 w-3.5" />
             </Button>
+            <Tooltip content={t('tooltips.openWiki')} position="bottom">
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={t('tooltips.openWiki')}
+                className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+                onClick={() => window.open('/wiki', '_blank', 'noopener,noreferrer')}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+              </Button>
+            </Tooltip>
             <Button
               variant="ghost"
               size="sm"

@@ -7,7 +7,8 @@ export type PreferenceToggleKey =
   | 'showThinking'
   | 'hideToolCalls'
   | 'autoScrollToBottom'
-  | 'sendByCtrlEnter';
+  | 'sendByCtrlEnter'
+  | 'tabsIconOnly';
 
 export type QuickSettingsPreferences = Record<PreferenceToggleKey, boolean>;
 

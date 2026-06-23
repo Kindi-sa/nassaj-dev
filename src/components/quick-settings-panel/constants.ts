@@ -5,6 +5,7 @@ import {
   EyeOff,
   Languages,
   Maximize2,
+  PanelTop,
 } from 'lucide-react';
 import type { PreferenceToggleItem } from './types';
 
@@ -51,6 +52,11 @@ export const VIEW_OPTION_TOGGLES: PreferenceToggleItem[] = [
     key: 'autoScrollToBottom',
     labelKey: 'quickSettings.autoScrollToBottom',
     icon: ArrowDown,
+  },
+  {
+    key: 'tabsIconOnly',
+    labelKey: 'quickSettings.tabsIconOnly',
+    icon: PanelTop,
   },
 ];
 

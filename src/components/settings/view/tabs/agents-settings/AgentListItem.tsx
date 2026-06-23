@@ -44,6 +44,25 @@ const agentConfig: Record<AgentProvider, AgentConfig> = {
     name: 'OpenCode',
     color: 'zinc',
   },
+  // Placeholder providers: present to satisfy the exhaustive
+  // `Record<AgentProvider, …>` type; colors reuse the constrained palette until
+  // dedicated brand styling lands.
+  deepseek: {
+    name: 'DeepSeek',
+    color: 'blue',
+  },
+  glm: {
+    name: 'GLM 5.2',
+    color: 'indigo',
+  },
+  hermes: {
+    name: 'Hermes',
+    color: 'purple',
+  },
+  sakana: {
+    name: 'Sakana',
+    color: 'gray',
+  },
 };
 
 const colorClasses = {

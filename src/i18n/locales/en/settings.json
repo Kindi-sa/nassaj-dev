@@ -63,6 +63,7 @@
     "showThinking": "Show thinking",
     "hideToolCalls": "Hide tool calls",
     "autoScrollToBottom": "Auto-scroll to bottom",
+    "tabsIconOnly": "Compact tabs (icons only)",
     "sendByCtrlEnter": "Send by Ctrl+Enter",
     "sendByCtrlEnterDescription": "When enabled, pressing Ctrl+Enter will send the message instead of just Enter. This is useful for IME users to avoid accidental sends.",
     "dragHandle": {

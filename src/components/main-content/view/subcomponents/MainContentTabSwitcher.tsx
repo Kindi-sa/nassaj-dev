@@ -1,4 +1,4 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, KanbanSquare, BookOpen, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, KanbanSquare, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -6,6 +6,7 @@ import { Tooltip, PillBar, Pill } from '../../../../shared/view/ui';
 import type { AppTab } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import PluginIcon from '../../../plugins/view/PluginIcon';
+import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
@@ -36,7 +37,6 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
   { kind: 'builtin', id: 'board', labelKey: 'tabs.board', icon: KanbanSquare },
-  { kind: 'builtin', id: 'wiki',  labelKey: 'tabs.wiki',  icon: BookOpen },
 ];
 
 const TASKS_TAB: BuiltInTab = {
@@ -53,6 +53,7 @@ export default function MainContentTabSwitcher({
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
+  const { preferences } = useUiPreferences();
 
   const builtInTabs: BuiltInTab[] = shouldShowTasksTab ? [...BASE_TABS, TASKS_TAB] : BASE_TABS;
 
@@ -90,7 +91,9 @@ export default function MainContentTabSwitcher({
                   className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                 />
               )}
-              <span className="hidden lg:inline">{displayLabel}</span>
+              {!preferences.tabsIconOnly && (
+                <span className="hidden lg:inline">{displayLabel}</span>
+              )}
             </Pill>
           </Tooltip>
         );

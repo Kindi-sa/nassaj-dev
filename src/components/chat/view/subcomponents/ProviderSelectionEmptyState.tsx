@@ -488,6 +488,21 @@ export default function ProviderSelectionEmptyState({
                   model: opencodeModel,
                   defaultValue: "Ready with OpenCode {{model}}",
                 }),
+                // Placeholder providers: not surfaced in PROVIDER_META yet, so
+                // these branches are unreachable at runtime; present only to keep
+                // the lookup exhaustive over the LLMProvider union.
+                deepseek: t("providerSelection.readyPrompt.deepseek", {
+                  defaultValue: "Ready with DeepSeek",
+                }),
+                glm: t("providerSelection.readyPrompt.glm", {
+                  defaultValue: "Ready with GLM 5.2",
+                }),
+                hermes: t("providerSelection.readyPrompt.hermes", {
+                  defaultValue: "Ready with Hermes",
+                }),
+                sakana: t("providerSelection.readyPrompt.sakana", {
+                  defaultValue: "Ready with Sakana",
+                }),
               }[provider]
             }
           </p>

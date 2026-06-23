@@ -24,7 +24,7 @@ export default function AgentsSettingsTab({
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+    return ['claude', 'cursor', 'codex', 'antigravity', 'opencode', 'deepseek', 'glm', 'hermes', 'sakana'];
   }, []);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
@@ -55,6 +55,25 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.opencode,
       onLogin: () => onProviderLogin('opencode'),
     },
+    // Placeholder providers: declared in the LLMProvider union with stub auth
+    // status (no live backend probe yet). The exhaustive `Record<AgentProvider, …>`
+    // type requires an entry for every union literal even before wiring login.
+    deepseek: {
+      authStatus: providerAuthStatus.deepseek,
+      onLogin: () => onProviderLogin('deepseek'),
+    },
+    glm: {
+      authStatus: providerAuthStatus.glm,
+      onLogin: () => onProviderLogin('glm'),
+    },
+    hermes: {
+      authStatus: providerAuthStatus.hermes,
+      onLogin: () => onProviderLogin('hermes'),
+    },
+    sakana: {
+      authStatus: providerAuthStatus.sakana,
+      onLogin: () => onProviderLogin('sakana'),
+    },
   }), [
     onProviderLogin,
     providerAuthStatus.claude,
@@ -63,6 +82,10 @@ export default function AgentsSettingsTab({
     providerAuthStatus.gemini,
     providerAuthStatus.antigravity,
     providerAuthStatus.opencode,
+    providerAuthStatus.deepseek,
+    providerAuthStatus.glm,
+    providerAuthStatus.hermes,
+    providerAuthStatus.sakana,
   ]);
 
   return (

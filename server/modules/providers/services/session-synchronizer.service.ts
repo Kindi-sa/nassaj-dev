@@ -24,6 +24,11 @@ export const sessionSynchronizerService = {
       gemini: 0,
       antigravity: 0,
       opencode: 0,
+      // Placeholder providers: declared in the union, no synchronizer yet.
+      deepseek: 0,
+      glm: 0,
+      hermes: 0,
+      sakana: 0,
     };
     const failures: string[] = [];
 
