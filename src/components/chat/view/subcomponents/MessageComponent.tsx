@@ -254,13 +254,11 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     // Guard against missing/invalid timestamps (e.g. some agy tool_use or
     // thinking events arrive without one) so we never render "Invalid Date".
     if (Number.isNaN(d.getTime())) return '';
-    const now = new Date();
-    const isThisYear = d.getFullYear() === now.getFullYear();
     const timeStr = d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
     const dateStr = d.toLocaleDateString(i18n.language, {
       day: 'numeric',
       month: 'short',
-      ...(isThisYear ? {} : { year: 'numeric' }),
+      year: 'numeric',
     });
     return `${dateStr}، ${timeStr}`;
   }, [message.timestamp, i18n.language]);
