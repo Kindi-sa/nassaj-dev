@@ -18,6 +18,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
 import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
+import { recordBrokenModel } from './modules/providers/list/claude/claude-broken-models.store.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
@@ -340,6 +341,37 @@ function buildValidClaudeModelValues(catalog) {
     }
   }
   return values;
+}
+
+/**
+ * Lazy model-discovery backstop (B-MODEL-DISCOVERY): detects, from a streamed SDK
+ * message, that the model this run launched with is not actually usable for the
+ * account — i.e. it was advertised by the authenticated catalog but Anthropic has
+ * not enabled it. The SDK surfaces this two ways:
+ *   - an `assistant` message whose `error` is 'model_not_found'
+ *     (SDKAssistantMessageError union), or
+ *   - a `result` message carrying `api_error_status === 404`
+ *     (HTTP 404 from the models endpoint; present on SDKResultSuccess).
+ * Pure read — it inspects the message only and returns a boolean. It never
+ * mutates the message, the stream, the registry, or any session state, so it is
+ * safe to call inside the B-80 send loop alongside the existing result/token
+ * inspection. When true, the caller records the offending model in the per-user
+ * broken-models store so the catalog hides it next time.
+ *
+ * @param {Object} message - One streamed SDK message.
+ * @returns {boolean} True when the message signals the run's model is unreleased.
+ */
+function isUnreleasedModelFailure(message) {
+  if (!message || typeof message !== 'object') {
+    return false;
+  }
+  if (message.type === 'assistant' && message.error === 'model_not_found') {
+    return true;
+  }
+  if (message.type === 'result' && message.api_error_status === 404) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -1195,6 +1227,17 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       model: resolvedModel || options.model,
     }, validModelValues);
 
+    // Lazy model-discovery: the exact model value the SDK will run with (after
+    // validation/coercion in mapCliOptionsToSDK). If this run later fails with a
+    // model_not_found / 404 the model is recorded as broken for this user. Skip
+    // the provider default sentinel — 'default' is never an unreleased model and
+    // must never be hidden.
+    const runModelForDiscovery =
+      typeof sdkOptions.model === 'string' && sdkOptions.model !== CLAUDE_FALLBACK_MODELS.DEFAULT
+        ? sdkOptions.model
+        : null;
+    let unreleasedModelRecorded = false;
+
     // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
     // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR
     // while conversations/instructions stay shared via symlinks. Falls back to the
@@ -1519,6 +1562,37 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
             throw resumeError;
           }
         }
+      }
+
+      // Lazy model-discovery backstop (B-MODEL-DISCOVERY): if THIS run's model
+      // failed because Anthropic has not released it for the account
+      // (model_not_found / api_error_status 404), record it as broken for this
+      // user so the catalog hides it next time. Once per run (the flag stops a
+      // multi-message result from recording twice). Pure observation: this does
+      // NOT swap the writer, touch the replay registry / detach, abort the run,
+      // or alter the stream — the message still flows through sendAndBuffer
+      // above exactly as before, so the user still sees the native error. The
+      // store write is fire-and-forget and never throws into this loop.
+      if (
+        runModelForDiscovery
+        && !unreleasedModelRecorded
+        && isUnreleasedModelFailure(message)
+      ) {
+        unreleasedModelRecorded = true;
+        const brokenUserId = ws?.userId ?? null;
+        void recordBrokenModel(brokenUserId, runModelForDiscovery)
+          .then((added) => {
+            if (added) {
+              console.warn(
+                `[claude-discovery] model "${runModelForDiscovery}" reported `
+                + `unreleased (model_not_found/404); hiding from catalog`
+                + `${brokenUserId ? ` [user=${brokenUserId}]` : ''}`
+              );
+            }
+          })
+          .catch(() => {
+            // Store failure is non-fatal; the live catalog still works.
+          });
       }
 
       // Extract and send token budget updates from assistant/result usage payloads (#807)
@@ -1878,6 +1952,9 @@ export {
   getClaudeBuiltInCommands,
   mapCliOptionsToSDK,
   buildValidClaudeModelValues,
+  // Lazy model-discovery (B-MODEL-DISCOVERY): pure detector for the
+  // model_not_found/404 signal. Exported for unit testing only.
+  isUnreleasedModelFailure,
   resolveEffortLevel,
   maybeApplyUltracodeKeywords,
   // ADR-042 (B-80c) ghost-detach.

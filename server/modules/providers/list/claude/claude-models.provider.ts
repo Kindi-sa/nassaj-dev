@@ -30,11 +30,15 @@ import {
  * `sonnet[1m]` — it is a real selectable value but consumes 1M-context usage
  * credits, hence the explicit note.
  *
- * `claude-fable-5` is intentionally absent: the installed CLI advertises it in
- * `supportedModels()` but Anthropic has not released it for use (selecting it
- * fails silently), so the live catalog hides it via UNRELEASED_HIDDEN_MODELS in
- * claude-catalog.client.ts and this fallback must match. Do NOT re-add it until
- * the model is actually usable.
+ * `claude-fable-5` is intentionally absent. Two layers keep it out: (1) the live
+ * catalog now probes under the user's REAL credentials (resolveProviderEnv), so
+ * Anthropic only advertises the models that subscription is entitled to and an
+ * unreleased model never appears in the first place; (2) this degraded fallback
+ * — served only when the live probe is unavailable — must also omit it so the
+ * picker never offers an unusable model. Do NOT re-add it until it is actually
+ * usable. (Older note: a hand-maintained UNRELEASED_HIDDEN_MODELS hide-list used
+ * to exist in claude-catalog.client.ts; it was removed once real authentication
+ * made it redundant.)
  */
 export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
@@ -187,9 +191,15 @@ export class ClaudeProviderModels implements IProviderModels {
    * TTL and a degraded fallback only briefly, and serves a stale entry instantly
    * while refreshing in the background, so this probe never blocks the request
    * path.
+   *
+   * `userId` is forwarded to the catalog client so the probe runs under THIS
+   * user's CLAUDE_CONFIG_DIR (their real subscription). That is what makes the
+   * list accurate per account and lets Anthropic's own entitlement filtering hide
+   * unreleased models. When omitted/null (system/anon/platform) the operator's
+   * shared environment is used — unchanged from the single-user behaviour.
    */
-  async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    return getClaudeModelCatalog();
+  async getSupportedModels(userId?: string | number | null): Promise<ProviderModelsDefinition> {
+    return getClaudeModelCatalog(userId ?? null);
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {

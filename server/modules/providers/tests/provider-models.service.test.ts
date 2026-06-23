@@ -435,3 +435,81 @@ test('resolveResumeModel prefers a stored changed model over the requested one',
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+test('getProviderModels forwards userId to the provider adapter', async () => {
+  const seenUserIds: Array<string | number | null | undefined> = [];
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async (userId) => {
+          seenUserIds.push(userId);
+          return createModels(`${provider}-models`);
+        },
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  await service.getProviderModels('claude', { bypassCache: true }, 'user-42');
+  assert.deepEqual(seenUserIds, ['user-42'], 'the adapter receives the request userId');
+});
+
+test('getProviderModels caches per user: two users get independent catalogs', async () => {
+  let loadCount = 0;
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        // Each user sees a model value tagged with the userId, so we can prove the
+        // cache did not bleed one user's catalog into the other.
+        getSupportedModels: async (userId) => {
+          loadCount += 1;
+          return createModels(`${provider}-${String(userId)}`);
+        },
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  // First fetch for each user populates a SEPARATE cache entry.
+  const a1 = await service.getProviderModels('claude', {}, 'user-A');
+  const b1 = await service.getProviderModels('claude', {}, 'user-B');
+  assert.equal(a1.models.DEFAULT, 'claude-user-A');
+  assert.equal(b1.models.DEFAULT, 'claude-user-B');
+  assert.equal(loadCount, 2, 'each user triggered its own load');
+
+  // Second fetch for user-A is served from user-A's cache (no extra load) and is
+  // still user-A's catalog, not user-B's.
+  const a2 = await service.getProviderModels('claude', {}, 'user-A');
+  assert.equal(a2.models.DEFAULT, 'claude-user-A');
+  assert.equal(a2.cache.source, 'memory');
+  assert.equal(loadCount, 2, 'cached per-user hit, no extra load');
+});
+
+test('getProviderModels with no userId uses the shared bare-provider cache key (unchanged behaviour)', async () => {
+  let loadCount = 0;
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async (userId) => {
+          loadCount += 1;
+          // No user -> adapter receives null (the shared bucket).
+          assert.equal(userId, null);
+          return createModels(`${provider}-shared`);
+        },
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  const first = await service.getProviderModels('claude');
+  const second = await service.getProviderModels('claude');
+  assert.equal(first.models.DEFAULT, 'claude-shared');
+  assert.equal(second.cache.source, 'memory');
+  assert.equal(loadCount, 1, 'the shared key caches across no-userId calls');
+});

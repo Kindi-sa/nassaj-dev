@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import os from 'node:os';
+import path from 'node:path';
 import test, { mock } from 'node:test';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,15 @@ const {
 const { CLAUDE_FALLBACK_MODELS } = await import(
   '@/modules/providers/list/claude/claude-models.provider.js'
 );
+const {
+  recordBrokenModel,
+  __setBrokenModelsStorePathForTests,
+} = await import('@/modules/providers/list/claude/claude-broken-models.store.js');
+
+// Redirect the broken-models store to an ephemeral path so these tests never read
+// or write the operator's real ~/.cloudcli store, and reset it between cases.
+const ephemeralBrokenStorePath = (): string =>
+  path.join(os.tmpdir(), `claude-broken-models-test-${process.pid}-${Math.random().toString(16).slice(2)}.json`);
 
 const SAMPLE_LIVE_MODELS = [
   {
@@ -108,36 +119,28 @@ test('buildClaudeModelsDefinition: returns null for empty/invalid input', () => 
   assert.equal(buildClaudeModelsDefinition([{ displayName: 'no id' }]), null);
 });
 
-// ---------------- unreleased-model exclusion (claude-fable-5) ----------------
+// ---------------- unreleased-model handling (claude-fable-5) ----------------
 //
-// The installed CLI may advertise claude-fable-5 in supportedModels() but
-// Anthropic has not released it for use (selecting it fails silently), so the
-// catalog builder must drop it while keeping every other live model and a valid
-// DEFAULT. See UNRELEASED_HIDDEN_MODELS in claude-catalog.client.ts.
+// The hand-maintained UNRELEASED_HIDDEN_MODELS hide-list was REMOVED. Unreleased
+// models are now kept out of the picker by two real mechanisms instead:
+//   1. The live probe runs under the user's REAL credentials (resolveProviderEnv),
+//      so Anthropic's own entitlement filtering never advertises claude-fable-5
+//      for an account that cannot use it — the builder simply never sees it.
+//   2. The lazy-detection `excluded` set drops any model proved broken at real
+//      use, even if the authenticated catalog still advertises it.
+// So the builder itself no longer special-cases fable; it surfaces exactly what
+// it is given, minus the `excluded` set. These tests pin that new contract.
 
-test('buildClaudeModelsDefinition: drops the unreleased claude-fable-5 while keeping the rest', () => {
-  const result = buildClaudeModelsDefinition([
-    {
-      value: 'claude-fable-5',
-      displayName: 'Fable 5',
-      description: 'Fable 5 · Most powerful, most intelligent model',
-    },
-    ...SAMPLE_LIVE_MODELS,
-  ]);
+test('buildClaudeModelsDefinition: surfaces every advertised model in order (no hand hide-list)', () => {
+  // Under real authentication the SDK list already excludes unreleased models, so
+  // a representative authenticated list maps through untouched and in order.
+  const result = buildClaudeModelsDefinition(SAMPLE_LIVE_MODELS);
 
   assert.ok(result);
-  // The hidden model is gone…
-  assert.equal(
-    result.OPTIONS.some((o) => o.value === 'claude-fable-5'),
-    false,
-    'claude-fable-5 must be excluded from the live catalog',
-  );
-  // …and every other advertised model survives, in order.
   assert.deepEqual(
     result.OPTIONS.map((o) => o.value),
     ['default', 'sonnet', 'haiku', 'claude-opus-4-8'],
   );
-  // DEFAULT stays a real, selectable value.
   assert.equal(result.DEFAULT, 'default');
   assert.ok(
     result.OPTIONS.some((o) => o.value === result.DEFAULT),
@@ -145,18 +148,49 @@ test('buildClaudeModelsDefinition: drops the unreleased claude-fable-5 while kee
   );
 });
 
-test('buildClaudeModelsDefinition: anchors DEFAULT on the first VISIBLE option when only fable + a non-default model remain', () => {
-  // Live catalog with no `default` entry and fable present: fable is dropped, so
-  // DEFAULT must fall through to the first *visible* option, never to fable.
-  const result = buildClaudeModelsDefinition([
-    { value: 'claude-fable-5', displayName: 'Fable 5' },
-    { value: 'sonnet', displayName: 'Sonnet' },
-    { value: 'haiku', displayName: 'Haiku' },
-  ]);
+test('buildClaudeModelsDefinition: the excluded set (lazy detection) drops a broken model while keeping the rest', () => {
+  // Simulate an authenticated catalog that still advertises a model the account
+  // proved broken at real use: the per-user `excluded` set removes it.
+  const result = buildClaudeModelsDefinition(
+    [
+      {
+        value: 'claude-fable-5',
+        displayName: 'Fable 5',
+        description: 'Fable 5 · Most powerful, most intelligent model',
+      },
+      ...SAMPLE_LIVE_MODELS,
+    ],
+    new Set(['claude-fable-5']),
+  );
+
+  assert.ok(result);
+  assert.equal(
+    result.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+    false,
+    'a model in the excluded set must be dropped from the catalog',
+  );
+  assert.deepEqual(
+    result.OPTIONS.map((o) => o.value),
+    ['default', 'sonnet', 'haiku', 'claude-opus-4-8'],
+  );
+  assert.equal(result.DEFAULT, 'default');
+});
+
+test('buildClaudeModelsDefinition: anchors DEFAULT on the first option SURVIVING the excluded set', () => {
+  // No `default` entry, and the first advertised model is excluded by lazy
+  // detection: DEFAULT must fall through to the first surviving option.
+  const result = buildClaudeModelsDefinition(
+    [
+      { value: 'claude-fable-5', displayName: 'Fable 5' },
+      { value: 'sonnet', displayName: 'Sonnet' },
+      { value: 'haiku', displayName: 'Haiku' },
+    ],
+    new Set(['claude-fable-5']),
+  );
 
   assert.ok(result);
   assert.deepEqual(result.OPTIONS.map((o) => o.value), ['sonnet', 'haiku']);
-  assert.equal(result.DEFAULT, 'sonnet', 'DEFAULT must be the first visible (non-hidden) option');
+  assert.equal(result.DEFAULT, 'sonnet', 'DEFAULT must be the first surviving option');
   assert.notEqual(result.DEFAULT, 'claude-fable-5');
 });
 
@@ -370,6 +404,136 @@ test('getClaudeModelCatalog: guard allows an official Anthropic ANTHROPIC_BASE_U
     } else {
       process.env.ANTHROPIC_BASE_URL = previous;
     }
+    __resetClaudeCatalogCircuit();
+  }
+});
+
+// ---------------- real-authentication catalog (fable drops at the source) ----------------
+//
+// With the authenticated probe, Anthropic's own entitlement filtering returns a
+// model list that already EXCLUDES unreleased models. The catalog client surfaces
+// that list as-is (no hand hide-list), so claude-fable-5 is absent — proving the
+// hide-list removal is covered by real authentication, not lost.
+
+test('getClaudeModelCatalog: an authenticated list (fable already filtered by Anthropic) yields a fable-free live catalog', async () => {
+  __resetClaudeCatalogCircuit();
+  __setBrokenModelsStorePathForTests(ephemeralBrokenStorePath());
+  // The authenticated subscription does not include fable, so the SDK never
+  // reports it (mirrors real `supportedModels()` under the user's credentials).
+  currentProbe = { supportedModels: async () => SAMPLE_LIVE_MODELS };
+
+  try {
+    const result = await getClaudeModelCatalog('user-auth-1');
+    assert.equal(
+      result.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+      false,
+      'an authenticated catalog must not surface the unreleased fable model',
+    );
+    assert.ok(result.OPTIONS.some((o) => o.value === 'claude-opus-4-8'));
+    assert.notEqual(result.degraded, true);
+  } finally {
+    __setBrokenModelsStorePathForTests(null);
+    __resetClaudeCatalogCircuit();
+  }
+});
+
+// ---------------- per-user circuit isolation ----------------
+//
+// The breaker is keyed per user: a subscription whose probe always fails opens
+// ONLY its own breaker; another user keeps probing live and never inherits the
+// failed user's open breaker.
+
+test('getClaudeModelCatalog: the circuit breaker is isolated per user', async () => {
+  __resetClaudeCatalogCircuit();
+  __setBrokenModelsStorePathForTests(ephemeralBrokenStorePath());
+
+  let failingConstructs = 0;
+  currentProbe = {
+    onConstruct: () => {
+      failingConstructs += 1;
+    },
+    supportedModels: async () => {
+      throw new Error('spawn failed for this user');
+    },
+  };
+
+  try {
+    // Three consecutive failures open user-A's breaker (threshold = 3).
+    for (let i = 0; i < 3; i += 1) {
+      const result = await getClaudeModelCatalog('user-A');
+      assert.deepEqual(result, { ...CLAUDE_FALLBACK_MODELS, degraded: true });
+    }
+    assert.equal(failingConstructs, 3);
+
+    // A 4th call for user-A is short-circuited by A's now-open breaker (no probe).
+    await getClaudeModelCatalog('user-A');
+    assert.equal(failingConstructs, 3, "user-A's breaker is open: no further probe spawned");
+
+    // user-B is unaffected: its breaker is closed, so its probe runs and (now
+    // returning a good list) yields a live catalog.
+    let userBConstructs = 0;
+    currentProbe = {
+      onConstruct: () => {
+        userBConstructs += 1;
+      },
+      supportedModels: async () => SAMPLE_LIVE_MODELS,
+    };
+    const resultB = await getClaudeModelCatalog('user-B');
+    assert.equal(userBConstructs, 1, "user-B's breaker is independent: its probe spawns");
+    assert.ok(resultB.OPTIONS.some((o) => o.value === 'claude-opus-4-8'));
+    assert.notEqual(resultB.degraded, true);
+  } finally {
+    __setBrokenModelsStorePathForTests(null);
+    __resetClaudeCatalogCircuit();
+  }
+});
+
+// ---------------- lazy exclusion end-to-end ----------------
+//
+// A model recorded broken for a user (lazy detection, from a model_not_found/404
+// at real use) must be excluded from that user's subsequent live catalog, even
+// though the authenticated probe still advertises it.
+
+test('getClaudeModelCatalog: a model recorded broken for a user is excluded from that user catalog', async () => {
+  __resetClaudeCatalogCircuit();
+  __setBrokenModelsStorePathForTests(ephemeralBrokenStorePath());
+  // Simulate a catalog that still advertises a model the account proved broken.
+  currentProbe = {
+    supportedModels: async () => [
+      { value: 'claude-fable-5', displayName: 'Fable 5' },
+      ...SAMPLE_LIVE_MODELS,
+    ],
+  };
+
+  try {
+    // Before any lazy detection, the advertised model is present.
+    const before = await getClaudeModelCatalog('user-lazy-1');
+    assert.ok(
+      before.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+      'model is advertised before it is proven broken',
+    );
+
+    // Record it broken for THIS user (what the send loop does on model_not_found).
+    const added = await recordBrokenModel('user-lazy-1', 'claude-fable-5');
+    assert.equal(added, true, 'first record returns true');
+
+    // The next catalog for the same user excludes it.
+    const after = await getClaudeModelCatalog('user-lazy-1');
+    assert.equal(
+      after.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+      false,
+      'a lazily-detected broken model is hidden from the catalog',
+    );
+    assert.ok(after.OPTIONS.some((o) => o.value === 'claude-opus-4-8'));
+
+    // A DIFFERENT user, who never hit the failure, still sees the model.
+    const otherUser = await getClaudeModelCatalog('user-lazy-2');
+    assert.ok(
+      otherUser.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+      "another user's catalog is unaffected by the first user's broken model",
+    );
+  } finally {
+    __setBrokenModelsStorePathForTests(null);
     __resetClaudeCatalogCircuit();
   }
 });

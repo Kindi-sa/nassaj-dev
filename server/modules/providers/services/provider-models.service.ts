@@ -39,6 +39,27 @@ type ProviderModelsOptions = {
   bypassCache?: boolean;
 };
 
+/**
+ * Composite in-memory/persisted cache key: the provider, optionally scoped to a
+ * user. The Claude catalog is per-subscription (it is probed under the user's own
+ * CLAUDE_CONFIG_DIR), so each user's catalog must cache independently; otherwise
+ * one account's model list would leak to another. Providers that ignore `userId`
+ * (everything except Claude today) always resolve to the bare-provider key, so
+ * their caching is byte-for-byte unchanged. A bare `LLMProvider` value is itself
+ * a valid CacheKey (the shared/no-user bucket), so existing string keys on disk
+ * keep loading.
+ */
+type CacheKey = string & { readonly __brand?: 'ProviderModelsCacheKey' };
+
+const buildCacheKey = (
+  provider: LLMProvider,
+  userId?: string | number | null,
+): CacheKey => (
+  userId === null || userId === undefined || userId === ''
+    ? provider
+    : `${provider}::user:${String(userId)}`
+);
+
 type ProviderModelsCacheEntry = {
   updatedAt: number;
   expiresAt: number;
@@ -121,7 +142,7 @@ const readProviderModelsCacheFile = async (
 
 const writeProviderModelsCacheFile = async (
   cachePath: string,
-  entries: Map<LLMProvider, ProviderModelsCacheEntry>,
+  entries: Map<CacheKey, ProviderModelsCacheEntry>,
   now: number,
 ): Promise<void> => {
   const serializableEntries = Object.fromEntries(
@@ -148,17 +169,20 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   const cachePath = dependencies.cachePath ?? getProviderModelsCachePath();
   const activeModelChangesPath = dependencies.activeModelChangesPath;
   const now = dependencies.now ?? (() => Date.now());
-  const memoryCache = new Map<LLMProvider, ProviderModelsCacheEntry>();
-  const pendingRequests = new Map<LLMProvider, Promise<ProviderModelsResult>>();
+  // Keyed by CacheKey (provider, optionally user-scoped) so a per-subscription
+  // Claude catalog never collides with another user's. Non-isolated providers
+  // resolve to the bare-provider key and are unaffected.
+  const memoryCache = new Map<CacheKey, ProviderModelsCacheEntry>();
+  const pendingRequests = new Map<CacheKey, Promise<ProviderModelsResult>>();
   let persistedCacheLoaded = false;
   let persistedCacheLoadPromise: Promise<void> | null = null;
 
   const pruneExpiredMemoryEntry = (
-    provider: LLMProvider,
+    cacheKey: CacheKey,
     currentTime: number,
     source: ProviderModelsCacheInfo['source'],
   ): ProviderModelsResult | null => {
-    const cachedEntry = memoryCache.get(provider);
+    const cachedEntry = memoryCache.get(cacheKey);
     if (!cachedEntry) {
       return null;
     }
@@ -178,27 +202,31 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   };
 
   /**
-   * Returns the cached entry for a provider regardless of expiry, without
+   * Returns the cached entry for a cache key regardless of expiry, without
    * evicting it. Used by the stale-while-revalidate path so an expired-but-still
    * usable catalog can be served instantly while a fresh fetch runs in the
    * background. Returns `null` only when nothing is cached at all.
    */
-  const peekMemoryEntry = (provider: LLMProvider): ProviderModelsCacheEntry | null =>
-    memoryCache.get(provider) ?? null;
+  const peekMemoryEntry = (cacheKey: CacheKey): ProviderModelsCacheEntry | null =>
+    memoryCache.get(cacheKey) ?? null;
 
   /**
-   * Kicks off a background refresh for a provider if one is not already running,
-   * and never throws into the caller. The returned (already-cached) result is
-   * served immediately; this refresh updates the cache for the next request.
-   * Errors are swallowed so a failing live fetch can never reject the
+   * Kicks off a background refresh for a (provider, user) if one is not already
+   * running, and never throws into the caller. The returned (already-cached)
+   * result is served immediately; this refresh updates the cache for the next
+   * request. Errors are swallowed so a failing live fetch can never reject the
    * non-blocking request path (the provider adapter itself degrades to its
    * fallback catalog on failure).
    */
-  const triggerBackgroundRefresh = (provider: LLMProvider): void => {
-    if (pendingRequests.has(provider)) {
+  const triggerBackgroundRefresh = (
+    provider: LLMProvider,
+    cacheKey: CacheKey,
+    userId?: string | number | null,
+  ): void => {
+    if (pendingRequests.has(cacheKey)) {
       return;
     }
-    void loadAndCacheModels(provider).catch(() => {
+    void loadAndCacheModels(provider, cacheKey, userId).catch(() => {
       // Background refresh failure is non-fatal: the stale entry stays served and
       // the next request retries. The adapter already degrades on its own errors.
     });
@@ -219,8 +247,8 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
         // while a background refresh runs. The disk writer already drops entries
         // whose TTL lapsed before the previous persist, so this only keeps
         // recently-expired snapshots worth revalidating against.
-        for (const [provider, entry] of Object.entries(cacheFile?.entries ?? {})) {
-          memoryCache.set(provider as LLMProvider, entry);
+        for (const [key, entry] of Object.entries(cacheFile?.entries ?? {})) {
+          memoryCache.set(key as CacheKey, entry);
         }
 
         persistedCacheLoaded = true;
@@ -241,7 +269,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
   };
 
   const setCacheEntry = async (
-    provider: LLMProvider,
+    cacheKey: CacheKey,
     models: ProviderModelsDefinition,
   ): Promise<ProviderModelsCacheEntry> => {
     const currentTime = now();
@@ -256,61 +284,71 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
       models,
     };
 
-    memoryCache.set(provider, entry);
+    memoryCache.set(cacheKey, entry);
     await persistCache();
     return entry;
   };
 
   const loadAndCacheModels = (
     provider: LLMProvider,
+    cacheKey: CacheKey,
+    userId?: string | number | null,
   ): Promise<ProviderModelsResult> => {
-    const request = resolveProvider(provider).models.getSupportedModels()
+    // `userId` reaches the adapter so credential-isolating providers (Claude)
+    // probe under the right subscription; non-isolated adapters ignore it.
+    const request = resolveProvider(provider).models.getSupportedModels(userId ?? null)
       .then(async (models) => {
-        const entry = await setCacheEntry(provider, models);
+        const entry = await setCacheEntry(cacheKey, models);
         return {
           models,
           cache: toProviderModelsCacheInfo(entry, 'fresh'),
         };
       })
       .finally(() => {
-        pendingRequests.delete(provider);
+        pendingRequests.delete(cacheKey);
       });
 
-    pendingRequests.set(provider, request);
+    pendingRequests.set(cacheKey, request);
     return request;
   };
 
   const getProviderModels = async (
     provider: LLMProvider,
     options: ProviderModelsOptions = {},
+    userId?: string | number | null,
   ): Promise<ProviderModelsResult> => {
+    // Scope the whole cache lookup to (provider, user). Callers that pass no
+    // userId (e.g. the send hot path) use the shared bare-provider key, so their
+    // behaviour is unchanged.
+    const cacheKey = buildCacheKey(provider, userId);
+
     if (options.bypassCache) {
-      const pendingRequest = pendingRequests.get(provider);
+      const pendingRequest = pendingRequests.get(cacheKey);
       if (pendingRequest) {
         return pendingRequest;
       }
 
-      return loadAndCacheModels(provider);
+      return loadAndCacheModels(provider, cacheKey, userId);
     }
 
-    const cachedModels = pruneExpiredMemoryEntry(provider, now(), 'memory');
+    const cachedModels = pruneExpiredMemoryEntry(cacheKey, now(), 'memory');
     if (cachedModels) {
       return cachedModels;
     }
 
-    const pendingRequest = pendingRequests.get(provider);
+    const pendingRequest = pendingRequests.get(cacheKey);
     if (pendingRequest) {
       return pendingRequest;
     }
 
     await loadPersistedCache();
 
-    const persistedModels = pruneExpiredMemoryEntry(provider, now(), 'disk');
+    const persistedModels = pruneExpiredMemoryEntry(cacheKey, now(), 'disk');
     if (persistedModels) {
       return persistedModels;
     }
 
-    const postLoadPendingRequest = pendingRequests.get(provider);
+    const postLoadPendingRequest = pendingRequests.get(cacheKey);
     if (postLoadPendingRequest) {
       return postLoadPendingRequest;
     }
@@ -319,9 +357,9 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     // immediately (non-blocking) and refresh in the background. This keeps the
     // live Claude probe (which can take seconds) off the request hot path — the
     // UI always gets an instant answer and the catalog updates for next time.
-    const staleEntry = peekMemoryEntry(provider);
+    const staleEntry = peekMemoryEntry(cacheKey);
     if (staleEntry) {
-      triggerBackgroundRefresh(provider);
+      triggerBackgroundRefresh(provider, cacheKey, userId);
       return {
         models: staleEntry.models,
         cache: toProviderModelsCacheInfo(staleEntry, 'memory'),
@@ -331,7 +369,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     // No cache at all (cold start) — there is nothing to serve, so await the
     // fetch this once. The adapter degrades to its fallback on failure, so this
     // still resolves quickly under normal conditions.
-    return loadAndCacheModels(provider);
+    return loadAndCacheModels(provider, cacheKey, userId);
   };
 
   const getCurrentActiveModel = async (
