@@ -150,7 +150,8 @@ const INSTALL_INFO: Partial<Record<AgentProvider, { label: string; command: stri
   },
   opencode: {
     label: 'OpenCode CLI is not installed',
-    command: 'npm install -g opencode@latest',
+    command: 'curl -fsSL https://opencode.ai/install | bash',
+    note: 'Or via npm: npm install -g opencode-ai',
   },
 };
 
