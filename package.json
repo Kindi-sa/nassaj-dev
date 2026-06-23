@@ -17,7 +17,7 @@
     "scripts/",
     "README.md"
   ],
-  "homepage": "https://nassaj-dev.alkindy.tech",
+  "homepage": "https://nassaj.alkindy.tech",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/siteboon/claudecodeui.git"
@@ -30,7 +30,7 @@
     "server": "node dist-server/server/index.js",
     "server:dev": "tsx --tsconfig server/tsconfig.json server/index.js",
     "server:dev-watch": "tsx watch --tsconfig server/tsconfig.json server/index.js",
-    "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" && tsx --tsconfig server/tsconfig.json --test \"server/claude-sdk.model.test.js\" \"server/claude-sdk.effort.test.js\"",
+    "test": "tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test \"server/**/*.test.ts\" && tsx --tsconfig server/tsconfig.json --test \"server/**/*.test.js\"",
     "test:client": "NODE_ENV=test vitest run",
     "client": "vite",
     "build": "npm run build:client && npm run build:server",
