@@ -108,6 +108,72 @@ test('buildClaudeModelsDefinition: returns null for empty/invalid input', () => 
   assert.equal(buildClaudeModelsDefinition([{ displayName: 'no id' }]), null);
 });
 
+// ---------------- unreleased-model exclusion (claude-fable-5) ----------------
+//
+// The installed CLI may advertise claude-fable-5 in supportedModels() but
+// Anthropic has not released it for use (selecting it fails silently), so the
+// catalog builder must drop it while keeping every other live model and a valid
+// DEFAULT. See UNRELEASED_HIDDEN_MODELS in claude-catalog.client.ts.
+
+test('buildClaudeModelsDefinition: drops the unreleased claude-fable-5 while keeping the rest', () => {
+  const result = buildClaudeModelsDefinition([
+    {
+      value: 'claude-fable-5',
+      displayName: 'Fable 5',
+      description: 'Fable 5 · Most powerful, most intelligent model',
+    },
+    ...SAMPLE_LIVE_MODELS,
+  ]);
+
+  assert.ok(result);
+  // The hidden model is gone…
+  assert.equal(
+    result.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+    false,
+    'claude-fable-5 must be excluded from the live catalog',
+  );
+  // …and every other advertised model survives, in order.
+  assert.deepEqual(
+    result.OPTIONS.map((o) => o.value),
+    ['default', 'sonnet', 'haiku', 'claude-opus-4-8'],
+  );
+  // DEFAULT stays a real, selectable value.
+  assert.equal(result.DEFAULT, 'default');
+  assert.ok(
+    result.OPTIONS.some((o) => o.value === result.DEFAULT),
+    'DEFAULT must be one of the surviving options',
+  );
+});
+
+test('buildClaudeModelsDefinition: anchors DEFAULT on the first VISIBLE option when only fable + a non-default model remain', () => {
+  // Live catalog with no `default` entry and fable present: fable is dropped, so
+  // DEFAULT must fall through to the first *visible* option, never to fable.
+  const result = buildClaudeModelsDefinition([
+    { value: 'claude-fable-5', displayName: 'Fable 5' },
+    { value: 'sonnet', displayName: 'Sonnet' },
+    { value: 'haiku', displayName: 'Haiku' },
+  ]);
+
+  assert.ok(result);
+  assert.deepEqual(result.OPTIONS.map((o) => o.value), ['sonnet', 'haiku']);
+  assert.equal(result.DEFAULT, 'sonnet', 'DEFAULT must be the first visible (non-hidden) option');
+  assert.notEqual(result.DEFAULT, 'claude-fable-5');
+});
+
+test('CLAUDE_FALLBACK_MODELS: does not contain the unreleased claude-fable-5 and keeps a valid DEFAULT', () => {
+  assert.equal(
+    CLAUDE_FALLBACK_MODELS.OPTIONS.some((o) => o.value === 'claude-fable-5'),
+    false,
+    'the degraded fallback catalog must not advertise the unreleased fable-5',
+  );
+  // DEFAULT must still resolve to a real option in the trimmed list.
+  assert.equal(CLAUDE_FALLBACK_MODELS.DEFAULT, 'default');
+  assert.ok(
+    CLAUDE_FALLBACK_MODELS.OPTIONS.some((o) => o.value === CLAUDE_FALLBACK_MODELS.DEFAULT),
+    'fallback DEFAULT must be present in fallback OPTIONS',
+  );
+});
+
 // ---------------- getClaudeModelCatalog (integration, SDK mocked) ----------------
 
 test('getClaudeModelCatalog: returns the live catalog (not degraded) on a successful probe', async () => {
