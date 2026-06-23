@@ -22,7 +22,9 @@ export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 // Providers actively probed by the auth status refresher. Antigravity is
 // enabled again over the provider-models layer (live agy catalog with a
 // graceful fallback); its auth status endpoint reports the real agy auth state.
-export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+// Hermes is a CLI agent with a real backend probe; API providers (deepseek/glm/sakana)
+// are excluded — they have no installable CLI and the Setup tab handles them.
+export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes'];
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   claude: '/api/providers/claude/auth/status',
@@ -48,8 +50,10 @@ export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuth
   gemini: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
   antigravity: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
   opencode: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  deepseek: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  glm: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  hermes: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  sakana: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
+  // API-only providers: never probed by CLI_PROVIDERS — start not-loading.
+  deepseek: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
+  glm: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
+  sakana: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
+  // Hermes is a real CLI agent — probed like other CLI providers.
+  hermes: { authenticated: false, installed: false, email: null, method: null, error: null, loading, checkFailed: false },
 });

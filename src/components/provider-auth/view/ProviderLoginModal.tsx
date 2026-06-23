@@ -41,7 +41,15 @@ const getProviderCommand = ({
     return 'opencode auth login';
   }
 
-  return 'gemini status';
+  if (provider === 'hermes') {
+    return 'hermes';
+  }
+
+  if (provider === 'antigravity') {
+    return 'agy';
+  }
+
+  return `echo "No login command configured for ${provider}"`;
 };
 
 const getProviderTitle = (provider: LLMProvider) => {
@@ -49,7 +57,10 @@ const getProviderTitle = (provider: LLMProvider) => {
   if (provider === 'cursor') return 'Cursor CLI Login';
   if (provider === 'codex') return 'Codex CLI Login';
   if (provider === 'opencode') return 'OpenCode CLI Login';
-  return 'Gemini CLI Configuration';
+  if (provider === 'hermes') return 'Hermes Agent';
+  if (provider === 'antigravity') return 'Antigravity (agy) Configuration';
+  if (provider === 'gemini') return 'Gemini CLI Configuration';
+  return `${provider} CLI Configuration`;
 };
 
 export default function ProviderLoginModal({

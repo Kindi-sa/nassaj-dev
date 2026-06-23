@@ -3,7 +3,8 @@ import { cn } from '../../../../../../lib/utils';
 import type { AgentCategory, AgentProvider } from '../../../../types/types';
 import type { AgentCategoryTabsSectionProps } from '../types';
 
-const API_PROVIDERS: AgentProvider[] = ['deepseek', 'glm', 'hermes', 'sakana'];
+// Hermes is a CLI agent (not API) — it belongs in the regular account/permissions/mcp flow.
+const API_PROVIDERS: AgentProvider[] = ['deepseek', 'glm', 'sakana'];
 
 export default function AgentCategoryTabsSection({
   selectedCategory,

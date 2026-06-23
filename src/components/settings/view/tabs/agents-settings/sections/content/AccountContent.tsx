@@ -153,7 +153,14 @@ const INSTALL_INFO: Partial<Record<AgentProvider, { label: string; command: stri
     command: 'curl -fsSL https://opencode.ai/install | bash',
     note: 'Or via npm: npm install -g opencode-ai',
   },
+  hermes: {
+    label: 'Hermes Agent is not installed',
+    command: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
+  },
 };
+
+// Pure API providers (no CLI, no login modal — configure via Setup tab).
+const PURE_API_PROVIDERS: AgentProvider[] = ['deepseek', 'glm', 'sakana'];
 
 /** Inline copy button: icon toggles to checkmark for 1 second after click. */
 function CopyButton({ text }: { text: string }) {
@@ -209,8 +216,11 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
   // modal's terminal) re-linking reopens the same modal. Hidden while the
   // onboarding banner already offers the link CTA — never two competing
   // connect buttons.
+  const isPureApiProvider = PURE_API_PROVIDERS.includes(agent);
   const onReauth = isAntigravity ? userLink?.onLink : onLogin;
-  const showLoginRow = Boolean(onReauth) && authStatus.method !== 'api_key' && !showLinkBanner;
+  // API-only providers (deepseek/glm/sakana) have no CLI login flow — hide the
+  // login row entirely and let the Setup tab handle configuration.
+  const showLoginRow = !isPureApiProvider && Boolean(onReauth) && authStatus.method !== 'api_key' && !showLinkBanner;
 
   const installInfo = INSTALL_INFO[agent];
   const showInstallBanner = authStatus.installed === false && Boolean(installInfo);
@@ -373,6 +383,15 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
                   defaultValue:
                     'Uses Google AI Pro via agy CLI (v1.x). The active model is selected inside agy settings, not from this UI.',
                 })}
+              </p>
+            </div>
+          )}
+
+          {isPureApiProvider && (
+            <div className="border-t border-border/50 pt-4">
+              <p className="text-sm text-muted-foreground">
+                This provider uses an API key — no account login required.
+                Open the <strong>Setup</strong> tab to configure the endpoint and credentials.
               </p>
             </div>
           )}

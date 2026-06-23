@@ -15,7 +15,7 @@ import type {
   ProviderChangeActiveModelInput,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
-import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import { AppError, asyncHandler, createApiSuccessResponse, isCliInstalled } from '@/shared/utils.js';
 
 const router = express.Router();
 
@@ -189,6 +189,10 @@ const parseProvider = (value: unknown): LLMProvider => {
     || normalized === 'gemini'
     || normalized === 'antigravity'
     || normalized === 'opencode'
+    || normalized === 'hermes'
+    || normalized === 'deepseek'
+    || normalized === 'glm'
+    || normalized === 'sakana'
   ) {
     return normalized;
   }
@@ -318,14 +322,45 @@ const parseChangeActiveModelPayload = (payload: unknown): ProviderChangeActiveMo
   };
 };
 
+const STUB_CLI_PROVIDERS = new Set<string>(['hermes']);
+const STUB_API_PROVIDERS = new Set<string>(['deepseek', 'glm', 'sakana']);
+
 router.get(
   '/:provider/auth/status',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
+    const userId = (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+
+    // Stub CLI providers: check installation only — no registry entry yet.
+    if (STUB_CLI_PROVIDERS.has(provider)) {
+      const installed = isCliInstalled(provider);
+      res.json(createApiSuccessResponse({
+        installed,
+        authenticated: false,
+        email: null,
+        method: null,
+        provider,
+        error: installed ? 'Authentication not yet supported' : `${provider} is not installed`,
+      }));
+      return;
+    }
+
+    // Stub API providers: no CLI to probe — always not-configured.
+    if (STUB_API_PROVIDERS.has(provider)) {
+      res.json(createApiSuccessResponse({
+        installed: false,
+        authenticated: false,
+        email: null,
+        method: null,
+        provider,
+        error: 'Configure via Setup tab',
+      }));
+      return;
+    }
+
     // Pass the authenticated user so credential-isolating providers report the
     // status of THIS user's resolved environment (CLAUDE_CONFIG_DIR), not the
     // operator's fixed home. `req.user` is set by authenticateToken middleware.
-    const userId = (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
     const status = await providerAuthService.getProviderAuthStatus(provider, userId);
     res.json(createApiSuccessResponse(status));
   }),
