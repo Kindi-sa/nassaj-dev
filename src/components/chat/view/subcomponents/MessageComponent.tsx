@@ -255,12 +255,12 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
     // thinking events arrive without one) so we never render "Invalid Date".
     if (Number.isNaN(d.getTime())) return '';
     const timeStr = d.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
-    const dateStr = d.toLocaleDateString(i18n.language, {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-    return `${dateStr}، ${timeStr}`;
+    // Force day-month-year order regardless of locale (toLocaleDateString orders
+    // by locale: en-US puts month first, we always want day first).
+    const day = d.getDate();
+    const month = d.toLocaleString(i18n.language, { month: 'short' });
+    const year = d.getFullYear();
+    return `${day} ${month} ${year}، ${timeStr}`;
   }, [message.timestamp, i18n.language]);
 
   const fullDateTime = useMemo(() => {
