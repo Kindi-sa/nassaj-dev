@@ -336,7 +336,12 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const bypassCache = parseOptionalBooleanQuery(req.query.bypassCache, 'bypassCache') ?? false;
-    const result = await providerModelsService.getProviderModels(provider, { bypassCache });
+    // Forward the authenticated user so a credential-isolating provider (Claude)
+    // probes its catalog under THIS user's subscription and caches it per user.
+    // `req.user` is set by authenticateToken; null for anonymous/platform mode,
+    // which uses the operator's shared environment (unchanged behaviour).
+    const userId = (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+    const result = await providerModelsService.getProviderModels(provider, { bypassCache }, userId);
     res.json(createApiSuccessResponse({ provider, models: result.models, cache: result.cache }));
   }),
 );
