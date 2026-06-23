@@ -3,6 +3,29 @@
 All notable changes to CloudCLI UI will be documented in this file.
 
 
+## [Unreleased] — B-80 WebSocket Session Resilience + Hide Fable (2026-06-23)
+
+> توحيد خط تطوير نسّاج إلى `main` (ADR-043). التفاصيل: `docs/decisions/041-claude-live-replay-b80.md`، `docs/decisions/042-claude-ghost-session-detach-b80c.md`، `docs/decisions/043-git-topology-consolidation.md`.
+> Consolidates the nassaj development line into `main` (ADR-043). Detail in the referenced ADRs.
+
+### New Features
+
+* **ws / sessions:** **live-stream replay (B-80a, ADR-041)** — إعادة الاتصال بـ WebSocket (تحديث الصفحة أو مشاهد جديد) تعيد بثّ الجلسة الجارية من `transcript.jsonl` بدل تجمّد الواجهة، مع احترام فيتو no-swap (B-N1). Reconnecting a WS client now replays the active session from `transcript.jsonl` instead of freezing the UI.
+
+### Bug Fixes
+
+* **ws / drain:** **ghost-session detach (B-80c, ADR-042)** — جلسة claude التي مات كل مستمعيها تُفصَل من حساب الـ`drain` (detach لا abort) خلف علم مطفأ، فلا تبقى محسوبة `active` وتمنع `pm2 restart` حتى `kill_timeout`. Detaches dead-listener ghost sessions from the drain count (behind a disabled flag), so they no longer block restarts.
+* **models / chat:** **إخفاء `claude-fable-5` غير المُطلَق (ADR-044)** — النموذج غير المُطلَق يُستبعد من قائمة النماذج المعروضة وقوائم fallback مع إبقاء حارس auto/القيم الفاسدة. Hides the unreleased `claude-fable-5` from the model picker and fallback lists while keeping the auto/corrupted-value guard. (`server/modules/providers/list/claude/claude-catalog.client.ts`, `claude-models.provider.ts`, `src/constants/providerModelFallbacks.ts`)
+
+### Tests
+
+* add/extend `server/modules/providers/list/claude/__tests__/claude-catalog.test.ts`, `server/claude-sdk.model.test.js`. Full suite green at merge: **527 pass / 0 fail** (498 + 29).
+
+### Infrastructure
+
+* **git:** consolidate the nassaj dev line (`b63`, 360 commits) into `main` via merge-commit (no rebase/squash). The shallow local repo had masked the real gap. Policy: named work branches (no detached HEAD), isolated `/tmp` worktrees during parallel sessions, worktree cleanup after each workflow. (ADR-043)
+
+
 ## [1.33.0] — Model Selection Overhaul (2026-06-09)
 
 > إصلاح وتحديث منظومة اختيار النماذج (Claude SDK + Antigravity). التفاصيل المعمارية في `docs/decisions/025-model-selection-overhaul.md`.
