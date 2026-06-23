@@ -1,5 +1,9 @@
+import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Copy, Check } from 'lucide-react';
+
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 
@@ -27,6 +31,14 @@ function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: st
     return 'TaskMaster';
   }
 
+  if (activeTab === 'board') {
+    return t('tabs.board');
+  }
+
+  if (activeTab === 'wiki') {
+    return t('wiki.title');
+  }
+
   return 'Project';
 }
 
@@ -36,6 +48,52 @@ function getSessionTitle(session: ProjectSession): string {
   }
 
   return (session.summary as string) || 'New Session';
+}
+
+/** First 8 hex chars of the session UUID — enough to identify, short enough to fit. */
+function shortSessionId(id: string): string {
+  return id.replace(/-/g, '').slice(0, 8);
+}
+
+function SessionIdBadge({ sessionId }: { sessionId: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(sessionId).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      });
+    },
+    [sessionId],
+  );
+
+  const short = shortSessionId(sessionId);
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={t('mainContent.sessionIdTooltip', {
+        id: sessionId,
+        defaultValue: 'Session ID: {{id}} — click to copy',
+      })}
+      aria-label={t('mainContent.sessionIdCopy', {
+        id: short,
+        defaultValue: 'Copy session ID {{id}}',
+      })}
+      className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 font-mono text-[10px] leading-none text-muted-foreground/60 transition-colors hover:bg-muted/60 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      {short}
+      {copied ? (
+        <Check className="h-2.5 w-2.5 flex-shrink-0 text-emerald-500" aria-hidden />
+      ) : (
+        <Copy className="h-2.5 w-2.5 flex-shrink-0 opacity-50" aria-hidden />
+      )}
+    </button>
+  );
 }
 
 export default function MainContentTitle({
@@ -65,10 +123,19 @@ export default function MainContentTitle({
       <div className="min-w-0 flex-1">
         {activeTab === 'chat' && selectedSession ? (
           <div className="min-w-0">
-            <h2 className="scrollbar-hide overflow-x-auto whitespace-nowrap text-sm font-semibold leading-tight text-foreground">
-              {getSessionTitle(selectedSession)}
-            </h2>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="scrollbar-hide min-w-0 overflow-x-auto whitespace-nowrap text-sm font-semibold leading-tight text-foreground">
+                {getSessionTitle(selectedSession)}
+              </h2>
+              <SessionProcessBadge sessionId={selectedSession.id} />
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                {selectedProject.displayName}
+              </span>
+              <span aria-hidden className="h-2.5 w-px flex-shrink-0 bg-border/60" />
+              <SessionIdBadge sessionId={selectedSession.id} />
+            </div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">

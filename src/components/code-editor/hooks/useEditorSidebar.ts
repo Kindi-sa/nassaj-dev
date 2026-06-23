@@ -22,7 +22,11 @@ export const useEditorSidebar = ({
   const resizeHandleRef = useRef<HTMLDivElement | null>(null);
 
   const handleFileOpen = useCallback(
-    (filePath: string, diffInfo: CodeEditorDiffInfo | null = null) => {
+    (
+      filePath: string,
+      diffInfo: CodeEditorDiffInfo | null = null,
+      options: { openMarkdownPreview?: boolean } = {},
+    ) => {
       const normalizedPath = filePath.replace(/\\/g, '/');
       const fileName = normalizedPath.split('/').pop() || filePath;
 
@@ -33,6 +37,7 @@ export const useEditorSidebar = ({
         // via `/api/projects/:projectId/file` endpoints.
         projectId: selectedProject?.projectId,
         diffInfo,
+        openMarkdownPreview: Boolean(options.openMarkdownPreview),
       });
     },
     [selectedProject?.projectId],

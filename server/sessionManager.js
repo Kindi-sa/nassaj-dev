@@ -110,32 +110,6 @@ class SessionManager {
     return 'New Session';
   }
 
-  // Build conversation context for Gemini
-  buildConversationContext(sessionId, maxMessages = 10) {
-    const session = this.sessions.get(sessionId);
-
-    if (!session || session.messages.length === 0) {
-      return '';
-    }
-
-    // Get last N messages for context
-    const recentMessages = session.messages.slice(-maxMessages);
-
-    let context = 'Here is the conversation history:\n\n';
-
-    for (const msg of recentMessages) {
-      if (msg.role === 'user') {
-        context += `User: ${msg.content}\n`;
-      } else {
-        context += `Assistant: ${msg.content}\n`;
-      }
-    }
-
-    context += '\nBased on the conversation history above, please answer the following:\n';
-
-    return context;
-  }
-
   // Prevent path traversal
   _safeFilePath(sessionId) {
     const safeId = String(sessionId).replace(/[/\\]|\.\./g, '');

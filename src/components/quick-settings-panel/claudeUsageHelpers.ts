@@ -1,11 +1,22 @@
 // Pure helpers for rendering Claude usage. No React, no i18n side effects.
 
-// Bar color thresholds: blue < 50, orange < 75, red >= 75.
+// Bar color thresholds (matches TokenUsageSummary context-rot scale):
+// emerald < 50 (safe), amber < 75 (attention), orange < 90 (warning), red >= 90 (critical).
 // Returns Tailwind background classes so dark mode is handled by the palette.
 export function usageBarColorClass(utilization: number): string {
-  if (utilization < 50) return 'bg-blue-500';
+  if (utilization < 50) return 'bg-emerald-500';
   if (utilization < 75) return 'bg-amber-500';
+  if (utilization < 90) return 'bg-orange-500';
   return 'bg-red-500';
+}
+
+// Same thresholds as usageBarColorClass but returns text color classes
+// for use in compact inline indicators (e.g. the header usage row).
+export function usageTextColorClass(utilization: number): string {
+  if (utilization < 50) return 'text-emerald-500';
+  if (utilization < 75) return 'text-amber-500';
+  if (utilization < 90) return 'text-orange-500';
+  return 'text-red-500';
 }
 
 // Clamp utilization into the 0-100 range the bar expects.
@@ -64,17 +75,22 @@ export function formatPercent(utilization: number, locale: string): string {
   }).format(value / 100);
 }
 
-// Locale-aware currency credits, e.g. "$4,567 / $5,000".
+// Locale-aware currency credits, e.g. "$51.27 / $80.00".
+//
+// `amountInCents` is in CENTS (minor currency units): the oauth/usage endpoint
+// reports extra_usage.used_credits / monthly_limit in cents (e.g. 5127 = $51.27),
+// and the server forwards them unchanged. Convert here, at the formatting edge.
 export function formatCredits(
-  amount: number,
+  amountInCents: number,
   currency: string,
   locale: string,
 ): string {
+  const amount = amountInCents / 100;
   try {
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 2,
     }).format(amount);
   } catch {
     // Unknown currency code — fall back to a plain number with the code.

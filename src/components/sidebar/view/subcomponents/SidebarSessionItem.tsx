@@ -1,14 +1,18 @@
 import { useEffect, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Check, Edit2, Trash2, X } from 'lucide-react';
+import { Check, Edit2, Star, Trash2, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip } from '../../../../shared/view/ui';
+import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
 import { cn } from '../../../../lib/utils';
-import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
+import type { Project, ProjectSession, LLMProvider, SessionOwner } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { createSessionViewModel } from '../../utils/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
+import { ParticipantAvatar } from '../../../participants';
+import type { SessionParticipant } from '../../../participants';
 
 /**
  * Builds the absolute, openable session URL on the current origin, honoring any
@@ -24,6 +28,8 @@ type SidebarSessionItemProps = {
   project: Project;
   session: SessionWithProvider;
   selectedSession: ProjectSession | null;
+  isStarred: boolean;
+  onToggleStar: (session: SessionWithProvider, projectName: string) => void;
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
@@ -41,6 +47,22 @@ type SidebarSessionItemProps = {
   ) => void;
   t: TFunction;
 };
+
+/**
+ * Adapts a session `owner` ({userId, username, avatarUrl}) into the
+ * SessionParticipant shape ParticipantAvatar consumes. The avatar reads
+ * userId/username/role (plus the optional picture), so the time fields are
+ * placeholders.
+ */
+const ownerToParticipant = (owner: SessionOwner): SessionParticipant => ({
+  userId: owner.userId,
+  username: owner.username,
+  role: 'owner',
+  first_seen: '',
+  last_seen: '',
+  message_count: 0,
+  avatarUrl: owner.avatarUrl ?? null,
+});
 
 /**
  * Compact relative time for sidebar rows:
@@ -74,6 +96,8 @@ export default function SidebarSessionItem({
   project,
   session,
   selectedSession,
+  isStarred,
+  onToggleStar,
   currentTime,
   editingSession,
   editingSessionName,
@@ -86,11 +110,18 @@ export default function SidebarSessionItem({
   onDeleteSession,
   t,
 }: SidebarSessionItemProps) {
+  const { i18n } = useTranslation();
   const sessionView = createSessionViewModel(session, currentTime, t);
   const isSelected = selectedSession?.id === session.id;
   const isEditing = editingSession === session.id;
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
+
+  // Session owner badge (C-MU-UX-OWNER-BADGE): a single coloured avatar that
+  // attributes the session to one human. `owner` is null for legacy sessions
+  // (no recorded participant) — we render no badge then rather than crash.
+  const owner = session.owner ?? null;
+  const ownerParticipant = owner ? ownerToParticipant(owner) : null;
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -125,6 +156,16 @@ export default function SidebarSessionItem({
   const requestDeleteSession = () => {
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
+
+  // The star toggles a per-user favourite. stopPropagation/preventDefault keep
+  // the click from opening the conversation (the row is a link / clickable card).
+  const handleToggleStar = (event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onToggleStar(session, project.projectId);
+  };
+
+  const starLabel = isStarred ? t('tooltips.unstarSession') : t('tooltips.starSession');
 
   // The row is a real anchor so the browser's native context menu offers
   // "Open in new tab/window". A plain left-click stays an in-app SPA
@@ -176,30 +217,59 @@ export default function SidebarSessionItem({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
+                {ownerParticipant && (
+                  <ParticipantAvatar
+                    participant={ownerParticipant}
+                    size="xs"
+                    locale={i18n.language}
+                    t={t}
+                    stacked={false}
+                    avatarUrl={ownerParticipant.avatarUrl ?? undefined}
+                  />
+                )}
                 {compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  <span className="ms-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && (
                   <Badge variant="secondary" className="px-1 py-0 text-xs">
                     {sessionView.messageCount}
                   </Badge>
                 )}
+                <SessionProcessBadge sessionId={session.id} />
               </div>
             </div>
 
-            {!sessionView.isCursorSession && (
+            <div className="flex flex-shrink-0 items-center gap-1">
               <button
-                className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  requestDeleteSession();
-                }}
+                type="button"
+                aria-label={starLabel}
+                aria-pressed={isStarred}
+                title={starLabel}
+                className={cn(
+                  'flex h-6 w-6 items-center justify-center rounded-md transition-transform active:scale-95',
+                  isStarred
+                    ? 'text-amber-500'
+                    : 'text-muted-foreground/60 hover:text-amber-500',
+                )}
+                onClick={handleToggleStar}
               >
-                <Trash2 className="h-2.5 w-2.5 text-red-600 dark:text-red-400" />
+                <Star className={cn('h-3.5 w-3.5', isStarred && 'fill-current')} />
               </button>
-            )}
+
+              {!sessionView.isCursorSession && (
+                <button
+                  className="flex h-6 w-6 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestDeleteSession();
+                  }}
+                >
+                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -214,23 +284,45 @@ export default function SidebarSessionItem({
           )}
         >
           <div className="flex w-full min-w-0 items-start gap-2">
-            <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3 w-3 flex-shrink-0" />
+            <SessionProviderLogo provider={session.__provider} className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <div className="truncate text-xs font-medium text-foreground">{sessionView.sessionName}</div>
-                {compactSessionAge && (
-                  <span
-                    className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
-                      isEditing ? 'opacity-0' : 'group-hover:opacity-0',
-                    )}
-                  >
-                    {compactSessionAge}
-                  </span>
+              <div className="flex items-center gap-1.5">
+                <div className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
+                  {sessionView.sessionName}
+                </div>
+                {ownerParticipant && (
+                  <ParticipantAvatar
+                    participant={ownerParticipant}
+                    size="xs"
+                    locale={i18n.language}
+                    t={t}
+                    stacked={false}
+                    avatarUrl={ownerParticipant.avatarUrl ?? undefined}
+                  />
                 )}
+                {/* Resting trailing indicator (fixed width so it never shifts
+                    the title): shows the amber star when starred, else the
+                    compact age. Fades out on hover, when the action cluster
+                    (which carries its own star toggle) slides in. */}
+                <div
+                  className={cn(
+                    'flex h-4 w-8 flex-shrink-0 items-center justify-end transition-opacity duration-200',
+                    isEditing ? 'opacity-0' : 'group-hover:opacity-0',
+                  )}
+                  aria-hidden="true"
+                >
+                  {isStarred ? (
+                    <Star className="h-3.5 w-3.5 fill-current text-amber-500" />
+                  ) : (
+                    compactSessionAge && (
+                      <span className="text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                    )
+                  )}
+                </div>
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
+                <SessionProcessBadge sessionId={session.id} />
               </div>
             </div>
           </div>
@@ -284,6 +376,21 @@ export default function SidebarSessionItem({
               </>
             ) : (
               <>
+                <button
+                  type="button"
+                  aria-label={starLabel}
+                  aria-pressed={isStarred}
+                  title={starLabel}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded transition-colors',
+                    isStarred
+                      ? 'bg-amber-50 text-amber-500 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40'
+                      : 'bg-gray-50 text-muted-foreground hover:bg-amber-50 hover:text-amber-500 dark:bg-gray-900/20 dark:hover:bg-amber-900/20',
+                  )}
+                  onClick={handleToggleStar}
+                >
+                  <Star className={cn('h-3 w-3', isStarred && 'fill-current')} />
+                </button>
                 <button
                   className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
                   onClick={(event) => {

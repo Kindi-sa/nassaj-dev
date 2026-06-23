@@ -19,6 +19,35 @@ export type CredentialsResponse = {
   error?: string;
 };
 
+export type GithubRepository = {
+  name: string;
+  fullName: string;
+  cloneUrl: string;
+  private: boolean;
+  defaultBranch: string | null;
+  updatedAt: string | null;
+};
+
+export type GithubReposResponse = {
+  repositories?: GithubRepository[];
+  code?: string;
+  error?: string;
+};
+
+export type GithubReposErrorCode = 'no_token' | 'invalid_token' | 'forbidden' | 'github_error';
+
+export class GithubReposError extends Error {
+  code: GithubReposErrorCode | null;
+
+  constructor(message: string, code: GithubReposErrorCode | null) {
+    super(message);
+    this.name = 'GithubReposError';
+    this.code = code;
+  }
+}
+
+export type GithubSourceMode = 'repos' | 'url';
+
 export type BrowseFilesystemResponse = {
   path?: string;
   suggestions?: FolderSuggestion[];
@@ -63,4 +92,6 @@ export type WizardFormState = {
   tokenMode: TokenMode;
   selectedGithubToken: string;
   newGithubToken: string;
+  /** Whether the user picks a repo from their account or pastes a URL. */
+  githubSourceMode: GithubSourceMode;
 };

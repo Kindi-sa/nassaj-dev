@@ -17,7 +17,18 @@ export type ProviderModelsCacheInfo = {
   source: 'memory' | 'disk' | 'fresh';
 };
 
-export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'preview' | `plugin:${string}`;
+export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'preview' | 'wiki' | `plugin:${string}`;
+
+// Owner attribution for a session (B-MU-UX-API). Resolved server-side from the
+// session_participants row flagged 'owner'. `null` for legacy / pre-multi-user
+// sessions with no participant row — the UI falls back to a neutral state.
+export interface SessionOwner {
+  userId: number;
+  username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) when the
+  // owner has uploaded one; null/undefined falls back to the coloured initial.
+  avatarUrl?: string | null;
+}
 
 export interface ProjectSession {
   id: string;
@@ -29,6 +40,11 @@ export interface ProjectSession {
   updated_at?: string;
   lastActivity?: string;
   messageCount?: number;
+  // Owning human of this session, or null for legacy sessions (B-MU-UX-API).
+  owner?: SessionOwner | null;
+  // Per-user favourite flag for the current user (server-stamped on session
+  // list responses). Starred sessions sort to the top within their project.
+  starred?: boolean;
   __provider?: LLMProvider;
   // Tags the session with the owning project's DB `projectId` so UI handlers
   // (session switching, sidebar focus, etc.) can match against selectedProject.
@@ -59,6 +75,22 @@ export interface Project {
   fullPath: string;
   path?: string;
   isStarred?: boolean;
+  // True when the requesting user participates in >=1 session of this project
+  // (B-MU-UX-PROJ-FILTER). Informational only — the server never filters the
+  // project list; the frontend "My Projects / All" toggle uses this flag.
+  isMember?: boolean;
+  // Creator attribution for the sidebar "My projects / Team / All" filter.
+  // `ownerId` is the creator's user id (null for legacy/orphan projects);
+  // `isOwner` is stamped per-user by the server (creator or an owner-role
+  // project member). View-filter inputs only — never an access decision.
+  ownerId?: number | null;
+  isOwner?: boolean;
+  // Project privacy (C-PRIV-6). The server removes private projects the user
+  // cannot see from the list entirely — these flags only drive UI affordances.
+  visibility?: 'public' | 'private';
+  // True when the user may flip visibility / manage members (project creator,
+  // an owner-role member, or the platform owner). Set by the server.
+  canManageVisibility?: boolean;
   sessions?: ProjectSession[];
   cursorSessions?: ProjectSession[];
   codexSessions?: ProjectSession[];
@@ -86,8 +118,8 @@ export interface ProjectsUpdatedMessage {
   updatedSessionIds?: string[];
   watchProvider?: LLMProvider;
   watchProviders?: LLMProvider[];
-  changeType?: 'add' | 'change';
-  changeTypes?: Array<'add' | 'change'>;
+  changeType?: 'add' | 'change' | 'unlink';
+  changeTypes?: Array<'add' | 'change' | 'unlink'>;
   batched?: boolean;
   [key: string]: unknown;
 }

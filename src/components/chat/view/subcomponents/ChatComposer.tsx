@@ -12,13 +12,9 @@ import type {
   TouchEvent,
 } from 'react';
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
+
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
-import CommandMenu from './CommandMenu';
-import ClaudeStatus from './ClaudeStatus';
-import ImageAttachment from './ImageAttachment';
-import PermissionRequestsBanner from './PermissionRequestsBanner';
-import ThinkingModeSelector from './ThinkingModeSelector';
-import TokenUsageSummary from './TokenUsageSummary';
+import type { RunProgress } from '../../hooks/useRunProgress';
 import {
   PromptInput,
   PromptInputHeader,
@@ -29,6 +25,14 @@ import {
   PromptInputButton,
   PromptInputSubmit,
 } from '../../../../shared/view/ui';
+
+import CommandMenu from './CommandMenu';
+import ClaudeStatus from './ClaudeStatus';
+import AgentActivityStrip from './AgentActivityStrip';
+import ImageAttachment from './ImageAttachment';
+import PermissionRequestsBanner from './PermissionRequestsBanner';
+import ThinkingModeSelector from './ThinkingModeSelector';
+import TokenUsageSummary from './TokenUsageSummary';
 
 interface MentionableFile {
   name: string;
@@ -54,6 +58,12 @@ interface ChatComposerProps {
   handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   claudeStatus: { text: string; tokens: number; can_interrupt: boolean } | null;
   isLoading: boolean;
+  /** True while the session's provider process is externally frozen (kill -STOP). */
+  isSessionFrozen?: boolean;
+  /** Epoch-ms start of the current run (last triggering user message); lets the elapsed counter survive refresh. */
+  runStartedAt?: number | null;
+  /** Task/agent progress snapshot for the ClaudeStatus indicators (derived in ChatInterface). */
+  runProgress?: RunProgress | null;
   onAbortSession: () => void;
   provider: Provider | string;
   displayProvider: Provider | string;
@@ -102,6 +112,10 @@ interface ChatComposerProps {
   placeholder: string;
   isTextareaExpanded: boolean;
   sendByCtrlEnter?: boolean;
+  /** False while the WebSocket connection is not open; disables the send button. */
+  isWsConnected?: boolean;
+  /** Non-null error message to display when the last send failed (e.g. WS disconnected). */
+  sendError?: string | null;
 }
 
 export default function ChatComposer({
@@ -110,6 +124,9 @@ export default function ChatComposer({
   handleGrantToolPermission,
   claudeStatus,
   isLoading,
+  isSessionFrozen = false,
+  runStartedAt = null,
+  runProgress = null,
   onAbortSession,
   provider,
   displayProvider,
@@ -158,6 +175,8 @@ export default function ChatComposer({
   placeholder,
   isTextareaExpanded,
   sendByCtrlEnter,
+  isWsConnected = true,
+  sendError = null,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -177,14 +196,34 @@ export default function ChatComposer({
 
   return (
     <div className="flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6">
-      {!hasPendingPermissions && (
-        <ClaudeStatus
-          status={claudeStatus}
-          isLoading={isLoading}
-          onAbort={onAbortSession}
-          provider={displayProvider}
-        />
-      )}
+      {!hasPendingPermissions && (() => {
+        // When one or more sub-agents are delegated this run, the per-agent strip
+        // renders ABOVE the status row to show the live per-agent activity — but
+        // ClaudeStatus is ALWAYS kept mounted below it so the STOP button, ESC
+        // hint, elapsed timer and task counter never disappear at the longest
+        // waiting moment. `suppressActionWord` then hides only ClaudeStatus's
+        // spinning action word (the strip already conveys "working"), leaving the
+        // entire control/metrics row intact. `useRunProgress` empties `agents` on
+        // !isLoading, so a non-empty list already implies a live run; the strip
+        // therefore appears with the reply and disappears when it ends, and the
+        // no-agents path is byte-for-byte the previous ClaudeStatus behaviour.
+        const hasAgents = (runProgress?.agents?.length ?? 0) > 0;
+        return (
+          <>
+            {hasAgents && <AgentActivityStrip agents={runProgress!.agents} frozen={isSessionFrozen} />}
+            <ClaudeStatus
+              status={claudeStatus}
+              isLoading={isLoading}
+              frozen={isSessionFrozen}
+              onAbort={onAbortSession}
+              provider={displayProvider}
+              runStartedAt={runStartedAt}
+              progress={runProgress}
+              suppressActionWord={hasAgents}
+            />
+          </>
+        );
+      })()}
 
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-4xl">
@@ -196,7 +235,17 @@ export default function ChatComposer({
         </div>
       )}
 
+      {sendError && (
+        <div
+          role="alert"
+          className="mx-auto mb-2 max-w-4xl rounded-lg border border-red-300/60 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-600/40 dark:bg-red-900/15 dark:text-red-300"
+        >
+          {sendError}
+        </div>
+      )}
+
       {!hasQuestionPanel && <div className="relative mx-auto max-w-4xl">
+
         {isUserScrolledUp && hasMessages && (
           <div className="absolute -top-10 left-0 right-0 z-10 flex justify-center">
             <button
@@ -204,11 +253,13 @@ export default function ChatComposer({
               onClick={onScrollToBottom}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
               title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
+              aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
             >
               <ArrowDownIcon className="h-4 w-4" />
             </button>
           </div>
         )}
+
         {showFileDropdown && filteredFiles.length > 0 && (
           <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-card/95 shadow-lg backdrop-blur-md">
             {filteredFiles.map((file, index) => (
@@ -297,6 +348,7 @@ export default function ChatComposer({
 
             <PromptInputTextarea
               ref={textareaRef}
+              dir="auto"
               value={input}
               onChange={onInputChange}
               onClick={onTextareaClick}
@@ -360,31 +412,48 @@ export default function ChatComposer({
             </button>
 
             {provider === 'claude' && (
-              <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
+              <>
+                <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
+                {thinkingMode === 'ultracode' && (
+                  <span
+                    className="hidden items-center rounded border border-red-400 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-700 shadow-[0_0_8px_rgba(239,68,68,0.40)] dark:border-red-600 dark:bg-red-950 dark:text-red-300 dark:shadow-[0_0_10px_rgba(239,68,68,0.55)] sm:flex"
+                    aria-label={t('effortMode.ultracodeActive')}
+                  >
+                    ULTRACODE
+                  </span>
+                )}
+              </>
             )}
 
             <TokenUsageSummary usage={tokenBudget} />
 
-            <PromptInputButton
-              tooltip={{ content: t('input.showAllCommands') }}
-              onClick={onToggleCommandMenu}
-              className="relative"
-            >
-              <MessageSquareIcon />
+            {/* Wrapper span establishes the containing block for the badge.
+              * Firefox/Gecko (bug 1392476) does not let a <button> with
+              * position:relative anchor absolutely-positioned descendants, so
+              * the badge must be a SIBLING of the button inside a non-button
+              * positioned ancestor — otherwise it escapes and the form's
+              * overflow-hidden clips it (works in Chromium, hidden in FF/Zen). */}
+            <span className="relative inline-flex">
+              <PromptInputButton
+                tooltip={{ content: t('input.showAllCommands') }}
+                onClick={onToggleCommandMenu}
+              >
+                <MessageSquareIcon />
+              </PromptInputButton>
               {slashCommandsCount > 0 && (
                 <span
-                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                  className="pointer-events-none absolute -right-1 -top-1 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
                 >
                   {slashCommandsCount}
                 </span>
               )}
-            </PromptInputButton>
+            </span>
 
             {hasInput && (
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
                 onClick={onClearInput}
-                className="hidden sm:No-flex"
+                className="sm:No-flex hidden"
               >
                 <XIcon />
               </PromptInputButton>
@@ -392,17 +461,21 @@ export default function ChatComposer({
 
           </PromptInputTools>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {/* min-w-0 + truncate: in a squeezed composer column the hint
+              * ellipsizes on one line instead of wrapping over the toolbar
+              * (lg: sees viewport width, not pane width). */}
             <div
-              className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              className={`ms-2 hidden min-w-0 truncate text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
                 input.trim() ? 'opacity-0' : 'opacity-100'
               }`}
             >
               {sendByCtrlEnter ? t('input.hintText.ctrlEnter') : t('input.hintText.enter')}
             </div>
             <PromptInputSubmit
-              disabled={!input.trim() || isLoading}
-              className="h-10 w-10 sm:h-10 sm:w-10"
+              disabled={!input.trim() || isLoading || !isWsConnected}
+              title={!isWsConnected ? t('ws.sendDisabledTitle', { defaultValue: 'Cannot send — connection lost' }) : undefined}
+              className="h-10 w-10 shrink-0 sm:h-10 sm:w-10"
             />
           </div>
         </PromptInputFooter>

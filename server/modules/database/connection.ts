@@ -59,6 +59,32 @@ function ensureDatabaseDirectory(dbPath: string): void {
 }
 
 /**
+ * Restricts the SQLite database (and its WAL/SHM sidecars when present) to
+ * owner read/write only (0600). Under the shared system uid this keeps the
+ * auth/users tables — including password hashes and any stored secrets — from
+ * being read by another local process. (m-DBPERM / B-MU-OS-PERM, ADR-023.)
+ *
+ * chmod on a live SQLite file is safe: it changes the inode's mode without
+ * touching open descriptors, so it never disrupts an active connection.
+ * Tolerant of missing sidecars and non-fatal on error — a permissions failure
+ * must not prevent the database from opening.
+ */
+function restrictDatabasePermissions(dbPath: string): void {
+  for (const file of [dbPath, dbPath + '-wal', dbPath + '-shm']) {
+    try {
+      if (fs.existsSync(file)) {
+        fs.chmodSync(file, 0o600);
+      }
+    } catch (err: any) {
+      console.error('Could not restrict database file permissions', {
+        file,
+        error: err?.message ?? String(err),
+      });
+    }
+  }
+}
+
+/**
  * If the database was moved to an external location (e.g. ~/.cloudcli/)
  * but the user still has a legacy auth.db inside the install directory,
  * copy it to the new location as a one-time migration.
@@ -114,6 +140,18 @@ export function getConnection(): Database.Database {
   migrateLegacyDatabase(dbPath);
 
   instance = new Database(dbPath);
+
+  // Lock the DB (and any WAL/SHM created by the open above) to 0600 so only
+  // `nassaj` can read it under the shared system uid. Safe on a live handle.
+  restrictDatabasePermissions(dbPath);
+
+  // WAL journal mode: concurrent readers never block writers; a single writer
+  // does not block readers. Safe to enable on an existing DB — SQLite converts
+  // transparently. busy_timeout lets concurrent writes retry for up to 5 s
+  // before returning SQLITE_BUSY, eliminating most race-condition errors under
+  // concurrent session creation and synchronizer activity. (B-38 / ADR-023.)
+  instance.pragma('journal_mode = WAL');
+  instance.pragma('busy_timeout = 5000');
 
   // app_config must exist immediately — the auth middleware reads
   // the JWT secret at module-load time, before initializeDatabase() runs.

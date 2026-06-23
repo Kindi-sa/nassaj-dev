@@ -1,5 +1,29 @@
 # PHASE-PK — Passkey (WebAuthn/FIDO2)
 
+> ## ✅ الحالة: منفَّذة كاملة — 2026-06-10 (ADR-026)
+>
+> نُفِّذت وفق خطة architect المعتمدة **B-PK-1..4 + C-PK-1..3** (لا بترقيم مسودة هذا الملف أدناه):
+>
+> | البند | المضمون | Commit |
+> |---|---|---|
+> | B-PK-1 | جدول `webauthn_credentials` (migration) + repository ‏`webauthnCredentialsDb` | `81948fe` |
+> | B-PK-2 | env ‏`WEBAUTHN_RP_ID/ORIGIN/RP_NAME` + مخزن challenge في الذاكرة (TTL ‏5 دقائق، single-use) | `a55e0d5` |
+> | B-PK-3+4 | خدمة + مسارات `/api/auth/webauthn` (تسجيل مصادَق، دخول عام discoverable بنفس عقد `/login`، rate-limit، audit، ‏`@simplewebauthn/server@13.3.1`) | `8c142cf` |
+> | C-PK-1+2 | زر «الدخول بمفتاح مرور» في LoginForm + طبقة client ‏`@simplewebauthn/browser` | `d72a38e` |
+> | C-PK-3 | قسم إدارة المفاتيح في Profile (إضافة/تسمية/حذف، شارة synced/device-bound) | `9c1fe98` |
+>
+> **الاختبارات:** suite الخادم خضراء 283+15 (منها +21 جديدة).
+> **انحرافات عن مسودة الخطة أدناه** (موثّقة ومبرَّرة في **ADR-026**): جدول واحد `webauthn_credentials`
+> (لا `passkey_credentials`/`passkey_challenges` — الـchallenge في الذاكرة مع مسار ترقية SQLite)؛
+> v13 بدل v10؛ مسارات `/api/auth/webauthn/*` بدل `/api/auth/passkey/*`؛ ‏`userVerification: preferred`؛
+> نفس عقد `/login` دون حقول JWT إضافية.
+> **قيود معروفة:** challenge في الذاكرة (عملية واحدة)، rpID مثبّت على النطاق، fallback كلمة المرور باقٍ.
+> **تشغيلياً:** يتطلب `pm2 restart nassaj-dev --update-env` ينفّذه المستخدم بطرفيته؛ ‏`WEBAUTHN_*` في `ecosystem.config.cjs`.
+>
+> **ما يلي أدناه هو المسودة التخطيطية الأصلية** — تُحفظ مرجعاً تاريخياً؛ عند التعارض الحجة لـADR-026 والكود.
+
+---
+
 > **تعتمد على:** اكتمال Phase MU (جدول `users` + JWT + `user_credentials` موجودة).
 > **المكتبات:** `@simplewebauthn/server` v10 (backend) + `@simplewebauthn/browser` (frontend).
 
@@ -165,7 +189,7 @@ function usePasskey() {
 ### B-PK-1 — إضافة display_name وenv vars
 
 - إضافة `WEBAUTHN_RP_ID` و `WEBAUTHN_ORIGIN` لـ `.env.example` و startup validation.
-- قيم افتراضية: `RP_ID=nassaj-dev.alkindy.tech`، `ORIGIN=https://nassaj-dev.alkindy.tech`.
+- قيم افتراضية: `RP_ID=nassaj.alkindy.tech`، `ORIGIN=https://nassaj.alkindy.tech` (القيم الحيّة في `ecosystem.config.cjs`؛ تقاعد `nassaj-dev.alkindy.tech` 2026-06-15).
 
 ### B-PK-2 — تعديل authenticateToken middleware
 

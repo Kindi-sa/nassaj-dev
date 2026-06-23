@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
+
 import type { Project, ProjectSession } from '../../../types/app';
 import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
@@ -18,6 +19,15 @@ type UseShellConnectionOptions = {
   selectedSessionRef: MutableRefObject<ProjectSession | null | undefined>;
   initialCommandRef: MutableRefObject<string | null | undefined>;
   isPlainShellRef: MutableRefObject<boolean>;
+  /**
+   * Optional explicit provider for the PTY init message. When set (e.g. 'agy'),
+   * it overrides the default provider resolution so a command-driven plain
+   * shell still declares its provider to the backend, which uses it to apply
+   * per-user credential isolation (resolveProviderEnv → isolated HOME). Without
+   * this, a plain-shell command would report provider 'plain-shell' and skip
+   * agy isolation entirely.
+   */
+  providerOverrideRef?: MutableRefObject<string | null | undefined>;
   onProcessCompleteRef: MutableRefObject<((exitCode: number) => void) | null | undefined>;
   isInitialized: boolean;
   autoConnect: boolean;
@@ -31,8 +41,8 @@ type UseShellConnectionResult = {
   isConnected: boolean;
   isConnecting: boolean;
   closeSocket: () => void;
-  connectToShell: () => void;
-  disconnectFromShell: () => void;
+  connectToShell: (options?: { forceRestart?: boolean }) => void;
+  disconnectFromShell: (options?: { suppressAutoConnect?: boolean }) => void;
 };
 
 export function useShellConnection({
@@ -43,6 +53,7 @@ export function useShellConnection({
   selectedSessionRef,
   initialCommandRef,
   isPlainShellRef,
+  providerOverrideRef,
   onProcessCompleteRef,
   isInitialized,
   autoConnect,
@@ -54,6 +65,8 @@ export function useShellConnection({
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const connectingRef = useRef(false);
+  const forceRestartOnInitRef = useRef(false);
+  const suppressAutoConnectRef = useRef(false);
 
   const handleProcessCompletion = useCallback(
     (output: string) => {
@@ -141,17 +154,30 @@ export function useShellConnection({
             }
 
             currentFitAddon.fit();
+            const forceRestart = forceRestartOnInitRef.current;
+            forceRestartOnInitRef.current = false;
 
             sendSocketMessage(socket, {
               type: 'init',
               projectPath: currentProject.fullPath || currentProject.path || '',
               sessionId: isPlainShellRef.current ? null : selectedSessionRef.current?.id || null,
               hasSession: isPlainShellRef.current ? false : Boolean(selectedSessionRef.current),
-              provider: isPlainShellRef.current ? 'plain-shell' : (selectedSessionRef.current?.__provider || localStorage.getItem('selected-provider') || 'claude'),
+              // An explicit override (e.g. 'agy') always wins, even for a
+              // command-driven plain shell: the backend needs the real provider
+              // to apply per-user credential isolation. Otherwise fall back to
+              // the legacy resolution (plain-shell, then session/localStorage).
+              provider:
+                providerOverrideRef?.current ||
+                (isPlainShellRef.current
+                  ? 'plain-shell'
+                  : selectedSessionRef.current?.__provider ||
+                    localStorage.getItem('selected-provider') ||
+                    'claude'),
               cols: currentTerminal.cols,
               rows: currentTerminal.rows,
               initialCommand: initialCommandRef.current,
               isPlainShell: isPlainShellRef.current,
+              forceRestart,
             });
           }, TERMINAL_INIT_DELAY_MS);
         };
@@ -177,6 +203,7 @@ export function useShellConnection({
         setIsConnected(false);
         setIsConnecting(false);
         connectingRef.current = false;
+        forceRestartOnInitRef.current = false;
       }
     },
     [
@@ -187,6 +214,7 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      providerOverrideRef,
       selectedProjectRef,
       selectedSessionRef,
       setAuthUrl,
@@ -195,27 +223,40 @@ export function useShellConnection({
     ],
   );
 
-  const connectToShell = useCallback(() => {
+  const connectToShell = useCallback((options?: { forceRestart?: boolean }) => {
     if (!isInitialized || isConnected || isConnecting || connectingRef.current) {
       return;
     }
 
+    forceRestartOnInitRef.current = Boolean(options?.forceRestart);
+    suppressAutoConnectRef.current = false;
     connectingRef.current = true;
     setIsConnecting(true);
     connectWebSocket(true);
   }, [connectWebSocket, isConnected, isConnecting, isInitialized]);
 
-  const disconnectFromShell = useCallback(() => {
+  const disconnectFromShell = useCallback((options?: { suppressAutoConnect?: boolean }) => {
+    if (options?.suppressAutoConnect) {
+      suppressAutoConnectRef.current = true;
+    }
+
     closeSocket();
     clearTerminalScreen();
     setIsConnected(false);
     setIsConnecting(false);
     connectingRef.current = false;
+    forceRestartOnInitRef.current = false;
     setAuthUrl('');
   }, [clearTerminalScreen, closeSocket, setAuthUrl]);
 
   useEffect(() => {
-    if (!autoConnect || !isInitialized || isConnecting || isConnected) {
+    if (
+      !autoConnect ||
+      suppressAutoConnectRef.current ||
+      !isInitialized ||
+      isConnecting ||
+      isConnected
+    ) {
       return;
     }
 

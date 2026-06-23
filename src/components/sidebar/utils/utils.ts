@@ -1,7 +1,64 @@
 import type { TFunction } from 'i18next';
 
 import type { Project } from '../../../types/app';
-import type { ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
+import type { ProjectMembershipFilter, ProjectSortOrder, SettingsProject, SessionViewModel, SessionWithProvider } from '../types/types';
+
+// View-only preference: "my projects" / "team" / "all". Stored under its own
+// key so it is safe on a shared browser (no identity, just a display filter).
+// Defaults to 'all' to preserve the pre-multi-user behaviour (every project
+// visible).
+const PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY = 'sidebarProjectMembershipFilter';
+
+export const readProjectMembershipFilter = (): ProjectMembershipFilter => {
+  try {
+    const storedFilter = localStorage.getItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY);
+    return storedFilter === 'mine' || storedFilter === 'team' ? storedFilter : 'all';
+  } catch {
+    return 'all';
+  }
+};
+
+export const writeProjectMembershipFilter = (filter: ProjectMembershipFilter): void => {
+  try {
+    localStorage.setItem(PROJECT_MEMBERSHIP_FILTER_STORAGE_KEY, filter);
+  } catch {
+    // Keep UI responsive even if storage is unavailable.
+  }
+};
+
+/**
+ * Applies the "My projects / Team / All" view filter. This is a view filter
+ * only — access is never restricted client-side; the server already excludes
+ * projects the user may not see.
+ *
+ * - `all`  : list untouched (legacy behaviour, default).
+ * - `mine` : projects owned by the current user (`isOwner`, stamped by the
+ *            server: creator or owner-role project member).
+ * - `team` : shared projects — owned by someone else, or ownerless legacy
+ *            projects the user participates in (`isMember`). Ownerless
+ *            projects without the user's participation appear under `all` only.
+ */
+export const filterProjectsByMembership = (
+  projects: Project[],
+  filter: ProjectMembershipFilter,
+): Project[] => {
+  if (filter === 'mine') {
+    return projects.filter((project) => project.isOwner === true);
+  }
+
+  if (filter === 'team') {
+    return projects.filter((project) => {
+      if (project.isOwner === true) {
+        return false;
+      }
+
+      const hasRegisteredOwner = typeof project.ownerId === 'number';
+      return hasRegisteredOwner || project.isMember === true;
+    });
+  }
+
+  return projects;
+};
 
 export const readProjectSortOrder = (): ProjectSortOrder => {
   try {
@@ -63,6 +120,15 @@ const getUpdatedTimestamp = (session: SessionWithProvider): string => {
 
 export const getSessionDate = (session: SessionWithProvider): Date => {
   return new Date(getUpdatedTimestamp(session) || getCreatedTimestamp(session) || 0);
+};
+
+/**
+ * Creation date used for sidebar session ordering (newest-created first).
+ * Falls back to last activity only for legacy rows that carry no creation
+ * timestamp, mirroring the server-side COALESCE(created_at, updated_at).
+ */
+export const getSessionCreationDate = (session: SessionWithProvider): Date => {
+  return new Date(getCreatedTimestamp(session) || getUpdatedTimestamp(session) || 0);
 };
 
 export const getSessionName = (session: SessionWithProvider, t: TFunction): string => {
@@ -131,9 +197,17 @@ export const getAllSessions = (project: Project): SessionWithProvider[] => {
     ...geminiSessions,
     ...antigravitySessions,
     ...opencodeSessions,
-  ].sort(
-    (a, b) => getSessionDate(b).getTime() - getSessionDate(a).getTime(),
-  );
+  ].sort((a, b) => {
+    // Starred (per-user favourite) sessions float to the top within the
+    // project; among equal star state, newest-created first (NOT last
+    // activity, so a session keeps its position while it is being worked on).
+    const aStarred = Boolean(a.starred);
+    const bStarred = Boolean(b.starred);
+    if (aStarred !== bStarred) {
+      return aStarred ? -1 : 1;
+    }
+    return getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime();
+  });
 };
 
 export const getProjectLastActivity = (project: Project): Date => {
@@ -177,18 +251,70 @@ export const sortProjects = (
   return byName;
 };
 
+/**
+ * Normalises an Arabic/Latin string for case-insensitive search:
+ * lower-cases Latin characters and strips Arabic diacritics (tashkeel)
+ * so that "محادثة" matches "مُحَادَثَة" etc.
+ */
+const normalizeForSearch = (value: string): string =>
+  value
+    .toLowerCase()
+    // Strip Arabic diacritics (U+064B–U+065F range covers all tashkeel marks).
+    .replace(/[ً-ٟ]/g, '');
+
+/**
+ * Returns the set of session IDs (across all providers) whose title/summary
+ * matches the search query for the given project.  Used by the sidebar
+ * controller to auto-expand projects that have session-level matches and
+ * (optionally) to highlight individual rows.
+ */
+export const getMatchedSessionIds = (project: Project, normalizedSearch: string): Set<string> => {
+  if (!normalizedSearch) {
+    return new Set();
+  }
+
+  const matched = new Set<string>();
+  const sessions = getAllSessions(project);
+
+  for (const session of sessions) {
+    const title = normalizeForSearch(
+      (typeof session.summary === 'string' && session.summary.trim().length > 0
+        ? session.summary
+        : typeof session.name === 'string' && session.name.trim().length > 0
+          ? session.name
+          : typeof session.title === 'string' && session.title.trim().length > 0
+            ? session.title
+            : '') || session.id,
+    );
+
+    if (title.includes(normalizedSearch)) {
+      matched.add(session.id);
+    }
+  }
+
+  return matched;
+};
+
 export const filterProjects = (projects: Project[], searchFilter: string): Project[] => {
-  const normalizedSearch = searchFilter.trim().toLowerCase();
+  const normalizedSearch = normalizeForSearch(searchFilter.trim());
   if (!normalizedSearch) {
     return projects;
   }
 
   return projects.filter((project) => {
-    const displayName = (project.displayName || project.projectId).toLowerCase();
+    const displayName = normalizeForSearch(project.displayName || project.projectId);
     // `project.path`/`fullPath` is the most useful search target now that the
     // folder-derived name is gone; fall back to displayName above.
-    const searchPath = (project.path || project.fullPath || '').toLowerCase();
-    return displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch);
+    const searchPath = normalizeForSearch(project.path || project.fullPath || '');
+
+    // Project name/path match — keep the project regardless of sessions.
+    if (displayName.includes(normalizedSearch) || searchPath.includes(normalizedSearch)) {
+      return true;
+    }
+
+    // Session-level match — keep the project so the matched sessions are
+    // reachable; the controller auto-expands these projects.
+    return getMatchedSessionIds(project, normalizedSearch).size > 0;
   });
 };
 

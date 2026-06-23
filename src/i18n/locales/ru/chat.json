@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Создано вне интерфейса"
+  },
   "tools": {
     "settings": "Настройки инструмента",
     "error": "Ошибка инструмента",
@@ -130,49 +133,57 @@
     "send": "Отправить",
     "stop": "Остановить",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter для отправки • Shift+Enter для новой строки • Tab для смены режима • / для команд",
-      "enter": "Enter для отправки • Shift+Enter для новой строки • Tab для смены режима • / для команд"
+      "ctrlEnter": "Ctrl+Enter для отправки • Shift+Enter для новой строки",
+      "enter": "Enter для отправки • Shift+Enter для новой строки"
     },
     "clickToChangeMode": "Нажмите для смены режима разрешений (или нажмите Tab в поле ввода)",
     "showAllCommands": "Показать все команды",
     "clearInput": "Очистить ввод",
     "scrollToBottom": "Прокрутить вниз"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Режим размышления",
-      "description": "Расширенное размышление дает Claude больше времени для оценки альтернатив",
+      "title": "Уровень усилий",
+      "description": "Управляет объёмом вычислений, которые Claude выделяет на ваш запрос",
       "active": "Активен",
-      "tip": "Более высокие режимы размышления занимают больше времени, но обеспечивают более тщательный анализ"
+      "tip": "ultracode активирует максимальную глубину с форматированием мультиагентов"
     },
     "modes": {
       "none": {
-        "name": "Стандартный",
-        "description": "Обычный ответ Claude",
-        "prefix": ""
+        "name": "Стандарт",
+        "description": "Без параметра effort — стандартное поведение Claude"
       },
-      "think": {
-        "name": "Думать",
-        "description": "Базовое расширенное размышление",
-        "prefix": "думать"
+      "auto": {
+        "name": "auto",
+        "description": "Модель автоматически выбирает усилия в зависимости от сложности"
       },
-      "thinkHard": {
-        "name": "Думать усердно",
-        "description": "Более тщательная оценка",
-        "prefix": "думать усердно"
+      "low": {
+        "name": "low",
+        "description": "Быстрые лёгкие ответы — лучше всего для простых вопросов"
       },
-      "thinkHarder": {
-        "name": "Думать еще усерднее",
-        "description": "Глубокий анализ с альтернативами",
-        "prefix": "думать еще усерднее"
+      "medium": {
+        "name": "medium",
+        "description": "Баланс между глубиной и скоростью"
       },
-      "ultrathink": {
-        "name": "Ультра-размышление",
-        "description": "Максимальный бюджет размышления",
-        "prefix": "ультра-размышление"
+      "high": {
+        "name": "high",
+        "description": "Более глубокое рассуждение для сложных задач"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Очень высокие усилия для требовательных задач"
+      },
+      "max": {
+        "name": "max",
+        "description": "Максимальные усилия — полный вычислительный бюджет"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Максимальная глубина с форматированием мультиагентов — для крупных кодовых баз"
       }
     },
-    "buttonTitle": "Режим размышления: {{mode}}"
+    "buttonTitle": "Усилие: {{mode}}",
+    "ultracodeActive": "Режим Ultracode активен"
   },
   "providerSelection": {
     "title": "Выберите вашего AI-ассистента",
@@ -264,12 +275,21 @@
     },
     "providers": {
       "assistant": "Ассистент"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "Выберите проект для начала чата с {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Начать следующую задачу"
+  },
+  "participants": {
+    "hide": "Скрыть панель участников",
+    "show": "Показать панель участников"
+  },
+  "refreshChat": {
+    "button": "Обновить чат",
+    "refreshing": "Обновление…"
   }
 }

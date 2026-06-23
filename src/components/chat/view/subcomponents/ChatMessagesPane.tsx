@@ -1,7 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import { Fragment, useCallback, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
+import { useSessionParticipants } from '../../../participants';
+import type { SessionParticipant } from '../../../participants/types';
 import type { ChatMessage } from '../../types/types';
 import type {
   Project,
@@ -9,6 +11,7 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from '../../../../types/app';
+import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
 import { getIntrinsicMessageKey } from '../../utils/messageKeys';
 
 import MessageComponent from './MessageComponent';
@@ -48,6 +51,10 @@ interface ChatMessagesPaneProps {
   setOpenCodeModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
+  providerModelsRefreshing: boolean;
+  providerAuthStatus: ProviderAuthStatusMap;
+  onHardRefreshProviderModels: () => void;
+  onRefreshAuthStatus: () => Promise<void>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -72,6 +79,7 @@ interface ChatMessagesPaneProps {
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolCalls?: boolean;
   selectedProject: Project;
 }
 
@@ -101,6 +109,10 @@ export default function ChatMessagesPane({
   setOpenCodeModel,
   providerModelCatalog,
   providerModelsLoading,
+  providerModelsRefreshing,
+  providerAuthStatus,
+  onHardRefreshProviderModels,
+  onRefreshAuthStatus,
   tasksEnabled,
   isTaskMasterInstalled,
   onShowAllTasks,
@@ -125,9 +137,24 @@ export default function ChatMessagesPane({
   autoExpandTools,
   showRawParameters,
   showThinking,
+  hideToolCalls,
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
+
+  // Roster of humans seen in this session, used to resolve a message's
+  // `userId` author stamp to a username/avatar/colour so mirrors render the
+  // real sender instead of the viewing user (B-MU-UX-FIX-MSG-AUTHOR). Keyed by
+  // String(userId) to tolerate the backend's loose id typing.
+  const { participants } = useSessionParticipants(currentSessionId ?? selectedSession?.id ?? null);
+  const participantsById = useMemo(() => {
+    const byId = new Map<string, SessionParticipant>();
+    for (const participant of participants) {
+      byId.set(String(participant.userId), participant);
+    }
+    return byId;
+  }, [participants]);
+
   const messageKeyMapRef = useRef<WeakMap<ChatMessage, string>>(new WeakMap());
   const allocatedKeysRef = useRef<Set<string>>(new Set());
   const generatedMessageKeyCounterRef = useRef(0);
@@ -191,6 +218,10 @@ export default function ChatMessagesPane({
           setOpenCodeModel={setOpenCodeModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
+          providerModelsRefreshing={providerModelsRefreshing}
+          providerAuthStatus={providerAuthStatus}
+          onHardRefreshProviderModels={onHardRefreshProviderModels}
+          onRefreshAuthStatus={onRefreshAuthStatus}
           tasksEnabled={tasksEnabled}
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
@@ -288,7 +319,10 @@ export default function ChatMessagesPane({
                   autoExpandTools={autoExpandTools}
                   showRawParameters={showRawParameters}
                   showThinking={showThinking}
+                  hideToolCalls={hideToolCalls}
                   selectedProject={selectedProject}
+                  owner={selectedSession?.owner ?? null}
+                  participantsById={participantsById}
                   provider={displayProvider}
                 />
               </Fragment>

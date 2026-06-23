@@ -7,6 +7,12 @@ import type { NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage, SubagentChildTool } from '../types/types';
 import { decodeHtmlEntities, unescapeWithMathProtection, formatUsageLimitText } from '../utils/chatFormatting';
 
+function formatToolResultContent(content: unknown): string {
+  const text = typeof content === 'string' ? content : JSON.stringify(content);
+  const toolUseErrorMatch = /^<tool_use_error>([\s\S]*)<\/tool_use_error>$/.exec(text.trim());
+  return toolUseErrorMatch ? toolUseErrorMatch[1] : text;
+}
+
 /**
  * Convert NormalizedMessage[] from the session store into ChatMessage[]
  * that the existing UI components expect.
@@ -20,10 +26,55 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
   // First pass: collect tool results for attachment
   const toolResultMap = new Map<string, NormalizedMessage>();
+  const toolUseIds = new Set<string>();
   for (const msg of messages) {
+    if (msg.kind === 'tool_use' && msg.toolId) {
+      toolUseIds.add(msg.toolId);
+    }
+
     if (msg.kind === 'tool_result' && msg.toolId) {
       toolResultMap.set(msg.toolId, msg);
     }
+  }
+
+  // Pre-pass (B-63 live counter): fold *live* sub-agent tool rows into their
+  // container. The SDK streams a sub-agent's tool_use/tool_result blocks during
+  // a delegation run (no flag needed — "enough for a heartbeat counter", see
+  // @anthropic-ai/claude-agent-sdk sdk.d.ts ~L1525), each stamped with
+  // `parent_tool_use_id` = the id of the parent `Task`/`Agent` tool_use block.
+  // The server (claude-sdk.js transformMessage → parentToolUseId, copied onto
+  // every normalized row) forwards it; the client appends it verbatim. That id
+  // equals the container row's `toolId`, which the live normalizer derives from
+  // the same tool_use block id (`part.id`, claude-sessions.provider.ts ~L567).
+  //
+  // Without this, each live child arrives as an independent top-level tool_use
+  // row, renders orphaned, and is never seen by useRunProgress (which only
+  // descends into `subagentState.childTools`). Here we group those children by
+  // their parent id into the same SubagentChildTool shape the history path
+  // builds, so the container branch below can merge them and useRunProgress can
+  // count the sub-agent's TodoWrite live. The map is order-independent: a child
+  // that arrives before its container is still attached when the container is
+  // converted, because both passes run over the full `messages` array.
+  const liveChildMap = new Map<string, SubagentChildTool[]>();
+  for (const msg of messages) {
+    if (msg.kind !== 'tool_use' || !msg.parentToolUseId || !msg.toolId) continue;
+    const tr = msg.toolResult || toolResultMap.get(msg.toolId) || null;
+    const child: SubagentChildTool = {
+      toolId: msg.toolId,
+      toolName: msg.toolName || '',
+      toolInput: msg.toolInput,
+      toolResult: tr
+        ? {
+            content: formatToolResultContent(tr.content),
+            isError: Boolean(tr.isError),
+            toolUseResult: (tr as any).toolUseResult,
+          }
+        : null,
+      timestamp: new Date(msg.timestamp || Date.now()),
+    };
+    const bucket = liveChildMap.get(msg.parentToolUseId);
+    if (bucket) bucket.push(child);
+    else liveChildMap.set(msg.parentToolUseId, [child]);
   }
 
   for (const msg of messages) {
@@ -35,6 +86,17 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
+      // Per-message coordinator attribution (server commit 9c61b60). Carried on
+      // every converted row via the shared spread; only assistant rows ever
+      // hold a value (user rows use `userId`), and MessageComponent resolves it
+      // against the participant roster, falling back to the session owner when
+      // null/absent.
+      coordinatorId: msg.coordinatorId,
+      // Machine-origin discriminator (server commit 91b8b39). Present only on
+      // kind:'text' role:'user' rows that were written programmatically (no
+      // userId). MessageComponent uses this to render coordinator-to-subagent
+      // prompts distinctly from human input.
+      originKind: msg.originKind,
     };
 
     switch (msg.kind) {
@@ -60,6 +122,9 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               type: 'user',
               content: unescapeWithMathProtection(decodeHtmlEntities(content)),
               timestamp: msg.timestamp,
+              // Real author (users.id). Absent = unknown author; the renderer
+              // must not attribute the message to the viewing user.
+              userId: msg.userId,
               ...sharedMetadata,
             });
           }
@@ -78,11 +143,29 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       }
 
       case 'tool_use': {
-        const tr = msg.toolResult || (msg.toolId ? toolResultMap.get(msg.toolId) : null);
-        const isSubagentContainer = msg.toolName === 'Task';
+        // Live sub-agent child tool (carries parentToolUseId): already folded
+        // into its container's childTools in the pre-pass. Do NOT also emit it as
+        // a flat top-level row, or it renders orphaned and double-counts (B-63).
+        if (msg.parentToolUseId) {
+          break;
+        }
 
-        // Build child tools from subagentTools
+        const tr = msg.toolResult || (msg.toolId ? toolResultMap.get(msg.toolId) : null);
+        // Sub-agent container: the coordinator delegating a run. Two tool names
+        // delegate in this codebase — Claude's native `Task` and the agy /
+        // Antigravity `Agent` tool (the only one actually used in nassaj runs,
+        // 2114 uses vs 0 for `Task`). Both attach their child tools via
+        // `subagentTools` on the result, so both must be recognised or the live
+        // active-agent chip and the history child-tool descent in useRunProgress
+        // never fire for real nassaj delegation runs (B-63).
+        const isSubagentContainer = msg.toolName === 'Task' || msg.toolName === 'Agent';
+
+        // Build child tools from subagentTools (history aggregate) and merge the
+        // live children folded in the pre-pass (B-63). Dedup by toolId — the same
+        // tool can appear in both once a run finishes and its children are also
+        // aggregated onto the container — keeping the history copy as canonical.
         const childTools: SubagentChildTool[] = [];
+        const seenChildIds = new Set<string>();
         if (isSubagentContainer && msg.subagentTools && Array.isArray(msg.subagentTools)) {
           for (const tool of msg.subagentTools as any[]) {
             childTools.push({
@@ -92,12 +175,23 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               toolResult: tool.toolResult || null,
               timestamp: new Date(tool.timestamp || Date.now()),
             });
+            if (tool.toolId) seenChildIds.add(tool.toolId);
+          }
+        }
+        if (isSubagentContainer && msg.toolId) {
+          const liveChildren = liveChildMap.get(msg.toolId);
+          if (liveChildren) {
+            for (const child of liveChildren) {
+              if (child.toolId && seenChildIds.has(child.toolId)) continue;
+              childTools.push(child);
+              if (child.toolId) seenChildIds.add(child.toolId);
+            }
           }
         }
 
         const toolResult = tr
           ? {
-              content: typeof tr.content === 'string' ? tr.content : JSON.stringify(tr.content),
+              content: formatToolResultContent(tr.content),
               isError: Boolean(tr.isError),
               toolUseResult: (tr as any).toolUseResult,
             }
@@ -196,8 +290,37 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         break;
 
       // tool_result is handled via attachment to tool_use above
-      case 'tool_result':
+      case 'tool_result': {
+        if (msg.toolId && toolUseIds.has(msg.toolId)) {
+          break;
+        }
+
+        const content = formatToolResultContent(msg.content || '');
+        if (!content.trim()) {
+          break;
+        }
+
+        // Orphaned result: its tool_use fell outside the loaded window (page
+        // cut, realtime cap, or mid-run reattach). Render it as a collapsed
+        // generic tool block — never as plain assistant prose, which dumps
+        // raw line-numbered file content into the transcript.
+        converted.push({
+          type: 'assistant',
+          content: '',
+          timestamp: msg.timestamp,
+          isToolUse: true,
+          toolName: 'ToolResult',
+          toolInput: '',
+          toolId: msg.toolId,
+          toolResult: {
+            content,
+            isError: Boolean(msg.isError),
+            toolUseResult: (msg as any).toolUseResult,
+          },
+          ...sharedMetadata,
+        });
         break;
+      }
 
       default:
         break;

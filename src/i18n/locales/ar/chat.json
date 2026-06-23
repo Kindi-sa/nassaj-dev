@@ -33,11 +33,31 @@
     "cursor": "Cursor",
     "codex": "Codex",
     "gemini": "Gemini",
-    "antigravity": "Antigravity"
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode"
   },
   "subagent": {
     "badge": "وكيل فرعي",
+    "shortBadge": "وكيل",
     "badgeLabel": "مهمة وكيل فرعي"
+  },
+  "coordinator": {
+    "label": "منسّق",
+    "withName": "منسّق {{username}}"
+  },
+  "userAuthor": {
+    "withName": "المستخدم: {{username}}"
+  },
+  "externalOrigin": {
+    "label": "أُنشئت خارج الواجهة"
+  },
+  "coordinatorPrompt": {
+    "label": "موجّه المنسّق ← وكيل فرعي",
+    "ariaLabel": "موجّه المنسّق إلى وكيل فرعي"
+  },
+  "systemMessage": {
+    "label": "رسالة نظام",
+    "ariaLabel": "رسالة آلية من النظام"
   },
   "sessionNotResumable": {
     "message": "تعذّر استئناف هذه الجلسة — لم تعد موجودة لدى المزوّد.",
@@ -153,49 +173,57 @@
     "send": "إرسال",
     "stop": "إيقاف",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash",
-      "enter": "Enter للإرسال • Shift+Enter لسطر جديد • Tab لتغيير الأوضاع • / لأوامر slash"
+      "ctrlEnter": "Ctrl+Enter للإرسال • Shift+Enter لسطر جديد",
+      "enter": "Enter للإرسال • Shift+Enter لسطر جديد"
     },
     "clickToChangeMode": "اضغط لتغيير وضع الأذونات (أو اضغط Tab في الإدخال)",
     "showAllCommands": "عرض كل الأوامر",
     "clearInput": "مسح الإدخال",
     "scrollToBottom": "التمرير إلى الأسفل"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "وضع التفكير",
-      "description": "التفكير الممتد يمنح Claude وقتاً إضافياً لتقييم البدائل",
+      "title": "مستوى الجهد",
+      "description": "يتحكم في مقدار الحوسبة التي يخصصها Claude لطلبك",
       "active": "نشط",
-      "tip": "أوضاع التفكير الأعلى تستغرق وقتاً أكثر لكنها توفّر تحليلاً أعمق"
+      "tip": "ultracode يُفعّل أقصى عمق مع تنسيق متعدد الوكلاء — ultracode وmax يُضيفان إشارات لونية"
     },
     "modes": {
       "none": {
         "name": "قياسي",
-        "description": "استجابة Claude العادية",
-        "prefix": ""
+        "description": "بلا معامل effort — السلوك الافتراضي"
       },
-      "think": {
-        "name": "تفكير",
-        "description": "تفكير ممتد أساسي",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "النموذج يختار الجهد بحسب تعقيد الطلب"
       },
-      "thinkHard": {
-        "name": "تفكير عميق",
-        "description": "تقييم أعمق",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "سريع وخفيف — للأسئلة البسيطة"
       },
-      "thinkHarder": {
-        "name": "تفكير أعمق",
-        "description": "تحليل عميق مع البدائل",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "توازن بين العمق والسرعة"
       },
-      "ultrathink": {
-        "name": "تفكير أقصى",
-        "description": "أقصى ميزانية تفكير",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "تفكير أعمق للمهام المعقدة"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "جهد عالٍ جداً للمشكلات الصعبة"
+      },
+      "max": {
+        "name": "max",
+        "description": "أقصى جهد — ميزانية حوسبة كاملة"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "أقصى عمق + تنسيق متعدد الوكلاء"
       }
     },
-    "buttonTitle": "وضع التفكير: {{mode}}"
+    "buttonTitle": "الجهد: {{mode}}",
+    "ultracodeActive": "مستوى الجهد: Ultracode نشط"
   },
   "providerSelection": {
     "title": "اختر مساعدك الذكي",
@@ -213,6 +241,7 @@
       "codex": "جاهز لاستخدام Codex مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "gemini": "جاهز لاستخدام Gemini مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
+      "opencode": "جاهز لاستخدام OpenCode مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "default": "اختر provider أعلاه للبدء"
     },
     "antigravity": {
@@ -221,7 +250,13 @@
       "loading": "جارٍ التحميل…",
       "unknown": "غير معروف"
     },
-    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits"
+    "pressToSearch": "اضغط <kbd>{{shortcut}}</kbd> للبحث في الجلسات والملفات والـ commits",
+    "refresh": {
+      "button": "تحديث النماذج وحالة المصادقة",
+      "refreshing": "جارٍ التحديث…"
+    },
+    "providerUnavailable": "المزوّد غير متاح",
+    "signIn": "تسجيل الدخول"
   },
   "session": {
     "continue": {
@@ -257,7 +292,7 @@
       "disconnect": "قطع الاتصال",
       "disconnectTitle": "قطع الاتصال من shell",
       "restart": "إعادة تشغيل",
-      "restartTitle": "إعادة تشغيل Shell (افصل الاتصال أولاً)",
+      "restartTitle": "إعادة تشغيل Shell",
       "connect": "المتابعة في Shell",
       "connectTitle": "الاتصال بـ shell"
     },
@@ -294,7 +329,35 @@
     },
     "providers": {
       "assistant": "المساعد"
-    }
+    },
+    "frozen": "متوقفة مؤقتاً (العملية مجمّدة)"
+  },
+  "runProgress": {
+    "tasksLabel": "مهام",
+    "barAria": "تقدّم المهام",
+    "tasksTooltip": "المهام: أُنجز {{done}} من {{total}}",
+    "inProgressTooltip_one": "مهمة واحدة قيد التنفيذ",
+    "inProgressTooltip_two": "مهمتان قيد التنفيذ",
+    "inProgressTooltip_few": "{{count}} مهام قيد التنفيذ",
+    "inProgressTooltip_many": "{{count}} مهمةً قيد التنفيذ",
+    "inProgressTooltip_other": "{{count}} مهمة قيد التنفيذ",
+    "agentsTooltip": "الوكلاء الفرعيون: {{done}}/{{total}}",
+    "agentWorking": "وكيل · {{calls}}",
+    "agentWorkingTooltip": "وكيل فرعي يعمل: {{calls}} استدعاء",
+    "estimateRemaining": "≈ {{time}} متبقّي",
+    "estimating": "يُقدّر…",
+    "estimateTooltip": "تقدير تقريبي — مبني على المهام المكتملة حتى الآن."
+  },
+  "agentActivity": {
+    "title": "نشاط الوكلاء",
+    "summary": "{{running}}/{{total}} يعمل",
+    "running": "يعمل",
+    "done": "انتهى",
+    "currently": "الآن",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} استدعاء أداة",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "سجلّ الأدوات قريباً."
   },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
@@ -303,6 +366,8 @@
     "nextTaskPrompt": "ابدأ المهمة التالية"
   },
   "participants": {
+    "hide": "إخفاء شريط المشاركين",
+    "show": "إظهار شريط المشاركين",
     "lastSeen": "آخر ظهور",
     "invocations_one": "استدعاء واحد",
     "invocations_two": "استدعاءان",
@@ -315,6 +380,8 @@
     "usersAria_many": "{{count}} مشاركاً",
     "usersAria_other": "{{count}} مشارك",
     "barAria": "مشاركو المحادثة",
+    "openSessionsNow": "المحادثات النشطة",
+    "openSessionsNowCount": "{{count}} محادثة نشطة",
     "andMore_one": "وآخر",
     "andMore_two": "وآخران",
     "andMore_few": "و{{count}} آخرين",
@@ -329,6 +396,39 @@
     "agentKinds": {
       "model": "النموذج الأساسي",
       "subagent": "وكيل فرعي"
-    }
+    },
+    "agentSummary_one": "وكيل واحد",
+    "agentSummary_two": "وكيلان",
+    "agentSummary_few": "{{count}} وكلاء",
+    "agentSummary_many": "{{count}} وكيلاً",
+    "agentSummary_other": "{{count}} وكيل",
+    "totalInvocations_one": "استدعاء واحد",
+    "totalInvocations_two": "استدعاءان",
+    "totalInvocations_few": "{{count}} استدعاءات",
+    "totalInvocations_many": "{{count}} استدعاءً",
+    "totalInvocations_other": "{{count}} استدعاء",
+    "agentSummaryAria": "{{agents}} وكيل متمايز · {{calls}} استدعاء إجمالي",
+    "unknownAuthor": "مؤلف غير معروف"
+  },
+  "ws": {
+    "statusConnected": "متصل",
+    "statusReconnecting": "جارٍ إعادة الاتصال…",
+    "statusDisconnected": "منقطع",
+    "ariaConnected": "WebSocket متصل",
+    "ariaReconnecting": "WebSocket يعيد الاتصال",
+    "ariaDisconnected": "WebSocket منقطع",
+    "sendFailed": "لم تُرسل الرسالة — الاتصال منقطع",
+    "sendDisabledTitle": "تعذّر الإرسال — الاتصال منقطع"
+  },
+  "serverError": {
+    "project_dir_missing": "مجلد المشروع غير موجود على القرص",
+    "cli_not_installed": "الـ CLI غير مثبَّت — يرجى تثبيت أداة CLI المطلوبة",
+    "spawn_failed": "فشل تشغيل العملية — راجع سجلات الخادم للتفاصيل",
+    "session_create_failed": "تعذّر بدء جلسة جديدة — يرجى المحاولة مجدداً",
+    "unknown": "حدث خطأ غير متوقع في الخادم"
+  },
+  "refreshChat": {
+    "button": "تحديث المحادثة",
+    "refreshing": "جارٍ التحديث…"
   }
 }

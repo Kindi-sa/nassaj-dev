@@ -22,7 +22,23 @@
     "shell": "Shell",
     "files": "Files",
     "git": "Source Control",
-    "tasks": "Tasks"
+    "tasks": "Tasks",
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wiki Index",
+    "closeSidebar": "Hide index",
+    "openSidebar": "Show index",
+    "pageNotFound": "Page not found",
+    "searchPlaceholder": "Search wiki…",
+    "searchAriaLabel": "Search wiki pages",
+    "searchClear": "Clear search",
+    "searchNoResults": "No results",
+    "searchResultsCount": "{{count}} result(s)",
+    "searchResultsAriaLabel": "Search results"
   },
   "status": {
     "loading": "Loading...",
@@ -66,7 +82,9 @@
     "version": "Version",
     "select": "Select",
     "selectAll": "Select All",
-    "deselectAll": "Deselect All"
+    "deselectAll": "Deselect All",
+    "done": "Done",
+    "failed": "Failed"
   },
   "time": {
     "justNow": "Just now",
@@ -93,7 +111,9 @@
     "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
-    "projectFiles": "Project Files"
+    "projectFiles": "Project Files",
+    "sessionIdTooltip": "Session ID: {{id}} — click to copy",
+    "sessionIdCopy": "Copy session ID {{id}}"
   },
   "fileTree": {
     "loading": "Loading files...",
@@ -119,6 +139,11 @@
     "newFolder": "New Folder (Cmd+Shift+N)",
     "refresh": "Refresh",
     "collapseAll": "Collapse All",
+    "uploadFiles": "Upload files (max {{size}} each)",
+    "uploadingFiles": "Uploading files",
+    "uploadComplete": "Upload complete",
+    "uploadFailed": "Upload failed",
+    "uploadedCount": "Uploaded {{uploaded}} of {{total}} {{label}}",
     "context": {
       "rename": "Rename",
       "delete": "Delete",
@@ -172,7 +197,27 @@
       "publicRepoInfo": "Public repositories don't require authentication. You can skip providing a token if cloning a public repo.",
       "noTokensHelp": "No stored tokens available. You can add tokens in Settings → API Keys for easier reuse.",
       "optionalTokenPublic": "GitHub Token (Optional for Public Repos)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leave empty for public repos)",
+      "repos": {
+        "fromMyRepos": "Choose from my repositories",
+        "pasteUrl": "Paste URL",
+        "sourceToggleLabel": "GitHub source",
+        "help": "Pick a repository from your GitHub account to clone",
+        "ariaLabel": "Select a GitHub repository",
+        "placeholder": "Select a repository...",
+        "searchPlaceholder": "Search repositories...",
+        "searchAriaLabel": "Search your GitHub repositories",
+        "private": "Private",
+        "loading": "Loading your repositories...",
+        "empty": "No repositories found for this token.",
+        "noMatch": "No repositories match your search.",
+        "loadError": "Failed to load repositories. Please try again.",
+        "invalidToken": "GitHub rejected this token. It may be revoked or missing the \"repo\" scope.",
+        "noToken": "No GitHub token configured for this account.",
+        "forbidden": "GitHub denied access. The token may lack the required scope or hit a rate limit.",
+        "retry": "Retry",
+        "manageTokens": "Manage tokens in Settings"
+      }
     },
     "step3": {
       "reviewConfig": "Review Your Configuration",
@@ -263,5 +308,21 @@
       "updateAvailable": "Update available",
       "closeSidebar": "Close sidebar"
     }
+  },
+  "sessionProcessState": {
+    "running": "Running",
+    "frozen": "Paused (frozen)",
+    "runningHint": "Session process is running",
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "A session in this project is processing right now",
+    "done": "Done",
+    "doneHint": "Session finished and has not been opened yet",
+    "projectDoneHint": "A session in this project finished and has not been opened yet"
+  },
+  "buildUpdate": {
+    "available": "A new build is available",
+    "reload": "Reload",
+    "ariaLabel": "New build update notification",
+    "dismiss": "Dismiss"
   }
 }

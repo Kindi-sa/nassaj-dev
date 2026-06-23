@@ -22,7 +22,23 @@
     "shell": "Terminal",
     "files": "Dateien",
     "git": "Quellcodeverwaltung",
-    "tasks": "Aufgaben"
+    "tasks": "Aufgaben",
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wiki-Index",
+    "closeSidebar": "Index ausblenden",
+    "openSidebar": "Index anzeigen",
+    "pageNotFound": "Seite nicht gefunden",
+    "searchPlaceholder": "Wiki durchsuchen…",
+    "searchAriaLabel": "Wiki-Seiten durchsuchen",
+    "searchClear": "Suche löschen",
+    "searchNoResults": "Keine Ergebnisse",
+    "searchResultsCount": "{{count}} Ergebnis(se)",
+    "searchResultsAriaLabel": "Suchergebnisse"
   },
   "status": {
     "loading": "Lädt...",
@@ -172,7 +188,27 @@
       "publicRepoInfo": "Öffentliche Repositories benötigen keine Authentifizierung. Du kannst das Token beim Klonen eines öffentlichen Repos weglassen.",
       "noTokensHelp": "Keine gespeicherten Token verfügbar. Du kannst Token unter Einstellungen → API-Schlüssel für einfachere Wiederverwendung hinzufügen.",
       "optionalTokenPublic": "GitHub-Token (Optional für öffentliche Repos)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leer lassen für öffentliche Repos)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (leer lassen für öffentliche Repos)",
+      "repos": {
+        "fromMyRepos": "Aus meinen Repositories wählen",
+        "pasteUrl": "URL einfügen",
+        "sourceToggleLabel": "GitHub-Quelle",
+        "help": "Wähle ein Repository aus deinem GitHub-Konto zum Klonen",
+        "ariaLabel": "GitHub-Repository auswählen",
+        "placeholder": "Repository auswählen...",
+        "searchPlaceholder": "Repositories durchsuchen...",
+        "searchAriaLabel": "Deine GitHub-Repositories durchsuchen",
+        "private": "Privat",
+        "loading": "Repositories werden geladen...",
+        "empty": "Keine Repositories für dieses Token gefunden.",
+        "noMatch": "Keine Repositories entsprechen deiner Suche.",
+        "loadError": "Repositories konnten nicht geladen werden. Bitte erneut versuchen.",
+        "invalidToken": "GitHub hat dieses Token abgelehnt. Es ist möglicherweise widerrufen oder hat keinen \"repo\"-Scope.",
+        "noToken": "Für dieses Konto ist kein GitHub-Token konfiguriert.",
+        "forbidden": "GitHub hat den Zugriff verweigert. Dem Token fehlt der Scope oder das Rate-Limit wurde erreicht.",
+        "retry": "Erneut versuchen",
+        "manageTokens": "Tokens in den Einstellungen verwalten"
+      }
     },
     "step3": {
       "reviewConfig": "Konfiguration überprüfen",
@@ -233,5 +269,15 @@
       "updateAvailable": "Update verfügbar",
       "closeSidebar": "Seitenleiste schließen"
     }
+  },
+  "sessionProcessState": {
+    "running": "Running",
+    "frozen": "Paused (frozen)",
+    "runningHint": "Session process is running",
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "Eine Sitzung in diesem Projekt wird gerade verarbeitet",
+    "done": "Fertig",
+    "doneHint": "Sitzung beendet und noch nicht geöffnet",
+    "projectDoneHint": "Eine Sitzung in diesem Projekt ist beendet und wurde noch nicht geöffnet"
   }
 }

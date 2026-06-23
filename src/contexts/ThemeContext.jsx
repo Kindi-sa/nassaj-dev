@@ -1,4 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import {
+  loadThemePresetState,
+  saveThemePresetState,
+  applyThemePreset,
+} from '../lib/theme-presets';
+import { onApplyServerPreference } from '../preferences/preferencesSync';
 
 const ThemeContext = createContext();
 
@@ -81,9 +87,46 @@ export const ThemeProvider = ({ children }) => {
     setIsDarkMode(prev => !prev);
   };
 
+  // Brand-tinted theme presets (see src/lib/theme-presets.ts). The preset is
+  // applied on top of light/dark mode and re-derived whenever either changes.
+  const [presetState, setPresetState] = useState(loadThemePresetState);
+
+  useEffect(() => {
+    applyThemePreset(presetState, isDarkMode);
+    saveThemePresetState(presetState);
+  }, [presetState, isDarkMode]);
+
+  // Reflect account-sourced values live when the sync layer hydrates them
+  // after sign-in (server is authoritative — no reload). The localStorage write
+  // has already happened; we only refresh React state so the UI updates.
+  useEffect(() => {
+    const offTheme = onApplyServerPreference('theme', (raw) => {
+      setIsDarkMode(raw === 'dark');
+    });
+    const offPreset = onApplyServerPreference('nassaj-theme-preset', () => {
+      setPresetState(loadThemePresetState());
+    });
+    return () => {
+      offTheme();
+      offPreset();
+    };
+  }, []);
+
+  const setThemePreset = (preset) => {
+    setPresetState(prev => ({ ...prev, preset }));
+  };
+
+  const setCustomThemeColors = (patch) => {
+    setPresetState(prev => ({ ...prev, custom: { ...prev.custom, ...patch } }));
+  };
+
   const value = {
     isDarkMode,
     toggleDarkMode,
+    themePreset: presetState.preset,
+    customThemeColors: presetState.custom,
+    setThemePreset,
+    setCustomThemeColors,
   };
 
   return (

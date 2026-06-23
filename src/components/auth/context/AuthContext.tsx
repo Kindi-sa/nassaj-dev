@@ -12,6 +12,7 @@ import type {
   OnboardingStatusPayload,
 } from '../types';
 import { parseJsonSafely, resolveApiErrorMessage } from '../utils';
+import { hydratePreferencesFromServer } from '../../../preferences/preferencesSync';
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -76,6 +77,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (caughtError) {
       console.error('Failed to hydrate user identity:', caughtError);
     }
+  }, []);
+
+  // Pull the account's synced UI preferences and apply them live (the account
+  // is authoritative — decision 2), or seed the account from this device on a
+  // first sign-in (decision 3). Never throws: a missing route / network error
+  // degrades silently to localStorage (the route only goes live after the
+  // server restart). Fire-and-forget; preferences must not gate sign-in.
+  const hydratePreferences = useCallback(() => {
+    void hydratePreferencesFromServer().catch((caughtError) => {
+      console.error('Failed to hydrate UI preferences:', caughtError);
+    });
   }, []);
 
   const checkOnboardingStatus = useCallback(async () => {
@@ -147,6 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setUser(userPayload.user);
       await checkOnboardingStatus();
+      hydratePreferences();
     } catch (caughtError) {
       console.error('[Auth] Auth status check failed:', caughtError);
       // Network error — do not clear the session, let the user retry.
@@ -154,7 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [checkOnboardingStatus, clearSession, token]);
+  }, [checkOnboardingStatus, clearSession, hydratePreferences, token]);
 
   useEffect(() => {
     if (IS_PLATFORM) {
@@ -189,6 +202,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setNeedsSetup(false);
         await hydrateUserIdentity();
         await checkOnboardingStatus();
+        hydratePreferences();
         return { success: true };
       } catch (caughtError) {
         console.error('Login error:', caughtError);
@@ -196,7 +210,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
       }
     },
-    [checkOnboardingStatus, hydrateUserIdentity, setSession],
+    [checkOnboardingStatus, hydratePreferences, hydrateUserIdentity, setSession],
+  );
+
+  // Passkey sign-in (C-PK-1). The WebAuthn ceremony itself (options +
+  // startAuthentication) lives in useWebAuthn; this only exchanges the
+  // assertion for a session, then mirrors `login` step for step so the
+  // mustChangePassword and onboarding gates engage identically.
+  const loginWithPasskey = useCallback<AuthContextValue['loginWithPasskey']>(
+    async (assertionResponse) => {
+      try {
+        setError(null);
+        const response = await api.auth.webauthn.loginVerify(assertionResponse);
+        const payload = await parseJsonSafely<AuthSessionPayload>(response);
+
+        if (!response.ok || !payload?.token || !payload.user) {
+          const message = resolveApiErrorMessage(payload, AUTH_ERROR_MESSAGES.loginFailed);
+          setError(message);
+          return { success: false, error: message };
+        }
+
+        // Same guard as `login`: prevent the token-change-driven useEffect from
+        // re-running checkAuthStatus against a half-settled session.
+        skipNextAuthCheck.current = true;
+        setSession(payload.user, payload.token);
+        setNeedsSetup(false);
+        await hydrateUserIdentity();
+        await checkOnboardingStatus();
+        hydratePreferences();
+        return { success: true };
+      } catch (caughtError) {
+        console.error('Passkey login error:', caughtError);
+        setError(AUTH_ERROR_MESSAGES.networkError);
+        return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
+      }
+    },
+    [checkOnboardingStatus, hydratePreferences, hydrateUserIdentity, setSession],
   );
 
   const register = useCallback<AuthContextValue['register']>(
@@ -216,6 +265,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
         await checkOnboardingStatus();
+        hydratePreferences();
         return { success: true };
       } catch (caughtError) {
         console.error('Registration error:', caughtError);
@@ -223,7 +273,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
       }
     },
-    [checkOnboardingStatus, setSession],
+    [checkOnboardingStatus, hydratePreferences, setSession],
   );
 
   const acceptInvite = useCallback<AuthContextValue['acceptInvite']>(
@@ -243,6 +293,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSession(payload.user, payload.token);
         setNeedsSetup(false);
         await checkOnboardingStatus();
+        hydratePreferences();
         return { success: true };
       } catch (caughtError) {
         console.error('Invite acceptance error:', caughtError);
@@ -250,7 +301,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { success: false, error: AUTH_ERROR_MESSAGES.networkError };
       }
     },
-    [checkOnboardingStatus, setSession],
+    [checkOnboardingStatus, hydratePreferences, setSession],
   );
 
   const changePassword = useCallback<AuthContextValue['changePassword']>(
@@ -335,6 +386,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       mustChangePassword,
       error,
       login,
+      loginWithPasskey,
       register,
       acceptInvite,
       changePassword,
@@ -352,6 +404,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       hasCompletedOnboarding,
       isLoading,
       login,
+      loginWithPasskey,
       logout,
       mustChangePassword,
       needsSetup,

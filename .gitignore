@@ -14,6 +14,7 @@ build/
 out/
 # Deploy rollback backups
 *.rollback-bak/
+dist-server.bak-*/
 
 # Environment variables
 .env
@@ -130,12 +131,14 @@ dev-debug.log
 *.sw?
 # OS specific
 
-# Task files
-tasks.json
-tasks/ 
+# Task files — ignore VS Code tasks.json at root/workspace level only,
+# NOT the i18n translation files under src/i18n/locales/
+/tasks.json
+tasks/
 
-# Translations
+# Translations — all per-locale tasks.json files must be committed
 !src/i18n/locales/en/tasks.json
+!src/i18n/locales/ar/tasks.json
 !src/i18n/locales/ja/tasks.json
 !src/i18n/locales/ru/tasks.json
 !src/i18n/locales/de/tasks.json

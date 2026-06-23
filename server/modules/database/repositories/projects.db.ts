@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
 import { getConnection } from '@/modules/database/connection.js';
-import type { CreateProjectPathResult, ProjectRepositoryRow } from '@/shared/types.js';
+import type { CreateProjectPathResult, ProjectRepositoryRow, ProjectVisibility } from '@/shared/types.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
 function normalizeProjectDisplayName(projectPath: string, customProjectName: string | null): string {
@@ -16,19 +16,31 @@ function normalizeProjectDisplayName(projectPath: string, customProjectName: str
 }
 
 export const projectsDb = {
-    createProjectPath(projectPath: string, customProjectName: string | null = null): CreateProjectPathResult {
+    /**
+     * Inserts (or reactivates an archived) project path. When `createdBy` is the
+     * id of the authenticated creator it is recorded on first insert so the
+     * private-project authorization layer (B-PRIV) can identify the owner.
+     * Pre-existing/reactivated rows keep their original created_by — a path that
+     * already exists is never re-attributed by this upsert.
+     */
+    createProjectPath(
+        projectPath: string,
+        customProjectName: string | null = null,
+        createdBy: number | null = null,
+    ): CreateProjectPathResult {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
         const normalizedProjectName = normalizeProjectDisplayName(normalizedProjectPath, customProjectName);
         const attemptedId = randomUUID();
+        const normalizedCreatedBy = Number.isInteger(createdBy) ? createdBy : null;
         const row = db.prepare(`
-        INSERT INTO projects (project_id, project_path, custom_project_name, isArchived)
-            VALUES (?, ?, ?, 0)
+        INSERT INTO projects (project_id, project_path, custom_project_name, isArchived, created_by)
+            VALUES (?, ?, ?, 0, ?)
             ON CONFLICT(project_path) DO UPDATE SET
             isArchived = 0
             WHERE projects.isArchived = 1
-            RETURNING project_id, project_path, custom_project_name, isStarred, isArchived
-        `).get(attemptedId, normalizedProjectPath, normalizedProjectName) as ProjectRepositoryRow | undefined;
+            RETURNING project_id, project_path, custom_project_name, isStarred, isArchived, visibility, created_by
+        `).get(attemptedId, normalizedProjectPath, normalizedProjectName, normalizedCreatedBy) as ProjectRepositoryRow | undefined;
 
         if (row) {
             return {
@@ -48,7 +60,7 @@ export const projectsDb = {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
         const row = db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, project_path, custom_project_name, isStarred, isArchived, visibility, created_by
             FROM projects
             WHERE project_path = ?
         `).get(normalizedProjectPath) as ProjectRepositoryRow | undefined;
@@ -59,7 +71,7 @@ export const projectsDb = {
     getProjectById(projectId: string): ProjectRepositoryRow | null {
         const db = getConnection();
         const row = db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, project_path, custom_project_name, isStarred, isArchived, visibility, created_by
             FROM projects
             WHERE project_id = ?
         `).get(projectId) as ProjectRepositoryRow | undefined;
@@ -89,7 +101,7 @@ export const projectsDb = {
     getProjectPaths(): ProjectRepositoryRow[] {
         const db = getConnection();
         return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, project_path, custom_project_name, isStarred, isArchived, visibility, created_by
             FROM projects
             WHERE isArchived = 0
         `).all() as ProjectRepositoryRow[];
@@ -102,7 +114,7 @@ export const projectsDb = {
     getArchivedProjectPaths(): ProjectRepositoryRow[] {
         const db = getConnection();
         return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+            SELECT project_id, project_path, custom_project_name, isStarred, isArchived, visibility, created_by
             FROM projects
             WHERE isArchived = 1
         `).all() as ProjectRepositoryRow[];
@@ -192,5 +204,133 @@ export const projectsDb = {
             DELETE FROM projects
             WHERE project_id = ?
         `).run(projectId);
+    },
+
+    /** Sets a project's visibility ('public' | 'private') by project id. */
+    setProjectVisibility(projectId: string, visibility: ProjectVisibility): void {
+        const db = getConnection();
+        db.prepare(`
+            UPDATE projects
+            SET visibility = ?
+            WHERE project_id = ?
+        `).run(visibility, projectId);
+    },
+
+    /** Reads a project's visibility by id, or null when the project is unknown. */
+    getProjectVisibility(projectId: string): ProjectVisibility | null {
+        const db = getConnection();
+        const row = db.prepare(`
+            SELECT visibility
+            FROM projects
+            WHERE project_id = ?
+        `).get(projectId) as { visibility: ProjectVisibility } | undefined;
+
+        return row?.visibility ?? null;
+    },
+
+    /** Sets a project's creator (created_by) by id. Used by orphan-recovery. */
+    setProjectCreatedBy(projectId: string, userId: number | null): void {
+        const db = getConnection();
+        db.prepare(`
+            UPDATE projects
+            SET created_by = ?
+            WHERE project_id = ?
+        `).run(Number.isInteger(userId) ? userId : null, projectId);
+    },
+
+    /**
+     * Project paths VISIBLE to the given user — the single source of truth for
+     * the private-project privacy guarantee (B-PRIV). A path is visible when the
+     * project is public, OR the user created it, OR the user is an explicit
+     * project_members row, OR the user is derived from session participation.
+     *
+     * Privacy is ABSOLUTE: there is intentionally NO platform-owner bypass here.
+     * The platform owner sees a private project only via one of the four
+     * membership routes above — never by role. Returned as a de-duplicated set of
+     * active (non-archived) project paths.
+     */
+    getVisibleProjectPaths(userId: number | null): string[] {
+        const db = getConnection();
+
+        // Unauthenticated / missing identity: only public projects are visible.
+        if (!Number.isInteger(userId)) {
+            const publicRows = db.prepare(`
+                SELECT project_path
+                FROM projects
+                WHERE isArchived = 0 AND visibility = 'public'
+            `).all() as Array<{ project_path: string }>;
+            return publicRows.map((row) => row.project_path);
+        }
+
+        const rows = db.prepare(`
+            SELECT DISTINCT p.project_path AS project_path
+            FROM projects p
+            WHERE p.isArchived = 0
+              AND (
+                p.visibility = 'public'
+                OR p.created_by = ?
+                OR EXISTS (
+                    SELECT 1 FROM project_members pm
+                    WHERE pm.project_id = p.project_id AND pm.user_id = ?
+                )
+                OR EXISTS (
+                    SELECT 1
+                    FROM session_participants sp
+                    JOIN sessions s ON s.session_id = sp.session_id
+                    WHERE sp.user_id = ?
+                      AND s.project_path = p.project_path
+                )
+              )
+        `).all(userId, userId, userId) as Array<{ project_path: string }>;
+
+        return rows.map((row) => row.project_path);
+    },
+
+    /**
+     * Whether a single project is visible to the user (B-PRIV guard primitive).
+     * Mirrors getVisibleProjectPaths but resolves one project by id without
+     * materializing the full visible set. Returns false for unknown projects so
+     * callers can answer 404 (existence is not disclosed). Archived state does
+     * NOT affect visibility here — archived private projects must stay protected
+     * for management/restore paths that operate on archived rows by id.
+     */
+    isProjectVisibleToUser(projectId: string, userId: number | null): boolean {
+        const db = getConnection();
+        const row = db.prepare(`
+            SELECT
+                p.project_id AS project_id,
+                p.visibility AS visibility,
+                p.created_by AS created_by,
+                EXISTS (
+                    SELECT 1 FROM project_members pm
+                    WHERE pm.project_id = p.project_id AND pm.user_id = ?
+                ) AS isMember,
+                EXISTS (
+                    SELECT 1
+                    FROM session_participants sp
+                    JOIN sessions s ON s.session_id = sp.session_id
+                    WHERE sp.user_id = ?
+                      AND s.project_path = p.project_path
+                ) AS isParticipant
+            FROM projects p
+            WHERE p.project_id = ?
+        `).get(
+            Number.isInteger(userId) ? userId : -1,
+            Number.isInteger(userId) ? userId : -1,
+            projectId,
+        ) as
+            | { visibility: ProjectVisibility; created_by: number | null; isMember: number; isParticipant: number }
+            | undefined;
+
+        if (!row) {
+            return false;
+        }
+        if (row.visibility === 'public') {
+            return true;
+        }
+        if (!Number.isInteger(userId)) {
+            return false;
+        }
+        return row.created_by === userId || row.isMember === 1 || row.isParticipant === 1;
     },
 };

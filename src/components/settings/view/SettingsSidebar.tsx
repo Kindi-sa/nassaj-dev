@@ -1,5 +1,6 @@
 import { Bell, Bot, GitBranch, Info, Key, ListChecks, Palette, Puzzle, User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import { useAuth } from '../../auth';

@@ -1,13 +1,37 @@
-import { LogIn, Terminal } from 'lucide-react';
+import { Link2, LogIn, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
 
+/**
+ * Per-user isolated credential link state (B-MU-ONBOARD / ADR-023), supplied
+ * for credential-isolating agents (claude, antigravity). When present, its
+ * onboarding affordances (Re-check, link banner + modal CTA, owner note) are
+ * merged into the single account card so connection state is shown exactly
+ * once per agent.
+ */
+export type UserCredentialLink = {
+  connected: boolean;
+  loading: boolean;
+  error: string | null;
+  /** Owner is symbolically linked by the backend; never forced to onboard. */
+  isOwner: boolean;
+  /** i18n prefix of the subscription-link texts in the settings namespace. */
+  i18nPrefix: 'claudeConnection' | 'agyConnection';
+  /** CLI command shown in the onboarding hint (runs inside the link modal). */
+  command: string;
+  /** Opens the link modal (terminal running the onboarding command). */
+  onLink: () => void;
+  /** Re-checks the per-user credential link status. */
+  onRecheck: () => void;
+};
+
 type AccountContentProps = {
   agent: AgentProvider;
   authStatus: AuthStatus;
   onLogin: () => void;
+  userLink?: UserCredentialLink;
 };
 
 type AgentVisualConfig = {
@@ -74,10 +98,37 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
   },
 };
 
-export default function AccountContent({ agent, authStatus, onLogin }: AccountContentProps) {
+/**
+ * Single unified credential card per agent [C-MU-UX-AGENT-CREDS].
+ *
+ * One card shows connection state exactly once: status badge + account email,
+ * a Re-login row for re-authentication, and — for credential-isolating agents
+ * (claude / antigravity) — the per-user subscription link merged in: a
+ * Re-check button next to the badge, an onboarding banner + "Link account"
+ * CTA when the current user's isolated credential is missing (the modal is
+ * owned by the parent section), and the owner auto-link note.
+ *
+ * The provider auth status endpoint already reports the *current user's*
+ * resolved environment for isolating providers, so the badge and the per-user
+ * link reflect the same credential and are rendered as one status.
+ */
+export default function AccountContent({ agent, authStatus, onLogin, userLink }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
   const isAntigravity = agent === 'antigravity';
+
+  const checking = authStatus.loading || Boolean(userLink?.loading);
+  const isConnected = authStatus.authenticated || Boolean(userLink?.connected);
+  const showLinkBanner = Boolean(
+    userLink && !userLink.loading && !userLink.connected && !userLink.isOwner,
+  );
+  // Re-auth affordance: the generic provider login for most agents; for
+  // antigravity (no UI-driven login — agy runs Google OAuth in the link
+  // modal's terminal) re-linking reopens the same modal. Hidden while the
+  // onboarding banner already offers the link CTA — never two competing
+  // connect buttons.
+  const onReauth = isAntigravity ? userLink?.onLink : onLogin;
+  const showLoginRow = Boolean(onReauth) && authStatus.method !== 'api_key' && !showLinkBanner;
 
   return (
     <div className="space-y-6">
@@ -95,15 +146,16 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
 
       <div className={`${config.bgClass} border ${config.borderClass} rounded-lg p-4`}>
         <div className="space-y-4">
+          {/* Connection status — shown exactly once per agent */}
           <div className="flex items-center gap-3">
             <div className="flex-1">
               <div className={`font-medium ${config.textClass}`}>
                 {t('agents.connectionStatus')}
               </div>
               <div className={`text-sm ${config.subtextClass}`}>
-                {authStatus.loading ? (
+                {checking ? (
                   t('agents.authStatus.checkingAuth')
-                ) : authStatus.authenticated ? (
+                ) : isConnected ? (
                   t('agents.authStatus.loggedInAs', {
                     email: authStatus.email || t('agents.authStatus.authenticatedUser'),
                   })
@@ -112,12 +164,12 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                 )}
               </div>
             </div>
-            <div>
-              {authStatus.loading ? (
+            <div className="flex items-center gap-2">
+              {checking ? (
                 <Badge variant="secondary" className="bg-muted">
                   {t('agents.authStatus.checking')}
                 </Badge>
-              ) : authStatus.authenticated ? (
+              ) : isConnected ? (
                 <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                   {t('agents.authStatus.connected')}
                 </Badge>
@@ -126,69 +178,100 @@ export default function AccountContent({ agent, authStatus, onLogin }: AccountCo
                   {t('agents.authStatus.disconnected')}
                 </Badge>
               )}
+              {userLink && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={userLink.onRecheck}
+                  disabled={checking}
+                >
+                  <RefreshCw className={checking ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} aria-hidden />
+                  <span className="ms-1.5">{t(`${userLink.i18nPrefix}.recheck`)}</span>
+                </Button>
+              )}
             </div>
           </div>
 
-          {isAntigravity ? (
-            /*
-             * agy authenticates via Google OAuth from its own CLI; we cannot drive
-             * that flow from here. Instead we surface the CLI instruction and a
-             * short note about model selection.
-             */
-            <div className="border-t border-border/50 pt-4">
-              <div className={`mb-2 flex items-center gap-2 text-sm font-medium ${config.textClass}`}>
-                <Terminal className="h-4 w-4" aria-hidden="true" />
-                <span>
-                  {authStatus.authenticated
-                    ? t('agents.antigravity.reauthTitle', {
-                        defaultValue: 'Re-authenticate via CLI',
-                      })
-                    : t('agents.antigravity.authTitle', {
-                        defaultValue: 'Authenticate via CLI',
-                      })}
-                </span>
-              </div>
-              <p className={`mb-2 text-sm ${config.subtextClass}`}>
-                {t('agents.antigravity.instruction', {
-                  defaultValue:
-                    'Run the following command in your terminal to start Google OAuth and create the first agy session:',
-                })}
+          {/* Per-user subscription link (credential isolation, Phase-MU) */}
+          {userLink && (
+            <div className="space-y-3 border-t border-border/50 pt-4">
+              <p className={`text-sm ${config.subtextClass}`}>
+                {t(`${userLink.i18nPrefix}.description`)}
               </p>
-              <pre className="rounded border border-emerald-200 bg-white/70 px-3 py-2 font-mono text-xs text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
-                <code>agy -p &quot;hello&quot;</code>
-              </pre>
-              <p className={`mt-3 text-xs ${config.subtextClass}`}>
+
+              {userLink.error && (
+                <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+                  {t(`${userLink.i18nPrefix}.loadError`)}
+                </p>
+              )}
+
+              {/* Onboarding banner + CTA — only when not linked (owner is auto-linked) */}
+              {showLinkBanner && (
+                <div
+                  role="alert"
+                  className="space-y-3 rounded-md border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-900/15"
+                >
+                  <p className="text-sm text-amber-800 dark:text-amber-300">
+                    {t(`${userLink.i18nPrefix}.banner`)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {t(`${userLink.i18nPrefix}.bannerHint`)}{' '}
+                    <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+                      {userLink.command}
+                    </code>
+                    .
+                  </p>
+                  <Button type="button" size="sm" onClick={userLink.onLink}>
+                    <Link2 className="h-4 w-4" aria-hidden />
+                    <span className="ms-1.5">{t(`${userLink.i18nPrefix}.linkButton`)}</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Owner note: linked automatically, no action required */}
+              {!userLink.loading && userLink.isOwner && userLink.connected && (
+                <p className="text-sm text-muted-foreground">
+                  {t(`${userLink.i18nPrefix}.ownerNote`)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {showLoginRow && (
+            <div className="border-t border-border/50 pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className={`font-medium ${config.textClass}`}>
+                    {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
+                  </div>
+                  <div className={`text-sm ${config.subtextClass}`}>
+                    {authStatus.authenticated
+                      ? t('agents.login.reAuthDescription')
+                      : t('agents.login.description', { agent: config.name })}
+                  </div>
+                </div>
+                <Button
+                  onClick={onReauth}
+                  className={`${config.buttonClass} text-white`}
+                  size="sm"
+                >
+                  <LogIn className="mr-2 h-4 w-4" />
+                  {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isAntigravity && (
+            <div className="border-t border-border/50 pt-4">
+              <p className={`text-xs ${config.subtextClass}`}>
                 {t('agents.antigravity.modelNote', {
                   defaultValue:
                     'Uses Google AI Pro via agy CLI (v1.x). The active model is selected inside agy settings, not from this UI.',
                 })}
               </p>
             </div>
-          ) : (
-            authStatus.method !== 'api_key' && (
-              <div className="border-t border-border/50 pt-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className={`font-medium ${config.textClass}`}>
-                      {authStatus.authenticated ? t('agents.login.reAuthenticate') : t('agents.login.title')}
-                    </div>
-                    <div className={`text-sm ${config.subtextClass}`}>
-                      {authStatus.authenticated
-                        ? t('agents.login.reAuthDescription')
-                        : t('agents.login.description', { agent: config.name })}
-                    </div>
-                  </div>
-                  <Button
-                    onClick={onLogin}
-                    className={`${config.buttonClass} text-white`}
-                    size="sm"
-                  >
-                    <LogIn className="mr-2 h-4 w-4" />
-                    {authStatus.authenticated ? t('agents.login.reLoginButton') : t('agents.login.button')}
-                  </Button>
-                </div>
-              </div>
-            )
           )}
 
           {authStatus.error && (

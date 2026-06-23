@@ -83,6 +83,10 @@ function chatMessageToNormalized(
     kind: 'text',
     role: msg.type === 'user' ? 'user' : 'assistant',
     content: msg.content || '',
+    // Preserve the author stamp on optimistic local user messages so the
+    // sender's own avatar resolves immediately (mirrors get the same id from
+    // the server-stamped WS echo / history rows).
+    userId: typeof msg.userId === 'number' ? msg.userId : undefined,
   } as NormalizedMessage;
 }
 
@@ -383,12 +387,47 @@ export function useChatSessionState({
     setIsUserScrolledUp(false);
   }, [selectedProject?.projectId, selectedSession?.id]);
 
-  // Initial scroll to bottom
+  // Initial scroll to bottom — robust to lazy content reflow.
+  // The previous implementation fired one scrollToBottom() at +200ms and
+  // cleared the pending flag. When markdown blocks, code highlighting, or
+  // images finished rendering after that window, scrollHeight grew but
+  // nothing re-anchored the viewport, leaving the chat tab visually
+  // "scrolled way up" with the latest assistant message off-screen.
+  //
+  // This version re-scrolls every animation frame while scrollHeight is
+  // still growing, capped at ~1s (60 frames) or 3 consecutive stable
+  // frames. Cancels cleanly on session change via the pending flag.
   useEffect(() => {
     if (!pendingInitialScrollRef.current || !scrollContainerRef.current || isLoadingSessionMessages) return;
     if (chatMessages.length === 0) { pendingInitialScrollRef.current = false; return; }
-    pendingInitialScrollRef.current = false;
-    if (!searchScrollActiveRef.current) setTimeout(() => scrollToBottom(), 200);
+    if (searchScrollActiveRef.current) { pendingInitialScrollRef.current = false; return; }
+
+    const container = scrollContainerRef.current;
+    let frame = 0;
+    let lastHeight = 0;
+    let stableCount = 0;
+    let rafId = 0;
+
+    const tick = () => {
+      if (!pendingInitialScrollRef.current || !scrollContainerRef.current) return;
+      container.scrollTop = container.scrollHeight;
+      if (container.scrollHeight === lastHeight) {
+        stableCount++;
+      } else {
+        stableCount = 0;
+        lastHeight = container.scrollHeight;
+      }
+      frame++;
+      if (stableCount < 3 && frame < 60) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        pendingInitialScrollRef.current = false;
+      }
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
   }, [chatMessages.length, isLoadingSessionMessages, scrollToBottom]);
 
   // Main session loading effect — store-based
@@ -455,9 +494,19 @@ export function useChatSessionState({
       sessionStorage.setItem('cursorSessionId', selectedSession.id);
     }
 
-    // Check session status
+    // Check session status. ADR-041 (B-80): carry the highest stream `sequence`
+    // this client has already seen for the session so the server can replay only
+    // the delta (seq > lastSeq) on reconnect, avoiding duplicate text on the
+    // active view. Defaults to 0 (replay-all) when unknown or the registry flag
+    // is off server-side. getLastSeq is optional-chained so older store shapes
+    // (and tests) degrade gracefully to 0.
     if (ws) {
-      sendMessage({ type: 'check-session-status', sessionId: selectedSession.id, provider });
+      sendMessage({
+        type: 'check-session-status',
+        sessionId: selectedSession.id,
+        provider,
+        lastSeq: sessionStore.getLastSeq?.(selectedSession.id) ?? 0,
+      });
     }
 
     lastLoadedSessionKeyRef.current = sessionKey;

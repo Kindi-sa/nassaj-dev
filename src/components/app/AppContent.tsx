@@ -10,7 +10,14 @@ import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/Palett
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
-import { useUiPreferences } from '../../hooks/useUiPreferences';
+import { setSessionProcessState } from '../../stores/sessionProcessStateStore';
+import {
+  clearSessionFinishedUnopened,
+  markSessionFinishedUnopened,
+  shouldMarkSessionFinished,
+} from '../../stores/sessionCompletionStore';
+
+import BuildUpdateBanner from './BuildUpdateBanner';
 
 export default function AppContent() {
   return (
@@ -25,8 +32,6 @@ function AppContentInner() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
-  const { preferences } = useUiPreferences();
-  const isSidebarCollapsed = !isMobile && !preferences.sidebarVisible;
   const { ws, sendMessage, latestMessage, isConnected } = useWebSocket();
   const wasConnectedRef = useRef(false);
 
@@ -67,6 +72,41 @@ function AppContentInner() {
     openSettings,
     refreshProjects: refreshProjectsSilently,
   });
+
+  // Frozen-session indicator: route server process_state broadcasts (and
+  // terminal events as an idle fallback) into the global per-session store
+  // consumed by the sidebar badges, chat header, and status spinner.
+  //
+  // The same stream drives the "finished — not opened yet" mark: a completion
+  // signal for a session the user is NOT viewing flips its dot from pulsing
+  // (running) to steady (done) until the conversation is opened. The ref
+  // guards against re-marking when this effect re-runs for a selection change
+  // while `latestMessage` still points at an already-processed payload.
+  const processedCompletionRef = useRef<unknown>(null);
+  useEffect(() => {
+    const msg = latestMessage;
+    if (!msg || typeof msg.sessionId !== 'string' || !msg.sessionId) {
+      return;
+    }
+    if (processedCompletionRef.current !== msg) {
+      processedCompletionRef.current = msg;
+      if (shouldMarkSessionFinished(msg, selectedSession?.id)) {
+        markSessionFinishedUnopened(msg.sessionId);
+      }
+    }
+    if (msg.kind === 'status' && msg.text === 'process_state' && typeof msg.processState === 'string') {
+      setSessionProcessState(msg.sessionId, msg.processState);
+    } else if (msg.kind === 'complete' || msg.kind === 'error') {
+      setSessionProcessState(msg.sessionId, 'idle');
+    }
+  }, [latestMessage, selectedSession?.id]);
+
+  // Opening a conversation consumes its "finished — not opened yet" mark.
+  useEffect(() => {
+    if (selectedSession?.id) {
+      clearSessionFinishedUnopened(selectedSession.id);
+    }
+  }, [selectedSession?.id]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
@@ -142,14 +182,9 @@ function AppContentInner() {
 
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
+      <BuildUpdateBanner />
       {!isMobile ? (
-        <div
-          className={`group h-full flex-shrink-0 border-r border-border/50 transition-transform duration-200 ease-out ${
-            isSidebarCollapsed
-              ? '-translate-x-[38px] hover:translate-x-0 overflow-visible relative z-10'
-              : ''
-          }`}
-        >
+        <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />
         </div>
       ) : (

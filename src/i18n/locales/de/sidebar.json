@@ -49,7 +49,9 @@
     "save": "Speichern",
     "cancel": "Abbrechen",
     "clearSearch": "Suche leeren",
-    "openCommandPalette": "Befehlspalette öffnen"
+    "openCommandPalette": "Befehlspalette öffnen",
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Chat",
@@ -65,11 +67,15 @@
     "expandAll": "Alle ausklappen",
     "cancel": "Abbrechen",
     "save": "Speichern",
+    "logout": "Abmelden",
+    "logoutConfirm": "Von Ihrem Konto abmelden?",
     "delete": "Löschen",
     "rename": "Umbenennen",
-    "joinCommunity": "Community beitreten",
-    "reportIssue": "Problem melden",
     "starOnGithub": "Stern auf GitHub"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "Open Source"
@@ -111,18 +117,6 @@
   "version": {
     "updateAvailable": "Update verfügbar"
   },
-  "search": {
-    "modeProjects": "Projekte",
-    "modeConversations": "Unterhaltungen",
-    "conversationsPlaceholder": "In Unterhaltungen suchen...",
-    "searching": "Sucht...",
-    "noResults": "Keine Ergebnisse gefunden",
-    "tryDifferentQuery": "Versuch eine andere Suchanfrage",
-    "matches_one": "{{count}} Treffer",
-    "matches_other": "{{count}} Treffer",
-    "projectsScanned_one": "{{count}} Projekt durchsucht",
-    "projectsScanned_other": "{{count}} Projekte durchsucht"
-  },
   "deleteConfirmation": {
     "deleteProject": "Projekt entfernen",
     "deleteSession": "Sitzung löschen",
@@ -133,5 +127,10 @@
     "deleteAllData": "Alle Daten dauerhaft löschen",
     "allConversationsDeleted": "Das Projekt wird aus der Seitenleiste entfernt. Deine Dateien, Erinnerungen und Sitzungsdaten bleiben erhalten.",
     "cannotUndo": "Du kannst das Projekt später erneut hinzufügen."
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }

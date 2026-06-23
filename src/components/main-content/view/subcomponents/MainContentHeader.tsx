@@ -3,6 +3,7 @@ import type { MainContentHeaderProps } from '../../types/types';
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
+import HeaderUsageIndicator from './HeaderUsageIndicator';
 
 export default function MainContentHeader({
   activeTab,
@@ -45,6 +46,8 @@ export default function MainContentHeader({
             shouldShowTasksTab={shouldShowTasksTab}
           />
         </div>
+
+        <HeaderUsageIndicator />
 
         <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
           {canScrollLeft && (

@@ -6,10 +6,15 @@
     "renameProject": "Rename Project",
     "noProjects": "No projects found",
     "loadingProjects": "Loading projects...",
-    "searchPlaceholder": "Search projects...",
+    "searchPlaceholder": "Search projects & sessions...",
     "projectNamePlaceholder": "Project name",
+    "privateProject": "Private project",
+    "makePrivate": "Make private",
+    "makePublic": "Make public",
     "starred": "Starred",
     "all": "All",
+    "myProjects": "My projects",
+    "teamProjects": "Team",
     "untitledSession": "Untitled Session",
     "newSession": "New Session",
     "codexSession": "Codex Session",
@@ -43,13 +48,17 @@
     "deleteProject": "Remove project from sidebar (Delete)",
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
+    "starSession": "Star this conversation",
+    "unstarSession": "Unstar this conversation",
     "editSessionName": "Manually edit session name",
     "deleteSession": "Delete this session permanently",
     "activeSessionIndicator": "Recently active session (last 10 minutes)",
     "save": "Save",
     "cancel": "Cancel",
     "clearSearch": "Clear search",
-    "openCommandPalette": "Open command palette"
+    "openCommandPalette": "Open command palette",
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Go to home"
   },
   "navigation": {
     "chat": "Chat",
@@ -61,15 +70,19 @@
   "actions": {
     "refresh": "Refresh",
     "settings": "Settings",
+    "logout": "Sign out",
+    "logoutConfirm": "Sign out of your account?",
     "collapseAll": "Collapse All",
     "expandAll": "Expand All",
     "cancel": "Cancel",
     "save": "Save",
     "delete": "Delete",
     "rename": "Rename",
-    "joinCommunity": "Join Community",
-    "reportIssue": "Report Issue",
     "starOnGithub": "Star on GitHub"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "Open Source"
@@ -111,18 +124,6 @@
   "version": {
     "updateAvailable": "Update available"
   },
-  "search": {
-    "modeProjects": "Projects",
-    "modeConversations": "Conversations",
-    "conversationsPlaceholder": "Search in conversations...",
-    "searching": "Searching...",
-    "noResults": "No results found",
-    "tryDifferentQuery": "Try a different search query",
-    "matches_one": "{{count}} match",
-    "matches_other": "{{count}} matches",
-    "projectsScanned_one": "{{count}} project scanned",
-    "projectsScanned_other": "{{count}} projects scanned"
-  },
   "deleteConfirmation": {
     "deleteProject": "Remove Project",
     "deleteSession": "Delete Session",
@@ -152,5 +153,10 @@
       "model": "Base model",
       "subagent": "Subagent"
     }
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }

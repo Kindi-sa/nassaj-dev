@@ -9,6 +9,10 @@ type StandaloneShellProps = {
   session?: ProjectSession | null;
   command?: string | null;
   isPlainShell?: boolean | null;
+  /** Explicit provider for the PTY init message (e.g. 'agy'). Forwarded to Shell
+   *  so a command-driven plain shell still declares its provider, enabling the
+   *  backend per-user credential isolation (resolveProviderEnv → isolated HOME). */
+  provider?: string | null;
   isActive?: boolean;
   autoConnect?: boolean;
   onComplete?: ((exitCode: number) => void) | null;
@@ -25,6 +29,7 @@ export default function StandaloneShell({
   session = null,
   command = null,
   isPlainShell = null,
+  provider = null,
   isActive = true,
   autoConnect = true,
   onComplete = null,
@@ -66,6 +71,7 @@ export default function StandaloneShell({
           selectedSession={session}
           initialCommand={command}
           isPlainShell={shouldUsePlainShell}
+          provider={provider}
           isActive={isActive}
           onProcessComplete={handleProcessComplete}
           minimal={minimal}

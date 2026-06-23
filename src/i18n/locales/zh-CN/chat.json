@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "在界面外创建"
+  },
   "tools": {
     "settings": "工具设置",
     "error": "工具错误",
@@ -112,49 +115,57 @@
     "send": "发送",
     "stop": "停止",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令",
-      "enter": "Enter 发送 • Shift+Enter 换行 • Tab 切换模式 • / 斜杠命令"
+      "ctrlEnter": "Ctrl+Enter 发送 • Shift+Enter 换行",
+      "enter": "Enter 发送 • Shift+Enter 换行"
     },
     "clickToChangeMode": "点击更改权限模式（或在输入框中按 Tab）",
     "showAllCommands": "显示所有命令",
     "clearInput": "清空输入",
     "scrollToBottom": "滚动到底部"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "思考模式",
-      "description": "扩展思考给 Claude 更多时间来评估替代方案",
-      "active": "激活",
-      "tip": "更高的思考模式需要更多时间，但提供更彻底的分析"
+      "title": "努力级别",
+      "description": "控制 Claude 为您的请求投入的计算量",
+      "active": "已激活",
+      "tip": "ultracode 以多智能体格式激活最大深度"
     },
     "modes": {
       "none": {
         "name": "标准",
-        "description": "常规 Claude 响应",
-        "prefix": ""
+        "description": "无 effort 参数 — 默认 Claude 行为"
       },
-      "think": {
-        "name": "思考",
-        "description": "基本扩展思考",
-        "prefix": "思考"
+      "auto": {
+        "name": "auto",
+        "description": "模型根据请求复杂度自动选择努力级别"
       },
-      "thinkHard": {
-        "name": "深入思考",
-        "description": "更彻底的评估",
-        "prefix": "深入思考"
+      "low": {
+        "name": "low",
+        "description": "快速轻量的响应 — 适合简单问题"
       },
-      "thinkHarder": {
-        "name": "更深入思考",
-        "description": "考虑替代方案的深度分析",
-        "prefix": "更深入思考"
+      "medium": {
+        "name": "medium",
+        "description": "深度与速度的平衡"
       },
-      "ultrathink": {
-        "name": "超级思考",
-        "description": "最大思考预算",
-        "prefix": "超级思考"
+      "high": {
+        "name": "high",
+        "description": "针对复杂任务的更深层推理"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "针对高难度问题的极高努力"
+      },
+      "max": {
+        "name": "max",
+        "description": "最大努力 — 完整计算预算"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "多智能体输出格式的最大深度 — 适用于大型代码库"
       }
     },
-    "buttonTitle": "思考模式：{{mode}}"
+    "buttonTitle": "努力：{{mode}}",
+    "ultracodeActive": "Ultracode 努力级别已激活"
   },
   "providerSelection": {
     "title": "选择您的 AI 助手",
@@ -246,12 +257,21 @@
     },
     "providers": {
       "assistant": "Assistant"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "选择一个项目以开始与 {{provider}} 聊天"
   },
   "tasks": {
     "nextTaskPrompt": "开始下一个任务"
+  },
+  "participants": {
+    "hide": "隐藏参与者栏",
+    "show": "显示参与者栏"
+  },
+  "refreshChat": {
+    "button": "刷新聊天",
+    "refreshing": "刷新中…"
   }
 }

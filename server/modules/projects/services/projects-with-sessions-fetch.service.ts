@@ -1,17 +1,39 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectMembersDb, projectsDb, sessionsDb, starredSessionsDb } from '@/modules/database/index.js';
+import type { ProjectVisibility } from '@/shared/types.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
+/**
+ * Owner attribution for a single session. Resolved from the session_participants
+ * row flagged 'owner'. `null` for legacy / pre-multi-user sessions that have no
+ * participant row (the frontend falls back to a neutral state).
+ */
+export type SessionOwner = {
+  userId: number;
+  username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) or null; lets
+  // the frontend owner badge render the real avatar instead of the initial.
+  avatarUrl: string | null;
+};
+
 type SessionSummary = {
   id: string;
   summary: string;
   messageCount: number;
+  // Creation timestamp (first transcript timestamp / file birthtime at index
+  // time). The sidebar orders sessions by this, newest first — not by activity.
+  createdAt: string | null;
   lastActivity: string;
+  owner: SessionOwner | null;
+  // True when the requesting user has starred this session (per-user favorite).
+  // Resolved from starred_sessions scoped to currentUserId; defaults to false
+  // for anonymous reads or sessions the user has not starred.
+  starred: boolean;
 };
 
 type SessionsByProvider = Record<'claude' | 'cursor' | 'codex' | 'gemini' | 'antigravity' | 'opencode', SessionSummary[]>;
@@ -30,6 +52,36 @@ export type ProjectListItem = {
   displayName: string;
   fullPath: string;
   isStarred: boolean;
+  // True when the requesting user owns or participates in >=1 session whose
+  // project_path belongs to this project. Purely informational: the project
+  // list is NOT filtered server-side (full sharing is preserved) — the frontend
+  // "My Projects / All" toggle decides what to show.
+  isMember: boolean;
+  // Creator attribution for the sidebar "My projects / Team / All" filter.
+  // `ownerId` is projects.created_by (null for legacy/orphan rows). `isOwner`
+  // is per-requester: the creator OR a project_members 'owner'-role member.
+  // Both are view-filter inputs only — never an access decision.
+  ownerId: number | null;
+  isOwner: boolean;
+  // Private-project visibility (B-PRIV). 'private' projects only ever reach a
+  // user who is allowed to see them — the list is filtered server-side below.
+  visibility: ProjectVisibility;
+  // True when the requesting user may toggle this project's visibility / manage
+  // its members: the project creator, a project_members 'owner', or the platform
+  // owner (an administrative capability, distinct from content visibility).
+  canManageVisibility: boolean;
+  /**
+   * Whether the project directory currently exists on disk.
+   *
+   * `true`  — the directory is present and accessible on the server filesystem.
+   * `false` — the path is missing (deleted, unmounted, or never created). The
+   *           frontend uses this to render a "folder missing" warning badge next
+   *           to the project name. A false value does NOT archive the project
+   *           automatically — archival is performed by the reconcile service.
+   *
+   * CONTRACT (B-38): key name is `dirExists`, boolean, always present.
+   */
+  dirExists: boolean;
   sessions: SessionSummary[];
   cursorSessions: SessionSummary[];
   codexSessions: SessionSummary[];
@@ -57,6 +109,16 @@ type GetProjectsWithSessionsOptions = {
   skipSynchronization?: boolean;
   sessionsLimit?: number;
   sessionsOffset?: number;
+  // Authenticated requester id (from req.user.id). When provided, each project's
+  // `isMember` flag reflects whether this user participates in >=1 of its
+  // sessions. Read from req.user only — never from request input. Also drives
+  // the B-PRIV server-side visibility filter: private projects this user cannot
+  // see are excluded from the list entirely.
+  currentUserId?: number | null;
+  // True when the requester is the platform owner (req.user.role === 'owner').
+  // Grants the administrative canManageVisibility capability ONLY — it does NOT
+  // bypass the visibility filter (privacy is absolute by owner decision).
+  isPlatformOwner?: boolean;
 };
 
 type SessionPaginationOptions = {
@@ -89,10 +151,29 @@ const MAX_PROJECT_SESSIONS_PAGE_SIZE = 200;
 
 /**
  * Generate better display name from path.
+ *
+ * B-37: The legacy fallback that replaced all '-' with '/' was unreliable
+ * because it corrupts paths containing real hyphens (e.g. `nassaj-dev`,
+ * `my-app`). `actualProjectDir` (the on-disk cwd stored in the DB row) is
+ * now always the primary source. The slug-decode fallback is kept only for
+ * very old rows where the cwd column is absent, and even then it fires only
+ * when the slug starts with '-' (the encoding of a leading '/') — so project
+ * names containing hyphens are never accidentally decoded.
  */
 export async function generateDisplayName(projectName: string, actualProjectDir: string | null = null): Promise<string> {
-  // Use actual project directory if provided, otherwise decode from project name.
-  const projectPath = actualProjectDir || projectName.replace(/-/g, '/');
+  // Prefer the real on-disk path recorded in the DB row — it is authoritative
+  // and never needs reconstruction.
+  let projectPath: string;
+  if (actualProjectDir) {
+    projectPath = actualProjectDir;
+  } else if (projectName.startsWith('-')) {
+    // B-37 legacy slug: a string starting with '-' is an encoded absolute path
+    // (the leading '/' was stored as '-'). Reconstruct cautiously.
+    projectPath = projectName.replace(/-/g, '/');
+  } else {
+    // Modern or non-encoded name — use as-is to preserve real hyphens.
+    projectPath = projectName;
+  }
 
   // Try to read package.json from the project path.
   try {
@@ -128,16 +209,68 @@ function normalizeSessionPagination(options: SessionPaginationOptions = {}): { l
   };
 }
 
-function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
+function mapSessionRowToSummary(
+  row: SessionRepositoryRow,
+  owner: SessionOwner | null,
+  starred: boolean,
+): SessionSummary {
   return {
     id: row.session_id,
     summary: row.custom_name || '',
     messageCount: 0,
+    createdAt: row.created_at ?? null,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+    owner,
+    starred,
   };
 }
 
-function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByProvider {
+/**
+ * Batched star resolution for a page of session rows: a single query returns the
+ * subset of these sessions the requesting user has starred (avoids N+1). Returns
+ * an empty Set for anonymous reads (no currentUserId).
+ */
+function resolveStarsForRows(
+  rows: SessionRepositoryRow[],
+  currentUserId: number | null,
+): Set<string> {
+  if (currentUserId === null) {
+    return new Set<string>();
+  }
+  return starredSessionsDb.getStarredSessionIds(
+    currentUserId,
+    rows.map((row) => row.session_id),
+  );
+}
+
+/**
+ * Batched owner resolution for a page of session rows: a single query fetches
+ * the owner of every session at once (avoids N+1), keyed by session_id. Legacy
+ * sessions absent from the map resolve to a null owner.
+ */
+function resolveOwnersForRows(rows: SessionRepositoryRow[]): Map<string, SessionOwner> {
+  const sessionIds = rows.map((row) => row.session_id);
+  const owners = new Map<string, SessionOwner>();
+
+  if (sessionIds.length === 0) {
+    return owners;
+  }
+
+  for (const ownerRow of participantsDb.getOwnersBySessionIds(sessionIds)) {
+    owners.set(ownerRow.sessionId, {
+      userId: ownerRow.userId,
+      username: ownerRow.username,
+      avatarUrl: ownerRow.avatarUrl ?? null,
+    });
+  }
+
+  return owners;
+}
+
+function bucketSessionRowsByProvider(
+  rows: SessionRepositoryRow[],
+  currentUserId: number | null,
+): SessionsByProvider {
   const byProvider: SessionsByProvider = {
     claude: [],
     cursor: [],
@@ -147,6 +280,9 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
     opencode: [],
   };
 
+  const owners = resolveOwnersForRows(rows);
+  const stars = resolveStarsForRows(rows, currentUserId);
+
   for (const row of rows) {
     const provider = row.provider as keyof SessionsByProvider;
     const bucket = byProvider[provider];
@@ -154,17 +290,26 @@ function bucketSessionRowsByProvider(rows: SessionRepositoryRow[]): SessionsByPr
       continue;
     }
 
-    bucket.push(mapSessionRowToSummary(row));
+    bucket.push(
+      mapSessionRowToSummary(
+        row,
+        owners.get(row.session_id) ?? null,
+        stars.has(row.session_id),
+      ),
+    );
   }
 
   return byProvider;
 }
 
-function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessionsPageResult {
+function readProjectSessionsIncludingArchived(
+  projectPath: string,
+  currentUserId: number | null,
+): ProjectSessionsPageResult {
   const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
 
   return {
-    sessionsByProvider: bucketSessionRowsByProvider(rows),
+    sessionsByProvider: bucketSessionRowsByProvider(rows, currentUserId),
     total: rows.length,
     hasMore: false,
   };
@@ -175,6 +320,7 @@ function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessi
  */
 function readProjectSessionsPageByPath(
   projectPath: string,
+  currentUserId: number | null,
   options: SessionPaginationOptions = {},
 ): ProjectSessionsPageResult {
   const pagination = normalizeSessionPagination(options);
@@ -186,7 +332,7 @@ function readProjectSessionsPageByPath(
   const total = sessionsDb.countSessionsByProjectPath(projectPath);
 
   return {
-    sessionsByProvider: bucketSessionRowsByProvider(rows),
+    sessionsByProvider: bucketSessionRowsByProvider(rows, currentUserId),
     total,
     hasMore: pagination.offset + rows.length < total,
   };
@@ -216,17 +362,55 @@ export async function getProjectsWithSessions(
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getProjectPaths() as Array<{
+  const allProjectRows = projectsDb.getProjectPaths() as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;
     isStarred?: number;
+    visibility?: ProjectVisibility;
+    created_by?: number | null;
   }>;
+
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+
+  // B-PRIV central enforcement: resolve the set of project paths this user is
+  // allowed to see (public + creator + explicit member + session-derived) and
+  // drop everything else BEFORE building the payload, so a private project is
+  // never serialized to a non-member in the first place.
+  const visibleProjectPaths = new Set(projectsDb.getVisibleProjectPaths(currentUserId));
+  const projectRows = allProjectRows.filter((row) => visibleProjectPaths.has(row.project_path));
+
   const totalProjects = projectRows.length;
   const projects: ProjectListItem[] = [];
   let processedProjects = 0;
 
-  for (const row of projectRows) {
+  // One set-based query: the distinct project paths this user participates in,
+  // used to flag each project's `isMember` without filtering the list.
+  const memberProjectPaths =
+    currentUserId !== null
+      ? new Set(participantsDb.getProjectPathsForUser(currentUserId))
+      : new Set<string>();
+
+  // project_ids where the user holds the project_members 'owner' role — one query
+  // instead of a per-project lookup. Combined with created_by and platform-owner
+  // role to decide canManageVisibility below.
+  const ownedProjectIds =
+    currentUserId !== null
+      ? new Set(projectMembersDb.listUserOwnedProjectIds(currentUserId))
+      : new Set<string>();
+
+  // B-38 (parallelised): resolve all dirExists checks in one concurrent batch
+  // instead of awaiting each fs.access inside the loop (which serialises I/O
+  // across every project). Results are indexed by position to match projectRows.
+  const dirExistsResults = await Promise.all(
+    projectRows.map((row) =>
+      fs.access(row.project_path).then(() => true, () => false),
+    ),
+  );
+
+  for (let rowIdx = 0; rowIdx < projectRows.length; rowIdx++) {
+    const row = projectRows[rowIdx];
     processedProjects += 1;
 
     const projectId = row.project_id;
@@ -244,10 +428,19 @@ export async function getProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(projectPath) || projectPath, projectPath);
 
-    const sessionsPage = readProjectSessionsPageByPath(projectPath, {
+    const sessionsPage = readProjectSessionsPageByPath(projectPath, currentUserId, {
       limit: options.sessionsLimit,
       offset: options.sessionsOffset,
     });
+
+    const visibility: ProjectVisibility = row.visibility === 'private' ? 'private' : 'public';
+    const ownerId = typeof row.created_by === 'number' ? row.created_by : null;
+    const isOwner =
+      currentUserId !== null && (ownerId === currentUserId || ownedProjectIds.has(projectId));
+    const canManageVisibility =
+      isOwner || (currentUserId !== null && options.isPlatformOwner === true);
+
+    const dirExists = dirExistsResults[rowIdx];
 
     projects.push({
       projectId,
@@ -255,6 +448,12 @@ export async function getProjectsWithSessions(
       displayName,
       fullPath: projectPath,
       isStarred: Boolean(row.isStarred),
+      isMember: memberProjectPaths.has(projectPath),
+      ownerId,
+      isOwner,
+      visibility,
+      canManageVisibility,
+      dirExists,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,
       codexSessions: sessionsPage.sessionsByProvider.codex,
@@ -283,28 +482,59 @@ export async function getProjectsWithSessions(
  * conversation history in the archive view regardless of each session's flag.
  */
 export async function getArchivedProjectsWithSessions(
-  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization'> = {},
+  options: Pick<GetProjectsWithSessionsOptions, 'skipSynchronization' | 'currentUserId' | 'isPlatformOwner'> = {},
 ): Promise<ArchivedProjectListItem[]> {
   if (!options.skipSynchronization) {
     await sessionSynchronizerService.synchronizeSessions();
   }
 
-  const projectRows = projectsDb.getArchivedProjectPaths() as Array<{
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+
+  const allProjectRows = projectsDb.getArchivedProjectPaths() as Array<{
     project_id: string;
     project_path: string;
     custom_project_name?: string | null;
     isStarred?: number;
+    visibility?: ProjectVisibility;
+    created_by?: number | null;
   }>;
+
+  // B-PRIV: getVisibleProjectPaths only resolves active projects, so archived
+  // visibility is decided per-row by isProjectVisibleToUser (which ignores the
+  // archived flag). A private archived project stays hidden from non-members.
+  const projectRows = allProjectRows.filter((row) =>
+    projectsDb.isProjectVisibleToUser(row.project_id, currentUserId),
+  );
 
   const archivedProjects: ArchivedProjectListItem[] = [];
 
-  for (const row of projectRows) {
+  // B-38 (parallelised): resolve all dirExists checks in one concurrent batch.
+  const archivedDirExistsResults = await Promise.all(
+    projectRows.map((row) =>
+      fs.access(row.project_path).then(() => true, () => false),
+    ),
+  );
+
+  for (let rowIdx = 0; rowIdx < projectRows.length; rowIdx++) {
+    const row = projectRows[rowIdx];
     const displayName =
       row.custom_project_name && row.custom_project_name.trim().length > 0
         ? row.custom_project_name
         : await generateDisplayName(path.basename(row.project_path) || row.project_path, row.project_path);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
+    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path, currentUserId);
+
+    const visibility: ProjectVisibility = row.visibility === 'private' ? 'private' : 'public';
+    const ownerId = typeof row.created_by === 'number' ? row.created_by : null;
+    const isOwner =
+      currentUserId !== null &&
+      (ownerId === currentUserId ||
+        projectMembersDb.getRole(row.project_id, currentUserId) === 'owner');
+    const canManageVisibility =
+      isOwner || (currentUserId !== null && options.isPlatformOwner === true);
+
+    const archivedDirExists = archivedDirExistsResults[rowIdx];
 
     archivedProjects.push({
       projectId: row.project_id,
@@ -312,6 +542,13 @@ export async function getArchivedProjectsWithSessions(
       displayName,
       fullPath: row.project_path,
       isStarred: Boolean(row.isStarred),
+      // Archived view does not drive the "My Projects" filter; default to false.
+      isMember: false,
+      ownerId,
+      isOwner,
+      visibility,
+      canManageVisibility,
+      dirExists: archivedDirExists,
       isArchived: true,
       sessions: sessionsPage.sessionsByProvider.claude,
       cursorSessions: sessionsPage.sessionsByProvider.cursor,
@@ -334,7 +571,7 @@ export async function getArchivedProjectsWithSessions(
  */
 export async function getProjectSessionsPage(
   projectId: string,
-  options: SessionPaginationOptions = {},
+  options: SessionPaginationOptions & { currentUserId?: number | null } = {},
 ): Promise<ProjectSessionsPageApiView> {
   const projectRow = projectsDb.getProjectById(projectId);
   if (!projectRow) {
@@ -344,7 +581,12 @@ export async function getProjectSessionsPage(
     });
   }
 
-  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, options);
+  const currentUserId =
+    typeof options.currentUserId === 'number' ? options.currentUserId : null;
+  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, currentUserId, {
+    limit: options.limit,
+    offset: options.offset,
+  });
   return {
     projectId: projectRow.project_id,
     sessions: sessionsPage.sessionsByProvider.claude,

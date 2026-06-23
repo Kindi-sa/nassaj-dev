@@ -2,11 +2,9 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import spawn from 'cross-spawn';
-
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import { isCliInstalled, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 type CodexCredentialsStatus = {
   authenticated: boolean;
@@ -20,12 +18,7 @@ export class CodexProviderAuth implements IProviderAuth {
    * Checks whether Codex is available to the server runtime.
    */
   private checkInstalled(): boolean {
-    try {
-      spawn.sync('codex', ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+    return isCliInstalled('codex');
   }
 
   /**

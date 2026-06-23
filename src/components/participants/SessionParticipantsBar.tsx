@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronUp } from 'lucide-react';
 
 import { cn } from '../../lib/utils';
-
+import { Button } from '../../shared/view/ui';
 import AgentChipRow from './AgentChipRow';
-import ParticipantAvatar from './ParticipantAvatar';
 import ParticipantAvatarStack from './ParticipantAvatarStack';
 import { useSessionParticipants } from './hooks';
 import { isOwnerRole } from './utils';
@@ -12,6 +12,13 @@ import { isOwnerRole } from './utils';
 type SessionParticipantsBarProps = {
   sessionId: string | null | undefined;
   className?: string;
+  /**
+   * Kept for API compatibility with ChatInterface — no longer used for visual
+   * highlighting in the header (the flat roster shows all participants equally).
+   */
+  activeCoordinatorId?: number | null;
+  /** Collapse the bar (inline chevron control); the host renders a matching expand chevron. */
+  onHide?: () => void;
 };
 
 /** Owner-first, then by recency — same contract as the avatar stack. */
@@ -25,11 +32,25 @@ function orderForNames<T extends { role: string; last_seen: string }>(items: T[]
 }
 
 /**
- * Wider participants strip shown at the top of an open conversation (F-2):
- * a full avatar stack plus inline names (when space allows) and agent chips
- * with invocation counts.
+ * Wider participants strip shown at the top of an open conversation (F-2).
+ *
+ * The strip's primary content is the agent/role row (model + subagents),
+ * derived from the transcript and fully independent of identity/multi-user.
+ * It renders whenever any agents are present. The human-participants block
+ * (avatar stack + names) is an *optional, additive* layer that degrades
+ * safely to nothing when the identity layer returns no participants — it
+ * never gates the bar on its own.
+ *
+ * All avatars are displayed at equal size in a flat stack — there is no
+ * active-speaker highlight in the header. Message attribution (which
+ * coordinator sent which reply) is handled inside each message bubble via
+ * coordinatorId and is unaffected by this component.
  */
-export default function SessionParticipantsBar({ sessionId, className }: SessionParticipantsBarProps) {
+export default function SessionParticipantsBar({
+  sessionId,
+  className,
+  onHide,
+}: SessionParticipantsBarProps) {
   const { t, i18n } = useTranslation('chat');
   const locale = i18n.language;
   const { status, participants, agents, load } = useSessionParticipants(sessionId);
@@ -59,12 +80,17 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
     );
   }
 
-  if (status === 'error' || (participants.length === 0 && agents.length === 0)) {
+  // Agents alone are enough to show the bar; the human-participants block is
+  // additive and may be empty. Only hide when there is genuinely nothing to
+  // show (no agents AND no participants) or on a hard error.
+  const hasAgents = agents.length > 0;
+  const hasParticipants = participants.length > 0;
+  if (status === 'error' || (!hasAgents && !hasParticipants)) {
     return null;
   }
 
-  const namedUsers = orderForNames(participants).slice(0, 3);
-  const extraUsers = participants.length - namedUsers.length;
+  const namedAll = orderForNames(participants).slice(0, 3);
+  const extraUsers = participants.length - namedAll.length;
   const nameSeparator = locale.startsWith('ar') ? '،' : ',';
 
   return (
@@ -76,6 +102,7 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
       role="group"
       aria-label={t('participants.barAria', { defaultValue: 'Conversation participants' })}
     >
+      {/* Flat roster: all participants shown at equal weight, no active-speaker highlight. */}
       {participants.length > 0 && (
         <div className="flex items-center gap-2">
           <ParticipantAvatarStack
@@ -86,10 +113,10 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
             t={t}
           />
           <span className="hidden items-center gap-1 text-xs text-muted-foreground sm:flex">
-            {namedUsers.map((user, index) => (
+            {namedAll.map((user, index) => (
               <span key={user.userId} className="inline-flex items-center">
                 {index > 0 && <span className="me-1 opacity-50">{nameSeparator}</span>}
-                <span className={cn('font-medium', isOwnerRole(user.role) && 'text-foreground')}>
+                <span className={cn('font-medium', isOwnerRole(user.role) && 'text-foreground/90')}>
                   {user.username}
                 </span>
               </span>
@@ -106,11 +133,24 @@ export default function SessionParticipantsBar({ sessionId, className }: Session
         </div>
       )}
 
-      {participants.length > 0 && agents.length > 0 && (
+      {hasParticipants && hasAgents && (
         <span aria-hidden className="hidden h-4 w-px bg-border sm:block" />
       )}
 
-      {agents.length > 0 && <AgentChipRow agents={agents} max={5} t={t} />}
+      {hasAgents && <AgentChipRow agents={agents} max={5} t={t} />}
+
+      {onHide && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ms-auto h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+          onClick={onHide}
+          aria-label={t('participants.hide', { defaultValue: 'Hide participants bar' })}
+          title={t('participants.hide', { defaultValue: 'Hide participants bar' })}
+        >
+          <ChevronUp className="h-3.5 w-3.5" />
+        </Button>
+      )}
     </div>
   );
 }

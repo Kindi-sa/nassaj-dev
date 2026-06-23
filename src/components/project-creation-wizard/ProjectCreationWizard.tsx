@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FolderPlus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import ErrorBanner from './components/ErrorBanner';
@@ -7,9 +7,10 @@ import StepReview from './components/StepReview';
 import WizardFooter from './components/WizardFooter';
 import WizardProgress from './components/WizardProgress';
 import { useGithubTokens } from './hooks/useGithubTokens';
+import { useGithubRepos } from './hooks/useGithubRepos';
 import { cloneWorkspaceWithProgress, createProjectRequest } from './data/workspaceApi';
-import { isCloneWorkflow, shouldShowGithubAuthentication } from './utils/pathUtils';
-import type { TokenMode, WizardFormState, WizardStep } from './types';
+import { isCloneWorkflow } from './utils/pathUtils';
+import type { GithubRepository, GithubSourceMode, TokenMode, WizardFormState, WizardStep } from './types';
 
 type ProjectCreationWizardProps = {
   onClose: () => void;
@@ -22,6 +23,7 @@ const initialFormState: WizardFormState = {
   tokenMode: 'stored',
   selectedGithubToken: '',
   newGithubToken: '',
+  githubSourceMode: 'url',
 };
 
 export default function ProjectCreationWizard({
@@ -35,8 +37,13 @@ export default function ProjectCreationWizard({
   const [error, setError] = useState<string | null>(null);
   const [cloneProgress, setCloneProgress] = useState('');
 
-  const shouldLoadTokens =
-    step === 1 && shouldShowGithubAuthentication(formState.githubUrl);
+  // Load tokens whenever step 1 is active (not just when a URL is present), so
+  // the wizard can detect token availability and offer the repo-picker mode.
+  const shouldLoadTokens = step === 1;
+
+  // Tracks whether the user explicitly chose a source mode; once they do, we
+  // stop auto-defaulting it when tokens load/change.
+  const userPickedSourceModeRef = useRef(false);
 
   const autoSelectToken = useCallback((tokenId: string) => {
     setFormState((previous) => ({ ...previous, selectedGithubToken: tokenId }));
@@ -52,6 +59,51 @@ export default function ProjectCreationWizard({
     selectedTokenId: formState.selectedGithubToken,
     onAutoSelectToken: autoSelectToken,
   });
+
+  const hasStoredToken = availableTokens.length > 0;
+
+  // Default to the repo-picker when the user has a stored token, otherwise keep
+  // the manual paste-URL behaviour. Only applies until the user picks a mode.
+  useEffect(() => {
+    if (userPickedSourceModeRef.current || loadingTokens) {
+      return;
+    }
+    const desiredMode: GithubSourceMode = hasStoredToken ? 'repos' : 'url';
+    setFormState((previous) =>
+      previous.githubSourceMode === desiredMode
+        ? previous
+        : { ...previous, githubSourceMode: desiredMode },
+    );
+  }, [hasStoredToken, loadingTokens]);
+
+  const setSourceMode = useCallback((mode: GithubSourceMode) => {
+    userPickedSourceModeRef.current = true;
+    setFormState((previous) => ({ ...previous, githubSourceMode: mode }));
+  }, []);
+
+  // Repositories load when the repo-picker is active and a token is available.
+  const shouldLoadRepos = step === 1 && formState.githubSourceMode === 'repos' && hasStoredToken;
+
+  const {
+    repos: availableRepos,
+    loading: loadingRepos,
+    error: reposError,
+    errorCode: reposErrorCode,
+    reload: reloadRepos,
+  } = useGithubRepos({
+    shouldLoad: shouldLoadRepos,
+    selectedTokenId: formState.selectedGithubToken,
+  });
+
+  const handleSelectRepo = useCallback((repo: GithubRepository) => {
+    // Selecting a repo fills the clone URL; the existing clone path stays intact.
+    setFormState((previous) => ({
+      ...previous,
+      githubUrl: repo.cloneUrl,
+      // A repo from a stored token means we authenticate with that stored token.
+      tokenMode: 'stored',
+    }));
+  }, []);
 
   // Keep cross-step values in this component; local UI state lives in child components.
   const updateField = useCallback(<K extends keyof WizardFormState>(key: K, value: WizardFormState[K]) => {
@@ -162,9 +214,15 @@ export default function ProjectCreationWizard({
               tokenMode={formState.tokenMode}
               selectedGithubToken={formState.selectedGithubToken}
               newGithubToken={formState.newGithubToken}
+              githubSourceMode={formState.githubSourceMode}
               availableTokens={availableTokens}
               loadingTokens={loadingTokens}
               tokenLoadError={tokenLoadError}
+              hasStoredToken={hasStoredToken}
+              availableRepos={availableRepos}
+              loadingRepos={loadingRepos}
+              reposError={reposError}
+              reposErrorCode={reposErrorCode}
               isCreating={isCreating}
               onWorkspacePathChange={(workspacePath) => updateField('workspacePath', workspacePath)}
               onGithubUrlChange={(githubUrl) => updateField('githubUrl', githubUrl)}
@@ -175,6 +233,9 @@ export default function ProjectCreationWizard({
               onNewGithubTokenChange={(newGithubToken) =>
                 updateField('newGithubToken', newGithubToken)
               }
+              onSourceModeChange={setSourceMode}
+              onSelectRepo={handleSelectRepo}
+              onReloadRepos={reloadRepos}
               onAdvanceToConfirm={() => setStep(2)}
             />
           )}

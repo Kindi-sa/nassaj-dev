@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import type {
   ClaudeExtraUsage,
   ClaudeUsageSummary,
@@ -35,10 +36,11 @@ const ANTHROPIC_BETA_HEADER = 'oauth-2025-04-20';
 
 /**
  * Aggressive upstream rate limiting forces us to cache. 180s is the documented
- * floor; the credential is shared so a single global cache key is correct.
+ * floor. The cache is keyed per resolved credentials path so an isolated user
+ * sees THEIR subscription usage while users sharing the operator credential
+ * still share one cache slot (and one upstream call).
  */
 const CACHE_TTL_MS = 180_000;
-const CACHE_KEY = 'shared';
 
 /**
  * Network timeout for the upstream call. Short enough to fail fast and serve a
@@ -65,66 +67,74 @@ type OAuthCredential = {
 };
 
 /**
- * Resolves a Claude usage summary from Anthropic with a shared in-memory cache,
- * fresh-on-every-request credential reads, and transparent OAuth refresh on 401.
+ * Resolves a Claude usage summary from Anthropic with an in-memory cache keyed
+ * per resolved credentials path, fresh-on-every-request credential reads, and
+ * transparent OAuth refresh on 401.
  *
- * State is deliberately tiny: one cache slot keyed on the shared credential and
- * a cached CLI version string. The access token is never held beyond the scope
- * of a single fetch.
+ * Credential isolation (ADR-014): the credentials path is resolved through
+ * resolveProviderEnv for the REQUESTING user, so an isolated user's usage is
+ * fetched with their own OAuth token (their subscription), never the
+ * operator's. When claude is policy-shared, every user resolves to the same
+ * operator path and shares one cache slot — identical to the old behavior.
  */
 class ClaudeUsageService {
-  private cache: CacheEntry | null = null;
+  private cache = new Map<string, CacheEntry>();
 
   private cliVersionPromise: Promise<string> | null = null;
 
-  /** In-flight fetch dedupe so concurrent requests share one upstream call. */
-  private inFlight: Promise<ClaudeUsageSummary> | null = null;
+  /** In-flight fetch dedupe (per credentials path) so concurrent requests share one upstream call. */
+  private inFlight = new Map<string, Promise<ClaudeUsageSummary>>();
 
   /**
-   * Returns the current Claude usage summary, serving a fresh cache hit when
-   * available and falling back to a stale copy on transient upstream failures.
+   * Returns the Claude usage summary for the given user, serving a fresh cache
+   * hit when available and falling back to a stale copy on transient upstream
+   * failures.
    *
    * Throws an AppError with code CLAUDE_USAGE_UNAVAILABLE when no data can be
    * produced (missing/expired credential that cannot be refreshed, and no cache).
    */
-  async getUsage(): Promise<ClaudeUsageSummary> {
-    const now = Date.now();
-    if (this.cache && this.cache.expiresAt > now) {
-      return this.cache.summary;
+  async getUsage(userId: string | number | null = null): Promise<ClaudeUsageSummary> {
+    const credPath = this.resolveCredentialsPath(userId);
+
+    const cached = this.cache.get(credPath);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.summary;
     }
 
-    if (this.inFlight) {
-      return this.inFlight;
+    const inFlight = this.inFlight.get(credPath);
+    if (inFlight) {
+      return inFlight;
     }
 
-    this.inFlight = this.refresh().finally(() => {
-      this.inFlight = null;
+    const refresh = this.refresh(credPath).finally(() => {
+      this.inFlight.delete(credPath);
     });
+    this.inFlight.set(credPath, refresh);
 
-    return this.inFlight;
+    return refresh;
   }
 
   /**
    * Performs the credential read + upstream fetch, updates the cache on success,
    * and returns a stale cached copy (flagged `stale: true`) on transient errors.
    */
-  private async refresh(): Promise<ClaudeUsageSummary> {
+  private async refresh(credPath: string): Promise<ClaudeUsageSummary> {
     let credential: OAuthCredential;
     try {
-      credential = await this.readCredential();
+      credential = await this.readCredential(credPath);
     } catch (error) {
       // A missing/unreadable credential is terminal only when we have no cache
       // to fall back on. Otherwise surface the stale copy.
-      return this.serveStaleOrThrow(error);
+      return this.serveStaleOrThrow(credPath, error);
     }
 
     try {
-      const raw = await this.fetchUsage(credential);
+      const raw = await this.fetchUsage(credPath, credential);
       const summary = this.normalize(raw, credential, false);
-      this.cache = { summary, expiresAt: Date.now() + CACHE_TTL_MS };
+      this.cache.set(credPath, { summary, expiresAt: Date.now() + CACHE_TTL_MS });
       return summary;
     } catch (error) {
-      return this.serveStaleOrThrow(error);
+      return this.serveStaleOrThrow(credPath, error);
     }
   }
 
@@ -132,9 +142,10 @@ class ClaudeUsageService {
    * Returns the cached summary marked stale when present; otherwise rethrows a
    * normalized AppError so the route never emits a silent 500.
    */
-  private serveStaleOrThrow(error: unknown): ClaudeUsageSummary {
-    if (this.cache) {
-      return { ...this.cache.summary, stale: true, fetchedAt: this.cache.summary.fetchedAt };
+  private serveStaleOrThrow(credPath: string, error: unknown): ClaudeUsageSummary {
+    const cached = this.cache.get(credPath);
+    if (cached) {
+      return { ...cached.summary, stale: true, fetchedAt: cached.summary.fetchedAt };
     }
 
     if (error instanceof AppError) {
@@ -152,6 +163,7 @@ class ClaudeUsageService {
    * attempts a single OAuth refresh and retries once.
    */
   private async fetchUsage(
+    credPath: string,
     credential: OAuthCredential,
     allowRefresh = true,
   ): Promise<Record<string, unknown>> {
@@ -160,8 +172,8 @@ class ClaudeUsageService {
     const response = await this.requestUsage(credential.accessToken, userAgent);
 
     if (response.status === 401 && allowRefresh) {
-      const refreshed = await this.refreshAccessToken(credential);
-      return this.fetchUsage(refreshed, false);
+      const refreshed = await this.refreshAccessToken(credPath, credential);
+      return this.fetchUsage(credPath, refreshed, false);
     }
 
     if (response.status === 429) {
@@ -224,7 +236,7 @@ class ClaudeUsageService {
    * rotated tokens back to the credentials file (matching Claude Code, which
    * keeps the file as the single source of truth).
    */
-  private async refreshAccessToken(credential: OAuthCredential): Promise<OAuthCredential> {
+  private async refreshAccessToken(credPath: string, credential: OAuthCredential): Promise<OAuthCredential> {
     if (!credential.refreshToken) {
       throw new AppError('Claude OAuth token expired and cannot be refreshed.', {
         code: CLAUDE_USAGE_UNAVAILABLE,
@@ -275,7 +287,7 @@ class ClaudeUsageService {
     const expiresInSeconds = typeof record?.expires_in === 'number' ? record.expires_in : null;
     const expiresAt = expiresInSeconds ? Date.now() + expiresInSeconds * 1000 : credential.expiresAt;
 
-    await this.persistRefreshedCredential({ accessToken, refreshToken, expiresAt });
+    await this.persistRefreshedCredential(credPath, { accessToken, refreshToken, expiresAt });
 
     return { ...credential, accessToken, refreshToken, expiresAt };
   }
@@ -284,12 +296,11 @@ class ClaudeUsageService {
    * Writes the rotated OAuth fields back into `.credentials.json` while
    * preserving every other field already on disk.
    */
-  private async persistRefreshedCredential(update: {
+  private async persistRefreshedCredential(credPath: string, update: {
     accessToken: string;
     refreshToken: string;
     expiresAt: number | null;
   }): Promise<void> {
-    const credPath = this.resolveCredentialsPath();
     try {
       const content = await readFile(credPath, 'utf8');
       const root = readObjectRecord(JSON.parse(content)) ?? {};
@@ -315,8 +326,7 @@ class ClaudeUsageService {
    * the token in this file out-of-band, so caching the token in memory would
    * risk using a stale one.
    */
-  private async readCredential(): Promise<OAuthCredential> {
-    const credPath = this.resolveCredentialsPath();
+  private async readCredential(credPath: string): Promise<OAuthCredential> {
     let oauth: ReturnType<typeof readObjectRecord>;
     try {
       const content = await readFile(credPath, 'utf8');
@@ -347,11 +357,15 @@ class ClaudeUsageService {
   }
 
   /**
-   * Resolves the credentials file path honoring CLAUDE_CONFIG_DIR, falling back
-   * to the operator home — matching ClaudeProviderAuth's resolution.
+   * Resolves the credentials file path for the requesting user through the
+   * central isolation seam (resolveProviderEnv), so usage is fetched against
+   * the SAME credential a claude spawn for this user would use. An isolated
+   * user resolves to their own CLAUDE_CONFIG_DIR; shared/anonymous resolves to
+   * the operator env (its CLAUDE_CONFIG_DIR or ~/.claude).
    */
-  private resolveCredentialsPath(): string {
-    const configDir = readOptionalString(process.env.CLAUDE_CONFIG_DIR)
+  private resolveCredentialsPath(userId: string | number | null): string {
+    const env = resolveProviderEnv(userId, 'claude', process.env);
+    const configDir = readOptionalString(env.CLAUDE_CONFIG_DIR)
       ?? path.join(os.homedir(), '.claude');
     return path.join(configDir, '.credentials.json');
   }
@@ -392,9 +406,11 @@ class ClaudeUsageService {
       session: this.toWindow(raw.five_hour),
       weeklyAllModels: this.toWindow(raw.seven_day),
       weeklySonnet: this.toWindow(raw.seven_day_sonnet),
-      // Opus is normalized to a zeroed window when absent so the UI always has a
-      // row to render; every other window stays null when upstream says null.
-      weeklyOpus: this.toWindow(raw.seven_day_opus) ?? { utilization: 0, resetsAt: null },
+      // Opus surfaces null like every other window when upstream omits it
+      // (current Max plans report seven_day_opus: null — opus burn rolls into
+      // seven_day/five_hour). The UI hides null windows; if Anthropic later
+      // populates seven_day_opus, the row appears automatically.
+      weeklyOpus: this.toWindow(raw.seven_day_opus),
       extraUsage: this.toExtraUsage(raw.extra_usage),
       fetchedAt: new Date().toISOString(),
       stale,

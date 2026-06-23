@@ -15,18 +15,24 @@ import Database from 'better-sqlite3';
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
+import { createShutdownDrain, resolveDrainTimeoutMs } from '@/services/shutdown-drain.service.js';
+import { listenWithGuard, resolveBindWindowMs } from '@/services/listen-with-guard.service.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import { clientIp } from './utils/client-ip.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
     isClaudeSDKSessionActive,
     getActiveClaudeSDKSessions,
+    getDrainBlockingClaudeSessions,
+    ghostDetachEnabled,
     resolveToolApproval,
     getPendingApprovalsForSession,
     reconnectSessionWriter,
+    attachClaudeSDKSession,
     resolveContextWindow,
 } from './claude-sdk.js';
 import {
@@ -52,6 +58,7 @@ import {
     abortAntigravitySession,
     isAntigravitySessionActive,
     getActiveAntigravitySessions,
+    attachAntigravitySession,
 } from './agy-cli.js';
 import {
     spawnOpenCode,
@@ -71,21 +78,29 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import cursorRoutes from './routes/cursor.js';
 import taskmasterRoutes from './routes/taskmaster.js';
+import projectBoardRoutes from './routes/project-board.js';
 import mcpUtilsRoutes from './routes/mcp-utils.js';
 import commandsRoutes from './routes/commands.js';
-import settingsRoutes from './routes/settings.js';
+import settingsRoutes, { getBrandingHandler } from './routes/settings.js';
 import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
+import { runnerRoutes, setRunnerControlGuard } from './modules/runner/index.js';
 import userRoutes from './routes/user.js';
 import geminiRoutes from './routes/gemini.js';
 import pluginsRoutes from './routes/plugins.js';
+import githubRoutes from './routes/github.js';
+import systemRoutes from './routes/system.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
+import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
+import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
+import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
+import { enforcePlatformIsolationGuard } from './services/platform-isolation-guard.service.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole, JWT_SECRET } from './middleware/auth.js';
+import { recordAuthRejection } from './middleware/auth-rejection-audit.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
@@ -94,6 +109,9 @@ const __dirname = getModuleDir(import.meta.url);
 // Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
 const APP_ROOT = findAppRoot(__dirname);
 const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
+const MAX_FILE_UPLOAD_SIZE_MB = 200;
+const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_FILE_UPLOAD_SIZE_MB * 1024 * 1024;
+const MAX_FILE_UPLOAD_COUNT = 20;
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
@@ -105,6 +123,12 @@ const wss = createWebSocketServer(server, {
     verifyClient: {
         isPlatform: IS_PLATFORM,
         authenticateWebSocket,
+        // Cross-boundary collaborators injected from the composition root so the
+        // websocket module never imports middleware/utils across the boundary
+        // (eslint-plugin-boundaries). T-182 auth_rejected auditing on the WS path.
+        jwtSecret: JWT_SECRET,
+        recordRejection: recordAuthRejection,
+        clientIp,
     },
     chat: {
         queryClaudeSDK,
@@ -142,6 +166,8 @@ const wss = createWebSocketServer(server, {
         isAntigravitySessionActive,
         isOpenCodeSessionActive,
         reconnectSessionWriter,
+        attachAntigravitySession,
+        attachClaudeSDKSession,
         getPendingApprovalsForSession,
         getActiveClaudeSDKSessions,
         getActiveCursorSessions,
@@ -163,7 +189,29 @@ const wss = createWebSocketServer(server, {
 // Make WebSocket server available to routes
 app.locals.wss = wss;
 
-app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
+// CORS — restrict to known production and development origins.
+// Set ALLOWED_ORIGINS (comma-separated) in .env to add further origins without
+// code changes.  Falls back to a safe default list when the variable is absent.
+// This middleware must remain before all route mounts.
+const _corsDefaultOrigins = [
+  'https://nassaj.alkindy.tech',
+  'http://localhost:3004',
+  'http://localhost:3001',
+  'http://localhost:5173',
+];
+const _corsAllowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  : _corsDefaultOrigins;
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow non-browser tool calls (e.g. curl, server-to-server) that send no Origin.
+    if (!origin) return callback(null, true);
+    if (_corsAllowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: origin '${origin}' not allowed`));
+  },
+  exposedHeaders: ['X-Refreshed-Token'],
+}));
 app.use(express.json({
     limit: '50mb',
     type: (req) => {
@@ -177,10 +225,16 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Public health check endpoint (no authentication required)
+// Public health check endpoint (no authentication required).
+// `service: 'nassaj-server'` is a stable fingerprint the B-41 listen guard
+// probes after a bind window expires: a port held by one of OUR instances
+// (a draining/ghost predecessor) reports this marker, so the starting instance
+// gives up cleanly (PM2 reschedules). A port held by something FOREIGN does not
+// report it, so the guard surfaces a crash (errored) instead of dying silently.
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
+        service: 'nassaj-server',
         timestamp: new Date().toISOString(),
         installMode
     });
@@ -210,11 +264,30 @@ app.use('/api/cursor', authenticateToken, cursorRoutes);
 // TaskMaster API Routes (protected)
 app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
 
+// Project Board API Routes (protected) — live view of docs/project-state.json
+app.use('/api/project-board', authenticateToken, projectBoardRoutes);
+
+// Runner Bridge API Routes (protected) — read runner state, write control files
+// (ADR-RUNNER-BRIDGE-001). The board overlay's only contact surface with the runner.
+// GET is open to any authenticated user (read-only status); the five control verbs
+// (start/stop/pause/resume/approve) launch self-driving `claude -p` sessions that
+// burn Anthropic quota and mutate the repo, so they require owner/admin — injected
+// here to keep the module router free of a direct middleware import.
+setRunnerControlGuard(requireRole('owner', 'admin'));
+app.use('/api/runner', authenticateToken, runnerRoutes);
+
 // MCP utilities
 app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
 
 // Commands API Routes (protected)
 app.use('/api/commands', authenticateToken, commandsRoutes);
+
+// Public branding read (custom title + logo URL — non-sensitive). Registered
+// BEFORE the authenticated /api/settings mount so the pre-auth screens
+// (login/setup/splash) can fetch the custom identity without a token. Only GET
+// is captured here; branding writes still go through the protected router below
+// (owner-only).
+app.get('/api/settings/branding', getBrandingHandler);
 
 // Settings API Routes (protected)
 app.use('/api/settings', authenticateToken, settingsRoutes);
@@ -228,6 +301,12 @@ app.use('/api/gemini', authenticateToken, geminiRoutes);
 // Plugins API Routes (protected)
 app.use('/api/plugins', authenticateToken, pluginsRoutes);
 
+// GitHub API Routes (protected) — repository listing for the project wizard.
+app.use('/api/github', authenticateToken, githubRoutes);
+
+// System stats (protected) — live CPU/RAM for the sidebar footer widget.
+app.use('/api/system', authenticateToken, systemRoutes);
+
 // Antigravity rate limiting — in-memory bucket per IP.
 // Applied before the auth middleware so abusive callers can't burn auth cycles.
 // Limits: 60 req/min/IP on /api/providers/antigravity/*
@@ -236,7 +315,8 @@ const ANTIGRAVITY_RATE_LIMIT = 60;
 const ANTIGRAVITY_WINDOW_MS = 60_000;
 
 app.use('/api/providers/antigravity', (req, res, next) => {
-    const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    // Unified IP source (T-182/ADR-040): real client behind the tunnel.
+    const ip = clientIp(req) || 'unknown';
     const now = Date.now();
     const entry = antigravityRateMap.get(ip);
 
@@ -282,11 +362,100 @@ app.get('/avatars/:userId.:ext', (req, res) => {
     const filePath = path.join(AVATARS_ROOT, userId, `avatar.${ext}`);
     res.type(AVATAR_EXT_TO_MIME[ext]);
     res.setHeader('Cache-Control', 'private, no-cache');
+    // Defense in depth: forbid MIME sniffing so a stored file can never be
+    // re-interpreted as HTML/script by the browser regardless of its bytes.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.sendFile(filePath, (err) => {
         if (err && !res.headersSent) {
             res.status(404).end();
         }
     });
+});
+
+// App-wide custom branding logo. Stored under ~/.nassaj-users/.branding/logo.<ext>
+// (a runtime directory that survives deployments — never inside dist/, which the
+// build overwrites). Served at /branding/logo.<ext>. The :ext segment must be one
+// of the allowed image extensions; the served path is rebuilt from that validated
+// part only, so no portion of the request URL is interpolated into a filesystem
+// path (no traversal). The on-disk filename is always logo.<ext> derived from the
+// uploaded file's MIME type, never from any client-supplied name.
+// SVG is supported: the upload path sanitizes it server-side (DOMPurify) before
+// writing, and this route additionally serves it under a strict CSP + nosniff
+// (defense in depth) so no active content can execute even on direct navigation.
+const BRANDING_ROOT = path.join(os.homedir(), '.nassaj-users', '.branding');
+const BRANDING_LOGO_PATH_KEY = 'branding.logo_path';
+const BRANDING_LOGO_DARK_PATH_KEY = 'branding.logo_dark_path';
+const BRANDING_EXT_TO_MIME = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+};
+// :name is constrained to the two known basenames, so (with :ext validated
+// below) no part of the URL reaches the filesystem path un-whitelisted.
+app.get('/branding/:name(logo|logo_dark).:ext', (req, res) => {
+    const { name, ext } = req.params;
+    if (!Object.prototype.hasOwnProperty.call(BRANDING_EXT_TO_MIME, ext)) {
+        return res.status(404).end();
+    }
+    // Only serve the extension that is currently recorded as the active logo in
+    // app_config. This means a stale/orphaned file left under a different
+    // extension (e.g. after a failed cleanup) is never served, even if it exists
+    // on disk.
+    const activeExt = appConfigDb.get(
+        name === 'logo_dark' ? BRANDING_LOGO_DARK_PATH_KEY : BRANDING_LOGO_PATH_KEY
+    );
+    if (!activeExt || activeExt !== ext) {
+        return res.status(404).end();
+    }
+    const filePath = path.join(BRANDING_ROOT, `${name}.${ext}`);
+    res.type(BRANDING_EXT_TO_MIME[ext]);
+    // Defense in depth: forbid MIME sniffing so the file can never be
+    // re-interpreted as HTML/script by the browser regardless of its bytes.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    // Hardening for direct navigation to the asset — most important for SVG,
+    // which a browser renders as a document. A locked-down CSP forbids any
+    // script/object/external fetch, so even a sanitizer bypass cannot execute
+    // code when the logo is opened directly. Applied to every logo extension.
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:"
+    );
+    // The logo is public-facing chrome shown to every authenticated user. Each
+    // upload changes the URL (getBrandingLogoUrl appends a ?v=<version> token),
+    // so a replaced logo is always a fresh URL and never hits a cached copy.
+    // We still keep a short cache for snappiness, but require revalidation once
+    // it goes stale (defense in depth: even a URL without ?v re-checks within a
+    // minute instead of serving a possibly-stale entry from cache).
+    res.setHeader('Cache-Control', 'public, max-age=60, must-revalidate');
+    res.sendFile(filePath, (err) => {
+        if (err && !res.headersSent) {
+            res.status(404).end();
+        }
+    });
+});
+
+// Dynamic PWA manifest: serve public/manifest.json with its name fields
+// overridden by the custom branding title (when one is set), so the installed
+// PWA label follows the configured branding. Registered BEFORE the static
+// mounts below so this route wins over the file on disk. Served with no-cache
+// (the service worker fetches the manifest network-first) so a title change is
+// picked up on the next load without a new build.
+app.get('/manifest.json', async (req, res) => {
+    try {
+        const raw = await fsPromises.readFile(path.join(APP_ROOT, 'public', 'manifest.json'), 'utf8');
+        const manifest = JSON.parse(raw);
+        const brandingTitle = getBrandingTitle();
+        if (brandingTitle) {
+            manifest.name = brandingTitle;
+            manifest.short_name = brandingTitle;
+        }
+        res.setHeader('Cache-Control', 'no-cache');
+        res.type('application/manifest+json').send(JSON.stringify(manifest));
+    } catch (error) {
+        console.error('Error serving manifest.json:', error);
+        res.status(500).json({ error: 'Failed to serve manifest' });
+    }
 });
 
 // Serve public files (like api-docs.html)
@@ -312,8 +481,9 @@ app.use(express.static(path.join(APP_ROOT, 'dist'), {
 // /api/config endpoint removed - no longer needed
 // Frontend now uses window.location for WebSocket URLs
 
-// System update endpoint
-app.post('/api/system/update', authenticateToken, async (req, res) => {
+// System update endpoint (B-36: privileged — spawns npm/git on the host, so it
+// is restricted to admin-level roles, same gate as /api/admin).
+app.post('/api/system/update', authenticateToken, requireRole('owner', 'admin'), async (req, res) => {
     try {
         // Get the project root directory (parent of server directory)
         const projectRoot = APP_ROOT;
@@ -530,6 +700,12 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(400).json({ error: 'Invalid file path' });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to this
+        // user, so a private project's existence is never disclosed.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the absolute project root via the DB-backed helper; the
         // caller passes the DB-assigned `projectId`, not a folder name.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
@@ -570,6 +746,11 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
         // Security: ensure the requested path is inside the project root
         if (!filePath) {
             return res.status(400).json({ error: 'Invalid file path' });
+        }
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
         }
 
         // Projects are now addressed by DB `projectId`, resolved to their path here.
@@ -634,6 +815,11 @@ app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(400).json({ error: 'Content is required' });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Projects are now addressed by DB `projectId`, resolved to their path here.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -673,6 +859,11 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
     try {
 
         // Using fsPromises from import
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
 
         // Resolve the project's absolute path through the DB (projectId is the
         // primary key of the `projects` table after the identifier migration).
@@ -763,6 +954,11 @@ app.post('/api/projects/:projectId/files/create', authenticateToken, async (req,
             return res.status(400).json({ error: nameValidation.error });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the project directory through the DB using the new projectId.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -836,6 +1032,11 @@ app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, 
             return res.status(400).json({ error: nameValidation.error });
         }
 
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         // Resolve the project directory through the DB using the new projectId.
         const projectRoot = await projectsDb.getProjectPathById(projectId);
         if (!projectRoot) {
@@ -906,6 +1107,11 @@ app.delete('/api/projects/:projectId/files', authenticateToken, async (req, res)
         // Validate input
         if (!targetPath) {
             return res.status(400).json({ error: 'Path is required' });
+        }
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
         }
 
         // Resolve the project directory through the DB using the new projectId.
@@ -982,27 +1188,34 @@ const uploadFilesHandler = async (req, res) => {
             }
         }),
         limits: {
-            fileSize: 50 * 1024 * 1024, // 50MB limit
-            files: 20 // Max 20 files at once
+            fileSize: MAX_FILE_UPLOAD_SIZE_BYTES,
+            files: MAX_FILE_UPLOAD_COUNT
         }
     });
 
     // Use multer middleware
-    uploadMiddleware.array('files', 20)(req, res, async (err) => {
+    uploadMiddleware.array('files', MAX_FILE_UPLOAD_COUNT)(req, res, async (err) => {
         if (err) {
             console.error('Multer error:', err);
             if (err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({ error: 'File too large. Maximum size is 50MB.' });
+                return res.status(400).json({ error: `File too large. Maximum size is ${MAX_FILE_UPLOAD_SIZE_MB}MB.` });
             }
             if (err.code === 'LIMIT_FILE_COUNT') {
-                return res.status(400).json({ error: 'Too many files. Maximum is 20 files.' });
+                return res.status(400).json({ error: `Too many files. Maximum is ${MAX_FILE_UPLOAD_COUNT} files.` });
             }
             return res.status(500).json({ error: err.message });
         }
 
         try {
             const { projectId } = req.params;
-            const { targetPath, relativePaths } = req.body;
+            const { targetPath, relativePaths, requestedFileCount: requestedFileCountRaw } = req.body;
+
+            // B-PRIV guard: 404 (not 403) when the project is not visible to the
+            // user. Temp uploads land in os.tmpdir(), so rejecting here (before any
+            // write into the project) fully protects a private project.
+            if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+                return res.status(404).json({ error: 'Project not found' });
+            }
 
             // Parse relative paths if provided (for folder uploads)
             let filePaths = [];
@@ -1025,6 +1238,11 @@ const uploadFilesHandler = async (req, res) => {
             if (!req.files || req.files.length === 0) {
                 return res.status(400).json({ error: 'No files provided' });
             }
+
+            const parsedRequestedFileCount = Number.parseInt(requestedFileCountRaw, 10);
+            const requestedFileCount = Number.isFinite(parsedRequestedFileCount) && parsedRequestedFileCount > 0
+                ? parsedRequestedFileCount
+                : req.files.length;
 
             // Resolve the project directory through the DB using the new projectId.
             const projectRoot = await projectsDb.getProjectPathById(projectId);
@@ -1104,8 +1322,10 @@ const uploadFilesHandler = async (req, res) => {
             res.json({
                 success: true,
                 files: uploadedFiles,
+                uploadedCount: uploadedFiles.length,
+                requestedFileCount,
                 targetPath: resolvedTargetDir,
-                message: `Uploaded ${uploadedFiles.length} file(s) successfully`
+                message: `Uploaded ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} successfully`
             });
         } catch (error) {
             console.error('Error uploading files:', error);
@@ -1131,6 +1351,11 @@ app.post('/api/projects/:projectId/files/upload', authenticateToken, uploadFiles
 // so we just leave the param rename for consistency with the rest of the API.
 app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req, res) => {
     try {
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
         const multer = (await import('multer')).default;
         const path = (await import('path')).default;
         const fs = (await import('fs')).promises;
@@ -1164,12 +1389,12 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
             fileFilter,
             limits: {
                 fileSize: 5 * 1024 * 1024, // 5MB
-                files: 5
+                files: 15
             }
         });
 
         // Handle multipart form data
-        upload.array('images', 5)(req, res, async (err) => {
+        upload.array('images', 15)(req, res, async (err) => {
             if (err) {
                 return res.status(400).json({ error: err.message });
             }
@@ -1220,6 +1445,12 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         const { projectId, sessionId } = req.params;
         const { provider = 'claude' } = req.query;
         const homeDir = os.homedir();
+
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user,
+        // so a private project's token usage is never disclosed to a non-member.
+        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
 
         // Allow only safe characters in sessionId
         const safeSessionId = String(sessionId).replace(/[^a-zA-Z0-9._-]/g, '');
@@ -1588,73 +1819,132 @@ function permToRwx(perm) {
     return r + w + x;
 }
 
+// Directories that are almost never interesting for a project tree but can
+// contain tens of thousands of files. Skipping them before recursion keeps
+// traversal time bounded on large monorepos and high-latency filesystems
+// (NFS / SMB).
+const IGNORED_DIRS = new Set([
+    // JS / TS toolchains
+    'node_modules', 'dist', 'build', '.next', '.nuxt', '.cache', '.parcel-cache',
+    // VCS
+    '.git', '.svn', '.hg',
+    // Python
+    '__pycache__', '.pytest_cache', '.mypy_cache', '.tox', 'venv', '.venv',
+    // Rust / Go / Java / Ruby
+    'target', 'vendor',
+    // Build output / IDE
+    '.gradle', '.idea', 'coverage', '.nyc_output'
+]);
+
+const DEFAULT_FS_CONCURRENCY = 64;
+const parsedFsConcurrency = Number.parseInt(process.env.FS_CONCURRENCY || '', 10);
+const FS_CONCURRENCY = Number.isFinite(parsedFsConcurrency) && parsedFsConcurrency > 0
+    ? parsedFsConcurrency
+    : DEFAULT_FS_CONCURRENCY;
+let activeFsOperations = 0;
+const pendingFsOperations = [];
+
+async function acquire() {
+    if (activeFsOperations < FS_CONCURRENCY) {
+        activeFsOperations += 1;
+        return;
+    }
+
+    await new Promise((resolve) => {
+        pendingFsOperations.push(resolve);
+    });
+}
+
+function release() {
+    const next = pendingFsOperations.shift();
+    if (next) {
+        next();
+        return;
+    }
+
+    activeFsOperations = Math.max(0, activeFsOperations - 1);
+}
+
 async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden = true) {
     // Using fsPromises from import
-    const items = [];
-
+    let entries;
     try {
-        const entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
-
-        for (const entry of entries) {
-            // Debug: log all entries including hidden files
-
-
-            // Skip heavy build directories and VCS directories
-            if (entry.name === 'node_modules' ||
-                entry.name === 'dist' ||
-                entry.name === 'build' ||
-                entry.name === '.git' ||
-                entry.name === '.svn' ||
-                entry.name === '.hg') continue;
-
-            const itemPath = path.join(dirPath, entry.name);
-            const item = {
-                name: entry.name,
-                path: itemPath,
-                type: entry.isDirectory() ? 'directory' : 'file'
-            };
-
-            // Get file stats for additional metadata
-            try {
-                const stats = await fsPromises.stat(itemPath);
-                item.size = stats.size;
-                item.modified = stats.mtime.toISOString();
-
-                // Convert permissions to rwx format
-                const mode = stats.mode;
-                const ownerPerm = (mode >> 6) & 7;
-                const groupPerm = (mode >> 3) & 7;
-                const otherPerm = mode & 7;
-                item.permissions = ((mode >> 6) & 7).toString() + ((mode >> 3) & 7).toString() + (mode & 7).toString();
-                item.permissionsRwx = permToRwx(ownerPerm) + permToRwx(groupPerm) + permToRwx(otherPerm);
-            } catch (statError) {
-                // If stat fails, provide default values
-                item.size = 0;
-                item.modified = null;
-                item.permissions = '000';
-                item.permissionsRwx = '---------';
-            }
-
-            if (entry.isDirectory() && currentDepth < maxDepth) {
-                // Recursively get subdirectories but limit depth
-                try {
-                    // Check if we can access the directory before trying to read it
-                    await fsPromises.access(item.path, fs.constants.R_OK);
-                    item.children = await getFileTree(item.path, maxDepth, currentDepth + 1, showHidden);
-                } catch (e) {
-                    // Silently skip directories we can't access (permission denied, etc.)
-                    item.children = [];
-                }
-            }
-
-            items.push(item);
+        await acquire();
+        try {
+            entries = await fsPromises.readdir(dirPath, { withFileTypes: true });
+        } finally {
+            release();
         }
     } catch (error) {
         // Only log non-permission errors to avoid spam
         if (error.code !== 'EACCES' && error.code !== 'EPERM') {
             console.error('Error reading directory:', error);
         }
+        return [];
     }
+
+    const filteredEntries = entries.filter((entry) => !(entry.isDirectory() && IGNORED_DIRS.has(entry.name)));
+
+    // Process every entry in parallel. On high-latency filesystems (NFS/SMB)
+    // serial stat() was the real bottleneck — issuing them concurrently lets
+    // the kernel pipeline the round-trips and the recursive calls overlap too.
+    const items = await Promise.all(filteredEntries.map(async (entry) => {
+        const itemPath = path.join(dirPath, entry.name);
+        const item = {
+            name: entry.name,
+            path: itemPath,
+            type: entry.isDirectory() ? 'directory' : 'file'
+        };
+
+        // Get file stats for additional metadata
+        try {
+            await acquire();
+            try {
+              const stats = await fsPromises.lstat(itemPath);
+              item.size = stats.size;
+              item.modified = stats.mtime.toISOString();
+
+              // Mark symlinks so UI can distinguish them
+              if (stats.isSymbolicLink()) {
+                item.isSymlink = true;
+              }
+
+              // Convert permissions to rwx format
+              const mode = stats.mode;
+              const ownerPerm = (mode >> 6) & 7;
+              const groupPerm = (mode >> 3) & 7;
+              const otherPerm = mode & 7;
+              item.permissions =
+                ((mode >> 6) & 7).toString() +
+                ((mode >> 3) & 7).toString() +
+                (mode & 7).toString();
+              item.permissionsRwx =
+                permToRwx(ownerPerm) +
+                permToRwx(groupPerm) +
+                permToRwx(otherPerm);
+            } finally {
+                release();
+            }
+        } catch (statError) {
+            // If stat fails, provide default values
+            item.size = 0;
+            item.modified = null;
+            item.permissions = '000';
+            item.permissionsRwx = '---------';
+        }
+
+        if (entry.isDirectory() && currentDepth < maxDepth) {
+            // Recurse. Let readdir's own EACCES bubble up through the catch in
+            // the recursive call rather than doing a separate access() probe
+            // (which doubled the round-trip count on SMB without adding info).
+            // The recursive call starts with a bounded readdir; holding a permit
+            // for the whole subtree can deadlock when sibling directories are
+            // waiting on their own children.
+            item.children = await getFileTree(itemPath, maxDepth, currentDepth + 1, showHidden);
+        }
+
+        return item;
+    }));
 
     return items.sort((a, b) => {
         if (a.type !== b.type) {
@@ -1674,6 +1964,12 @@ async function startServer() {
     try {
         // Initialize authentication database
         await initializeDatabase();
+
+        // B-5 fail-closed guard: in platform mode every WS session resolves to
+        // the first active user, so an isolated Claude provider + >1 active user
+        // would silently share one subscription (ToS violation). Throws here to
+        // abort boot (the catch below exits 1) before any listener is opened.
+        enforcePlatformIsolationGuard();
 
         // Bootstrap the initial owner on first run (no-op once an owner exists).
         if (!IS_PLATFORM) {
@@ -1697,36 +1993,77 @@ async function startServer() {
 
         console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
    
-        server.listen(SERVER_PORT, HOST, async () => {
-            const appInstallPath = APP_ROOT;
+        // B-41 (self-hosting trap): bind through the single-listener guard
+        // instead of a naked server.listen(). If a draining/ghost predecessor
+        // still holds port 3004, the guard retries briefly then exits cleanly
+        // (0) rather than crash-looping on EADDRINUSE. See
+        // listen-with-guard.service.ts for the full rationale and the T-95
+        // diagnosis.
+        await listenWithGuard({
+            server,
+            port: SERVER_PORT,
+            host: HOST,
+            exit: (code) => process.exit(code),
+            // Operators can widen the overlap window if drain handoff is slow.
+            bindWindowMs: resolveBindWindowMs(process.env.LISTEN_BIND_WINDOW_MS),
+            onListening: () => {
+                const appInstallPath = APP_ROOT;
 
-            console.log('');
-            console.log(c.dim('═'.repeat(63)));
-            console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
-            console.log(c.dim('═'.repeat(63)));
-            console.log('');
-            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
-            console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
-            console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
-            console.log('');
+                console.log('');
+                console.log(c.dim('═'.repeat(63)));
+                console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
+                console.log(c.dim('═'.repeat(63)));
+                console.log('');
+                console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+                console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
+                console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
+                console.log('');
 
-            // Start watching the projects folder for changes
-            await initializeSessionsWatcher();
+                // Start watching the projects folder for changes
+                initializeSessionsWatcher().catch(err => {
+                    console.error('[Sessions] Error initializing watcher:', err.message);
+                });
 
-            // Start server-side plugin processes for enabled plugins
-            startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
-            });
+                // Start server-side plugin processes for enabled plugins
+                startEnabledPluginServers().catch(err => {
+                    console.error('[Plugins] Error during startup:', err.message);
+                });
+            },
         });
 
         await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
-        const shutdownPlugins = async () => {
-            await stopAllPlugins();
-            process.exit(0);
-        };
-        process.on('SIGTERM', () => void shutdownPlugins());
-        process.on('SIGINT', () => void shutdownPlugins());
+
+        // B-N-DRAIN (ADR-021 / ADR-022) + B-23: a stop signal triggers a TIMED
+        // DRAIN instead of an immediate process.exit(0), and — critically —
+        // releases the HTTP/WS listener at once so the PM2 replacement
+        // instance can bind the port while in-flight provider runs finish.
+        // Full semantics documented in shutdown-drain.service.ts.
+        const drainThenShutdown = createShutdownDrain({
+            server,
+            wss,
+            countActiveSessionsByProvider: () => ({
+                // ADR-042 (B-80c): behind CLAUDE_GHOST_DETACH the drain stops
+                // counting detached ghost sessions (lost every listener past the
+                // grace period — still running + writing jsonl, just not blocking
+                // restart). Flag OFF ⇒ byte-for-byte the previous behaviour
+                // (every active session counts). Only the drain count changes;
+                // getActiveClaudeSDKSessions() stays the display/WS-DIAG source.
+                claude: (ghostDetachEnabled()
+                    ? getDrainBlockingClaudeSessions()
+                    : getActiveClaudeSDKSessions()).length,
+                cursor: getActiveCursorSessions().length,
+                codex: getActiveCodexSessions().length,
+                gemini: getActiveGeminiSessions().length,
+                antigravity: getActiveAntigravitySessions().length,
+                opencode: getActiveOpenCodeSessions().length,
+            }),
+            stopAllPlugins,
+            exit: (code) => process.exit(code),
+            drainTimeoutMs: resolveDrainTimeoutMs(process.env.DRAIN_TIMEOUT_MS),
+        });
+
+        process.on('SIGTERM', () => void drainThenShutdown('SIGTERM'));
+        process.on('SIGINT', () => void drainThenShutdown('SIGINT'));
     } catch (error) {
         console.error('[ERROR] Failed to start server:', error);
         process.exit(1);

@@ -22,7 +22,23 @@
     "shell": "Shell",
     "files": "Dosyalar",
     "git": "Kaynak Kontrolü",
-    "tasks": "Görevler"
+    "tasks": "Görevler",
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wiki İçindekiler",
+    "closeSidebar": "İçindekileri gizle",
+    "openSidebar": "İçindekileri göster",
+    "pageNotFound": "Sayfa bulunamadı",
+    "searchPlaceholder": "Wiki'de ara…",
+    "searchAriaLabel": "Wiki sayfalarında ara",
+    "searchClear": "Aramayı temizle",
+    "searchNoResults": "Sonuç bulunamadı",
+    "searchResultsCount": "{{count}} sonuç",
+    "searchResultsAriaLabel": "Arama sonuçları"
   },
   "status": {
     "loading": "Yükleniyor...",
@@ -172,7 +188,27 @@
       "publicRepoInfo": "Genel depolar kimlik doğrulama gerektirmez. Genel bir depo klonluyorsan token girmeyi atlayabilirsin.",
       "noTokensHelp": "Kayıtlı token yok. Kolay tekrar kullanım için Ayarlar → API Anahtarları bölümünden token ekleyebilirsin.",
       "optionalTokenPublic": "GitHub Token (Genel Depolar için İsteğe Bağlı)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (genel depolar için boş bırak)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (genel depolar için boş bırak)",
+      "repos": {
+        "fromMyRepos": "Depolarımdan seç",
+        "pasteUrl": "URL yapıştır",
+        "sourceToggleLabel": "GitHub kaynağı",
+        "help": "Klonlamak için GitHub hesabınızdan bir depo seçin",
+        "ariaLabel": "Bir GitHub deposu seçin",
+        "placeholder": "Bir depo seçin...",
+        "searchPlaceholder": "Depolarda ara...",
+        "searchAriaLabel": "GitHub depolarınızda ara",
+        "private": "Özel",
+        "loading": "Depolarınız yükleniyor...",
+        "empty": "Bu belirteç için depo bulunamadı.",
+        "noMatch": "Aramanızla eşleşen depo yok.",
+        "loadError": "Depolar yüklenemedi. Lütfen tekrar deneyin.",
+        "invalidToken": "GitHub bu belirteci reddetti. İptal edilmiş veya \"repo\" kapsamı eksik olabilir.",
+        "noToken": "Bu hesap için yapılandırılmış GitHub belirteci yok.",
+        "forbidden": "GitHub erişimi reddetti. Belirteçte gerekli kapsam olmayabilir veya hız sınırına ulaşıldı.",
+        "retry": "Yeniden dene",
+        "manageTokens": "Ayarlardan belirteçleri yönet"
+      }
     },
     "step3": {
       "reviewConfig": "Yapılandırmanı Gözden Geçir",
@@ -263,5 +299,15 @@
       "updateAvailable": "Güncelleme mevcut",
       "closeSidebar": "Kenar çubuğunu kapat"
     }
+  },
+  "sessionProcessState": {
+    "running": "Running",
+    "frozen": "Paused (frozen)",
+    "runningHint": "Session process is running",
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "Bu projedeki bir oturum şu anda işleniyor",
+    "done": "Bitti",
+    "doneHint": "Oturum bitti ve henüz açılmadı",
+    "projectDoneHint": "Bu projedeki bir oturum bitti ve henüz açılmadı"
   }
 }

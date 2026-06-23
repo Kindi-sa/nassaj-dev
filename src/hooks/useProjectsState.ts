@@ -46,6 +46,8 @@ const projectsHaveChanges = (
       nextProject.displayName !== prevProject.displayName ||
       nextProject.fullPath !== prevProject.fullPath ||
       Boolean(nextProject.isStarred) !== Boolean(prevProject.isStarred) ||
+      Boolean(nextProject.isMember) !== Boolean(prevProject.isMember) ||
+      Boolean(nextProject.isOwner) !== Boolean(prevProject.isOwner) ||
       serialize(nextProject.sessionMeta) !== serialize(prevProject.sessionMeta) ||
       serialize(nextProject.sessions) !== serialize(prevProject.sessions) ||
       serialize(nextProject.taskmaster) !== serialize(prevProject.taskmaster);
@@ -65,6 +67,40 @@ const projectsHaveChanges = (
       serialize(nextProject.antigravitySessions) !== serialize(prevProject.antigravitySessions) ||
       serialize(nextProject.opencodeSessions) !== serialize(prevProject.opencodeSessions)
     );
+  });
+};
+
+// Defense in depth for `projects_updated` broadcasts: when an incoming project
+// omits a per-user flag (`isMember`/`isOwner` undefined), keep the value last
+// delivered by the authenticated `GET /api/projects` fetch instead of silently
+// dropping it — otherwise the sidebar "My projects"/"Team" filters empty after
+// the first broadcast.
+const preserveMembershipFlags = (incomingProjects: Project[], previousProjects: Project[]): Project[] => {
+  if (previousProjects.length === 0) {
+    return incomingProjects;
+  }
+
+  const previousByProjectId = new Map(previousProjects.map((project) => [project.projectId, project]));
+
+  return incomingProjects.map((project) => {
+    const previousProject = previousByProjectId.get(project.projectId);
+    if (!previousProject) {
+      return project;
+    }
+
+    const preservedFlags: Partial<Pick<Project, 'isMember' | 'isOwner'>> = {};
+    if (project.isMember === undefined && previousProject.isMember !== undefined) {
+      preservedFlags.isMember = previousProject.isMember;
+    }
+    if (project.isOwner === undefined && previousProject.isOwner !== undefined) {
+      preservedFlags.isOwner = previousProject.isOwner;
+    }
+
+    if (Object.keys(preservedFlags).length === 0) {
+      return project;
+    }
+
+    return { ...project, ...preservedFlags };
   });
 };
 
@@ -445,7 +481,8 @@ export function useProjectsState({
 
     const hasActiveSession = Boolean(selectedSession && activeSessions.has(selectedSession.id));
 
-    const updatedProjectsWithTaskMaster = mergeTaskMasterCache(projectsMessage.projects, projects);
+    const incomingProjectsWithMembership = preserveMembershipFlags(projectsMessage.projects, projects);
+    const updatedProjectsWithTaskMaster = mergeTaskMasterCache(incomingProjectsWithMembership, projects);
     const updatedProjects = mergeExpandedSessionPages(projects, updatedProjectsWithTaskMaster);
 
     if (
@@ -891,6 +928,7 @@ export function useProjectsState({
       isMobile,
       loadingProgress,
       projects,
+      setActiveTab,
       settingsInitialTab,
       selectedProject,
       selectedSession,

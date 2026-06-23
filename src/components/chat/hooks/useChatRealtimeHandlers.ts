@@ -1,7 +1,10 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
+import { playChatCompletionSound } from '../../../utils/notificationSound';
 import type { PendingPermissionRequest, SessionNavigationOptions } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
@@ -68,12 +71,65 @@ interface UseChatRealtimeHandlersArgs {
   onSessionNotProcessing?: (sessionId?: string | null) => void;
   onNavigateToSession?: (sessionId: string, options?: SessionNavigationOptions) => void;
   onWebSocketReconnect?: () => void;
+  /** Called when the server sends an error event with a recognised error code. */
+  onServerError?: (message: string) => void;
   sessionStore: SessionStore;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Hook                                                              */
 /* ------------------------------------------------------------------ */
+
+/** Map known server error codes to i18n keys in the 'chat' namespace. */
+export const SERVER_ERROR_CODE_KEYS: Record<string, string> = {
+  project_dir_missing: 'serverError.project_dir_missing',
+  cli_not_installed: 'serverError.cli_not_installed',
+  spawn_failed: 'serverError.spawn_failed',
+  session_create_failed: 'serverError.session_create_failed',
+};
+
+/**
+ * Resolve a human, localised message from a server error event (T-83).
+ *
+ * The error can arrive in several shapes and we degrade gracefully through them:
+ *   1. A structured `{ error: { code, messageKey, detail } }` object emitted by
+ *      the session channel — `messageKey` is a ready i18n key (chat namespace),
+ *      `code` maps via SERVER_ERROR_CODE_KEYS.
+ *   2. A flat top-level `code` (legacy error events).
+ *   3. Nothing recognisable → the generic `serverError.unknown` fallback.
+ *
+ * `detail` is appended (parenthesised) when present so the user sees the raw
+ * server reason without it ever replacing the translated headline.
+ */
+export function resolveServerErrorMessage(
+  msg: { code?: unknown; error?: unknown; reason?: unknown },
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  const fallback = t('serverError.unknown');
+  const structured =
+    msg.error && typeof msg.error === 'object' ? (msg.error as Record<string, unknown>) : null;
+
+  const messageKey =
+    structured && typeof structured.messageKey === 'string' ? structured.messageKey : null;
+  const code =
+    (structured && typeof structured.code === 'string' && structured.code)
+    || (typeof msg.code === 'string' && msg.code)
+    || null;
+  const detail =
+    (structured && typeof structured.detail === 'string' && structured.detail)
+    || (typeof msg.reason === 'string' && msg.reason)
+    || null;
+
+  let headline = fallback;
+  if (messageKey) {
+    headline = t(messageKey, { defaultValue: fallback });
+  } else if (code) {
+    const i18nKey = SERVER_ERROR_CODE_KEYS[code] ?? null;
+    headline = i18nKey ? t(i18nKey, { defaultValue: fallback }) : fallback;
+  }
+
+  return detail ? `${headline} (${detail})` : headline;
+}
 
 export function useChatRealtimeHandlers({
   latestMessage,
@@ -95,9 +151,11 @@ export function useChatRealtimeHandlers({
   onSessionNotProcessing,
   onNavigateToSession,
   onWebSocketReconnect,
+  onServerError,
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   const paletteOps = usePaletteOps();
+  const { t } = useTranslation('chat');
   const lastProcessedMessageRef = useRef<LatestChatMessage | null>(null);
 
   useEffect(() => {
@@ -180,17 +238,41 @@ export function useChatRealtimeHandlers({
     /* ---------------------------------------------------------------- */
 
     const sid = msg.sessionId || activeViewSessionId;
+    // ADR-041 (B-80): record the highest server-stamped stream `sequence` for any
+    // normalized payload that carries one, so `lastSeq` in check-session-status is
+    // an exact floor across all kinds (stream_delta, tool_use, complete, status…).
+    // appendRealtime also records it for persisted kinds, but stream_delta on the
+    // active view and the non-persisted control kinds bypass appendRealtime, so we
+    // cover them here. No-op when `sequence` is absent (registry flag off / legacy).
+    if (sid) {
+      sessionStore.recordSeq(sid, (msg as NormalizedMessage).sequence);
+    }
+    // True only when the event belongs to the session currently on screen.
+    // Mirror events for background sessions must NOT mutate the active view
+    // (spinner, status text, pending permission prompts). When a payload has no
+    // sessionId we fall back to the active id (sid === activeViewSessionId), so
+    // such legacy/global events apply to the current view — the safe default.
+    const isActiveViewSession = !sid || sid === activeViewSessionId;
+
+    // Coordinator/origin attribution stamped by the server on every assistant
+    // payload of this run (incl. stream_delta). Carried onto the streaming row so
+    // attribution is correct *while* streaming, not only after finalize (B-43).
+    const streamAttribution = {
+      coordinatorId: (msg as NormalizedMessage).coordinatorId,
+      originKind: (msg as NormalizedMessage).originKind,
+    };
 
     // --- Streaming: buffer for performance ---
     if (msg.kind === 'stream_delta') {
       const text = msg.content || '';
       if (!text) return;
+      // (seq recorded at the top of this block for all kinds; ADR-041 B-80.)
       accumulatedStreamRef.current += text;
       if (!streamTimerRef.current) {
         streamTimerRef.current = window.setTimeout(() => {
           streamTimerRef.current = null;
           if (sid) {
-            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+            sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
           }
         }, 100);
       }
@@ -208,7 +290,7 @@ export function useChatRealtimeHandlers({
       }
       if (sid) {
         if (accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
         }
         sessionStore.finalizeStreaming(sid);
       }
@@ -232,7 +314,28 @@ export function useChatRealtimeHandlers({
     switch (msg.kind) {
       case 'session_created': {
         const newSessionId = msg.newSessionId;
-        if (!newSessionId) break;
+        if (!newSessionId) {
+          // sessionId=null means the provider failed to mint a session. This
+          // used to break silently, leaving the user on a dead, spinning view.
+          // Clear the active-view spinner and surface the failure (T-83). The
+          // event may carry a structured `{ error }` / flat code; otherwise we
+          // show the session-create fallback.
+          if (isActiveViewSession) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+            pendingViewSessionRef.current = null;
+            const hasErrorInfo =
+              (msg.error && typeof msg.error === 'object') || typeof msg.code === 'string';
+            const message = hasErrorInfo
+              ? resolveServerErrorMessage(msg, t)
+              : t('serverError.session_create_failed', {
+                defaultValue: t('serverError.unknown'),
+              });
+            onServerError?.(message);
+          }
+          break;
+        }
 
         // We no longer synthesize client-side placeholder IDs. Until the provider
         // announces `session_created`, the active id is expected to be null.
@@ -282,18 +385,25 @@ export function useChatRealtimeHandlers({
           streamTimerRef.current = null;
         }
         if (sid && accumulatedStreamRef.current) {
-          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
+          sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider, streamAttribution);
           sessionStore.finalizeStreaming(sid);
         }
         accumulatedStreamRef.current = '';
 
-        setIsLoading(false);
-        setCanAbortSession(false);
-        setClaudeStatus(null);
-        setPendingPermissionRequests([]);
+        // Session-list / global concerns: keyed by sid, safe for any session.
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
-        pendingViewSessionRef.current = null;
+
+        // View mutations: only when this event is for the session on screen.
+        // A background session completing must not clear the active view's
+        // spinner, status, or pending permission prompts.
+        if (isActiveViewSession) {
+          setIsLoading(false);
+          setCanAbortSession(false);
+          setClaudeStatus(null);
+          setPendingPermissionRequests([]);
+          pendingViewSessionRef.current = null;
+        }
 
         // Handle aborted case
         if (msg.aborted) {
@@ -302,6 +412,9 @@ export function useChatRealtimeHandlers({
           // The backend already sent any abort-related messages
           break;
         }
+
+        showCompletionTitleIndicator();
+        void playChatCompletionSound();
 
         const actualSessionId =
           typeof msg.actualSessionId === 'string' && msg.actualSessionId.trim().length > 0
@@ -331,17 +444,32 @@ export function useChatRealtimeHandlers({
       }
 
       case 'error': {
-        setIsLoading(false);
-        setCanAbortSession(false);
-        setClaudeStatus(null);
+        // Session-list / global concerns: keyed by sid, safe for any session.
         onSessionInactive?.(sid);
         onSessionNotProcessing?.(sid);
-        pendingViewSessionRef.current = null;
+
+        // View mutations only for the session on screen.
+        if (isActiveViewSession) {
+          setIsLoading(false);
+          setCanAbortSession(false);
+          setClaudeStatus(null);
+          pendingViewSessionRef.current = null;
+
+          // Surface a human-readable, localised message via onServerError for
+          // any error event — structured `{ error: {...} }`, a flat code, or an
+          // unrecognised failure (general fallback). Previously this fired only
+          // when a known top-level `code` was present, so structured new-session
+          // failures and unknown errors failed silently (T-83).
+          onServerError?.(resolveServerErrorMessage(msg, t));
+        }
         break;
       }
 
       case 'permission_request': {
         if (!msg.requestId) break;
+        // A permission request for a background session must not pop into the
+        // active view or hijack its spinner/status.
+        if (!isActiveViewSession) break;
         setPendingPermissionRequests((prev) => {
           if (prev.some((r: PendingPermissionRequest) => r.requestId === msg.requestId)) return prev;
           return [...prev, {
@@ -360,13 +488,23 @@ export function useChatRealtimeHandlers({
       }
 
       case 'permission_cancelled': {
-        if (msg.requestId) {
+        // Pending prompts only ever belong to the active view, but gate anyway
+        // so a background cancellation can never touch the on-screen list.
+        if (isActiveViewSession && msg.requestId) {
           setPendingPermissionRequests((prev) => prev.filter((r: PendingPermissionRequest) => r.requestId !== msg.requestId));
         }
         break;
       }
 
       case 'status': {
+        if (msg.text === 'process_state') {
+          // Frozen-session indicator: consumed globally (AppContent →
+          // sessionProcessStateStore). Never treat it as a spinner status.
+          break;
+        }
+        // Status text / token budget are active-view concerns: a background
+        // session's status must not overwrite the on-screen status line.
+        if (!isActiveViewSession) break;
         if (msg.text === 'token_budget' && msg.tokenBudget) {
           setTokenBudget(msg.tokenBudget as Record<string, unknown>);
         } else if (msg.text) {
@@ -406,7 +544,9 @@ export function useChatRealtimeHandlers({
     onSessionNotProcessing,
     onNavigateToSession,
     onWebSocketReconnect,
+    onServerError,
     sessionStore,
     paletteOps,
+    t,
   ]);
 }

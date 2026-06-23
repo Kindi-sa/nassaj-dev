@@ -43,7 +43,11 @@ type CloneProjectDependencies = {
     userId: number,
   ) => Promise<{ github_token: string } | null>;
   spawnGitClone: (cloneUrl: string, clonePath: string) => GitCloneProcess;
-  registerProject: (projectPath: string, customName: string) => Promise<{ project: Record<string, unknown> }>;
+  registerProject: (
+    projectPath: string,
+    customName: string,
+    createdBy: number | null,
+  ) => Promise<{ project: Record<string, unknown> }>;
   logError: (message: string, error: unknown) => void;
 };
 
@@ -135,10 +139,12 @@ const defaultDependencies: CloneProjectDependencies = {
   registerProject: async (
     projectPath: string,
     customName: string,
+    createdBy: number | null,
   ): Promise<{ project: Record<string, unknown> }> =>
     createProject({
       projectPath,
       customName,
+      createdBy,
     }) as Promise<{ project: Record<string, unknown> }>,
   logError: (message: string, error: unknown): void => {
     console.error(message, error);
@@ -152,6 +158,12 @@ export async function startCloneProject(
 ): Promise<CloneProjectOperation> {
   const normalizedWorkspacePath = input.workspacePath.trim();
   const normalizedGithubUrl = input.githubUrl.trim();
+
+  // Authenticated creator id — recorded as projects.created_by so cloned
+  // projects are attributed to their creator (B-PRIV ownership/"My projects").
+  const parsedCreatorUserId =
+    typeof input.userId === 'number' ? input.userId : Number.parseInt(String(input.userId), 10);
+  const creatorUserId = Number.isInteger(parsedCreatorUserId) ? parsedCreatorUserId : null;
 
   if (!normalizedWorkspacePath) {
     throw new AppError('workspacePath and githubUrl are required', {
@@ -258,7 +270,7 @@ export async function startCloneProject(
     gitProcess.on('close', async (code) => {
       if (code === 0) {
         try {
-          const createdProject = await dependencies.registerProject(clonePath, repoName);
+          const createdProject = await dependencies.registerProject(clonePath, repoName, creatorUserId);
           handlers.onComplete({
             project: createdProject.project,
             message: 'Repository cloned successfully',

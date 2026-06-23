@@ -22,7 +22,23 @@
     "shell": "Терминал",
     "files": "Файлы",
     "git": "Система контроля версий",
-    "tasks": "Задачи"
+    "tasks": "Задачи",
+    "board": "Project Board",
+    "wiki": "Вики"
+  },
+  "wiki": {
+    "title": "Вики Nassaj",
+    "panelAriaLabel": "Вики Nassaj",
+    "sidebarAriaLabel": "Содержание вики",
+    "closeSidebar": "Скрыть содержание",
+    "openSidebar": "Показать содержание",
+    "pageNotFound": "Страница не найдена",
+    "searchPlaceholder": "Поиск в вики…",
+    "searchAriaLabel": "Поиск по страницам вики",
+    "searchClear": "Очистить поиск",
+    "searchNoResults": "Нет результатов",
+    "searchResultsCount": "{{count}} результат(ов)",
+    "searchResultsAriaLabel": "Результаты поиска"
   },
   "status": {
     "loading": "Загрузка...",
@@ -172,7 +188,27 @@
       "publicRepoInfo": "Публичные репозитории не требуют аутентификации. Вы можете пропустить токен при клонировании публичного репозитория.",
       "noTokensHelp": "Нет доступных сохраненных токенов. Вы можете добавить токены в Настройки → API ключи для удобного повторного использования.",
       "optionalTokenPublic": "Токен GitHub (необязательно для публичных репозиториев)",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (оставьте пустым для публичных репозиториев)"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (оставьте пустым для публичных репозиториев)",
+      "repos": {
+        "fromMyRepos": "Выбрать из моих репозиториев",
+        "pasteUrl": "Вставить URL",
+        "sourceToggleLabel": "Источник GitHub",
+        "help": "Выберите репозиторий из вашего аккаунта GitHub для клонирования",
+        "ariaLabel": "Выберите репозиторий GitHub",
+        "placeholder": "Выберите репозиторий...",
+        "searchPlaceholder": "Поиск репозиториев...",
+        "searchAriaLabel": "Поиск по вашим репозиториям GitHub",
+        "private": "Приватный",
+        "loading": "Загрузка ваших репозиториев...",
+        "empty": "Для этого токена репозитории не найдены.",
+        "noMatch": "Нет репозиториев, соответствующих запросу.",
+        "loadError": "Не удалось загрузить репозитории. Повторите попытку.",
+        "invalidToken": "GitHub отклонил этот токен. Возможно, он отозван или не имеет области \"repo\".",
+        "noToken": "Для этого аккаунта не настроен токен GitHub.",
+        "forbidden": "GitHub отказал в доступе. У токена может не быть нужной области или достигнут лимит запросов.",
+        "retry": "Повторить",
+        "manageTokens": "Управление токенами в настройках"
+      }
     },
     "step3": {
       "reviewConfig": "Проверьте вашу конфигурацию",
@@ -233,5 +269,15 @@
       "updateAvailable": "Доступно обновление",
       "closeSidebar": "Закрыть боковую панель"
     }
+  },
+  "sessionProcessState": {
+    "running": "Running",
+    "frozen": "Paused (frozen)",
+    "runningHint": "Session process is running",
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "Сеанс в этом проекте сейчас выполняется",
+    "done": "Завершена",
+    "doneHint": "Сессия завершена и ещё не открыта",
+    "projectDoneHint": "Сессия в этом проекте завершена и ещё не открыта"
   }
 }

@@ -13,7 +13,8 @@ import { spawnOpenCode } from '../opencode-cli.js';
 import { Octokit } from '@octokit/rest';
 import { providerModelsService } from '../modules/providers/services/provider-models.service.js';
 import { IS_PLATFORM } from '../constants/config.js';
-import { normalizeProjectPath } from '../shared/utils.js';
+import { normalizeProjectPath, validateWorkspacePath } from '../shared/utils.js';
+import { buildTokenPushUrl } from '../utils/gitIdentity.js';
 
 const router = express.Router();
 
@@ -841,7 +842,7 @@ class ResponseCollector {
  *   }
  */
 router.post('/', validateExternalApiKey, async (req, res) => {
-  const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
+  const { githubUrl, projectPath, message, provider = 'claude', model, effort, githubToken, branchName, sessionId } = req.body;
 
   // Parse stream and cleanup as booleans (handle string "true"/"false" from curl)
   const stream = req.body.stream === undefined ? true : (req.body.stream === true || req.body.stream === 'true');
@@ -862,6 +863,17 @@ router.post('/', validateExternalApiKey, async (req, res) => {
 
   if (!['claude', 'cursor', 'codex', 'gemini', 'opencode'].includes(provider)) {
     return res.status(400).json({ error: 'provider must be "claude", "cursor", "codex", "gemini", or "opencode"' });
+  }
+
+  // B-36: a client-supplied projectPath (existing project or clone target) must
+  // resolve (symlinks included) inside WORKSPACES_ROOT — same containment gate
+  // as project creation — so an API key cannot point the agent at arbitrary
+  // host directories (e.g. /etc, another user's tree).
+  if (projectPath) {
+    const workspaceValidation = await validateWorkspacePath(projectPath);
+    if (!workspaceValidation.valid) {
+      return res.status(400).json({ error: workspaceValidation.error });
+    }
   }
 
   // Validate GitHub branch/PR creation requirements
@@ -889,6 +901,16 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       }
 
       finalProjectPath = await cloneGitHubRepo(githubUrl.trim(), tokenToUse, targetPath);
+
+      // B-36 edge case: a githubUrl-only request generates its own clone path which
+      // bypassed the validateWorkspacePath pre-flight above (only projectPath was
+      // checked). Run the same containment gate on the post-clone path so the auto-
+      // generated clone target also stays inside WORKSPACES_ROOT and is never a
+      // system directory.
+      const clonePathValidation = await validateWorkspacePath(finalProjectPath);
+      if (!clonePathValidation.valid) {
+        return res.status(400).json({ error: clonePathValidation.error });
+      }
     } else {
       // Use existing project path
       finalProjectPath = normalizeProjectPath(path.resolve(projectPath));
@@ -903,8 +925,11 @@ router.post('/', validateExternalApiKey, async (req, res) => {
 
     finalProjectPath = normalizeProjectPath(finalProjectPath);
 
-    // Register project path in DB (or reuse existing active registration)
-    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null);
+    // Register project path in DB (or reuse existing active registration).
+    // Attribute the creator so the private-project authorization layer (B-PRIV)
+    // can identify the owner. Re-used active rows keep their original created_by.
+    const creatorUserId = Number.isInteger(req.user?.id) ? req.user.id : null;
+    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null, creatorUserId);
     if (registrationResult.outcome === 'active_conflict') {
       console.log('Project registration already exists for:', finalProjectPath);
     } else {
@@ -952,6 +977,10 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model,
+        // Structured effort field (low|medium|high|xhigh|max|ultracode|auto).
+        // Validated against the allowlist in mapCliOptionsToSDK; unknown values
+        // are safely ignored there.
+        effort: effort,
         permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
       }, writer);
 
@@ -1085,9 +1114,19 @@ router.post('/', validateExternalApiKey, async (req, res) => {
             });
           });
 
-          // Push the branch to remote
+          // Push the branch to remote.
+          // Per-user push credentials (B-MU-UX-GIT-ID): reuse the already
+          // resolved per-user token (tokenToUse = githubToken || the requesting
+          // user's active token). When the origin is an https github URL, push
+          // to a transient token-embedded URL so the push is attributed to the
+          // user; the token is NEVER persisted to .git/config and NEVER logged.
+          // Falls back to `origin` (shared) for non-https-github remotes.
           console.log('🔄 Pushing branch to remote...');
-          const pushProcess = spawn('git', ['push', '-u', 'origin', finalBranchName], {
+          const tokenPushUrl = buildTokenPushUrl(repoUrl, tokenToUse);
+          const pushArgs = tokenPushUrl
+            ? ['push', tokenPushUrl, `${finalBranchName}:${finalBranchName}`]
+            : ['push', '-u', 'origin', finalBranchName];
+          const pushProcess = spawn('git', pushArgs, {
             cwd: finalProjectPath,
             stdio: 'pipe'
           });
@@ -1112,6 +1151,26 @@ router.post('/', validateExternalApiKey, async (req, res) => {
               }
             });
           });
+
+          // When we pushed via a token URL (no -u possible against a raw URL),
+          // record the upstream against the clean `origin` remote so .git/config
+          // tracks origin — never the token-embedded URL.
+          if (tokenPushUrl) {
+            try {
+              await new Promise((resolve) => {
+                const cfg = spawn('git', ['config', `branch.${finalBranchName}.remote`, 'origin'], { cwd: finalProjectPath, stdio: 'pipe' });
+                cfg.on('close', () => resolve());
+                cfg.on('error', () => resolve());
+              });
+              await new Promise((resolve) => {
+                const cfg = spawn('git', ['config', `branch.${finalBranchName}.merge`, `refs/heads/${finalBranchName}`], { cwd: finalProjectPath, stdio: 'pipe' });
+                cfg.on('close', () => resolve());
+                cfg.on('error', () => resolve());
+              });
+            } catch {
+              // Upstream tracking is best-effort; the push already succeeded.
+            }
+          }
 
           branchInfo = {
             name: finalBranchName,

@@ -11,6 +11,7 @@ export function useShellRuntime({
   selectedSession,
   initialCommand,
   isPlainShell,
+  provider,
   minimal,
   autoConnect,
   isRestarting,
@@ -29,6 +30,7 @@ export function useShellRuntime({
   const selectedSessionRef = useRef(selectedSession);
   const initialCommandRef = useRef(initialCommand);
   const isPlainShellRef = useRef(isPlainShell);
+  const providerOverrideRef = useRef(provider);
   const onProcessCompleteRef = useRef(onProcessComplete);
   const authUrlRef = useRef('');
   const lastSessionIdRef = useRef<string | null>(selectedSession?.id ?? null);
@@ -39,8 +41,9 @@ export function useShellRuntime({
     selectedSessionRef.current = selectedSession;
     initialCommandRef.current = initialCommand;
     isPlainShellRef.current = isPlainShell;
+    providerOverrideRef.current = provider;
     onProcessCompleteRef.current = onProcessComplete;
-  }, [selectedProject, selectedSession, initialCommand, isPlainShell, onProcessComplete]);
+  }, [selectedProject, selectedSession, initialCommand, isPlainShell, provider, onProcessComplete]);
 
   const setCurrentAuthUrl = useCallback((nextAuthUrl: string) => {
     authUrlRef.current = nextAuthUrl;
@@ -113,6 +116,7 @@ export function useShellRuntime({
     selectedSessionRef,
     initialCommandRef,
     isPlainShellRef,
+    providerOverrideRef,
     onProcessCompleteRef,
     isInitialized,
     autoConnect,

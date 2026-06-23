@@ -85,7 +85,7 @@ export default function ParticipantAvatarStack({
         >
           <span
             className={cn(
-              'inline-flex select-none items-center justify-center rounded-full font-semibold',
+              'inline-flex aspect-square flex-shrink-0 select-none items-center justify-center rounded-full font-semibold leading-none',
               'bg-muted text-muted-foreground ring-2 ring-background -ms-1.5',
               OVERFLOW_SIZE_CLASSES[size],
             )}

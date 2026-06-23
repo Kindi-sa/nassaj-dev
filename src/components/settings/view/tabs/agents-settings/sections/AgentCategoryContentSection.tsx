@@ -3,6 +3,8 @@ import type { McpProject } from '../../../../../mcp/types';
 import { McpServers } from '../../../../../mcp';
 
 import AccountContent from './content/AccountContent';
+import AgyConnectionSection from './content/AgyConnectionSection';
+import ClaudeConnectionSection from './content/ClaudeConnectionSection';
 import PermissionsContent from './content/PermissionsContent';
 
 export default function AgentCategoryContentSection({
@@ -21,7 +23,25 @@ export default function AgentCategoryContentSection({
 }: AgentCategoryContentSectionProps) {
   return (
     <div className="flex-1 overflow-y-auto p-3 md:p-4">
-      {selectedCategory === 'account' && (
+      {/* Account: one unified credential card per agent. Credential-isolating
+          agents (claude, antigravity) render through their wrapper, which
+          merges the per-user subscription link (Phase-MU) into the same card
+          and owns the onboarding terminal modal. */}
+      {selectedCategory === 'account' && selectedAgent === 'claude' && (
+        <ClaudeConnectionSection
+          authStatus={agentContextById.claude.authStatus}
+          onLogin={agentContextById.claude.onLogin}
+        />
+      )}
+
+      {selectedCategory === 'account' && selectedAgent === 'antigravity' && (
+        <AgyConnectionSection
+          authStatus={agentContextById.antigravity.authStatus}
+          onLogin={agentContextById.antigravity.onLogin}
+        />
+      )}
+
+      {selectedCategory === 'account' && selectedAgent !== 'claude' && selectedAgent !== 'antigravity' && (
         <AccountContent
           agent={selectedAgent}
           authStatus={agentContextById[selectedAgent].authStatus}

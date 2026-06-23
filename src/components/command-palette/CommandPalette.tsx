@@ -29,6 +29,7 @@ import {
 import { useTheme } from '../../contexts/ThemeContext';
 import { usePaletteOps } from '../../contexts/PaletteOpsContext';
 import { SETTINGS_MAIN_TABS } from '../settings/constants/constants';
+import { TASKMASTER_ENABLED } from '../../constants/features';
 import type { AppTab, Project } from '../../types/app';
 
 import { useSessionsSource } from './sources/useSessionsSource';
@@ -55,13 +56,16 @@ type CommandPaletteProps = {
   onShowTab?: (tab: AppTab) => void;
 };
 
-const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
+const ALL_NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
   { id: 'chat', label: 'Go to Chat', keywords: 'chat messages conversation' },
   { id: 'files', label: 'Go to Files', keywords: 'files file tree explorer' },
   { id: 'shell', label: 'Go to Shell', keywords: 'shell terminal console' },
   { id: 'git', label: 'Go to Git', keywords: 'git diff branches' },
   { id: 'tasks', label: 'Go to Tasks', keywords: 'tasks taskmaster' },
+  { id: 'board', label: 'Go to Project Board', keywords: 'board project state phases issues architecture' },
 ];
+
+const NAV_TABS = ALL_NAV_TABS.filter((tab) => TASKMASTER_ENABLED || tab.id !== 'tasks');
 
 export default function CommandPalette({
   selectedProject,

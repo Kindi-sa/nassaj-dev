@@ -10,7 +10,9 @@ import GeminiResponseHandler from './gemini-response-handler.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { participantsDb } from './modules/database/index.js';
 
@@ -122,6 +124,20 @@ async function buildGeminiProcessEnv() {
 }
 
 async function spawnGemini(command, options = {}, ws) {
+    // B-31: verify the project directory exists before spawning Gemini.
+    const cwdToCheck = options.cwd || options.projectPath;
+    if (cwdToCheck) {
+        const cwdCheck = await checkCwdExists(cwdToCheck);
+        if (!cwdCheck.ok) {
+            if (ws) {
+                ws.send(createNormalizedMessage(
+                    buildCwdMissingPayload(cwdCheck.error, { sessionId: options.sessionId || null, provider: 'gemini' })
+                ));
+            }
+            return;
+        }
+    }
+
     const { sessionId, projectPath, cwd, toolsSettings, permissionMode, images, sessionSummary } = options;
     const resolvedModel = await providerModelsService.resolveResumeModel(
         'gemini',
@@ -140,7 +156,10 @@ async function spawnGemini(command, options = {}, ws) {
             return;
         }
         participantRecorded = true;
-        participantsDb.recordSpawn(sid, ws.userId);
+        participantsDb.recordSpawn(sid, ws.userId, {
+            provider: 'gemini',
+            projectPath: cwd || projectPath || process.cwd(),
+        });
     };
 
     // Use tools settings passed from frontend, or defaults
@@ -470,7 +489,7 @@ async function spawnGemini(command, options = {}, ws) {
                     assistantBlocks.push({ type: 'text', text: rawOutput });
                 }
                 const socketSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : (capturedSessionId || sessionId);
-                ws.send(createNormalizedMessage({ kind: 'stream_delta', content: rawOutput, sessionId: socketSessionId, provider: 'gemini' }));
+                ws.send(stampCoordinatorId(createNormalizedMessage({ kind: 'stream_delta', content: rawOutput, sessionId: socketSessionId, provider: 'gemini' }), ws?.userId));
             }
         });
 
@@ -581,14 +600,27 @@ async function spawnGemini(command, options = {}, ws) {
             const finalSessionId = capturedSessionId || sessionId || processKey;
             activeGeminiProcesses.delete(finalSessionId);
 
-            // Check if Gemini CLI is installed for a clearer error message
+            // B-32: map spawn errors to structured codes.
             const installed = await providerAuthService.isProviderInstalled('gemini');
-            const errorContent = !installed
-                ? 'Gemini CLI is not installed. Please install it first: https://github.com/google-gemini/gemini-cli'
-                : error.message;
+            let errorCode;
+            let errorContent;
+            if (!installed) {
+                errorCode = 'cli_not_installed';
+                errorContent = 'Gemini CLI is not installed. Please install it first: https://github.com/google-gemini/gemini-cli';
+            } else {
+                const mapped = mapSpawnError(error);
+                errorCode = mapped.code;
+                errorContent = mapped.fallbackMessage;
+            }
 
             const errorSessionId = typeof ws.getSessionId === 'function' ? ws.getSessionId() : finalSessionId;
-            ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: errorSessionId, provider: 'gemini' }));
+            ws.send(createNormalizedMessage({
+                kind: 'error',
+                code: errorCode,
+                content: errorContent,
+                sessionId: errorSessionId,
+                provider: 'gemini',
+            }));
             notifyTerminalState({ error });
 
             reject(error);

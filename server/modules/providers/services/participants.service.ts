@@ -35,6 +35,7 @@ export type AgentView = {
   agent_name: string;
   agent_kind: SessionAgentRow['agent_kind'];
   invocation_count: number;
+  agent_model?: string | null;
 };
 
 export const participantsService = {

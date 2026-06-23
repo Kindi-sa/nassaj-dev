@@ -31,6 +31,21 @@ module.exports = {
       instances: 1,
       autorestart: true,
       max_restarts: 10,
+      // باعد بين محاولات إعادة التشغيل (B-23): بدون backoff كانت 10 محاولات
+      // EADDRINUSE تُحرق max_restarts في ~5 ثوانٍ وتترك العملية errored.
+      exp_backoff_restart_delay: 1000,
+      // حدّ ذاكرة وقائي ضد OOM (نوبة 2026-06-06). رُفع 512M → 768M بعد B-23:
+      // العملية تجاوزت 512M فعلياً (586MB في 2026-06-11 01:34) فأطلقت
+      // restarts تلقائية وقعت في فخ drain/EADDRINUSE.
+      max_memory_restart: '768M',
+      // treekill:false إلزامي (ADR-021/ADR-022): إشارات PM2 — بما فيها SIGKILL
+      // بعد kill_timeout — تصيب العملية الأم فقط، فلا تُقتل عمليات claude الأبناء.
+      treekill: false,
+      // B-23: كان 24h (86400000) لحماية الـ drain، لكن الخادم صار يحرّر المنفذ
+      // فوراً عند إشارة الإيقاف (shutdown-drain.service.ts) فلم يعد التراخي
+      // الطويل ضرورياً لتشغيل النسخة البديلة. 5 دقائق حدّ أمان: لو تتبّع PM2
+      // العملية القديمة بدقة فأقصى انتظار قبل SIGKILL للأم 5 دقائق بدل 24h.
+      kill_timeout: 300000,
       watch: false,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
@@ -38,11 +53,39 @@ module.exports = {
       error_file: '/home/nassaj/.pm2/logs/nassaj-dev-error.log',
       env: {
         NODE_ENV: 'production',
+        // ADR-041 (B-80): يُفعّل سجل الإعادة (replay) القرائي لجلسات claude،
+        // المعزول في SessionRegistry خاص خلف هذا العلم (server/session-registry.js:
+        // flagEnabled يقبل 1/true/yes/on). إطفاؤه (حذف السطر) no-op كامل يعيد المسار
+        // الحيّ إلى ما قبل الشريحة بلا فقد بيانات. يُقرأ من process.env عبر getter حيّ.
+        SESSION_REGISTRY_claude: '1',
         SERVER_PORT: '3004',
         PORT: '3004',
-        HOST: '0.0.0.0',
+        HOST: '127.0.0.1',
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
+
+        // ── B-41 (self-hosting trap) — single-listener bind guard ────────────
+        // T-95 (2026-06-13) diagnosed a 7.5h EADDRINUSE crash-loop (2026-06-12
+        // 17:14 → 2026-06-13 03:13). The running build ALREADY had B-23 (port
+        // released on stop via server.close()), proven by the
+        //   "[DRAIN] SIGTERM: listener closed — port released"
+        // line that ended the loop at 03:13:39. So the predecessor was holding
+        // the port simply because it had never been signaled to stop — PM2
+        // fork-mode lost its pid under treekill:false (ADR-028/B-24) and spawned
+        // a replacement beside the still-live original. The loop is broken by
+        // the bind guard below, NOT by capping the drain. The owner-mandated
+        // unbounded drain (B-N-DRAIN, 2026-06-09: roles may run for hours) is
+        // therefore preserved.
+        //
+        // DRAIN_TIMEOUT_MS=0: drain with NO deadline (owner decision). A wedged
+        //   drain still has two escape hatches: a second stop signal and PM2's
+        //   kill_timeout. A positive value would opt a single run into a cap.
+        DRAIN_TIMEOUT_MS: '0',
+        // LISTEN_BIND_WINDOW_MS: how long a STARTING instance tolerates
+        //   EADDRINUSE (a draining/ghost predecessor still on the socket) before
+        //   exiting cleanly (0) instead of crash-looping. A healthy handoff
+        //   binds in <1s; 10s absorbs slow ones. THIS is what breaks the loop.
+        LISTEN_BIND_WINDOW_MS: '10000',
 
         // ── Phase-MU multi-user auth (B-AUTH) ──────────────────────────────
         // قيم placeholder. هذه الأسماء هي التي يقرأها الكود فعلاً (راجع
@@ -59,6 +102,14 @@ module.exports = {
         // مرور قوية وتُطبع مرة واحدة في سجل الخادم.
         // BOOTSTRAP_OWNER_USERNAME: 'owner',
         // BOOTSTRAP_OWNER_PASSWORD: 'CHANGE_ME_min_12_chars',
+
+        // ── Passkeys / WebAuthn (B-PK) ──────────────────────────────────────
+        // هوية الـ relying party لمفاتيح المرور. RP_ID نطاق فقط بلا scheme؛
+        // ORIGIN أصل كامل (يدعم قائمة بفواصل). بدونها يسقط الخادم إلى إعداد
+        // localhost التطويري ولن تعمل passkeys على النطاق المنشور.
+        WEBAUTHN_RP_ID: 'nassaj.alkindy.tech',
+        WEBAUTHN_ORIGIN: 'https://nassaj.alkindy.tech,http://localhost:5173',
+        WEBAUTHN_RP_NAME: 'Nassaj Dev',
       },
     },
   ],

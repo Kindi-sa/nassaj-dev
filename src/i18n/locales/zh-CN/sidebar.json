@@ -49,7 +49,9 @@
     "save": "保存",
     "cancel": "取消",
     "clearSearch": "清除搜索",
-    "openCommandPalette": "打开命令面板"
+    "openCommandPalette": "打开命令面板",
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "聊天",
@@ -61,15 +63,19 @@
   "actions": {
     "refresh": "刷新",
     "settings": "设置",
+    "logout": "退出登录",
+    "logoutConfirm": "退出您的账户？",
     "collapseAll": "全部折叠",
     "expandAll": "全部展开",
     "cancel": "取消",
     "save": "保存",
     "delete": "删除",
     "rename": "重命名",
-    "joinCommunity": "加入社区",
-    "reportIssue": "报告问题",
     "starOnGithub": "在GitHub上加星"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "开源"
@@ -111,18 +117,6 @@
   "version": {
     "updateAvailable": "有可用更新"
   },
-  "search": {
-    "modeProjects": "项目",
-    "modeConversations": "对话",
-    "conversationsPlaceholder": "搜索对话内容...",
-    "searching": "搜索中...",
-    "noResults": "未找到结果",
-    "tryDifferentQuery": "尝试不同的搜索词",
-    "matches_one": "{{count}} 个匹配",
-    "matches_other": "{{count}} 个匹配",
-    "projectsScanned_one": "{{count}} 个项目已扫描",
-    "projectsScanned_other": "{{count}} 个项目已扫描"
-  },
   "deleteConfirmation": {
     "deleteProject": "移除项目",
     "deleteSession": "删除会话",
@@ -133,5 +127,10 @@
     "deleteAllData": "永久删除所有数据",
     "allConversationsDeleted": "项目将从侧边栏中移除。您的文件、记忆和会话数据将会保留。",
     "cannotUndo": "您可以稍后重新添加此项目。"
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }

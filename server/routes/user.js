@@ -2,28 +2,10 @@ import express from 'express';
 import { userDb } from '../modules/database/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getSystemGitConfig } from '../utils/gitConfig.js';
-import { spawn } from 'child_process';
+import { getClaudeConnectionStatus } from '../services/isolation/claude-onboarding.service.js';
+import { getAgyConnectionStatus } from '../services/isolation/agy-onboarding.service.js';
 
 const router = express.Router();
-
-function spawnAsync(command, args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { ...options, shell: false });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (data) => { stdout += data.toString(); });
-    child.stderr.on('data', (data) => { stderr += data.toString(); });
-    child.on('error', (error) => { reject(error); });
-    child.on('close', (code) => {
-      if (code === 0) { resolve({ stdout, stderr }); return; }
-      const error = new Error(`Command failed: ${command} ${args.join(' ')}`);
-      error.code = code;
-      error.stdout = stdout;
-      error.stderr = stderr;
-      reject(error);
-    });
-  });
-}
 
 router.get('/git-config', authenticateToken, async (req, res) => {
   try {
@@ -53,7 +35,13 @@ router.get('/git-config', authenticateToken, async (req, res) => {
   }
 });
 
-// Apply git config globally via git config --global
+// Persist the user's git identity to their DB row ONLY (B-MU-UX-GIT-ID).
+//
+// This no longer runs `git config --global`: in the shared nassaj workspace a
+// global write was last-writer-wins and clobbered every other brother's
+// identity in ~/.gitconfig. The stored name/email is instead injected
+// per-commit at each commit site via GIT_AUTHOR_*/GIT_COMMITTER_*, so saving an
+// identity never affects other users or the system gitconfig.
 router.post('/git-config', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -70,14 +58,6 @@ router.post('/git-config', authenticateToken, async (req, res) => {
     }
 
     userDb.updateGitConfig(userId, gitName, gitEmail);
-
-    try {
-      await spawnAsync('git', ['config', '--global', 'user.name', gitName]);
-      await spawnAsync('git', ['config', '--global', 'user.email', gitEmail]);
-      console.log(`Applied git config globally: ${gitName} <${gitEmail}>`);
-    } catch (gitError) {
-      console.error('Error applying git config:', gitError);
-    }
 
     res.json({
       success: true,
@@ -117,6 +97,39 @@ router.get('/onboarding-status', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error checking onboarding status:', error);
     res.status(500).json({ error: 'Failed to check onboarding status' });
+  }
+});
+
+// Reports whether the current user has registered their own Claude credential
+// in their isolated config dir (B-MU-ONBOARD). Returns only a boolean — never
+// the token itself — so the onboarding UI can render "connected/not connected".
+//
+//   curl -H "Authorization: Bearer <jwt>" \
+//        https://nassaj.alkindy.tech/api/user/claude-connection
+router.get('/claude-connection', authenticateToken, async (req, res) => {
+  try {
+    const status = await getClaudeConnectionStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Error checking Claude connection status:', error);
+    res.status(500).json({ error: 'Failed to check Claude connection status' });
+  }
+});
+
+// Reports whether the current user has authenticated their own agy (antigravity)
+// credential in their isolated config dir (ADR-023). Returns only a boolean —
+// never the token — so the onboarding UI can render "connected/not connected".
+// userId comes from the JWT, never from input.
+//
+//   curl -H "Authorization: Bearer <jwt>" \
+//        https://nassaj.alkindy.tech/api/user/agy-connection
+router.get('/agy-connection', authenticateToken, async (req, res) => {
+  try {
+    const status = await getAgyConnectionStatus(req.user.id);
+    res.json(status);
+  } catch (error) {
+    console.error('Error checking agy connection status:', error);
+    res.status(500).json({ error: 'Failed to check agy connection status' });
   }
 });
 

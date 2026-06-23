@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
-import { Brain, X } from 'lucide-react';
+import { Check, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { thinkingModes } from '../../constants/thinkingModes';
+import { effortModes } from '../../constants/thinkingModes';
+import { cn } from '../../../../lib/utils';
 
 type ThinkingModeSelectorProps = {
   selectedMode: string;
@@ -19,21 +20,11 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties | null>(null);
 
-  // Mapping from mode ID to translation key
-  const modeKeyMap: Record<string, string> = {
-    'think-hard': 'thinkHard',
-    'think-harder': 'thinkHarder'
-  };
-  // Create translated modes for display
-  const translatedModes = thinkingModes.map(mode => {
-    const modeKey = modeKeyMap[mode.id] || mode.id;
-    return {
-      ...mode,
-      name: t(`thinkingMode.modes.${modeKey}.name`),
-      description: t(`thinkingMode.modes.${modeKey}.description`),
-      prefix: t(`thinkingMode.modes.${modeKey}.prefix`)
-    };
-  });
+  const translatedModes = effortModes.map(mode => ({
+    ...mode,
+    displayName: t(`effortMode.modes.${mode.id}.name`, { defaultValue: mode.name }),
+    displayDescription: t(`effortMode.modes.${mode.id}.description`, { defaultValue: '' }),
+  }));
 
   const closeDropdown = useCallback(() => {
     setIsOpen(false);
@@ -50,7 +41,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
     const triggerRect = trigger.getBoundingClientRect();
     const viewportPadding = window.innerWidth < 640 ? 12 : 16;
     const spacing = 8;
-    const width = Math.min(window.innerWidth - viewportPadding * 2, window.innerWidth < 640 ? 320 : 256);
+    const width = Math.min(window.innerWidth - viewportPadding * 2, window.innerWidth < 640 ? 300 : 312);
     let left = triggerRect.left + triggerRect.width / 2 - width / 2;
     left = Math.max(viewportPadding, Math.min(left, window.innerWidth - width - viewportPadding));
 
@@ -130,10 +121,28 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
   }, [isOpen, closeDropdown]);
 
   const currentMode = translatedModes.find(mode => mode.id === selectedMode) || translatedModes[0];
-  const IconComponent = currentMode.icon || Brain;
+  const IconComponent = currentMode.icon || Minus;
+  const isUltracode = selectedMode === 'ultracode';
+  const isMaxOrXhigh = selectedMode === 'max' || selectedMode === 'xhigh';
+
+  const triggerBg = isUltracode
+    ? 'bg-red-50 hover:bg-red-100 dark:bg-red-950 dark:hover:bg-red-900'
+    : isMaxOrXhigh
+      ? 'bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900'
+      : selectedMode === 'none'
+        ? 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+        : 'bg-blue-50 hover:bg-blue-100 dark:bg-blue-950 dark:hover:bg-blue-900';
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
+      {/* Ultracode glow ring — respects prefers-reduced-motion */}
+      {isUltracode && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-full ultracode-ring"
+          aria-hidden="true"
+        />
+      )}
+
       <button
         ref={triggerRef}
         type="button"
@@ -142,16 +151,13 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
             closeDropdown();
             return;
           }
-
           setIsOpen(true);
         }}
-        className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 sm:h-10 sm:w-10 ${selectedMode === 'none'
-            ? 'bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
-            : 'bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800'
-          }`}
-        title={t('thinkingMode.buttonTitle', { mode: currentMode.name })}
-        aria-haspopup="dialog"
+        className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 sm:h-10 sm:w-10 ${triggerBg}`}
+        title={t('effortMode.buttonTitle', { mode: currentMode.displayName })}
+        aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={t('effortMode.buttonTitle', { mode: currentMode.displayName })}
       >
         <IconComponent className={`h-5 w-5 ${currentMode.color}`} />
       </button>
@@ -160,79 +166,98 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
         <div
           ref={dropdownRef}
           style={dropdownStyle || { position: 'fixed', top: 0, left: 0, visibility: 'hidden' }}
-          className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
-          role="dialog"
-          aria-modal="false"
+          className="flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl"
+          role="listbox"
+          aria-label={t('effortMode.selector.title')}
         >
-          <div className="border-b border-gray-200 p-3 dark:border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {t('thinkingMode.selector.title')}
-              </h3>
-              <button
-                type="button"
-                onClick={closeDropdown}
-                className="rounded p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <X className="h-4 w-4 text-gray-500" />
-              </button>
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t('thinkingMode.selector.description')}
-            </p>
+          {/* Header */}
+          <div className="border-b border-border px-3 py-2.5">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground/70">
+              {t('effortMode.selector.title')}
+            </span>
           </div>
 
-          <div className="min-h-0 overflow-y-auto py-1">
-            {translatedModes.map((mode) => {
+          <div className="min-h-0 overflow-y-auto p-1.5">
+            {translatedModes.map((mode, index) => {
               const ModeIcon = mode.icon;
               const isSelected = mode.id === selectedMode;
+              const isUC = mode.id === 'ultracode';
+
+              // Logical separators: after 'auto' (index 1) and after 'max' (index 6)
+              const showSeparatorBefore = index === 2 || index === 7;
 
               return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => {
-                    onModeChange(mode.id);
-                    closeDropdown();
-                  }}
-                  className={`w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${isSelected ? 'bg-gray-50 dark:bg-gray-700' : ''
-                    }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`mt-0.5 ${mode.icon ? mode.color : 'text-gray-400'}`}>
-                      {ModeIcon ? <ModeIcon className="h-5 w-5" /> : <div className="h-5 w-5" />}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${isSelected ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'
-                          }`}>
-                          {mode.name}
+                <div key={mode.id}>
+                  {showSeparatorBefore && (
+                    <div className="my-1 h-px bg-border/60" role="separator" aria-hidden="true" />
+                  )}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onClick={() => {
+                      onModeChange(mode.id);
+                      closeDropdown();
+                    }}
+                    className={cn(
+                      'relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none',
+                      'transition-colors duration-150 motion-reduce:transition-none',
+                      'hover:bg-accent hover:text-accent-foreground',
+                      'focus-visible:bg-accent focus-visible:text-accent-foreground',
+                      isSelected && 'bg-accent text-accent-foreground',
+                    )}
+                  >
+                    {/* Mode icon — wrapped in a soft rounded container */}
+                    <span className={cn(
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-md',
+                      isSelected ? 'bg-background/60' : 'bg-muted',
+                      mode.icon ? mode.color : 'text-muted-foreground',
+                    )}>
+                      {ModeIcon ? <ModeIcon className="h-3.5 w-3.5" /> : <div className="h-3.5 w-3.5" />}
+                    </span>
+
+                    {/* Name + description */}
+                    <div className="min-w-0 flex-1 text-start">
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className={cn(
+                          'text-sm font-semibold',
+                          isSelected ? 'text-foreground' : 'text-foreground/85',
+                        )}>
+                          {mode.displayName}
                         </span>
-                        {isSelected && (
-                          <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                            {t('thinkingMode.selector.active')}
+                        {mode.id === 'auto' && (
+                          <span className="shrink-0 rounded border border-blue-300/50 bg-blue-50/60 px-1 py-px text-[9px] font-semibold text-blue-500 dark:border-blue-700/40 dark:bg-blue-900/20 dark:text-blue-400">
+                            default
+                          </span>
+                        )}
+                        {/* Ultracode badge — always visible, subtle when inactive */}
+                        {isUC && (
+                          <span className={cn(
+                            'shrink-0 rounded border px-1 py-px text-[9px] font-bold tracking-wider',
+                            isSelected
+                              ? 'border-red-400/60 bg-red-500/10 text-red-500 dark:border-red-500/50 dark:text-red-400 shadow-[0_0_6px_rgba(239,68,68,0.3)]'
+                              : 'border-red-300/40 bg-transparent text-red-400/70 dark:border-red-700/40 dark:text-red-500/60',
+                          )}>
+                            UC
                           </span>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        {mode.description}
-                      </p>
-                      {mode.prefix && (
-                        <code className="mt-1 inline-block rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-700">
-                          {mode.prefix}
-                        </code>
-                      )}
+                      {mode.displayDescription ? (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+                          {mode.displayDescription}
+                        </span>
+                      ) : null}
                     </div>
-                  </div>
-                </button>
+
+                    {/* Check for selected */}
+                    <Check className={cn(
+                      'h-3.5 w-3.5 shrink-0 text-primary transition-opacity duration-150 motion-reduce:transition-none',
+                      isSelected ? 'opacity-100' : 'opacity-0',
+                    )} aria-hidden="true" />
+                  </button>
+                </div>
               );
             })}
-          </div>
-
-          <div className="border-t border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              <strong>Tip:</strong> {t('thinkingMode.selector.tip')}
-            </p>
           </div>
         </div>,
         document.body

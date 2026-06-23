@@ -170,8 +170,38 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
       };
     }
 
-    memoryCache.delete(provider);
+    // Expired: do NOT evict here. The entry is retained so the
+    // stale-while-revalidate path can serve it instantly while a fresh fetch
+    // runs in the background; a successful refresh overwrites it via
+    // setCacheEntry. Returning null signals "not fresh" to the caller.
     return null;
+  };
+
+  /**
+   * Returns the cached entry for a provider regardless of expiry, without
+   * evicting it. Used by the stale-while-revalidate path so an expired-but-still
+   * usable catalog can be served instantly while a fresh fetch runs in the
+   * background. Returns `null` only when nothing is cached at all.
+   */
+  const peekMemoryEntry = (provider: LLMProvider): ProviderModelsCacheEntry | null =>
+    memoryCache.get(provider) ?? null;
+
+  /**
+   * Kicks off a background refresh for a provider if one is not already running,
+   * and never throws into the caller. The returned (already-cached) result is
+   * served immediately; this refresh updates the cache for the next request.
+   * Errors are swallowed so a failing live fetch can never reject the
+   * non-blocking request path (the provider adapter itself degrades to its
+   * fallback catalog on failure).
+   */
+  const triggerBackgroundRefresh = (provider: LLMProvider): void => {
+    if (pendingRequests.has(provider)) {
+      return;
+    }
+    void loadAndCacheModels(provider).catch(() => {
+      // Background refresh failure is non-fatal: the stale entry stays served and
+      // the next request retries. The adapter already degrades on its own errors.
+    });
   };
 
   const loadPersistedCache = async (): Promise<void> => {
@@ -182,12 +212,15 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     if (!persistedCacheLoadPromise) {
       persistedCacheLoadPromise = (async () => {
         const cacheFile = await readProviderModelsCacheFile(cachePath);
-        const currentTime = now();
 
+        // Load every persisted entry, including expired ones. Fresh entries are
+        // served directly; expired entries are retained so the
+        // stale-while-revalidate path can serve them instantly after a restart
+        // while a background refresh runs. The disk writer already drops entries
+        // whose TTL lapsed before the previous persist, so this only keeps
+        // recently-expired snapshots worth revalidating against.
         for (const [provider, entry] of Object.entries(cacheFile?.entries ?? {})) {
-          if (entry.expiresAt > currentTime) {
-            memoryCache.set(provider as LLMProvider, entry);
-          }
+          memoryCache.set(provider as LLMProvider, entry);
         }
 
         persistedCacheLoaded = true;
@@ -282,6 +315,22 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
       return postLoadPendingRequest;
     }
 
+    // Stale-while-revalidate: if a now-expired entry is still cached, serve it
+    // immediately (non-blocking) and refresh in the background. This keeps the
+    // live Claude probe (which can take seconds) off the request hot path — the
+    // UI always gets an instant answer and the catalog updates for next time.
+    const staleEntry = peekMemoryEntry(provider);
+    if (staleEntry) {
+      triggerBackgroundRefresh(provider);
+      return {
+        models: staleEntry.models,
+        cache: toProviderModelsCacheInfo(staleEntry, 'memory'),
+      };
+    }
+
+    // No cache at all (cold start) — there is nothing to serve, so await the
+    // fetch this once. The adapter degrades to its fallback on failure, so this
+    // still resolves quickly under normal conditions.
     return loadAndCacheModels(provider);
   };
 

@@ -4,12 +4,13 @@ import { promises as fsPromises } from 'node:fs';
 
 import chokidar, { type FSWatcher } from 'chokidar';
 
+import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
-import type { LLMProvider } from '@/shared/types.js';
+import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
 import { getProjectsWithSessions } from '@/modules/projects/index.js';
 
-type WatcherEventType = 'add' | 'change';
+type WatcherEventType = 'add' | 'change' | 'unlink';
 
 const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> = [
   {
@@ -80,6 +81,21 @@ function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
   }
 
   return filePath.endsWith('.jsonl');
+}
+
+/**
+ * Coerces the socket-stamped identity into a DB user id, or null when the
+ * socket is unauthenticated or the value is not an integer id.
+ */
+function toMembershipUserId(rawUserId: string | number | null | undefined): number | null {
+  if (typeof rawUserId === 'number') {
+    return Number.isInteger(rawUserId) ? rawUserId : null;
+  }
+  if (typeof rawUserId === 'string' && rawUserId.trim() !== '') {
+    const parsed = Number(rawUserId);
+    return Number.isInteger(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 function clearPendingWatcherFlushTimer(): void {
@@ -155,9 +171,8 @@ async function flushPendingWatcherUpdate(): Promise<void> {
     const updatedSessionIds = Array.from(queuedUpdate.updatedSessionIds);
 
     // Backward-compatible fields stay populated with the first queued values.
-    const updateMessage = JSON.stringify({
+    const basePayload = {
       type: 'projects_updated',
-      projects: updatedProjects,
       timestamp: new Date().toISOString(),
       changeType: changeTypes[0] ?? 'change',
       updatedSessionId: updatedSessionIds[0] ?? undefined,
@@ -166,11 +181,61 @@ async function flushPendingWatcherUpdate(): Promise<void> {
       updatedSessionIds,
       watchProviders,
       batched: true,
-    });
+    };
+
+    // `isMember` is per-user, but the shared fetch above runs without a
+    // requester so every project carries isMember:false. Stamp the correct
+    // membership flag per authenticated client before sending (one DB lookup
+    // and one serialization per distinct userId, not per socket).
+    //
+    // B-PRIV: the shared fetch returns EVERY project, so it must also be filtered
+    // to the projects each recipient is allowed to see — otherwise a private
+    // project would leak to non-members through the projects_updated broadcast.
+    // Unauthenticated sockets receive only the public projects.
+    const serializedByUserId = new Map<number, string>();
+    let serializedFallback: string | null = null;
+
+    const resolveUpdateMessage = (client: RealtimeClientConnection): string => {
+      const membershipUserId = toMembershipUserId(client.userId);
+      if (membershipUserId === null) {
+        if (serializedFallback === null) {
+          const publicPaths = new Set(projectsDb.getVisibleProjectPaths(null));
+          serializedFallback = JSON.stringify({
+            ...basePayload,
+            projects: updatedProjects.filter(project => publicPaths.has(project.fullPath)),
+          });
+        }
+        return serializedFallback;
+      }
+
+      let serialized = serializedByUserId.get(membershipUserId);
+      if (!serialized) {
+        const visiblePaths = new Set(projectsDb.getVisibleProjectPaths(membershipUserId));
+        const memberProjectPaths = new Set(participantsDb.getProjectPathsForUser(membershipUserId));
+        // `isOwner` is per-user like `isMember`: the shared fetch above ran
+        // without a requester, so re-stamp it from the (user-independent)
+        // `ownerId` plus this user's project_members 'owner' roles.
+        const ownedProjectIds = new Set(projectMembersDb.listUserOwnedProjectIds(membershipUserId));
+        serialized = JSON.stringify({
+          ...basePayload,
+          projects: updatedProjects
+            .filter(project => visiblePaths.has(project.fullPath))
+            .map(project => ({
+              ...project,
+              isMember: memberProjectPaths.has(project.fullPath),
+              isOwner:
+                (project.ownerId !== null && project.ownerId === membershipUserId) ||
+                ownedProjectIds.has(project.projectId),
+            })),
+        });
+        serializedByUserId.set(membershipUserId, serialized);
+      }
+      return serialized;
+    };
 
     connectedClients.forEach(client => {
       if (client.readyState === WS_OPEN_STATE) {
-        client.send(updateMessage);
+        client.send(resolveUpdateMessage(client));
       }
     });
   } catch (error) {
@@ -220,6 +285,37 @@ async function onUpdate(
 }
 
 /**
+ * Handles transcript deletions (e.g. Claude's ~30-day retention sweep) by
+ * dropping the ghost DB rows indexed from the removed file.
+ */
+function onUnlink(filePath: string, provider: LLMProvider): void {
+  if (!isWatcherTargetFile(provider, filePath)) {
+    return;
+  }
+
+  try {
+    const removedSessionIds = sessionsDb.deleteSessionsByJsonlPath(filePath);
+    if (removedSessionIds.length === 0) {
+      return;
+    }
+
+    console.log(`Session cleanup triggered by unlink event for provider "${provider}"`, {
+      filePath,
+      sessionIds: removedSessionIds,
+    });
+    for (const sessionId of removedSessionIds) {
+      queuePendingWatcherUpdate('unlink', provider, sessionId);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`Session watcher cleanup failed for provider "${provider}"`, {
+      filePath,
+      error: message,
+    });
+  }
+}
+
+/**
  * Starts provider filesystem watchers and performs initial DB synchronization.
  */
 export async function initializeSessionsWatcher(): Promise<void> {
@@ -252,6 +348,9 @@ export async function initializeSessionsWatcher(): Promise<void> {
         })
         .on('change', (filePath: string) => {
           void onUpdate('change', filePath, provider);
+        })
+        .on('unlink', (filePath: string) => {
+          onUnlink(filePath, provider);
         })
         .on('error', (error: unknown) => {
           const message = error instanceof Error ? error.message : String(error);

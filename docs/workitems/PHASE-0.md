@@ -3,6 +3,8 @@
 **الحالة:** مكتملة — 2026-05-24  
 **المسؤول:** منسّق + devops + backend-dev
 
+> **حاشية (2026-06-15):** الدومين `nassaj-dev.alkindy.tech` المذكور أدناه (homepage في B-02 ونفق Cloudflare في B-05) **تقاعد**؛ الوصول الحيّ الآن عبر `https://nassaj.alkindy.tech` (نفس نفق Cloudflare → `127.0.0.1:3004`). تُركت قيم المرحلة التاريخية كما سُجّلت.
+
 ## Work Items
 
 ### B-01: Fork + Clone ✅

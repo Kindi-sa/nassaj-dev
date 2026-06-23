@@ -28,9 +28,71 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId, stampHumanUserId } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
-import { participantsDb } from './modules/database/index.js';
+import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './services/isolation/anthropic-base-url-guard.js';
+import { buildGitAuthorEnv } from './utils/gitIdentity.js';
+import {
+  PROCESS_TAG_ENV_VAR,
+  registerSessionProcess,
+  unregisterSessionProcess
+} from './services/session-process-monitor.js';
+import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
+import { SessionRegistry } from './session-registry.js';
+// ADR-042 (B-80c) ghost-detach: read-only listener-detection seam. Imported one
+// way only (writer service NEVER imports claude-sdk — verified, no circularity).
+import { countLiveMirrors } from './modules/websocket/services/websocket-writer.service.js';
+
+// ADR-041 (B-80): per-session read-only replay registry for claude, isolated in
+// its OWN SessionRegistry instance gated behind SESSION_REGISTRY_claude. When the
+// flag is OFF every call here is a cheap no-op and the live stream path is
+// byte-for-byte the pre-slice behaviour (coexistence contract). This is a SECOND
+// instance of the same engine agy uses — session-registry.js itself is reused
+// unchanged. Exported so the websocket layer (check-session-status / attach)
+// reads the SAME instance: one source of truth for both the replay buffer and
+// the active flag. It NEVER swaps the active writer and NEVER aborts the run —
+// it only re-emits buffered payloads (seq > lastSeq) to a reconnecting socket,
+// honouring the ADR-021 `if(!isActive)` no-swap veto.
+const claudeSessionRegistry = new SessionRegistry('SESSION_REGISTRY_claude', { capacity: 500 });
+
+// B-N-DROP (mirrors agy-cli.js): how long a session's replay buffer is retained
+// AFTER the run reaches a terminal state (complete/error) before it is dropped —
+// the post-close replay window. A socket that reconnects within this grace
+// period can still receive the final payloads via differential attach. After it
+// elapses the entry is dropped so the registry never grows unbounded across
+// uptime. The timer is cancelled if the same key is reopened/reused first.
+const CLAUDE_BUFFER_RETENTION_MS = 120000;
+
+// Pending post-close drop timers keyed by sessionId, so a reopen/reuse of the key
+// (resume) can cancel the scheduled drop and keep the buffer alive for the run.
+const claudePendingDropTimers = new Map();
+
+// Cancel any scheduled post-close drop for `key`. Called whenever the key is
+// reopened or reused before its retention window elapses.
+function cancelClaudePendingDrop(key) {
+  if (!key) return;
+  const timer = claudePendingDropTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    claudePendingDropTimers.delete(key);
+  }
+}
+
+// B-N-DROP: schedule a deferred drop of `key` after CLAUDE_BUFFER_RETENTION_MS.
+// Replaces any previously scheduled drop for the same key. `.unref()` so a
+// pending drop never holds the event loop open at shutdown.
+function scheduleClaudeBufferDrop(key) {
+  if (!key) return;
+  cancelClaudePendingDrop(key);
+  const timer = setTimeout(() => {
+    claudePendingDropTimers.delete(key);
+    claudeSessionRegistry.drop(key);
+  }, CLAUDE_BUFFER_RETENTION_MS);
+  timer.unref?.();
+  claudePendingDropTimers.set(key, timer);
+}
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
@@ -38,6 +100,85 @@ const pendingToolApprovals = new Map();
 // the same sessionId — a writer swap during this gap would mismatch the new ws.
 const recentlyEndedSessions = new Map(); // sessionId → expiry timestamp
 const RECENTLY_ENDED_GRACE_MS = 2000;
+
+// ─── ADR-042 (B-80c): ghost-session DETACH (not abort) ──────────────────────
+// A claude run keeps its for-await loop consuming the SDK child's stdout even
+// after every listener (primary socket + read-only mirrors) is gone — the loop
+// is a stdout CONSUMER, not the CLI turn driver. The child owns the session and
+// writes its <sessionId>.jsonl incrementally regardless of the socket, so the
+// work is on disk independent of the stream. The remaining problem is purely
+// the DRAIN COUNT: such a "ghost" stays counted active in `activeSessions`, so
+// every `pm2 restart` enters the unbounded graceful drain and hangs until PM2's
+// kill_timeout (5min). Fix = DETACH: after a grace period with no listener, flag
+// the session `detached` so the drain stops counting it — WITHOUT aborting. We
+// never call child.kill()/interrupt/close and never stop the generator; the
+// child finishes the turn and writes complete jsonl (zero work lost, matching
+// the B-N-DRAIN philosophy that children complete). detach only changes whether
+// the session BLOCKS the drain; it never touches the no-swap veto or the stream
+// (the writer still fans out to any returning mirror normally).
+const GHOST_DETACH_SWEEP_MS = parseInt(process.env.CLAUDE_GHOST_DETACH_SWEEP_MS, 10) || 30000;
+const GHOST_DETACH_GRACE_MS = parseInt(process.env.CLAUDE_GHOST_DETACH_GRACE_MS, 10) || 180000;
+let ghostSweepTimer = null;
+
+// Separate flag from SESSION_REGISTRY_claude (which gates B-80a replay/buffer —
+// an orthogonal concern). OFF by default: the sweep never starts, no session is
+// ever flagged detached, and index.js keeps using getActiveClaudeSDKSessions()
+// for the drain count byte-for-byte. Coexistence: zero behaviour change until
+// explicitly enabled.
+function ghostDetachEnabled() {
+  const raw = process.env.CLAUDE_GHOST_DETACH;
+  if (typeof raw !== 'string') return false;
+  const v = raw.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+}
+
+// One pass over activeSessions: any session whose primary socket is dead AND has
+// zero live mirrors for longer than the grace period gets flagged `detached`.
+// A session that still has any listener resets its grace counter. NO abort: the
+// generator is left to complete and clean itself up via the normal removeSession
+// path when the turn ends. Exported for unit tests (ADR-042 test plan).
+function sweepGhostSessions(now = Date.now()) {
+  if (activeSessions.size === 0) {
+    stopGhostSweep();
+    return;
+  }
+  for (const [sid, session] of activeSessions) {
+    if (session.detached) continue; // already excluded from the drain count
+    const writerAlive = session.writer?.isPrimarySocketAlive?.() === true;
+    const liveMirrors = countLiveMirrors(sid);
+    if (writerAlive || liveMirrors > 0) {
+      // Still has a listener — reset the no-listener clock.
+      session.lastListenerSeenAt = now;
+      session.noListenerSince = null;
+      continue;
+    }
+    // No listener. Start/continue the grace countdown.
+    if (!session.noListenerSince) session.noListenerSince = now;
+    if (now - session.noListenerSince >= GHOST_DETACH_GRACE_MS) {
+      session.detached = true; // ← excluded from getDrainBlockingClaudeSessions()
+      console.log(
+        `[GHOST-DETACH] session=${sid} detached after no-listener grace; `
+          + 'generator left to complete and write jsonl (no abort)'
+      );
+    }
+  }
+}
+
+// Lazy periodic sweep, mirroring session-process-monitor.js: started on first
+// addSession (only when the flag is ON), stopped when activeSessions empties.
+// .unref() so it never keeps the event loop alive at shutdown/drain.
+function startGhostSweep() {
+  if (ghostSweepTimer || !ghostDetachEnabled()) return;
+  ghostSweepTimer = setInterval(() => sweepGhostSessions(), GHOST_DETACH_SWEEP_MS);
+  ghostSweepTimer.unref?.();
+}
+
+function stopGhostSweep() {
+  if (!ghostSweepTimer) return;
+  clearInterval(ghostSweepTimer);
+  ghostSweepTimer = null;
+}
+// ────────────────────────────────────────────────────────────────────────────
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
 
@@ -165,17 +306,157 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 /**
+ * Builds the set of model values the send path will accept.
+ *
+ * Union of the LIVE/cached dynamic Claude catalog (same source the picker reads)
+ * and the static {@link CLAUDE_FALLBACK_MODELS} OPTIONS as a safety net. The
+ * static list alone does NOT contain dynamically-discovered models (e.g.
+ * `claude-opus-4-9`), so validating against it rejected real picker selections
+ * and coerced them to default. Including the dynamic catalog fixes that while
+ * keeping the static list as a floor for when the catalog is unavailable.
+ *
+ * Pure/synchronous: it accepts an already-resolved catalog definition (the
+ * caller pulls it from the cached, non-blocking SWR layer) so the hot send path
+ * never awaits a live probe here.
+ *
+ * @param {ProviderModelsDefinition|null|undefined} catalog - Dynamic catalog
+ *   (e.g. from providerModelsService.getProviderModels('claude')). May be null
+ *   when the catalog is unavailable; only the static list is used then.
+ * @returns {Set<string>} Valid model values.
+ */
+function buildValidClaudeModelValues(catalog) {
+  const values = new Set();
+  // Static safety net first — always valid even if the catalog is empty/broken.
+  for (const option of CLAUDE_FALLBACK_MODELS.OPTIONS) {
+    if (option && typeof option.value === 'string') {
+      values.add(option.value);
+    }
+  }
+  // Dynamic catalog (the live/stored source the picker uses), if available.
+  const dynamicOptions = Array.isArray(catalog?.OPTIONS) ? catalog.OPTIONS : [];
+  for (const option of dynamicOptions) {
+    if (option && typeof option.value === 'string') {
+      values.add(option.value);
+    }
+  }
+  return values;
+}
+
+/**
+ * Effort levels natively accepted by the Agent SDK `Options.effort` field
+ * (EffortLevel in @anthropic-ai/claude-agent-sdk sdk.d.ts). The SDK forwards
+ * the value verbatim to the CLI as `--effort <level>`.
+ */
+const SDK_EFFORT_LEVELS = new Set(['low', 'medium', 'high', 'xhigh', 'max']);
+
+/**
+ * UI-contract values that are NOT SDK effort levels but are part of the
+ * terminal `/effort` vocabulary:
+ *  - 'auto'      → "use the model's default effort" → omit the SDK option.
+ *  - 'ultracode' → the UI's maximum-intensity mode (intensity 4). It is NOT a
+ *    value the SDK `Options.effort` type accepts, and the underlying CLI does
+ *    not recognize 'ultracode' as an effort level either (its effort vocabulary
+ *    is low|medium|high|xhigh|max). 'ultracode' is two things at once:
+ *      1. Maximum reasoning effort — mapped here to the SDK level 'max' (the
+ *         true ceiling, intensity 4; previously this was downgraded to 'xhigh',
+ *         which made ultracode indistinguishable from the xhigh mode).
+ *      2. The CLI's prompt-keyword super-modes ("deeper reasoning" + "multi-agent
+ *         workflow orchestration"), which the SDK `effort` field cannot express.
+ *         The CLI activates these from magic keywords in the prompt text (it
+ *         scans for /\bultrathink\b/i and /\bultrawork\b/i). That half is applied
+ *         in runClaudeSDKQuery via maybeApplyUltracodeKeywords(), keyed off
+ *         resolveEffortLevel(...).alias === 'ultracode'.
+ */
+const EFFORT_ALIASES = new Map([
+  ['auto', null],
+  ['ultracode', 'max'],
+]);
+
+/**
+ * Magic keywords the Claude Code CLI scans for in the prompt text to activate
+ * its highest-tier session behaviors — the half of "ultracode" that the SDK
+ * `Options.effort` field cannot carry:
+ *   - 'ultrathink' → "Deeper reasoning requested for this turn" (max extended thinking).
+ *   - 'ultrawork'  → "Multi-agent workflow requested for this turn" (the CLI is
+ *     instructed to use the Workflow tool / dynamic-workflow orchestration).
+ * Verified against the bundled CLI binary's keyword detectors (`/\bultrathink\b/i`,
+ * `/\bultrawork\b/i`). Both are appended on their own line, separated from the
+ * user's prompt, so the words are detected without colliding with prompt text.
+ */
+const ULTRACODE_PROMPT_KEYWORDS = 'ultrathink ultrawork';
+
+/**
+ * Appends the ultracode CLI keywords to the prompt when the UI requested the
+ * 'ultracode' effort mode. Mirrors how the terminal `/effort ultracode` flow
+ * surfaces those keywords to the CLI. No-op (returns the command unchanged) for
+ * every other effort value, so normal prompts are never mutated.
+ *
+ * @param {string} command - The (possibly image-annotated) prompt text.
+ * @param {unknown} effortValue - Raw `effort` field from the chat options.
+ * @returns {string} The prompt, with the ultracode keywords appended when applicable.
+ */
+function maybeApplyUltracodeKeywords(command, effortValue) {
+  const { alias } = resolveEffortLevel(effortValue);
+  if (alias !== 'ultracode') {
+    return command;
+  }
+  const base = typeof command === 'string' ? command : '';
+  // Separate the keywords onto their own line so word-boundary detection in the
+  // CLI fires cleanly regardless of how the user's prompt ends.
+  return base ? `${base}\n\n${ULTRACODE_PROMPT_KEYWORDS}` : ULTRACODE_PROMPT_KEYWORDS;
+}
+
+/**
+ * Validates a UI-supplied effort value against the allowlist and resolves it
+ * to an SDK-compatible level.
+ *
+ * @param {unknown} value - Raw `effort` field from the chat message options.
+ * @returns {{ level: string|null, alias: string|null, rejected: string|null }}
+ *   level    - SDK effort level to apply, or null to omit the option.
+ *   alias    - The original alias when a mapping occurred (e.g. 'ultracode').
+ *   rejected - The original value when it was not in the allowlist (safe-ignore).
+ */
+function resolveEffortLevel(value) {
+  if (typeof value !== 'string') {
+    return { level: null, alias: null, rejected: null };
+  }
+  const requested = value.trim().toLowerCase();
+  if (requested === '') {
+    return { level: null, alias: null, rejected: null };
+  }
+  if (SDK_EFFORT_LEVELS.has(requested)) {
+    return { level: requested, alias: null, rejected: null };
+  }
+  if (EFFORT_ALIASES.has(requested)) {
+    return { level: EFFORT_ALIASES.get(requested), alias: requested, rejected: null };
+  }
+  return { level: null, alias: null, rejected: requested };
+}
+
+/**
  * Maps CLI options to SDK-compatible options format
  * @param {Object} options - CLI options
+ * @param {Set<string>} [validModelValues] - Set of accepted model values. When
+ *   provided (by queryClaudeSDK), it is the union of the dynamic Claude catalog
+ *   and the static fallback list. When omitted, validation falls back to the
+ *   static CLAUDE_FALLBACK_MODELS.OPTIONS only (preserves prior behavior and
+ *   keeps the function usable standalone, e.g. in unit tests).
  * @returns {Object} SDK-compatible options
  */
-function mapCliOptionsToSDK(options = {}) {
+function mapCliOptionsToSDK(options = {}, validModelValues) {
   const { sessionId, cwd, toolsSettings, permissionMode } = options;
 
   const sdkOptions = {};
 
   // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
+  //
+  // Vendor-resilience iron rule (fail-closed): before forwarding, refuse to spawn
+  // if ANTHROPIC_BASE_URL points the Claude/Anthropic path at a non-approved host.
+  // No-op when unset (default Anthropic). See anthropic-base-url-guard.js. The
+  // final env is re-validated at the spawn site below after per-user isolation,
+  // since that step also carries the host env through.
+  assertAnthropicBaseUrlAllowed(process.env);
   sdkOptions.env = { ...process.env };
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
@@ -226,10 +507,55 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  // Map model (default to sonnet)
-  // Valid models: sonnet, opus, haiku, opusplan, sonnet[1m]
-  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
+  // Map model with validation against the accepted-model set.
+  // The set is the union of the LIVE/cached dynamic Claude catalog (same source
+  // the picker reads, e.g. claude-opus-4-9) and the static CLAUDE_FALLBACK_MODELS
+  // safety net. queryClaudeSDK passes it in from the cached SWR layer; when it is
+  // omitted (e.g. standalone/unit callers) we fall back to the static list only.
+  // Any value not in the set (the UI's "auto" sentinel, empty, whitespace, a
+  // truly unknown string) is rejected by the SDK, so we coerce it to the provider
+  // default here and emit a non-silent warning (no silent substitution).
+  const acceptedModels = validModelValues instanceof Set && validModelValues.size > 0
+    ? validModelValues
+    : buildValidClaudeModelValues(null);
+  const requested = typeof options.model === 'string' ? options.model.trim() : '';
+  const isKnownModel = requested !== '' && acceptedModels.has(requested);
+  if (isKnownModel) {
+    sdkOptions.model = requested;
+  } else {
+    sdkOptions.model = CLAUDE_FALLBACK_MODELS.DEFAULT;
+    if (requested) {
+      const sessionTag = sessionId ? ` [session=${sessionId}]` : '';
+      const userTag = options.userId ? ` [user=${options.userId}]` : '';
+      console.warn(
+        `model "${requested}" not in CLAUDE OPTIONS; falling back to "${CLAUDE_FALLBACK_MODELS.DEFAULT}"${sessionTag}${userTag}`
+      );
+    }
+  }
   // Model logged at query start below
+
+  // Map effort (B: structured effort field from the UI, same path as model).
+  // Allowlist: low|medium|high|xhigh|max (SDK EffortLevel) plus the UI aliases
+  // 'auto' (omit → model default) and 'ultracode' (mapped to 'max' — the SDK
+  // ceiling, intensity 4). The "deeper reasoning + multi-agent workflow" half of
+  // ultracode is applied separately in runClaudeSDKQuery via prompt keywords,
+  // because the SDK Options.effort field cannot express it. Anything else is
+  // ignored safely with a non-silent warning — never forwarded to the SDK.
+  const { level: effortLevel, alias: effortAlias, rejected: rejectedEffort } =
+    resolveEffortLevel(options.effort);
+  if (effortLevel) {
+    sdkOptions.effort = effortLevel;
+    if (effortAlias) {
+      console.warn(
+        `effort "${effortAlias}" mapped to SDK level "${effortLevel}" (alias outside SDK EffortLevel)`
+      );
+    }
+  } else if (rejectedEffort) {
+    const sessionTag = sessionId ? ` [session=${sessionId}]` : '';
+    console.warn(
+      `effort "${rejectedEffort}" not in allowlist (low|medium|high|xhigh|max|ultracode|auto); ignoring${sessionTag}`
+    );
+  }
 
   // Map system prompt configuration
   sdkOptions.systemPrompt = {
@@ -250,21 +576,177 @@ function mapCliOptionsToSDK(options = {}) {
 }
 
 /**
+ * Probes the Claude Agent SDK for its built-in slash commands.
+ *
+ * Uses a streaming-input (async generator) `query` that NEVER yields a turn:
+ * `supportedCommands()` is a control request that the SDK answers from the
+ * init handshake alone — no model call, no token cost, no user input. We then
+ * `interrupt()` and let the never-resolving generator be GC'd so the SDK child
+ * process tears down immediately.
+ *
+ * Guarantees:
+ *  - No turn/prompt is ever sent (the generator awaits a release promise and
+ *    only ends after cleanup — it yields nothing before then).
+ *  - Hard timeout (default 4s): on overrun we interrupt and resolve `null`.
+ *  - Every error path swallows and returns `null` (never throws upward).
+ *  - The SDK process is always interrupted/released, even on error/timeout, so
+ *    no child process leaks.
+ *
+ * @param {Object} [context] - Optional context. `userId` selects the per-user
+ *   Claude config dir via resolveProviderEnv; `cwd` sets the working directory.
+ * @returns {Promise<Array<{name:string,description?:string,aliases?:string[],argumentHint?:string}>|null>}
+ *   Normalized command list, or `null` on any failure/timeout/old SDK.
+ */
+async function getClaudeBuiltInCommands(context = {}) {
+  const { userId = null, cwd = null } = context;
+  const PROBE_TIMEOUT_MS = 4000;
+
+  // Controls the async generator's lifetime. The generator awaits this promise
+  // and yields nothing, so no turn is ever produced. Resolving it ends the
+  // generator (after we've already pulled supportedCommands()).
+  let releaseGenerator;
+  const releasePromise = new Promise((resolve) => {
+    releaseGenerator = resolve;
+  });
+
+  // A streaming-input prompt: an async generator that emits zero turns.
+  async function* emptyPromptStream() {
+    await releasePromise;
+    // Intentionally yields nothing — keeps the session in streaming-input mode
+    // without sending any user message to the model.
+  }
+
+  let queryInstance = null;
+  let timeoutHandle = null;
+
+  // Resolve env the same way the live chat path does so the probe runs under
+  // the correct Claude config dir / credentials (no elevated privileges).
+  let probeEnv = { ...process.env };
+  try {
+    probeEnv = resolveProviderEnv(userId, 'claude', probeEnv);
+  } catch {
+    // Fall back to the base env; never let env resolution break the probe.
+    probeEnv = { ...process.env };
+  }
+
+  const cleanup = async () => {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+    }
+    // Release the generator so it completes and the SDK can shut down.
+    if (releaseGenerator) {
+      releaseGenerator();
+      releaseGenerator = null;
+    }
+    if (queryInstance && typeof queryInstance.interrupt === 'function') {
+      try {
+        await queryInstance.interrupt();
+      } catch {
+        // Interrupt failures are non-fatal — the released generator + GC still
+        // tears the process down.
+      }
+    }
+  };
+
+  try {
+    const sdkOptions = {
+      env: probeEnv,
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+      // No tools/prompt/model work happens; keep options minimal & deterministic.
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+    };
+    if (cwd) {
+      sdkOptions.cwd = cwd;
+    }
+
+    // Iron-rule guard: this probe also spawns the Claude/Anthropic subprocess,
+    // so fail-closed if ANTHROPIC_BASE_URL targets a non-approved host. No-op
+    // when unset (default Anthropic). Also validate the per-user settings.json
+    // env block the CLI applies from CLAUDE_CONFIG_DIR (same bypass surface).
+    assertAnthropicBaseUrlAllowed(sdkOptions.env);
+    assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
+
+    queryInstance = query({
+      prompt: emptyPromptStream(),
+      options: sdkOptions,
+    });
+
+    const commandsPromise = queryInstance.supportedCommands();
+
+    const timeoutPromise = new Promise((resolve) => {
+      timeoutHandle = setTimeout(() => resolve('__probe_timeout__'), PROBE_TIMEOUT_MS);
+    });
+
+    const result = await Promise.race([commandsPromise, timeoutPromise]);
+
+    if (result === '__probe_timeout__' || !Array.isArray(result)) {
+      return null;
+    }
+
+    // Normalize to the shape the route merges. Drop entries without a name.
+    return result
+      .filter((cmd) => cmd && typeof cmd.name === 'string' && cmd.name.length > 0)
+      .map((cmd) => ({
+        name: cmd.name,
+        description: typeof cmd.description === 'string' ? cmd.description : '',
+        ...(Array.isArray(cmd.aliases) && cmd.aliases.length > 0 ? { aliases: cmd.aliases } : {}),
+        ...(typeof cmd.argumentHint === 'string' && cmd.argumentHint
+          ? { argumentHint: cmd.argumentHint }
+          : {}),
+      }));
+  } catch {
+    // Any failure (old SDK without supportedCommands, spawn error, etc.) → null.
+    return null;
+  } finally {
+    await cleanup();
+  }
+}
+
+/**
  * Adds a session to the active sessions map
  * @param {string} sessionId - Session identifier
  * @param {Object} queryInstance - SDK query instance
  * @param {Array<string>} tempImagePaths - Temp image file paths for cleanup
  * @param {string} tempDir - Temp directory for cleanup
+ * @param {Object|null} writer - WebSocketWriter for this session
+ * @param {string|null} runTag - PROCESS_TAG_ENV_VAR value injected into the
+ *   spawned CLI env; lets the process monitor resolve the child pid from
+ *   /proc and surface frozen (kill -STOP) state to the UI.
+ * @param {string|null} projectPath - Working dir of the run, forwarded to the
+ *   process monitor so the live presence panel can show what the user is on.
  */
-function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null) {
+function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = null, writer = null, runTag = null, projectPath = null) {
   activeSessions.set(sessionId, {
     instance: queryInstance,
     startTime: Date.now(),
     status: 'active',
     tempImagePaths,
     tempDir,
-    writer
+    writer,
+    // ADR-042 (B-80c) ghost-detach bookkeeping. `detached` excludes the session
+    // from the drain count ONLY (never aborts). The clocks are managed by the
+    // lazy sweep; harmless dead fields when CLAUDE_GHOST_DETACH is OFF.
+    detached: false,
+    noListenerSince: null,
+    lastListenerSeenAt: Date.now()
   });
+  // ADR-041: mark the session live in the replay registry (single source of
+  // truth for the active flag + replay buffer). Cancel any pending post-close
+  // drop first so a quick resume reuses the entry instead of losing it. No-op
+  // when SESSION_REGISTRY_claude is off. addSession is called twice on a fresh
+  // run (once eagerly with the resume id when present, once with the real
+  // captured session_id); open() is idempotent so the double call is safe.
+  if (sessionId) {
+    cancelClaudePendingDrop(sessionId);
+    claudeSessionRegistry.open(sessionId);
+  }
+  if (writer && runTag) {
+    registerSessionProcess(sessionId, { provider: 'claude', writer, runTag, projectPath });
+  }
+  // ADR-042 (B-80c): start the lazy ghost sweep (no-op unless the flag is ON or
+  // the timer already runs). Stopped again in removeSession when the map empties.
+  startGhostSweep();
 }
 
 /**
@@ -273,6 +755,10 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // ADR-042 (B-80c): tear down the lazy ghost sweep once no session remains.
+  if (activeSessions.size === 0) stopGhostSweep();
+  // Stop process-state monitoring and tell every viewer the session is idle.
+  unregisterSessionProcess(sessionId);
   // Mark as recently ended to block writer swaps during the race window
   recentlyEndedSessions.set(sessionId, Date.now() + RECENTLY_ENDED_GRACE_MS);
   setTimeout(() => recentlyEndedSessions.delete(sessionId), RECENTLY_ENDED_GRACE_MS);
@@ -321,8 +807,8 @@ function readNumber(value) {
  *
  * Priority:
  *  1. `CONTEXT_WINDOW` env var when explicitly set (respects user override).
- *  2. Inferred from the model name: Opus and Sonnet 4.6+ ship a 1M window;
- *     other known models default to 200000.
+ *  2. Inferred from the model name: Opus, Fable, and Sonnet 4.6+ ship a 1M
+ *     window; other known models default to 200000.
  *  3. When the model name is unavailable, defaults to 1000000 (the modern
  *     Opus/Sonnet long-context default) instead of the stale 160000 value.
  *
@@ -341,6 +827,11 @@ function resolveContextWindow(modelName) {
 
   // Opus (all current generations) ships a 1M context window.
   if (name.includes('opus')) {
+    return 1000000;
+  }
+
+  // Fable (5 and later) ships a 1M context window with 128K max output.
+  if (name.includes('fable')) {
     return 1000000;
   }
 
@@ -481,9 +972,10 @@ async function handleImages(command, images, cwd) {
   }
 
   try {
-    // Create temp directory in the project directory
-    const workingDir = cwd || process.cwd();
-    tempDir = path.join(workingDir, '.tmp', 'images', Date.now().toString());
+    // B-40f: use os.tmpdir() instead of a hard-coded project path so temp
+    // images never land inside the project tree (avoids accidental git tracking
+    // and works regardless of the project cwd).
+    tempDir = path.join(os.tmpdir(), 'nassaj-claude-images', Date.now().toString());
     await fs.mkdir(tempDir, { recursive: true });
 
     // Save each image to a temp file
@@ -623,6 +1115,32 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   let tempImagePaths = [];
   let tempDir = null;
   let participantRecorded = false;
+  // Exact prompt text handed to the SDK (and therefore written verbatim into
+  // the transcript). Updated to the image-annotated form after handleImages so
+  // the authorship hash recorded below matches the transcript line.
+  let promptTextForAuthorship = command;
+
+  // B-31: verify the project directory exists before attempting spawn.
+  // A missing cwd causes a confusing ENOENT after SDK init; surface it early
+  // with a classified error the frontend can translate via the error code.
+  const cwdToCheck = options.cwd || options.projectPath;
+  if (cwdToCheck) {
+    const cwdCheck = await checkCwdExists(cwdToCheck);
+    if (!cwdCheck.ok) {
+      // B-31/B-33: surface the cwd-missing error once, with the isNewSessionError
+      // flag set when there is no sessionId yet so the frontend can correlate the
+      // failure with the originating request. A second identical message is NOT
+      // sent — one classified error is sufficient.
+      ws.send(createNormalizedMessage(
+        buildCwdMissingPayload(cwdCheck.error, {
+          sessionId: sessionId || null,
+          provider: 'claude',
+          isNewSessionError: !sessionId,
+        })
+      ));
+      return { ok: false };
+    }
+  }
 
   // Record the authenticated human who spawned this run as a session
   // participant. Once per spawn (idempotent at the DB layer too) and only when
@@ -632,7 +1150,14 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       return;
     }
     participantRecorded = true;
-    participantsDb.recordSpawn(sid, ws.userId);
+    participantsDb.recordSpawn(sid, ws.userId, {
+      provider: 'claude',
+      projectPath: options.cwd || options.projectPath || process.cwd(),
+    });
+    // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): remember WHO authored this
+    // prompt so history loads can stamp userId onto the transcript's user
+    // message (the transcript itself carries no identity). Never throws.
+    messageAuthorsDb.recordUserMessage(sid, ws.userId, promptTextForAuthorship);
   };
 
   const emitNotification = (event) => {
@@ -650,17 +1175,55 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       options.model,
     );
 
+    // Build the accepted-model set from the dynamic Claude catalog so any model
+    // the picker offers (e.g. claude-fable-5) passes validation. This reads the
+    // existing cached SWR layer (fast, in-memory; refresh runs in the background),
+    // so it never blocks or slows the send hot path. On any failure we leave the
+    // set undefined, and mapCliOptionsToSDK falls back to the static list — the
+    // send path is never broken by catalog issues.
+    let validModelValues;
+    try {
+      const { models: catalog } = await providerModelsService.getProviderModels('claude');
+      validModelValues = buildValidClaudeModelValues(catalog);
+    } catch {
+      validModelValues = undefined;
+    }
+
     // Map CLI options to SDK format
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
       model: resolvedModel || options.model,
-    });
+    }, validModelValues);
 
     // Per-user credential isolation (B-ISO-CLAUDE): rebuild the spawn env via the
     // central resolver so each authenticated user gets their own CLAUDE_CONFIG_DIR
     // while conversations/instructions stay shared via symlinks. Falls back to the
     // base env unchanged when no userId is present (single-user / platform mode).
     sdkOptions.env = resolveProviderEnv(ws?.userId ?? null, 'claude', sdkOptions.env);
+
+    // Iron-rule re-check on the FINAL env actually handed to the subprocess.
+    // resolveProviderEnv spreads the base env (ANTHROPIC_BASE_URL included) and
+    // never strips it, so validate again here — fail-closed before query().
+    assertAnthropicBaseUrlAllowed(sdkOptions.env);
+    // The CLI also applies env.ANTHROPIC_BASE_URL (and Bedrock/Vertex siblings)
+    // from settings.json INSIDE the per-user CLAUDE_CONFIG_DIR, downstream of the
+    // spawn env. Validate that file under the same allowlist so a competitor base
+    // URL placed there cannot bypass the OS-env guard above.
+    assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
+
+    // Per-user commit authorship (B-MU-UX-GIT-ID): inject GIT_AUTHOR_*/
+    // GIT_COMMITTER_* for the authenticated user so any commit the agent makes
+    // during this run is attributed to the brother who spawned it — independent
+    // of the credential-isolation policy above (attribution, not isolation).
+    // Empty when the user has no stored identity -> the agent's commits fall
+    // back to the system git config (current behavior). No global config write.
+    Object.assign(sdkOptions.env, buildGitAuthorEnv(ws?.userId ?? null));
+
+    // Frozen-session indicator: the SDK never exposes the spawned CLI's pid,
+    // so tag the child env with a unique value the process monitor can match
+    // against /proc/<pid>/environ to find the pid and watch for kill -STOP.
+    const processRunTag = crypto.randomUUID();
+    sdkOptions.env[PROCESS_TAG_ENV_VAR] = processRunTag;
 
     // Load MCP configuration
     const mcpServers = await loadMcpConfig(options.cwd);
@@ -670,9 +1233,18 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Handle images - save to temp files and modify prompt
     const imageResult = await handleImages(command, options.images, options.cwd);
-    const finalCommand = imageResult.modifiedCommand;
+    // Ultracode (UI intensity 4): besides the SDK effort='max' set above, the
+    // CLI's "deeper reasoning + multi-agent workflow" super-modes are activated
+    // by magic keywords in the prompt text. Append them here so ultracode takes
+    // real effect (no-op for every other effort value). Applied after the image
+    // annotation so the keywords ride along on the exact text the CLI receives.
+    const finalCommand = maybeApplyUltracodeKeywords(imageResult.modifiedCommand, options.effort);
     tempImagePaths = imageResult.tempImagePaths;
     tempDir = imageResult.tempDir;
+    // The transcript stores the prompt exactly as handed to the SDK, so
+    // authorship must hash the same text (recordParticipant runs only after
+    // this point).
+    promptTextForAuthorship = finalCommand;
 
     sdkOptions.hooks = {
       Notification: [{
@@ -806,18 +1378,89 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Track the query instance for abort capability
     if (capturedSessionId) {
-      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+      addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag, options.cwd || options.projectPath || null);
       recordParticipant(capturedSessionId);
     }
 
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
+    // [WS-DIAG] Active-stream lifecycle (point #2). Records the writer's bound raw
+    // socket readyState at stream start, and arms a one-time orphan probe: if the
+    // socket closes mid-stream, ws.send() below becomes a silent no-op (readyState
+    // guard in WebSocketWriter.send) while THIS generator keeps consuming SDK output.
+    // The SDK query is NOT aborted on socket close. We log the first iteration where
+    // the socket is no longer OPEN so the freeze is provable: stream alive, socket
+    // dead, payloads dropped, and (point #4) no re-subscribe re-binds the writer
+    // because the run is still 'active' so reconnectSessionWriter is vetoed.
+    // readyState codes: 0=CONNECTING 1=OPEN 2=CLOSING 3=CLOSED.
+    const wsDiagRawAtStart = ws && ws.ws ? ws.ws.readyState : 'no-raw-ws';
+    console.log(
+      `[WS-DIAG] stream-start session=${capturedSessionId || 'NEW'} `
+      + `rawSocketReadyState=${wsDiagRawAtStart} isWebSocketWriter=${Boolean(ws && ws.isWebSocketWriter)}`
+    );
+
+    // ADR-041 (B-80): RingBuffer injection point. Buffer each LIVE payload under
+    // the current session key, stamp it with the assigned monotonic `sequence`,
+    // THEN forward it to the socket. A socket that reconnects mid-stream is then
+    // brought up to date by differential replay (attach re-emits seq > lastSeq)
+    // — read-only, no writer swap, no abort. record() returns null when the flag
+    // is OFF (then we forward the payload untouched, no `sequence` field, exactly
+    // as before). Buffering is keyed off `capturedSessionId` resolved at call
+    // time (it may be null for the very first payloads of a brand-new run, before
+    // the SDK reports session_id; those are not buffered — identical to agy,
+    // where the pre-id window is covered by a connectionId we do not have here).
+    // Only the live-stream payloads inside the for-await loop route through this;
+    // the terminal `error` payload keeps a direct ws.send so a failure is never
+    // gated on the registry.
+    const sendAndBuffer = (payload) => {
+      const sid = capturedSessionId || sessionId || null;
+      const seq = sid ? claudeSessionRegistry.record(sid, payload) : null;
+      if (seq !== null && seq !== undefined) {
+        payload.sequence = seq;
+      }
+      ws.send(payload);
+    };
+
+    let wsDiagOrphanLogged = false;
+    let wsDiagMessageCount = 0;
     for await (const message of queryInstance) {
+      // [WS-DIAG] One-time orphan detection: socket went away but the stream lives on.
+      wsDiagMessageCount += 1;
+      // OPEN readyState is the literal 1 (WebSocket.OPEN); avoid importing the
+      // websocket-state constant here to keep the diagnostic footprint local.
+      if (
+        !wsDiagOrphanLogged
+        && ws && ws.ws
+        && ws.ws.readyState !== 1
+      ) {
+        wsDiagOrphanLogged = true;
+        console.log(
+          `[WS-DIAG] stream-orphaned session=${capturedSessionId || sessionId || 'NEW'} `
+          + `rawSocketReadyState=${ws.ws.readyState} messagesSoFar=${wsDiagMessageCount} `
+          + `note=socket-closed-but-generator-still-running-sends-now-dropped`
+        );
+      }
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 
         capturedSessionId = message.session_id;
-        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
+        // ADR-041 / B-N-RESUME clean buffer (mirrors agy-cli.js): the SDK reports
+        // its real session_id only now. A resumed run for a sessionId that carries
+        // a prior, already-terminated registry entry must NOT inherit the previous
+        // run's buffered payloads. Drop the stale INACTIVE entry (and cancel its
+        // pending post-close drop) BEFORE addSession re-opens a fresh one, so the
+        // new run's seq line starts at 0 and a client reconnecting with lastSeq
+        // absent/0 replays only THIS run. A still-active entry under the same id is
+        // a live run we must never disturb, so it is left untouched. No-op when the
+        // flag is off.
+        if (
+          claudeSessionRegistry.enabled
+          && claudeSessionRegistry.entries.has(capturedSessionId)
+          && !claudeSessionRegistry.isActive(capturedSessionId)
+        ) {
+          claudeSessionRegistry.drop(capturedSessionId);
+        }
+        addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws, processRunTag, options.cwd || options.projectPath || null);
         recordParticipant(capturedSessionId);
 
         // Set session ID on writer
@@ -828,7 +1471,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         // Send session-created event only once for new sessions
         if (!sessionId && !sessionCreatedSent) {
           sessionCreatedSent = true;
-          ws.send(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
+          sendAndBuffer(createNormalizedMessage({ kind: 'session_created', newSessionId: capturedSessionId, sessionId: capturedSessionId, provider: 'claude' }));
         }
       } else {
         // session_id already captured
@@ -845,7 +1488,22 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
           msg.parentToolUseId = transformedMessage.parentToolUseId;
         }
-        ws.send(msg);
+        // Sender attribution (B-MU-UX-FIX-MSG-AUTHOR): user-authored text
+        // echoed by this run is stamped with the JWT-sourced socket userId so
+        // mirrors (other viewers) can render the true author — but ONLY for
+        // human-origin text. SDK user messages whose origin is non-human
+        // (origin.kind 'coordinator' = coordinator → subagent prompt via the
+        // Task tool, also 'peer'/'channel'/'task-notification') carry
+        // `originKind` from the adapter and are never attributed to the
+        // human, otherwise agent directives render as user bubbles.
+        stampHumanUserId(msg, ws?.userId);
+        // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): every
+        // assistant-driven payload this run emits was spawned by the human on
+        // this socket. Stamp the JWT-sourced coordinatorId so live viewers (and
+        // the spawner's mirrors) attribute the reply to the real participant
+        // instead of the session owner. No-op for the user echo handled above.
+        stampCoordinatorId(msg, ws?.userId);
+        sendAndBuffer(msg);
       }
 
       // Fork: stale `resume` surfaces as an error result whose text names the
@@ -866,7 +1524,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       // Extract and send token budget updates from assistant/result usage payloads (#807)
       const tokenBudgetData = extractTokenBudget(message);
       if (tokenBudgetData) {
-        ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+        sendAndBuffer(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       }
     }
 
@@ -878,8 +1536,21 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // Clean up temporary image files
     await cleanupTempFiles(tempImagePaths, tempDir);
 
-    // Send completion event
-    ws.send(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
+    // Send completion event. ADR-041: routed through sendAndBuffer so the
+    // terminal `complete` is buffered too — a socket reconnecting inside the
+    // post-close retention window then replays it (re-emitting `complete` is
+    // read-only and idempotent on the client, so it is safe unlike the live
+    // critical path). The active flag is flipped to inactive immediately AFTER,
+    // so the buffer survives for the retention window but the session is no
+    // longer reported processing.
+    sendAndBuffer(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
+    // ADR-041: terminal state — flip the single source of truth to inactive and
+    // schedule a deferred buffer drop (post-close replay window, not an immediate
+    // drop). No-op when SESSION_REGISTRY_claude is off.
+    if (capturedSessionId || sessionId) {
+      claudeSessionRegistry.setActive(capturedSessionId || sessionId, false);
+      scheduleClaudeBufferDrop(capturedSessionId || sessionId);
+    }
     notifyRunStopped({
       userId: ws?.userId || null,
       provider: 'claude',
@@ -893,9 +1564,24 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
   } catch (error) {
     console.error('SDK query error:', error);
 
+    // B-40a: cancel dangling tool approvals so approval promises resolve
+    // immediately rather than leaking until TOOL_APPROVAL_TIMEOUT_MS.
+    if (capturedSessionId) {
+      cancelPendingApprovalsForSession(capturedSessionId);
+    }
+
     // Clean up session on error
     if (capturedSessionId) {
       removeSession(capturedSessionId);
+    }
+    // ADR-041: terminal (error) state — flip the registry's active flag to
+    // inactive and schedule the deferred buffer drop (post-close replay window),
+    // mirroring the success path. The structured `error` payload below keeps its
+    // direct ws.send so a failure is never gated on the registry; we only manage
+    // the lifecycle here. No-op when SESSION_REGISTRY_claude is off.
+    if (capturedSessionId || sessionId) {
+      claudeSessionRegistry.setActive(capturedSessionId || sessionId, false);
+      scheduleClaudeBufferDrop(capturedSessionId || sessionId);
     }
 
     // Clean up temporary image files on error
@@ -909,13 +1595,30 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     }
 
     // Check if Claude CLI is installed for a clearer error message
+    // B-32: map spawn/runtime errors to structured codes.
     const installed = await providerAuthService.isProviderInstalled('claude');
-    const errorContent = !installed
-      ? 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code'
-      : error.message;
+    let errorCode;
+    let errorContent;
+    if (!installed) {
+      errorCode = 'cli_not_installed';
+      errorContent = 'Claude Code is not installed. Please install it first: https://docs.anthropic.com/en/docs/claude-code';
+    } else {
+      const mapped = mapSpawnError(error);
+      errorCode = mapped.code;
+      errorContent = mapped.fallbackMessage;
+    }
 
-    // Send error to WebSocket
-    ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    // B-33: for a new session (no prior sessionId), include a requestId so the
+    // frontend can correlate the error with the originating spawn request.
+    const errorSessionId = capturedSessionId || sessionId || null;
+    ws.send(createNormalizedMessage({
+      kind: 'error',
+      code: errorCode,
+      content: errorContent,
+      sessionId: errorSessionId,
+      provider: 'claude',
+      ...(!errorSessionId ? { isNewSessionError: true } : {}),
+    }));
     notifyRunFailed({
       userId: ws?.userId || null,
       provider: 'claude',
@@ -990,6 +1693,20 @@ async function abortClaudeSDKSession(sessionId) {
 
   try {
     console.log(`Aborting SDK session: ${sessionId}`);
+    // [WS-DIAG] Abort path (point #2). Distinguishes an explicit user/abort-driven
+    // teardown of the SDK query from the silent orphaning that happens on socket
+    // close (where NO abort is issued and the run keeps streaming into a dead
+    // socket). If a freeze occurs WITHOUT this line, the run was orphaned, not aborted.
+    const wsDiagAbortRaw = session?.writer?.ws ? session.writer.ws.readyState : 'no-raw-ws';
+    console.log(
+      `[WS-DIAG] sdk-abort session=${sessionId} status=${session?.status ?? 'unknown'} `
+      + `writerRawReadyState=${wsDiagAbortRaw}`
+    );
+
+    // B-40a: cancel any tool approval that is waiting for user interaction
+    // so the approval promise resolves immediately instead of blocking for
+    // TOOL_APPROVAL_TIMEOUT_MS after the session is already aborted.
+    cancelPendingApprovalsForSession(sessionId);
 
     // Call interrupt() on the query instance
     await session.instance.interrupt();
@@ -1029,6 +1746,45 @@ function getActiveClaudeSDKSessions() {
 }
 
 /**
+ * ADR-042 (B-80c): the claude sessions the DRAIN must still wait for — active
+ * sessions that are NOT detached. A detached ghost (lost every listener past the
+ * grace period) keeps running in the background and writes complete jsonl, so it
+ * must not hold `pm2 restart` hostage until kill_timeout. Consumed EXCLUSIVELY
+ * by the drain count in index.js (behind the CLAUDE_GHOST_DETACH flag).
+ *
+ * `getActiveClaudeSDKSessions()` stays unchanged — a detached session is still
+ * "active" for display (UI / get-active-sessions / WS-DIAG); it is just no
+ * longer "drain-blocking". Clean split between the two concepts.
+ * @returns {Array<string>} Active, non-detached session IDs.
+ */
+function getDrainBlockingClaudeSessions() {
+  const out = [];
+  for (const [sid, session] of activeSessions) {
+    if (!session.detached) out.push(sid);
+  }
+  return out;
+}
+
+/**
+ * B-40a: Cancel all pending tool-approval callbacks for a session and signal
+ * each one as cancelled. Called on abort and on session error so dangling
+ * approval promises are resolved instead of waiting for TOOL_APPROVAL_TIMEOUT_MS.
+ *
+ * @param {string} sessionId - The session ID whose approvals should be cancelled
+ */
+function cancelPendingApprovalsForSession(sessionId) {
+  for (const [requestId, resolver] of pendingToolApprovals.entries()) {
+    if (resolver._sessionId === sessionId) {
+      // Resolve with a cancelled decision so the permission_request flow
+      // returns a deny rather than blocking until the timeout fires.
+      resolver({ allow: false, cancelled: true });
+      // Note: resolver itself removes itself from pendingToolApprovals via the
+      // cleanup() registered in waitForToolApproval, so no manual delete here.
+    }
+  }
+}
+
+/**
  * Get pending tool approvals for a specific session.
  * @param {string} sessionId - The session ID
  * @returns {Array} Array of pending permission request objects
@@ -1062,13 +1818,48 @@ function reconnectSessionWriter(sessionId, newRawWs) {
   // between removeSession() and the next addSession() for the same sessionId.
   if (recentlyEndedSessions.has(sessionId)) {
     console.log(`[RECONNECT] Skipped writer swap for ${sessionId} — in grace period`);
+    // [WS-DIAG] (point #4) Re-bind refused because the session just ended (grace
+    // window). The new socket will not receive the stream; expected for completed runs.
+    console.log(`[WS-DIAG] writer-swap-skipped session=${sessionId} reason=grace-period`);
     return false;
   }
   const session = getSession(sessionId);
-  if (!session?.writer?.updateWebSocket) return false;
+  if (!session?.writer?.updateWebSocket) {
+    // [WS-DIAG] (point #4) No writer to swap (session unknown or no writer). A
+    // reconnecting socket finds nothing to re-bind — stream cannot be resumed here.
+    console.log(
+      `[WS-DIAG] writer-swap-skipped session=${sessionId} `
+      + `reason=no-writer hasSession=${Boolean(session)}`
+    );
+    return false;
+  }
   session.writer.updateWebSocket(newRawWs);
   console.log(`[RECONNECT] Writer swapped for session ${sessionId}`);
+  // [WS-DIAG] (point #4) Writer successfully re-bound to the new socket. This only
+  // happens when the run is IDLE (isActive===false at the caller); an ACTIVE run is
+  // vetoed by the `if(!isActive)` guard in chat-websocket.service and never reaches here.
+  console.log(`[WS-DIAG] writer-swap-applied session=${sessionId}`);
   return true;
+}
+
+/**
+ * ADR-041 (B-80): read-only differential replay for a reconnecting socket on a
+ * claude session. Re-emits ONLY the buffered payloads with `seq > lastSeq` to
+ * `send`, oldest-first. Performs NO writer swap and NO abort of the running SDK
+ * query — it strictly reads the per-session RingBuffer (the active writer of the
+ * live session is left untouched, honouring the ADR-021 `if(!isActive)` no-swap
+ * veto). Returns the highest seq replayed, or the supplied `lastSeq` when nothing
+ * newer exists / the flag is off / the session is unknown. Mirrors
+ * attachAntigravitySession in agy-cli.js exactly.
+ *
+ * @param {string} sessionId - The session ID whose buffer to replay.
+ * @param {number} lastSeq - The highest seq the client already received.
+ * @param {(payload: unknown) => void} send - Sink for each replayed payload.
+ * @returns {number} Highest seq replayed (or lastSeq when nothing newer).
+ */
+function attachClaudeSDKSession(sessionId, lastSeq, send) {
+  const result = claudeSessionRegistry.attach(sessionId, lastSeq, send);
+  return result === null ? (Number.isFinite(lastSeq) ? lastSeq : 0) : result;
 }
 
 // Export public API
@@ -1079,6 +1870,23 @@ export {
   getActiveClaudeSDKSessions,
   resolveToolApproval,
   getPendingApprovalsForSession,
+  cancelPendingApprovalsForSession,
   reconnectSessionWriter,
-  resolveContextWindow
+  attachClaudeSDKSession,
+  claudeSessionRegistry,
+  resolveContextWindow,
+  getClaudeBuiltInCommands,
+  mapCliOptionsToSDK,
+  buildValidClaudeModelValues,
+  resolveEffortLevel,
+  maybeApplyUltracodeKeywords,
+  // ADR-042 (B-80c) ghost-detach.
+  getDrainBlockingClaudeSessions,
+  ghostDetachEnabled,
+  // Test seam for the ghost sweep (ADR-042 test plan). addSession/removeSession
+  // are the real production paths — using them keeps the unit tests faithful.
+  sweepGhostSessions,
+  addSession,
+  removeSession,
+  getSession
 };

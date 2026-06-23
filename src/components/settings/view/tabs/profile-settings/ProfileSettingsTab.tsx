@@ -1,70 +1,45 @@
-import { useCallback, useRef, useState } from 'react';
-import type { ChangeEvent, FormEvent } from 'react';
-import { CheckCircle2, Loader2, UserRound } from 'lucide-react';
+import { useCallback, useState } from 'react';
+import type { FormEvent } from 'react';
+import { KeyRound, Loader2, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Button } from '../../../../../shared/view/ui';
+
+import { Button, Pill, PillBar } from '../../../../../shared/view/ui';
 import { useAuth } from '../../../../auth';
 import { MIN_PASSWORD_LENGTH } from '../../../../auth/constants';
-import { api } from '../../../../../utils/api';
-import { parseJsonSafely, resolveApiErrorMessage } from '../../../../auth/utils';
 import SettingsSection from '../../SettingsSection';
 
-type FeedbackKind = 'success' | 'error';
-type Feedback = { kind: FeedbackKind; message: string } | null;
+import AvatarIdentitySection from './AvatarIdentitySection';
+import FeedbackBanner from './FeedbackBanner';
+import type { Feedback } from './FeedbackBanner';
+import PasskeysSection from './PasskeysSection';
 
 const inputClass =
-  'w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60';
+  'w-full rounded-md border border-border bg-background px-3 py-2 text-foreground focus:border-transparent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60';
 
-function FeedbackBanner({ feedback }: { feedback: Feedback }) {
-  if (!feedback) {
-    return null;
-  }
-  if (feedback.kind === 'success') {
-    return (
-      <div
-        role="status"
-        className="flex items-center gap-2 rounded-md border border-green-300 bg-green-100 p-3 dark:border-green-800 dark:bg-green-900/20"
-      >
-        <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-700 dark:text-green-400" />
-        <p className="text-sm text-green-700 dark:text-green-400">{feedback.message}</p>
-      </div>
-    );
-  }
-  return (
-    <div
-      role="alert"
-      className="rounded-md border border-red-300 bg-red-100 p-3 dark:border-red-800 dark:bg-red-900/20"
-    >
-      <p className="text-sm text-red-700 dark:text-red-400">{feedback.message}</p>
-    </div>
-  );
-}
+type ProfileInnerTab = 'identity' | 'security';
 
 /**
  * Profile settings tab (F-1).
  *
- * Two self-service sections, available to every signed-in role:
- *  - Change username: shows the current username (read-only) and a new value.
- *  - Change password: current + new + confirm. On success the fresh token is
- *    persisted by the auth context, so the session continues without a logout.
+ * Self-service sections, available to every signed-in role, grouped into two
+ * inner tabs (PillBar pattern, same as the agents settings) so the page opens
+ * compact instead of one long vertical stack:
+ *  - Identity: avatar style (upload / gallery / colour) + change username.
+ *  - Security: change password + passkeys (WebAuthn, C-PK-3).
+ *
+ * Both panels stay mounted (the inactive one is `hidden`) so in-progress form
+ * input and the fetched passkeys list survive switching tabs.
  *
  * Form state lives here; the actual mutations are delegated to the auth context
  * (which owns token persistence), keeping this component free of business logic.
  */
 export default function ProfileSettingsTab() {
   const { t } = useTranslation('settings');
-  const { user, changeUsername, changePassword, updateAvatar } = useAuth();
+  const { user, changeUsername, changePassword } = useAuth();
 
   const currentUsername = user?.username ?? '';
-  const currentAvatarUrl = typeof user?.avatarUrl === 'string' ? user.avatarUrl : '';
 
-  // Avatar section state.
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-  const [avatarFeedback, setAvatarFeedback] = useState<Feedback>(null);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
-  // Track image load failure so the preview falls back to the placeholder.
-  const [avatarImageFailed, setAvatarImageFailed] = useState(false);
-  const showAvatarImage = Boolean(currentAvatarUrl) && !avatarImageFailed;
+  const [activeTab, setActiveTab] = useState<ProfileInnerTab>('identity');
 
   // Username section state.
   const [newUsername, setNewUsername] = useState('');
@@ -77,48 +52,6 @@ export default function ProfileSettingsTab() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
-
-  const openAvatarPicker = useCallback(() => {
-    avatarInputRef.current?.click();
-  }, []);
-
-  const handleAvatarChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      // Reset the input so selecting the same file again re-triggers onChange.
-      event.target.value = '';
-      if (!file) {
-        return;
-      }
-
-      setAvatarFeedback(null);
-      setIsUploadingAvatar(true);
-      try {
-        const response = await api.auth.updateAvatar(file);
-        const payload = await parseJsonSafely<{ avatarUrl?: string; error?: string; message?: string }>(
-          response,
-        );
-
-        if (!response.ok || !payload?.avatarUrl) {
-          setAvatarFeedback({
-            kind: 'error',
-            message: resolveApiErrorMessage(payload, t('profile.avatar.errors.uploadFailed')),
-          });
-          return;
-        }
-
-        updateAvatar(payload.avatarUrl);
-        setAvatarImageFailed(false);
-        setAvatarFeedback({ kind: 'success', message: t('profile.avatar.success') });
-      } catch (caughtError) {
-        console.error('Avatar upload error:', caughtError);
-        setAvatarFeedback({ kind: 'error', message: t('profile.avatar.errors.network') });
-      } finally {
-        setIsUploadingAvatar(false);
-      }
-    },
-    [t, updateAvatar],
-  );
 
   const handleUsernameSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -187,200 +120,201 @@ export default function ProfileSettingsTab() {
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-foreground">{t('profile.title')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{t('profile.subtitle')}</p>
       </div>
 
-      {/* Profile picture */}
-      <SettingsSection
-        title={t('profile.avatar.title')}
-        description={t('profile.avatar.description')}
+      {/* Inner tabs: identity vs security, so the page opens compact. */}
+      <PillBar className="w-full sm:w-auto" role="tablist" aria-label={t('profile.title')}>
+        <Pill
+          isActive={activeTab === 'identity'}
+          onClick={() => setActiveTab('identity')}
+          className="min-w-0 flex-1 justify-center sm:flex-initial"
+          role="tab"
+          id="profile-tab-identity"
+          aria-selected={activeTab === 'identity'}
+          aria-controls="profile-panel-identity"
+        >
+          <UserRound className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span className="truncate">{t('profile.tabs.identity')}</span>
+        </Pill>
+        <Pill
+          isActive={activeTab === 'security'}
+          onClick={() => setActiveTab('security')}
+          className="min-w-0 flex-1 justify-center sm:flex-initial"
+          role="tab"
+          id="profile-tab-security"
+          aria-selected={activeTab === 'security'}
+          aria-controls="profile-panel-security"
+        >
+          <KeyRound className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          <span className="truncate">{t('profile.tabs.security')}</span>
+        </Pill>
+      </PillBar>
+
+      {/* Identity: avatar + username. Kept mounted while hidden so unsaved
+          input survives switching tabs. */}
+      <div
+        id="profile-panel-identity"
+        role="tabpanel"
+        aria-labelledby="profile-tab-identity"
+        hidden={activeTab !== 'identity'}
+        className="space-y-8"
       >
-        <div className="flex items-center gap-4">
-          {showAvatarImage ? (
-            <img
-              src={currentAvatarUrl}
-              alt={t('profile.avatar.currentAlt')}
-              className="h-20 w-20 flex-shrink-0 rounded-full object-cover ring-2 ring-border"
-              onError={() => setAvatarImageFailed(true)}
-            />
-          ) : (
-            <div
-              role="img"
-              aria-label={t('profile.avatar.placeholderAlt')}
-              className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-full bg-muted ring-2 ring-border"
-            >
-              <UserRound className="h-9 w-9 text-muted-foreground" aria-hidden />
+        {/* Avatar identity: upload / gallery / colour (C-MU-UX-AVATAR-PICK) */}
+        <AvatarIdentitySection t={t} />
+
+        {/* Change username */}
+        <SettingsSection
+          title={t('profile.username.title')}
+          description={t('profile.username.description')}
+        >
+          <form onSubmit={handleUsernameSubmit} className="space-y-4">
+            <div>
+              <label
+                htmlFor="profile-current-username"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                {t('profile.username.currentLabel')}
+              </label>
+              <input
+                id="profile-current-username"
+                type="text"
+                value={currentUsername}
+                readOnly
+                dir="ltr"
+                className={`${inputClass} bg-muted text-left`}
+              />
             </div>
-          )}
 
-          <div className="space-y-2">
-            <input
-              ref={avatarInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarChange}
-              aria-hidden
-              tabIndex={-1}
-            />
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={openAvatarPicker}
-              disabled={isUploadingAvatar}
-            >
-              {isUploadingAvatar && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span className={isUploadingAvatar ? 'ms-1.5' : undefined}>
-                {isUploadingAvatar ? t('profile.avatar.uploading') : t('profile.avatar.change')}
-              </span>
-            </Button>
-            <p className="text-xs text-muted-foreground">{t('profile.avatar.hint')}</p>
-          </div>
-        </div>
+            <div>
+              <label
+                htmlFor="profile-new-username"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                {t('profile.username.newLabel')}
+              </label>
+              <input
+                id="profile-new-username"
+                type="text"
+                name="username"
+                autoComplete="username"
+                value={newUsername}
+                onChange={(event) => setNewUsername(event.target.value)}
+                placeholder={t('profile.username.placeholder')}
+                disabled={isSavingUsername}
+                dir="ltr"
+                className={`${inputClass} text-left`}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">{t('profile.username.hint')}</p>
+            </div>
 
-        <FeedbackBanner feedback={avatarFeedback} />
-      </SettingsSection>
+            <FeedbackBanner feedback={usernameFeedback} />
 
-      {/* Change username */}
-      <SettingsSection
-        title={t('profile.username.title')}
-        description={t('profile.username.description')}
+            <div className="flex justify-end">
+              <Button type="submit" size="sm" disabled={isSavingUsername}>
+                {isSavingUsername && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span className={isSavingUsername ? 'ms-1.5' : undefined}>
+                  {isSavingUsername ? t('profile.saving') : t('profile.username.save')}
+                </span>
+              </Button>
+            </div>
+          </form>
+        </SettingsSection>
+      </div>
+
+      {/* Security: password + passkeys. */}
+      <div
+        id="profile-panel-security"
+        role="tabpanel"
+        aria-labelledby="profile-tab-security"
+        hidden={activeTab !== 'security'}
+        className="space-y-8"
       >
-        <form onSubmit={handleUsernameSubmit} className="space-y-4">
-          <div>
-            <label
-              htmlFor="profile-current-username"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              {t('profile.username.currentLabel')}
-            </label>
-            <input
-              id="profile-current-username"
-              type="text"
-              value={currentUsername}
-              readOnly
-              dir="ltr"
-              className={`${inputClass} bg-muted text-left`}
-            />
-          </div>
+        {/* Change password */}
+        <SettingsSection
+          title={t('profile.password.title')}
+          description={t('profile.password.description')}
+        >
+          <form onSubmit={handlePasswordSubmit} className="space-y-4">
+            <div>
+              <label
+                htmlFor="profile-current-password"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                {t('profile.password.currentLabel')}
+              </label>
+              <input
+                id="profile-current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                placeholder={t('profile.password.currentPlaceholder')}
+                disabled={isSavingPassword}
+                className={inputClass}
+              />
+            </div>
 
-          <div>
-            <label
-              htmlFor="profile-new-username"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              {t('profile.username.newLabel')}
-            </label>
-            <input
-              id="profile-new-username"
-              type="text"
-              name="username"
-              autoComplete="username"
-              value={newUsername}
-              onChange={(event) => setNewUsername(event.target.value)}
-              placeholder={t('profile.username.placeholder')}
-              disabled={isSavingUsername}
-              dir="ltr"
-              className={`${inputClass} text-left`}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">{t('profile.username.hint')}</p>
-          </div>
+            <div>
+              <label
+                htmlFor="profile-new-password"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                {t('profile.password.newLabel')}
+              </label>
+              <input
+                id="profile-new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                placeholder={t('profile.password.newPlaceholder')}
+                disabled={isSavingPassword}
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('profile.password.hint', { min: MIN_PASSWORD_LENGTH })}
+              </p>
+            </div>
 
-          <FeedbackBanner feedback={usernameFeedback} />
+            <div>
+              <label
+                htmlFor="profile-confirm-password"
+                className="mb-1 block text-sm font-medium text-foreground"
+              >
+                {t('profile.password.confirmLabel')}
+              </label>
+              <input
+                id="profile-confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder={t('profile.password.confirmPlaceholder')}
+                disabled={isSavingPassword}
+                className={inputClass}
+              />
+            </div>
 
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={isSavingUsername}>
-              {isSavingUsername && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span className={isSavingUsername ? 'ms-1.5' : undefined}>
-                {isSavingUsername ? t('profile.saving') : t('profile.username.save')}
-              </span>
-            </Button>
-          </div>
-        </form>
-      </SettingsSection>
+            <FeedbackBanner feedback={passwordFeedback} />
 
-      {/* Change password */}
-      <SettingsSection
-        title={t('profile.password.title')}
-        description={t('profile.password.description')}
-      >
-        <form onSubmit={handlePasswordSubmit} className="space-y-4">
-          <div>
-            <label
-              htmlFor="profile-current-password"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              {t('profile.password.currentLabel')}
-            </label>
-            <input
-              id="profile-current-password"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              placeholder={t('profile.password.currentPlaceholder')}
-              disabled={isSavingPassword}
-              className={inputClass}
-            />
-          </div>
+            <div className="flex justify-end">
+              <Button type="submit" size="sm" disabled={isSavingPassword}>
+                {isSavingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span className={isSavingPassword ? 'ms-1.5' : undefined}>
+                  {isSavingPassword ? t('profile.saving') : t('profile.password.save')}
+                </span>
+              </Button>
+            </div>
+          </form>
+        </SettingsSection>
 
-          <div>
-            <label
-              htmlFor="profile-new-password"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              {t('profile.password.newLabel')}
-            </label>
-            <input
-              id="profile-new-password"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              placeholder={t('profile.password.newPlaceholder')}
-              disabled={isSavingPassword}
-              className={inputClass}
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              {t('profile.password.hint', { min: MIN_PASSWORD_LENGTH })}
-            </p>
-          </div>
-
-          <div>
-            <label
-              htmlFor="profile-confirm-password"
-              className="mb-1 block text-sm font-medium text-foreground"
-            >
-              {t('profile.password.confirmLabel')}
-            </label>
-            <input
-              id="profile-confirm-password"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder={t('profile.password.confirmPlaceholder')}
-              disabled={isSavingPassword}
-              className={inputClass}
-            />
-          </div>
-
-          <FeedbackBanner feedback={passwordFeedback} />
-
-          <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={isSavingPassword}>
-              {isSavingPassword && <Loader2 className="h-4 w-4 animate-spin" />}
-              <span className={isSavingPassword ? 'ms-1.5' : undefined}>
-                {isSavingPassword ? t('profile.saving') : t('profile.password.save')}
-              </span>
-            </Button>
-          </div>
-        </form>
-      </SettingsSection>
+        {/* Passkeys (C-PK-3) */}
+        <PasskeysSection />
+      </div>
     </div>
   );
 }

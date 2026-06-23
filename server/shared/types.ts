@@ -32,6 +32,11 @@ export type AnyRecord = Record<string, any>;
 export type RealtimeClientConnection = {
   readyState: number;
   send(data: string): void;
+  // JWT-authenticated identity stamped on the socket at connect time
+  // (chat-websocket.service). Lets broadcasters personalize per-user fields
+  // (e.g. `isMember` in projects_updated) without re-authenticating. Never
+  // sourced from client input; absent/null for unauthenticated sockets.
+  userId?: string | number | null;
 };
 
 /**
@@ -200,6 +205,50 @@ export type NormalizedMessage = {
   kind: MessageKind;
   role?: 'user' | 'assistant';
   content?: string;
+  /**
+   * Authenticated sender of this message (users.id) — multi-user sessions.
+   *
+   * Present only on kind:'text' role:'user' messages whose author is known:
+   * stamped from the JWT-authenticated socket on the live run path, and from
+   * the message_authors sidecar table on history loads. Absent for messages
+   * recorded before author tracking existed and for provider-internal user
+   * rows — clients must treat a missing value as "author unknown" and fall
+   * back (never assume the viewing user authored it).
+   */
+  userId?: number;
+  /**
+   * Provenance of a kind:'text' role:'user' message that was NOT typed by a
+   * human (mirrors SDKMessageOrigin.kind from the Claude Agent SDK):
+   * - 'coordinator'       — coordinator → subagent prompt (Task/Agent tool)
+   * - 'peer'              — message routed from a peer session
+   * - 'channel'           — message injected from a channel
+   * - 'task-notification' — background-task completion notification
+   *
+   * Absent = human keyboard input. All messages recorded before this field
+   * existed are also absent and MUST keep being treated as human-authored
+   * (no regression). When present, the message never carries `userId` and the
+   * UI must render it as a machine-routed prompt (e.g. coordinator→agent
+   * directive), never as a message the viewing user wrote.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | (string & {});
+  /**
+   * Coordinator attribution for assistant output in multi-user sessions
+   * (B-MU-UX-FIX-ASSISTANT-AUTHOR). The users.id of the participant who spawned
+   * the run that produced this assistant message — sourced from the
+   * JWT-authenticated socket (ws.userId) on the live run path, and derived from
+   * the message_authors sidecar (the author of the preceding user prompt) on
+   * history loads.
+   *
+   * Present only on assistant-authored messages (role:'assistant') whose
+   * coordinator is known. Absent (treated as null) for:
+   * - user-authored messages (those carry `userId` instead),
+   * - provider-internal/status events,
+   * - assistant messages recorded before coordinator tracking existed or whose
+   *   originating prompt was not attributed.
+   * Clients MUST treat a missing/null value as "coordinator unknown" and fall
+   * back to the session owner (never assume the viewing user spawned the run).
+   */
+  coordinatorId?: number | null;
   /**
    * Optional display-oriented metadata used by providers that need to expose
    * richer transcript artifacts without introducing a brand-new message kind.
@@ -465,7 +514,17 @@ export type ProjectRepositoryRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  // Private-project visibility (B-PRIV). 'public' (default) is visible to every
+  // authenticated user; 'private' is visible only to its creator, explicit
+  // project_members, and users derived from session participation.
+  visibility: ProjectVisibility;
+  // users.id of the creator (nullable for legacy rows created before this column
+  // existed). Used both for visibility resolution and management authorization.
+  created_by: number | null;
 };
+
+/** Visibility mode of a project row. */
+export type ProjectVisibility = 'public' | 'private';
 
 /**
  * Result category returned by `projectsDb.createProjectPath`.
@@ -518,11 +577,15 @@ export type ClaudeUsageWindow = {
 /**
  * Extra (pay-as-you-go) usage block, present only for accounts that have it
  * enabled. Mirrors the Anthropic `extra_usage` object in normalized casing.
+ *
+ * `monthlyLimit` / `usedCredits` are in CENTS (minor currency units), exactly
+ * as the upstream oauth/usage endpoint reports them (5127 = $51.27); the
+ * frontend converts to currency units at the formatting edge (formatCredits).
  */
 export type ClaudeExtraUsage = {
   enabled: boolean;
-  monthlyLimit: number | null;
-  usedCredits: number | null;
+  monthlyLimit: number | null; // cents
+  usedCredits: number | null; // cents
   utilization: number | null;
   currency: string | null;
 };
@@ -531,9 +594,9 @@ export type ClaudeExtraUsage = {
  * Stable response contract for `GET /api/providers/claude/usage`.
  *
  * The frontend depends on this exact shape. Any window the upstream API reports
- * as `null` is surfaced as `null` here (never fabricated), except `weeklyOpus`
- * which is normalized to a zeroed window when absent so the usage page can
- * always render an Opus row.
+ * as `null` is surfaced as `null` here (never fabricated) — including
+ * `weeklyOpus`, which current Max plans report as null. The frontend hides
+ * null windows; the Opus row reappears automatically if upstream populates it.
  */
 export type ClaudeUsageSummary = {
   plan: string | null;

@@ -28,10 +28,13 @@ export type SidebarProjectListProps = {
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
   isProjectStarred: (projectName: string) => boolean;
+  isSessionStarred: (session: SessionWithProvider) => boolean;
+  onToggleStarSession: (session: SessionWithProvider, projectName: string) => void;
   onEditingNameChange: (value: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectName: string) => void;
+  onSetProjectVisibility: (projectId: string, visibility: 'public' | 'private') => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectName: string) => void;
@@ -72,10 +75,13 @@ export default function SidebarProjectList({
   onLoadMoreSessions,
   loadingMoreProjects,
   isProjectStarred,
+  isSessionStarred,
+  onToggleStarSession,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
   onToggleStarProject,
+  onSetProjectVisibility,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -100,7 +106,7 @@ export default function SidebarProjectList({
   );
 
   useEffect(() => {
-    let baseTitle = 'CloudCLI UI';
+    let baseTitle = 'ـنسَّاجـ';
     const displayName = selectedProject?.displayName?.trim();
     if (displayName) {
       baseTitle = `${displayName} - ${baseTitle}`;
@@ -125,6 +131,8 @@ export default function SidebarProjectList({
               isExpanded={expandedProjects.has(project.projectId)}
               isDeleting={deletingProjects.has(project.projectId)}
               isStarred={isProjectStarred(project.projectId)}
+              isSessionStarred={isSessionStarred}
+              onToggleStarSession={onToggleStarSession}
               editingProject={editingProject}
               editingName={editingName}
               sessions={getProjectSessions(project)}
@@ -139,6 +147,7 @@ export default function SidebarProjectList({
               onToggleProject={onToggleProject}
               onProjectSelect={onProjectSelect}
               onToggleStarProject={onToggleStarProject}
+              onSetProjectVisibility={onSetProjectVisibility}
               onStartEditingProject={onStartEditingProject}
               onCancelEditingProject={onCancelEditingProject}
               onSaveProjectName={onSaveProjectName}

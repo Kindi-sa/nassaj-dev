@@ -17,11 +17,20 @@ type Shortcut =
   | { type: 'arrow'; id: string; sequence: string; icon: 'up' | 'down' | 'left' | 'right' };
 
 const MOBILE_KEYS: Shortcut[] = [
+  // Direct control sequences (bypass the modifier toggle)
+  { type: 'key', id: 'ctrl-c', label: '^C', sequence: '\x03' },
+  { type: 'key', id: 'ctrl-d', label: '^D', sequence: '\x04' },
+  { type: 'key', id: 'ctrl-l', label: '^L', sequence: '\x0c' },
+  // Navigation
   { type: 'key', id: 'esc', label: 'Esc', sequence: '\x1b' },
   { type: 'key', id: 'tab', label: 'Tab', sequence: '\t' },
   { type: 'key', id: 'shift-tab', label: '\u21e7Tab', sequence: '\x1b[Z' },
+  { type: 'key', id: 'home', label: 'Home', sequence: '\x1b[H' },
+  { type: 'key', id: 'end', label: 'End', sequence: '\x1b[F' },
+  // Modifier toggles
   { type: 'modifier', id: 'ctrl', label: 'CTRL', modifier: 'ctrl' },
   { type: 'modifier', id: 'alt', label: 'ALT', modifier: 'alt' },
+  // Arrow keys
   { type: 'arrow', id: 'arrow-up', sequence: '\x1b[A', icon: 'up' },
   { type: 'arrow', id: 'arrow-down', sequence: '\x1b[B', icon: 'down' },
   { type: 'arrow', id: 'arrow-left', sequence: '\x1b[D', icon: 'left' },

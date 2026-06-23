@@ -2,6 +2,8 @@ import webPush from 'web-push';
 
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionsDb } from '../modules/database/index.js';
 
+import { getAppTitle } from './branding-config.js';
+
 const KIND_TO_PREF_KEY = {
   action_required: 'actionRequired',
   stop: 'stop',
@@ -126,7 +128,9 @@ function buildPushBody(event) {
   const message = CODE_MAP[event.code] || 'You have a new notification';
 
   return {
-    title: sessionName || 'CloudCLI',
+    // Resolved per event (not at module load) so a branding title change is
+    // reflected in the very next push without a server restart.
+    title: sessionName || getAppTitle(),
     body: `${providerLabel}: ${message}`,
     data: {
       sessionId: event.sessionId || null,

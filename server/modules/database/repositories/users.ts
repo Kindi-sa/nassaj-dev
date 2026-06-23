@@ -81,6 +81,24 @@ export const userDb = {
   },
 
   /**
+   * Number of active accounts (is_active=1 AND status='active') — the set whose
+   * sessions the server will actually serve. Used by the platform-mode boot
+   * guard (B-5) to detect a silent shared-subscription condition: in platform
+   * mode every WS session authenticates as the first active user, so more than
+   * one active account on an isolated Claude provider means several people would
+   * silently run on the operator's single subscription.
+   */
+  getActiveUserCount(): number {
+    const db = getConnection();
+    const row = db
+      .prepare(
+        "SELECT COUNT(*) as count FROM users WHERE is_active = 1 AND status = 'active'"
+      )
+      .get() as { count: number };
+    return row.count;
+  },
+
+  /**
    * Inserts a new user with an explicit role and optional inviter.
    * Returns the created id, username, and role.
    */
@@ -255,5 +273,46 @@ export const userDb = {
       .prepare('SELECT has_completed_onboarding FROM users WHERE id = ?')
       .get(userId) as { has_completed_onboarding: number } | undefined;
     return row?.has_completed_onboarding === 1;
+  },
+
+  /**
+   * Permanently deletes a user and every row that references them (T-116).
+   *
+   * The schema declares ON DELETE CASCADE / SET NULL on the referencing tables,
+   * but FK enforcement is per-connection in SQLite (default OFF): it is enabled
+   * by INIT_SCHEMA_SQL at initializeDatabase(), yet connection.ts itself never
+   * sets it, migrations toggle it OFF/ON during table rebuilds, and a connection
+   * created without the init path (tests, tooling) has it OFF. The cascade is
+   * therefore mirrored explicitly here, child tables first inside a single
+   * transaction — correct under FK ON, and guaranteed orphan-free under FK OFF.
+   * Tables touched mirror the live schema exactly:
+   *   CASCADE  → webauthn_credentials, project_members, starred_sessions,
+   *              api_keys, user_credentials, user_notification_preferences,
+   *              user_ui_preferences, push_subscriptions, session_participants,
+   *              message_authors, invites.invited_by
+   *   SET NULL → invites.accepted_by, audit_log.user_id
+   *
+   * Returns true if the user row existed and was deleted.
+   */
+  deleteUser(userId: number): boolean {
+    const db = getConnection();
+    const runDelete = db.transaction((id: number): boolean => {
+      db.prepare('DELETE FROM webauthn_credentials WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM project_members WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM starred_sessions WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM api_keys WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM user_credentials WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM user_notification_preferences WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM user_ui_preferences WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM push_subscriptions WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM session_participants WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM message_authors WHERE user_id = ?').run(id);
+      db.prepare('DELETE FROM invites WHERE invited_by = ?').run(id);
+      db.prepare('UPDATE invites SET accepted_by = NULL WHERE accepted_by = ?').run(id);
+      db.prepare('UPDATE audit_log SET user_id = NULL WHERE user_id = ?').run(id);
+      const result = db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      return result.changes > 0;
+    });
+    return runDelete(userId);
   },
 };

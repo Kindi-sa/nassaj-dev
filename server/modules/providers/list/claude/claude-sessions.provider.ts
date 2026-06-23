@@ -35,6 +35,27 @@ type ClaudeHistoryMessagesResult =
     limit?: number | null;
   };
 
+/**
+ * Lists the subagent transcript file names in a session's `subagents` directory.
+ *
+ * Returns an empty array when the directory does not exist yet — a session with
+ * no spawned subagents simply has no such folder, and that must not be treated
+ * as an error. Only `agent-*.jsonl` files are returned (the sidecar
+ * `agent-*.meta.json` files are ignored).
+ */
+async function readAgentFileNames(subagentsDir: string): Promise<string[]> {
+  try {
+    const files = await fsp.readdir(subagentsDir);
+    return files.filter((file) => file.endsWith('.jsonl') && file.startsWith('agent-'));
+  } catch (error) {
+    const fileError = error as NodeJS.ErrnoException;
+    if (fileError.code !== 'ENOENT') {
+      console.warn(`Error reading subagents directory ${subagentsDir}:`, fileError.message);
+    }
+    return [];
+  }
+}
+
 async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
   const tools: AnyRecord[] = [];
 
@@ -113,9 +134,16 @@ async function getSessionMessages(
       return { messages: [], total: 0, hasMore: false };
     }
 
+    // Claude writes subagent transcripts into a per-session `subagents`
+    // subdirectory NEXT TO the main transcript, not into the project directory
+    // itself: `<projectDir>/<sessionId>/subagents/agent-<id>.jsonl`. The old
+    // `path.dirname(jsonLPath)` lookup scanned the project directory, where no
+    // `agent-*.jsonl` ever exists, so subagent tool output was never attached
+    // (B-30). The session id is the transcript file's basename.
     const projectDir = path.dirname(jsonLPath);
-    const files = await fsp.readdir(projectDir);
-    const agentFiles = files.filter((file) => file.endsWith('.jsonl') && file.startsWith('agent-'));
+    const transcriptSessionId = path.basename(jsonLPath, '.jsonl');
+    const subagentsDir = path.join(projectDir, transcriptSessionId, 'subagents');
+    const agentFiles = await readAgentFileNames(subagentsDir);
 
     const messages: AnyRecord[] = [];
     const agentToolsCache = new Map<string, AnyRecord[]>();
@@ -155,7 +183,7 @@ async function getSessionMessages(
         continue;
       }
 
-      const agentFilePath = path.join(projectDir, agentFileName);
+      const agentFilePath = path.join(subagentsDir, agentFileName);
       const tools = await parseAgentTools(agentFilePath);
       agentToolsCache.set(agentId, tools);
     }
@@ -309,6 +337,19 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const baseId = raw.uuid || generateMessageId('claude');
 
     if (raw.message?.role === 'user' && raw.message?.content && raw.isMeta !== true) {
+      /**
+       * Provenance of the user-role message (SDKMessageOrigin): absent or
+       * 'human' means keyboard input from the user; any other kind
+       * (coordinator → subagent prompts via the Task tool, peer, channel,
+       * task-notification) is machine-routed and must not be displayed or
+       * attributed as the human's own message. Present on both live SDK
+       * stream events and persisted JSONL transcript rows.
+       */
+      const rawOriginKind = (raw.origin as AnyRecord | undefined)?.kind;
+      const originKind = typeof rawOriginKind === 'string' && rawOriginKind !== 'human'
+        ? rawOriginKind
+        : undefined;
+
       if (Array.isArray(raw.message.content)) {
         for (let partIndex = 0; partIndex < raw.message.content.length; partIndex++) {
           const part = raw.message.content[partIndex];
@@ -445,6 +486,16 @@ export class ClaudeSessionsProvider implements IProviderSessions {
             role: 'user',
             content: text,
           }));
+        }
+      }
+      // Mark non-human user text with its origin kind so downstream consumers
+      // (live userId stamping, history attribution, frontend rendering) can
+      // distinguish coordinator/peer-routed prompts from the human's own input.
+      if (originKind) {
+        for (const message of messages) {
+          if (message.kind === 'text' && message.role === 'user') {
+            message.originKind = originKind;
+          }
         }
       }
       return messages;

@@ -1,10 +1,13 @@
-import { Archive, Folder, FolderPlus, MessageSquare, Plus, RefreshCw, Search, X, PanelLeftClose } from 'lucide-react';
+import { Archive, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
+import { useNavigate } from 'react-router-dom';
+
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
 import { cn } from '../../../../lib/utils';
-import type { SidebarSearchMode } from '../../types/types';
-import GitHubStarBadge from './GitHubStarBadge';
+import { useBranding } from '../../../../contexts/BrandingContext';
+import { useTheme } from '../../../../contexts/ThemeContext';
+import type { ProjectMembershipFilter, SidebarSearchMode } from '../../types/types';
 
 const MOD_KEY =
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
@@ -21,6 +24,8 @@ type SidebarHeaderProps = {
   onClearSearchFilter: () => void;
   searchMode: SidebarSearchMode;
   onSearchModeChange: (mode: SidebarSearchMode) => void;
+  membershipFilter: ProjectMembershipFilter;
+  onMembershipFilterChange: (filter: ProjectMembershipFilter) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
@@ -40,27 +45,107 @@ export default function SidebarHeader({
   onClearSearchFilter,
   searchMode,
   onSearchModeChange,
+  membershipFilter,
+  onMembershipFilterChange,
   onRefresh,
   isRefreshing,
   onCreateProject,
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
+  const navigate = useNavigate();
+  const { title: brandingTitle, logoUrl, logoDarkUrl, logoOnly: brandingLogoOnly } = useBranding();
+  const { isDarkMode } = useTheme();
+  // Dark theme prefers the dedicated dark logo and falls back to the main one.
+  const brandingLogoUrl = isDarkMode ? (logoDarkUrl ?? logoUrl) : logoUrl;
   const showSearchTools = (projectsCount > 0 || archivedSessionsCount > 0 || isArchivedSessionsLoading) && !isLoading;
-  const searchPlaceholder = searchMode === 'conversations'
-    ? t('search.conversationsPlaceholder')
-    : searchMode === 'archived'
-      ? t('search.archivedPlaceholder', 'Search archived sessions...')
-      : t('projects.searchPlaceholder');
+  const searchPlaceholder = searchMode === 'archived'
+    ? t('search.archivedPlaceholder', 'Search archived sessions...')
+    : t('projects.searchPlaceholder');
 
-  const LogoBlock = () => (
+  const displayTitle = brandingTitle ?? t('app.title');
+
+  // "My projects / Team / All" view filter (C-MU-UX-PROJ-FILTER), shown where
+  // the old Projects/Conversations tabs used to be (C-MU-UX-SIDEBAR-TABS).
+  // Flex order follows the document direction, so the segmented control lays
+  // out correctly in RTL without extra handling.
+  const membershipOptions: { value: ProjectMembershipFilter; label: string }[] = [
+    { value: 'mine', label: t('projects.myProjects') },
+    { value: 'team', label: t('projects.teamProjects') },
+    { value: 'all', label: t('projects.all') },
+  ];
+
+  // Shared segmented control: membership filter + archive toggle. Selecting a
+  // membership option always returns to the projects view, leaving the archive.
+  const filterToggle = (
+    <div className="flex items-center rounded-lg bg-muted/50 p-0.5">
+      {membershipOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => {
+            onMembershipFilterChange(option.value);
+            if (searchMode !== 'projects') {
+              onSearchModeChange('projects');
+            }
+          }}
+          aria-pressed={searchMode === 'projects' && membershipFilter === option.value}
+          className={cn(
+            "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all whitespace-nowrap",
+            searchMode === 'projects' && membershipFilter === option.value
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+      <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
+        <button
+          onClick={() => onSearchModeChange('archived')}
+          aria-pressed={searchMode === 'archived'}
+          aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
+          title={t('search.archiveOnlyTooltip', 'Archive only')}
+          className={cn(
+            "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
+            searchMode === 'archived'
+              ? "bg-background shadow-sm text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Archive className="h-3 w-3" />
+        </button>
+      </Tooltip>
+    </div>
+  );
+
+  // Wordmark mode: a single uploaded logo replaces the icon + title pair. The
+  // title still reaches assistive tech through the img alt text.
+  const LogoBlock = () => (brandingLogoOnly && brandingLogoUrl) ? (
+    <img
+      src={brandingLogoUrl}
+      alt={displayTitle}
+      className="h-8 w-auto max-w-[180px] min-w-0 object-contain object-left rtl:object-right"
+    />
+  ) : (
     <div className="flex min-w-0 items-center gap-2.5">
-      <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-primary/90 shadow-sm">
-        <svg className="h-3.5 w-3.5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      </div>
-      <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{t('app.title')}</h1>
+      {brandingLogoUrl ? (
+        <img
+          src={brandingLogoUrl}
+          alt={displayTitle}
+          className="h-7 w-auto max-w-[140px] flex-shrink-0 object-contain object-left rtl:object-right"
+        />
+      ) : (
+        /* شعار نسّاج الافتراضي في الشريط الجانبي — وعي بالثيم */
+        <img
+          src={isDarkMode ? '/nassaj-logo-on-dark.svg' : '/nassaj-logo-on-light.svg'}
+          alt="نسّاج"
+          className="h-6 w-auto flex-shrink-0"
+        />
+      )}
+      {brandingLogoUrl && (
+        <h1 className="truncate text-sm font-semibold tracking-tight text-foreground">{displayTitle}</h1>
+      )}
     </div>
   );
 
@@ -81,24 +166,18 @@ export default function SidebarHeader({
               <LogoBlock />
             </a>
           ) : (
-            <LogoBlock />
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              aria-label={t('tooltips.goHome', displayTitle)}
+              title={t('tooltips.goHome', displayTitle)}
+            >
+              <LogoBlock />
+            </button>
           )}
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              title={t('tooltips.refresh')}
-            >
-              <RefreshCw
-                className={`h-3.5 w-3.5 ${
-                  isRefreshing ? 'animate-spin' : ''
-                }`}
-              />
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -120,56 +199,11 @@ export default function SidebarHeader({
           </div>
         </div>
 
-        <GitHubStarBadge />
-
         {/* Search bar */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            {/* Search mode toggle */}
-            <div className="flex rounded-lg bg-muted/50 p-0.5">
-              <button
-                onClick={() => onSearchModeChange('projects')}
-                aria-pressed={searchMode === 'projects'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'projects'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Folder className="h-3 w-3" />
-                {t('search.modeProjects')}
-              </button>
-              <button
-                onClick={() => onSearchModeChange('conversations')}
-                aria-pressed={searchMode === 'conversations'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'conversations'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <MessageSquare className="h-3 w-3" />
-                {t('search.modeConversations')}
-              </button>
-              <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
-                <button
-                  onClick={() => onSearchModeChange('archived')}
-                  aria-pressed={searchMode === 'archived'}
-                  aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
-                  title={t('search.archiveOnlyTooltip', 'Archive only')}
-                  className={cn(
-                    "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                    searchMode === 'archived'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Archive className="h-3 w-3" />
-                </button>
-              </Tooltip>
-            </div>
+            {/* Membership filter + archive toggle */}
+            {filterToggle}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
@@ -220,18 +254,20 @@ export default function SidebarHeader({
               <LogoBlock />
             </a>
           ) : (
-            <LogoBlock />
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              aria-label={t('tooltips.goHome', displayTitle)}
+              title={t('tooltips.goHome', displayTitle)}
+            >
+              <LogoBlock />
+            </button>
           )}
 
           <div className="flex flex-shrink-0 gap-1.5">
             <button
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted/50 transition-all active:scale-95"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} />
-            </button>
-            <button
+              type="button"
               className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/90 text-primary-foreground transition-all active:scale-95"
               onClick={onCreateProject}
             >
@@ -243,50 +279,7 @@ export default function SidebarHeader({
         {/* Mobile search */}
         {showSearchTools && (
           <div className="mt-2.5 space-y-2">
-            <div className="flex rounded-lg bg-muted/50 p-0.5">
-              <button
-                onClick={() => onSearchModeChange('projects')}
-                aria-pressed={searchMode === 'projects'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'projects'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Folder className="h-3 w-3" />
-                {t('search.modeProjects')}
-              </button>
-              <button
-                onClick={() => onSearchModeChange('conversations')}
-                aria-pressed={searchMode === 'conversations'}
-                className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-all",
-                  searchMode === 'conversations'
-                    ? "bg-background shadow-sm text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <MessageSquare className="h-3 w-3" />
-                {t('search.modeConversations')}
-              </button>
-              <Tooltip content={t('search.archiveOnlyTooltip', 'Archive only')} position="top">
-                <button
-                  onClick={() => onSearchModeChange('archived')}
-                  aria-pressed={searchMode === 'archived'}
-                  aria-label={t('search.archiveOnlyTooltip', 'Archive only')}
-                  title={t('search.archiveOnlyTooltip', 'Archive only')}
-                  className={cn(
-                    "flex items-center justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-all",
-                    searchMode === 'archived'
-                      ? "bg-background shadow-sm text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Archive className="h-3 w-3" />
-                </button>
-              </Tooltip>
-            </div>
+            {filterToggle}
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               <Input

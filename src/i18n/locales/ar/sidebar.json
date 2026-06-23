@@ -6,10 +6,15 @@
     "renameProject": "إعادة تسمية المشروع",
     "noProjects": "لا توجد مشاريع",
     "loadingProjects": "جارٍ تحميل المشاريع...",
-    "searchPlaceholder": "ابحث في المشاريع...",
+    "searchPlaceholder": "ابحث في المشاريع والمحادثات...",
     "projectNamePlaceholder": "اسم المشروع",
+    "privateProject": "مشروع خاص",
+    "makePrivate": "اجعله خاصاً",
+    "makePublic": "اجعله عاماً",
     "starred": "مفضّلة",
     "all": "الكل",
+    "myProjects": "مشاريعي",
+    "teamProjects": "الفريق",
     "untitledSession": "جلسة بدون عنوان",
     "newSession": "جلسة جديدة",
     "codexSession": "جلسة Codex",
@@ -43,13 +48,17 @@
     "deleteProject": "إزالة المشروع من الشريط الجانبي (Delete)",
     "addToFavorites": "إضافة إلى المفضلة",
     "removeFromFavorites": "إزالة من المفضلة",
+    "starSession": "تعليم المحادثة",
+    "unstarSession": "إلغاء تعليم المحادثة",
     "editSessionName": "تعديل اسم الجلسة يدوياً",
     "deleteSession": "حذف هذه الجلسة نهائياً",
     "activeSessionIndicator": "جلسة نشطة مؤخراً (آخر 10 دقائق)",
     "save": "حفظ",
     "cancel": "إلغاء",
     "clearSearch": "مسح البحث",
-    "openCommandPalette": "فتح لوحة الأوامر"
+    "openCommandPalette": "فتح لوحة الأوامر",
+    "openWiki": "فتح ويكي نسّاج",
+    "goHome": "الرئيسية"
   },
   "navigation": {
     "chat": "محادثة",
@@ -61,15 +70,19 @@
   "actions": {
     "refresh": "تحديث",
     "settings": "الإعدادات",
+    "logout": "تسجيل الخروج",
+    "logoutConfirm": "تسجيل الخروج من حسابك؟",
     "collapseAll": "طيّ الكل",
     "expandAll": "توسيع الكل",
     "cancel": "إلغاء",
     "save": "حفظ",
     "delete": "حذف",
     "rename": "إعادة تسمية",
-    "joinCommunity": "انضم إلى المجتمع",
-    "reportIssue": "الإبلاغ عن مشكلة",
     "starOnGithub": "تمييز على GitHub"
+  },
+  "systemStats": {
+    "cpuUsage": "استهلاك المعالج",
+    "memoryUsage": "استهلاك الذاكرة"
   },
   "branding": {
     "openSource": "مفتوح المصدر"
@@ -111,18 +124,6 @@
   "version": {
     "updateAvailable": "تحديث متاح"
   },
-  "search": {
-    "modeProjects": "المشاريع",
-    "modeConversations": "المحادثات",
-    "conversationsPlaceholder": "ابحث في المحادثات...",
-    "searching": "جارٍ البحث...",
-    "noResults": "لا توجد نتائج",
-    "tryDifferentQuery": "جرّب استعلام بحث مختلف",
-    "matches_one": "{{count}} نتيجة",
-    "matches_other": "{{count}} نتيجة",
-    "projectsScanned_one": "تم فحص {{count}} مشروع",
-    "projectsScanned_other": "تم فحص {{count}} مشروع"
-  },
   "deleteConfirmation": {
     "deleteProject": "إزالة المشروع",
     "deleteSession": "حذف الجلسة",
@@ -161,5 +162,10 @@
       "model": "النموذج الأساسي",
       "subagent": "وكيل فرعي"
     }
+  },
+  "upstream": {
+    "newRelease": "صدر upstream v{{version}}",
+    "openRelease": "فتح صفحة إصدار upstream v{{version}}",
+    "acknowledge": "إقرار"
   }
 }

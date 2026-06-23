@@ -2,13 +2,11 @@ import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import spawn from 'cross-spawn';
-
 import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import { isCliInstalled, readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
 type ClaudeCredentialsStatus = {
   authenticated: boolean;
@@ -27,12 +25,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
    */
   private checkInstalled(): boolean {
     const cliPath = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
-    try {
-      spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+    return isCliInstalled(cliPath);
   }
 
   /**
@@ -100,6 +93,43 @@ export class ClaudeProviderAuth implements IProviderAuth {
   }
 
   /**
+   * Reads the login email from the CLI's .claude.json (`oauthAccount.emailAddress`).
+   * `.credentials.json` only stores tokens, so this is the sole offline source of
+   * the account identity. With CLAUDE_CONFIG_DIR set the CLI keeps .claude.json
+   * inside that dir; otherwise it lives at the home-directory ROOT (~/.claude.json),
+   * not inside ~/.claude.
+   */
+  private async readOauthAccountEmail(env: NodeJS.ProcessEnv): Promise<string | null> {
+    const configDir = readOptionalString(env.CLAUDE_CONFIG_DIR);
+    const configFile = configDir
+      ? path.join(configDir, '.claude.json')
+      : path.join(os.homedir(), '.claude.json');
+
+    try {
+      const content = await readFile(configFile, 'utf8');
+      const config = readObjectRecord(JSON.parse(content));
+      const account = readObjectRecord(config?.oauthAccount);
+      return readOptionalString(account?.emailAddress) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Logs a single structured diagnostic line (no secrets) whenever a credential
+   * check fails, so "user appears unauthenticated" incidents (e.g. T-115: the
+   * `claude setup-token` flow prints a token but never persists it) can be
+   * diagnosed from server logs without inspecting user dirs by hand.
+   */
+  private logCredentialsFailure(configDir: string, reason: string): void {
+    console.warn(
+      `[WARN] [claude-auth] credentials check failed: reason=${reason} configDir=${configDir} ` +
+      '(checked: env ANTHROPIC_AUTH_TOKEN/ANTHROPIC_API_KEY/CLAUDE_CODE_OAUTH_TOKEN, ' +
+      'settings.json env, .credentials.json claudeAiOauth.accessToken)'
+    );
+  }
+
+  /**
    * Checks Claude credentials in the same priority order used by Claude Code,
    * against the resolved environment for the user being checked.
    */
@@ -114,6 +144,13 @@ export class ClaudeProviderAuth implements IProviderAuth {
       return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
     }
 
+    // `claude setup-token` mints a long-lived OAuth token (sk-ant-oat01...) and
+    // instructs the user to export it as CLAUDE_CODE_OAUTH_TOKEN — the CLI honors
+    // that variable, so the status check must too (T-115).
+    if (readOptionalString(env.CLAUDE_CODE_OAUTH_TOKEN)) {
+      return { authenticated: true, email: 'OAuth Token', method: 'oauth_token' };
+    }
+
     const configDir = this.resolveConfigDir(env);
 
     const settingsEnv = await this.loadSettingsEnv(configDir);
@@ -125,6 +162,10 @@ export class ClaudeProviderAuth implements IProviderAuth {
       return { authenticated: true, email: 'Configured via settings.json', method: 'api_key' };
     }
 
+    if (readOptionalString(settingsEnv.CLAUDE_CODE_OAUTH_TOKEN)) {
+      return { authenticated: true, email: 'Configured via settings.json', method: 'oauth_token' };
+    }
+
     try {
       const credPath = path.join(configDir, '.credentials.json');
       const content = await readFile(credPath, 'utf8');
@@ -134,7 +175,9 @@ export class ClaudeProviderAuth implements IProviderAuth {
 
       if (accessToken) {
         const expiresAt = typeof oauth?.expiresAt === 'number' ? oauth.expiresAt : undefined;
-        const email = readOptionalString(creds.email) ?? readOptionalString(creds.user) ?? null;
+        const email = readOptionalString(creds.email)
+          ?? readOptionalString(creds.user)
+          ?? await this.readOauthAccountEmail(env);
         if (!expiresAt || Date.now() < expiresAt) {
           return {
             authenticated: true,
@@ -143,6 +186,10 @@ export class ClaudeProviderAuth implements IProviderAuth {
           };
         }
 
+        this.logCredentialsFailure(
+          configDir,
+          `credentials-file-expired(expiresAt=${new Date(expiresAt).toISOString()})`
+        );
         return {
           authenticated: false,
           email: null,
@@ -151,6 +198,7 @@ export class ClaudeProviderAuth implements IProviderAuth {
         };
       }
 
+      this.logCredentialsFailure(configDir, 'credentials-file-missing-claudeAiOauth.accessToken');
       return {
         authenticated: false,
         email: null,
@@ -159,13 +207,17 @@ export class ClaudeProviderAuth implements IProviderAuth {
       };
     } catch (error) {
       let errorMessage = 'Unable to read Claude credentials. Run claude /login again.';
+      let failureReason = 'credentials-file-unreadable';
 
       if (hasErrorCode(error, 'ENOENT')) {
         errorMessage = missingCredentialsError;
+        failureReason = 'credentials-file-not-found';
       } else if (error instanceof SyntaxError) {
         errorMessage = 'Claude credentials are unreadable. Run claude /login again.';
+        failureReason = 'credentials-file-invalid-json';
       }
 
+      this.logCredentialsFailure(configDir, failureReason);
       return {
         authenticated: false,
         email: null,

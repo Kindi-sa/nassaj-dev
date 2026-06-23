@@ -22,7 +22,23 @@
     "shell": "シェル",
     "files": "ファイル",
     "git": "ソース管理",
-    "tasks": "タスク"
+    "tasks": "タスク",
+    "board": "Project Board",
+    "wiki": "Wiki"
+  },
+  "wiki": {
+    "title": "Nassaj Wiki",
+    "panelAriaLabel": "Nassaj Wiki",
+    "sidebarAriaLabel": "Wikiインデックス",
+    "closeSidebar": "インデックスを非表示",
+    "openSidebar": "インデックスを表示",
+    "pageNotFound": "ページが見つかりません",
+    "searchPlaceholder": "Wikiを検索…",
+    "searchAriaLabel": "Wikiページを検索",
+    "searchClear": "検索をクリア",
+    "searchNoResults": "結果なし",
+    "searchResultsCount": "{{count}}件の結果",
+    "searchResultsAriaLabel": "検索結果"
   },
   "status": {
     "loading": "読み込み中...",
@@ -172,7 +188,27 @@
       "publicRepoInfo": "パブリックリポジトリには認証は不要です。パブリックリポジトリをクローンする場合、トークンは省略できます。",
       "noTokensHelp": "保存済みトークンがありません。設定 → APIキーでトークンを追加すると再利用が簡単になります。",
       "optionalTokenPublic": "GitHubトークン（パブリックリポジトリの場合は任意）",
-      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（パブリックリポジトリの場合は空欄可）"
+      "tokenPublicPlaceholder": "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx（パブリックリポジトリの場合は空欄可）",
+      "repos": {
+        "fromMyRepos": "マイリポジトリから選択",
+        "pasteUrl": "URLを貼り付け",
+        "sourceToggleLabel": "GitHub ソース",
+        "help": "クローンする GitHub アカウントのリポジトリを選択",
+        "ariaLabel": "GitHub リポジトリを選択",
+        "placeholder": "リポジトリを選択...",
+        "searchPlaceholder": "リポジトリを検索...",
+        "searchAriaLabel": "GitHub リポジトリを検索",
+        "private": "プライベート",
+        "loading": "リポジトリを読み込み中...",
+        "empty": "このトークンのリポジトリが見つかりません。",
+        "noMatch": "検索に一致するリポジトリがありません。",
+        "loadError": "リポジトリの読み込みに失敗しました。もう一度お試しください。",
+        "invalidToken": "GitHub がこのトークンを拒否しました。失効しているか \"repo\" スコープがない可能性があります。",
+        "noToken": "このアカウントに GitHub トークンが設定されていません。",
+        "forbidden": "GitHub がアクセスを拒否しました。トークンに必要なスコープがないか、レート制限に達しました。",
+        "retry": "再試行",
+        "manageTokens": "設定でトークンを管理"
+      }
     },
     "step3": {
       "reviewConfig": "設定の確認",
@@ -263,5 +299,15 @@
       "updateAvailable": "アップデートあり",
       "closeSidebar": "サイドバーを閉じる"
     }
+  },
+  "sessionProcessState": {
+    "running": "Running",
+    "frozen": "Paused (frozen)",
+    "runningHint": "Session process is running",
+    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "projectBusyHint": "このプロジェクトのセッションが処理中です",
+    "done": "完了",
+    "doneHint": "セッションが完了しました（未読）",
+    "projectDoneHint": "このプロジェクトのセッションが完了しました（未読）"
   }
 }

@@ -6,7 +6,9 @@ import test from 'node:test';
 
 import { closeConnection } from '@/modules/database/connection.js';
 import { initializeDatabase } from '@/modules/database/init-db.js';
+import { participantsDb } from '@/modules/database/repositories/participants.db.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
+import { userDb } from '@/modules/database/repositories/users.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -32,8 +34,15 @@ async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promis
 
 test('session archive queries hide archived rows from active project views', async () => {
   await withIsolatedDatabase(() => {
+    // Both sessions are "native" (spawned through the server) — give each a
+    // participant row so the conversations-list count query (B-29 orphan
+    // filter) counts them. The assertion under test here is archival, not the
+    // orphan filter.
+    const userId = userDb.createUser(`u_archive_${Date.now()}`, 'hash', 'user').id;
     sessionsDb.createSession('session-active', 'claude', '/workspace/demo-project', 'Active Session');
+    participantsDb.recordSpawn('session-active', userId);
     sessionsDb.createSession('session-archived', 'claude', '/workspace/demo-project', 'Archived Session');
+    participantsDb.recordSpawn('session-archived', userId);
     sessionsDb.updateSessionIsArchived('session-archived', true);
 
     const activeSessions = sessionsDb.getAllSessions();
@@ -49,6 +58,39 @@ test('session archive queries hide archived rows from active project views', asy
       ['session-active', 'session-archived'],
     );
     assert.equal(sessionsDb.countSessionsByProjectPath('/workspace/demo-project'), 1);
+  });
+});
+
+test('deleteSessionsByJsonlPath removes only the rows indexed from that transcript file', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession(
+      'session-ghost',
+      'claude',
+      '/workspace/demo-project',
+      'Ghost Session',
+      undefined,
+      undefined,
+      '/home/user/.claude/projects/demo/session-ghost.jsonl'
+    );
+    sessionsDb.createSession(
+      'session-kept',
+      'claude',
+      '/workspace/demo-project',
+      'Kept Session',
+      undefined,
+      undefined,
+      '/home/user/.claude/projects/demo/session-kept.jsonl'
+    );
+    sessionsDb.createSession('session-no-path', 'opencode', '/workspace/demo-project', 'No Path Session');
+
+    const removed = sessionsDb.deleteSessionsByJsonlPath('/home/user/.claude/projects/demo/session-ghost.jsonl');
+    const removedForUnknownPath = sessionsDb.deleteSessionsByJsonlPath('/home/user/.claude/projects/demo/unknown.jsonl');
+
+    assert.deepEqual(removed, ['session-ghost']);
+    assert.deepEqual(removedForUnknownPath, []);
+    assert.equal(sessionsDb.getSessionById('session-ghost'), null);
+    assert.ok(sessionsDb.getSessionById('session-kept'));
+    assert.ok(sessionsDb.getSessionById('session-no-path'));
   });
 });
 

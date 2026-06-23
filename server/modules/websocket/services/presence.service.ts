@@ -1,0 +1,422 @@
+/**
+ * Live presence service (B-MU-UX-PRESENCE).
+ *
+ * The nassaj workspace is shared by intent (a small team of "brothers", 2-4
+ * people, full trust, full file access). This service answers the question
+ * "what is each brother doing right now?" without adding any isolation: it is a
+ * pure VISIBILITY layer.
+ *
+ * It tracks two things, keyed by the JWT-authenticated `userId` only (never any
+ * client-supplied identity):
+ *
+ *  1. CONNECTED — every open chat WebSocket is registered here on connect and
+ *     removed on close. A user is "connected" while at least one of their
+ *     sockets is open, so multiple tabs/devices dedupe to a single presence row.
+ *
+ *  2. ACTIVE — while a user has at least one running provider command they show
+ *     as "active" on the most recently started session, with its project path
+ *     and provider. Runs are registered/unregistered from the provider session
+ *     lifecycle (the process monitor for claude, and the agy spawn/teardown for
+ *     the Antigravity CLI — this fork's primary provider).
+ *
+ * Any change (connect, disconnect, run start, run stop) coalesces a debounced
+ * broadcast of the FULL presence snapshot to every connected client. Snapshots
+ * are tiny for a 2-4 person team, so sending the whole list is the simplest
+ * correct option (no per-delta reconciliation on the client).
+ *
+ * Privacy: the snapshot exposes only userId, username, avatarUrl, and the
+ * active session/project ids — all already shared inside this workspace.
+ * Nothing sensitive (tokens, env, message content) is ever included.
+ */
+
+import { projectsDb, userDb } from '@/modules/database/index.js';
+import {
+  WS_OPEN_STATE,
+  connectedClients,
+} from '@/modules/websocket/services/websocket-state.service.js';
+import type {
+  AuthenticatedWebSocketUser,
+  LLMProvider,
+  RealtimeClientConnection,
+} from '@/shared/types.js';
+
+/** Normalized presence user id (string for stable map keys + client colour). */
+type PresenceUserId = string;
+
+/** One running provider command attributed to a user. */
+type PresenceRun = {
+  sessionId: string;
+  projectPath: string | null;
+  provider: LLMProvider | string | null;
+  since: number;
+};
+
+/** Per-user presence state held in memory. */
+type PresenceUserState = {
+  userId: PresenceUserId;
+  username: string;
+  sockets: Set<RealtimeClientConnection>;
+  /** sessionId -> run. A user is "active" while this map is non-empty. */
+  runs: Map<string, PresenceRun>;
+  /** When the user first connected (oldest still-open socket). */
+  connectedSince: number;
+};
+
+/** Shape of one entry in the broadcast snapshot. */
+type PresenceEntry = {
+  userId: PresenceUserId;
+  username: string;
+  // Server-relative profile picture URL (/avatars/<userId>.<ext>) or null, so
+  // presence avatars render the real picture instead of the coloured initial.
+  avatarUrl: string | null;
+  connected: true;
+  active: boolean;
+  activeSessionId: string | null;
+  activeProjectPath: string | null;
+  provider: LLMProvider | string | null;
+  since: number;
+};
+
+/**
+ * Active-conversations detail broadcast alongside the presence snapshot.
+ *
+ * `total` is GLOBAL (every run of every user), so the badge count matches the
+ * tooltip exactly. `byProject` is filtered to the recipient's visible projects
+ * only; everything not surfaced there (private-project runs the recipient may
+ * not see + runs with no resolved project path) is absorbed into `hiddenCount`,
+ * which therefore satisfies `total === sum(byProject[*].count) + hiddenCount`.
+ */
+type ActiveConversations = {
+  /** Sum of all runs across all users (global). */
+  total: number;
+  /** Per-project run counts, visible to the recipient only. */
+  byProject: Array<{ projectPath: string; count: number }>;
+  /** total − sum(byProject[*].count): runs in hidden/null-path projects. */
+  hiddenCount: number;
+};
+
+/** WS message type other clients/agents can rely on. */
+export const PRESENCE_MESSAGE_TYPE = 'presence';
+
+const users = new Map<PresenceUserId, PresenceUserState>();
+
+/** Coalesce rapid changes into a single broadcast. */
+const BROADCAST_DEBOUNCE_MS = 100;
+let broadcastTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Coerces a raw user id into the canonical string key, or null when absent. */
+function toPresenceUserId(rawUserId: string | number | null | undefined): PresenceUserId | null {
+  if (rawUserId === null || rawUserId === undefined || rawUserId === '') {
+    return null;
+  }
+  return String(rawUserId);
+}
+
+/**
+ * Resolves the user's current avatar URL from the users table at snapshot time
+ * (always fresh — picks up a newly uploaded picture without reconnecting).
+ * Snapshots are tiny (2-4 users) and the lookup is an indexed point read, so
+ * resolving here is cheaper than threading the avatar through every caller.
+ * Never throws: presence must keep broadcasting even if the lookup fails.
+ */
+function resolveAvatarUrl(userId: PresenceUserId): string | null {
+  const numericId = Number(userId);
+  if (!Number.isInteger(numericId)) {
+    return null;
+  }
+  try {
+    return userDb.getUserById(numericId)?.avatar_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds the presence snapshot for ONE recipient. The "active" run surfaced per
+ * user is the most recently started one (a brother may have several runs going,
+ * but the UI shows the freshest as the headline activity).
+ *
+ * B-PRIV: `visiblePaths` is the set of project paths the recipient may see. When
+ * the freshest active run belongs to a project NOT in that set (a private
+ * project the recipient is not a member of), the activity is REDACTED — the user
+ * still shows as connected, but their active session/project/provider are nulled
+ * so a private workspace path/session id never leaks through presence.
+ */
+function buildSnapshot(visiblePaths: Set<string>): PresenceEntry[] {
+  const entries: PresenceEntry[] = [];
+  for (const state of users.values()) {
+    let active: PresenceRun | null = null;
+    for (const run of state.runs.values()) {
+      if (!active || run.since > active.since) {
+        active = run;
+      }
+    }
+
+    // Redact the headline activity when its project is not visible to the
+    // recipient. A null projectPath (provider without a resolved path) is left
+    // visible — it carries no private path to leak.
+    const activeVisible =
+      active !== null &&
+      (active.projectPath === null || visiblePaths.has(active.projectPath));
+    const surfacedActive = activeVisible ? active : null;
+
+    entries.push({
+      userId: state.userId,
+      username: state.username,
+      avatarUrl: resolveAvatarUrl(state.userId),
+      connected: true,
+      active: Boolean(surfacedActive),
+      activeSessionId: surfacedActive?.sessionId ?? null,
+      activeProjectPath: surfacedActive?.projectPath ?? null,
+      provider: surfacedActive?.provider ?? null,
+      since: surfacedActive ? surfacedActive.since : state.connectedSince,
+    });
+  }
+  // Stable order so clients don't see rows jump around between snapshots.
+  entries.sort((a, b) => a.userId.localeCompare(b.userId));
+  return entries;
+}
+
+/**
+ * Builds the active-conversations detail for ONE recipient from ALL runs of ALL
+ * users. Unlike buildSnapshot (which surfaces a single headline run per user),
+ * this counts EVERY run so the global `total` matches the badge.
+ *
+ * B-PRIV: a run only contributes to `byProject` when its `projectPath` is
+ * non-null AND present in `visiblePaths` (the same recipient-scoped set used by
+ * buildSnapshot). Runs in projects the recipient may not see — and runs with a
+ * null projectPath — never appear in `byProject`; they are absorbed into
+ * `hiddenCount`, so no hidden project path can leak. The invariant
+ * `total === sum(byProject[*].count) + hiddenCount` always holds.
+ */
+function buildActiveConversations(visiblePaths: Set<string>): ActiveConversations {
+  let total = 0;
+  const counts = new Map<string, number>();
+
+  for (const state of users.values()) {
+    for (const run of state.runs.values()) {
+      total += 1;
+      const path = run.projectPath;
+      if (path !== null && visiblePaths.has(path)) {
+        counts.set(path, (counts.get(path) ?? 0) + 1);
+      }
+    }
+  }
+
+  const byProject = [...counts.entries()]
+    .map(([projectPath, count]) => ({ projectPath, count }))
+    // Highest count first; tie-break by path for a stable, deterministic order.
+    .sort((a, b) => b.count - a.count || a.projectPath.localeCompare(b.projectPath));
+
+  const visibleTotal = byProject.reduce((sum, entry) => sum + entry.count, 0);
+  return { total, byProject, hiddenCount: total - visibleTotal };
+}
+
+/** Coerces a stamped socket userId into a DB user id, or null. */
+function toRecipientUserId(rawUserId: string | number | null | undefined): number | null {
+  if (typeof rawUserId === 'number') {
+    return Number.isInteger(rawUserId) ? rawUserId : null;
+  }
+  if (typeof rawUserId === 'string' && rawUserId.trim() !== '') {
+    const parsed = Number.parseInt(rawUserId, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+/**
+ * Sends the snapshot to every open chat client immediately. B-PRIV: the snapshot
+ * is built per-recipient and cached per distinct userId, so each client only
+ * ever sees activity in projects it is allowed to see (private-project runs of
+ * other users are redacted). Unauthenticated sockets get the public-only view.
+ */
+function broadcastNow(): void {
+  broadcastTimer = null;
+  const timestamp = new Date().toISOString();
+
+  const payloadByUserId = new Map<number, string>();
+  let publicPayload: string | null = null;
+
+  const resolvePayload = (rawUserId: string | number | null | undefined): string => {
+    const recipientId = toRecipientUserId(rawUserId);
+    if (recipientId === null) {
+      if (publicPayload === null) {
+        const publicPaths = new Set(projectsDb.getVisibleProjectPaths(null));
+        publicPayload = JSON.stringify({
+          type: PRESENCE_MESSAGE_TYPE,
+          users: buildSnapshot(publicPaths),
+          activeConversations: buildActiveConversations(publicPaths),
+          timestamp,
+        });
+      }
+      return publicPayload;
+    }
+
+    let payload = payloadByUserId.get(recipientId);
+    if (!payload) {
+      const visiblePaths = new Set(projectsDb.getVisibleProjectPaths(recipientId));
+      payload = JSON.stringify({
+        type: PRESENCE_MESSAGE_TYPE,
+        users: buildSnapshot(visiblePaths),
+        activeConversations: buildActiveConversations(visiblePaths),
+        timestamp,
+      });
+      payloadByUserId.set(recipientId, payload);
+    }
+    return payload;
+  };
+
+  connectedClients.forEach((client) => {
+    if (client.readyState === WS_OPEN_STATE) {
+      try {
+        client.send(resolvePayload(client.userId));
+      } catch {
+        // A failing socket will be cleaned up by its own close handler.
+      }
+    }
+  });
+}
+
+/** Coalesces a broadcast so a burst of changes emits a single snapshot. */
+function scheduleBroadcast(): void {
+  if (broadcastTimer) {
+    return;
+  }
+  broadcastTimer = setTimeout(broadcastNow, BROADCAST_DEBOUNCE_MS);
+  if (typeof broadcastTimer.unref === 'function') {
+    broadcastTimer.unref();
+  }
+}
+
+/**
+ * Registers an authenticated socket as connected. Multiple sockets for the same
+ * user dedupe into one presence row (multi-tab/device). Returns silently for
+ * unauthenticated sockets (no userId) so single-user/anonymous runs are ignored.
+ */
+export function presenceConnect(
+  ws: RealtimeClientConnection,
+  user: AuthenticatedWebSocketUser | undefined,
+  rawUserId: string | number | null | undefined,
+): void {
+  const userId = toPresenceUserId(rawUserId);
+  if (!userId || !ws) {
+    return;
+  }
+  const username =
+    typeof user?.username === 'string' && user.username.trim().length > 0
+      ? user.username
+      : userId;
+
+  let state = users.get(userId);
+  if (!state) {
+    state = {
+      userId,
+      username,
+      sockets: new Set(),
+      runs: new Map(),
+      connectedSince: Date.now(),
+    };
+    users.set(userId, state);
+  } else {
+    // Keep the freshest known username.
+    state.username = username;
+  }
+  state.sockets.add(ws);
+  scheduleBroadcast();
+}
+
+/**
+ * Removes a socket. The user stays "connected" while any other socket of theirs
+ * remains open; only when the last one closes is the user (and any leftover run
+ * attribution) dropped from presence.
+ */
+export function presenceDisconnect(ws: RealtimeClientConnection): void {
+  if (!ws) {
+    return;
+  }
+  for (const [userId, state] of users) {
+    if (!state.sockets.delete(ws)) {
+      continue;
+    }
+    if (state.sockets.size === 0) {
+      users.delete(userId);
+    }
+    scheduleBroadcast();
+    return;
+  }
+}
+
+/**
+ * Marks a user as actively running a session. Safe to call for unauthenticated
+ * runs (no userId) — they are simply ignored. A run started for a user with no
+ * open socket still creates a transient presence row so the activity is visible;
+ * it is cleaned up when the run stops or the socket set empties.
+ */
+export function presenceRunStarted(details: {
+  userId: string | number | null | undefined;
+  sessionId: string | null | undefined;
+  projectPath?: string | null;
+  provider?: LLMProvider | string | null;
+  username?: string | null;
+}): void {
+  const userId = toPresenceUserId(details.userId);
+  const sessionId = typeof details.sessionId === 'string' ? details.sessionId : '';
+  if (!userId || !sessionId) {
+    return;
+  }
+
+  let state = users.get(userId);
+  if (!state) {
+    // A run can begin before/without a tracked socket (e.g. resumed via a
+    // background path). Create a presence row so the work is still visible.
+    state = {
+      userId,
+      username:
+        typeof details.username === 'string' && details.username.trim().length > 0
+          ? details.username
+          : userId,
+      sockets: new Set(),
+      runs: new Map(),
+      connectedSince: Date.now(),
+    };
+    users.set(userId, state);
+  } else if (typeof details.username === 'string' && details.username.trim().length > 0) {
+    state.username = details.username;
+  }
+
+  state.runs.set(sessionId, {
+    sessionId,
+    projectPath: details.projectPath ?? null,
+    provider: details.provider ?? null,
+    since: Date.now(),
+  });
+  scheduleBroadcast();
+}
+
+/**
+ * Clears a user's active run. The user stays connected (and present) while any
+ * socket remains open; if the run row was created without a socket and now has
+ * no runs and no sockets, the row is dropped.
+ */
+export function presenceRunStopped(details: {
+  userId: string | number | null | undefined;
+  sessionId: string | null | undefined;
+}): void {
+  const userId = toPresenceUserId(details.userId);
+  const sessionId = typeof details.sessionId === 'string' ? details.sessionId : '';
+  if (!userId || !sessionId) {
+    return;
+  }
+  const state = users.get(userId);
+  if (!state) {
+    return;
+  }
+  const had = state.runs.delete(sessionId);
+  if (!had) {
+    return;
+  }
+  if (state.runs.size === 0 && state.sockets.size === 0) {
+    users.delete(userId);
+  }
+  scheduleBroadcast();
+}

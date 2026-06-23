@@ -4,7 +4,9 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
 
 // Use cross-spawn on Windows for better command execution
@@ -28,6 +30,20 @@ function isWorkspaceTrustPrompt(text = '') {
 }
 
 async function spawnCursor(command, options = {}, ws) {
+  // B-31: verify the project directory exists before spawning Cursor.
+  const cwdToCheck = options.cwd || options.projectPath;
+  if (cwdToCheck) {
+    const cwdCheck = await checkCwdExists(cwdToCheck);
+    if (!cwdCheck.ok) {
+      if (ws) {
+        ws.send(createNormalizedMessage(
+          buildCwdMissingPayload(cwdCheck.error, { sessionId: options.sessionId || null, provider: 'cursor' })
+        ));
+      }
+      return;
+    }
+  }
+
   return new Promise(async (resolve, reject) => {
     const { sessionId, projectPath, cwd, resume, toolsSettings, skipPermissions, model, sessionSummary } = options;
     const resolvedModel = await providerModelsService.resolveResumeModel('cursor', sessionId, model);
@@ -44,7 +60,10 @@ async function spawnCursor(command, options = {}, ws) {
         return;
       }
       participantRecorded = true;
-      participantsDb.recordSpawn(sid, ws.userId);
+      participantsDb.recordSpawn(sid, ws.userId, {
+        provider: 'cursor',
+        projectPath: cwd || projectPath || process.cwd(),
+      });
     };
 
     // Resumed sessions carry their id at spawn time.
@@ -208,7 +227,8 @@ async function spawnCursor(command, options = {}, ws) {
               // Accumulate assistant message chunks
               if (response.message && response.message.content && response.message.content.length > 0) {
                 const normalized = sessionsService.normalizeMessage('cursor', response, capturedSessionId || sessionId || null);
-                for (const msg of normalized) ws.send(msg);
+                // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+                for (const msg of normalized) ws.send(stampCoordinatorId(msg, ws?.userId));
               }
               break;
 
@@ -235,7 +255,8 @@ async function spawnCursor(command, options = {}, ws) {
 
           // If not JSON, send as stream delta via adapter
           const normalized = sessionsService.normalizeMessage('cursor', line, capturedSessionId || sessionId || null);
-          for (const msg of normalized) ws.send(msg);
+          // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR).
+          for (const msg of normalized) ws.send(stampCoordinatorId(msg, ws?.userId));
         }
       };
 
@@ -300,19 +321,33 @@ async function spawnCursor(command, options = {}, ws) {
 
       // Handle process errors
       cursorProcess.on('error', async (error) => {
+        if (cursorProcess.__aborted) return;
         console.error('Cursor CLI process error:', error);
 
         // Clean up process reference on error
         const finalSessionId = capturedSessionId || sessionId || processKey;
         activeCursorProcesses.delete(finalSessionId);
 
-        // Check if Cursor CLI is installed for a clearer error message
+        // B-32: map spawn errors to structured codes.
         const installed = await providerAuthService.isProviderInstalled('cursor');
-        const errorContent = !installed
-          ? 'Cursor CLI is not installed. Please install it from https://cursor.com'
-          : error.message;
+        let errorCode;
+        let errorContent;
+        if (!installed) {
+          errorCode = 'cli_not_installed';
+          errorContent = 'Cursor CLI is not installed. Please install it from https://cursor.com';
+        } else {
+          const mapped = mapSpawnError(error);
+          errorCode = mapped.code;
+          errorContent = mapped.fallbackMessage;
+        }
 
-        ws.send(createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'cursor' }));
+        ws.send(createNormalizedMessage({
+          kind: 'error',
+          code: errorCode,
+          content: errorContent,
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'cursor',
+        }));
         notifyTerminalState({ error });
 
         settleOnce(() => reject(error));
@@ -330,6 +365,8 @@ function abortCursorSession(sessionId) {
   const process = activeCursorProcesses.get(sessionId);
   if (process) {
     console.log(`Aborting Cursor session: ${sessionId}`);
+    // B-40d: mark as aborted so close/error handlers skip redundant work.
+    process.__aborted = true;
     process.kill('SIGTERM');
     activeCursorProcesses.delete(sessionId);
     return true;

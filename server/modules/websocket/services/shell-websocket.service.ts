@@ -5,7 +5,16 @@ import path from 'node:path';
 import pty, { type IPty } from 'node-pty';
 import { WebSocket, type RawData } from 'ws';
 
+import {
+  isProjectPathVisibleToUser,
+  readRequestUserId,
+} from '@/modules/websocket/services/chat-websocket.service.js';
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
+import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
+
+/** Providers with a per-user credential knob in resolveProviderEnv. */
+type IsolationProvider = 'claude' | 'gemini' | 'codex' | 'cursor' | 'agy';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -18,6 +27,7 @@ type ShellIncomingMessage = {
   provider?: string;
   initialCommand?: string;
   isPlainShell?: boolean;
+  forceRestart?: boolean;
 };
 
 type PtySessionEntry = {
@@ -32,6 +42,19 @@ type PtySessionEntry = {
 const ptySessionsMap = new Map<string, PtySessionEntry>();
 const PTY_SESSION_TIMEOUT = 30 * 60 * 1000;
 const SHELL_URL_PARSE_BUFFER_LIMIT = 32768;
+
+/**
+ * Whether an authenticated userId is mandatory before spawning a PTY.
+ *
+ * verifyWebSocketClient (websocket-auth.service.ts) populates request.user in
+ * BOTH platform mode (first DB user) and OSS mode (verified JWT), and refuses
+ * the upgrade otherwise — so authentication is enforced for every PTY upgrade
+ * regardless of mode. This flag therefore stays `true` unconditionally: it
+ * exists to make the fail-closed gate explicit and locally auditable (rather
+ * than relying on the remote verifyClient invariant), and to give a single,
+ * documented switch should a legitimate no-auth PTY mode ever be introduced.
+ */
+const REQUIRE_PTY_USER = true;
 
 type ShellWebSocketDependencies = {
   getSessionById: (sessionId: string) => { cliSessionId?: string } | null | undefined;
@@ -143,6 +166,21 @@ function buildShellCommand(
     return initialCommand || 'opencode';
   }
 
+  if (provider === 'agy' || provider === 'antigravity') {
+    // agy resumes a prior conversation by UUID via --conversation; a fresh launch
+    // runs bare `agy` interactively, which triggers its OAuth device/browser flow
+    // when no valid token exists under HOME — i.e. an interactive `agy` IS the
+    // login command (agy has no `agy login` subcommand). An explicit
+    // initialCommand (e.g. a login command from the UI) wins.
+    if (initialCommand) {
+      return initialCommand;
+    }
+    if (hasSession && sessionId) {
+      return `agy --conversation "${sessionId}" || agy`;
+    }
+    return 'agy';
+  }
+
   const command = initialCommand || 'claude';
   if (hasSession && sessionId) {
     if (os.platform() === 'win32') {
@@ -154,13 +192,50 @@ function buildShellCommand(
 }
 
 /**
+ * Maps the provider declared by a shell init payload onto a credential-isolation
+ * provider key understood by `resolveProviderEnv`. Providers without a per-user
+ * credential knob (e.g. cursor, plain-shell) fall through to `claude`'s policy
+ * gate, which returns the base env unchanged when that provider is shared.
+ */
+function readIsolationProvider(provider: string): IsolationProvider {
+  // agy resolves its credentials via a HOME override in resolveProviderEnv, so a
+  // terminal launched in agy context must map to the 'agy' isolation key (NOT
+  // fall through to claude) — otherwise a non-owner's `agy` login would write the
+  // token under HOME=process home (shared) instead of their isolated tree. The UI
+  // labels this provider 'antigravity'; accept both spellings.
+  if (provider === 'agy' || provider === 'antigravity') {
+    return 'agy';
+  }
+  if (
+    provider === 'claude'
+    || provider === 'codex'
+    || provider === 'gemini'
+    || provider === 'cursor'
+  ) {
+    return provider;
+  }
+  return 'claude';
+}
+
+/**
  * Handles websocket connections used by the standalone shell terminal UI.
+ *
+ * `request` carries the JWT-authenticated user (populated by verifyClient) so the
+ * PTY process inherits the per-user isolated credential env via resolveProviderEnv
+ * (B-MU-PTY-ENV) and the session key is namespaced per user (B-MU-PTY-KEY).
+ *
+ * Fail-closed: if no authenticated userId is present at PTY init while auth is
+ * enforced (REQUIRE_PTY_USER), the connection is refused (error frame + close)
+ * with no spawn and no session-key build — never a shared 'anon' fallback.
  */
 export function handleShellConnection(
   ws: WebSocket,
+  request: AuthenticatedWebSocketRequest,
   dependencies: ShellWebSocketDependencies
 ): void {
   console.log('[INFO] Shell websocket connected');
+
+  const userId = readRequestUserId(request);
 
   let shellProcess: IPty | null = null;
   let ptySessionKey: string | null = null;
@@ -180,6 +255,7 @@ export function handleShellConnection(
         const hasSession = readBoolean(data.hasSession);
         const provider = readString(data.provider, 'claude');
         const initialCommand = readString(data.initialCommand);
+        const forceRestart = readBoolean(data.forceRestart);
         const isPlainShell =
           readBoolean(data.isPlainShell) ||
           (!!initialCommand && !hasSession) ||
@@ -188,19 +264,63 @@ export function handleShellConnection(
         urlDetectionBuffer = '';
         announcedAuthUrls.clear();
 
+        const isAgyProvider = provider === 'agy' || provider === 'antigravity';
         const isLoginCommand =
-          !!initialCommand &&
-          (initialCommand.includes('setup-token') ||
-            initialCommand.includes('cursor-agent login') ||
-            initialCommand.includes('auth login'));
+          (!!initialCommand &&
+            (initialCommand.includes('setup-token') ||
+              initialCommand.includes('cursor-agent login') ||
+              initialCommand.includes('auth login'))) ||
+          // agy has no login subcommand: a fresh interactive `agy` (no prior
+          // session) triggers its OAuth flow. Treat that as a login so any stale
+          // PTY for this key is killed and a clean re-auth session is spawned;
+          // the OAuth URL is surfaced by the generic URL detection below.
+          (isAgyProvider && !hasSession && !isPlainShell);
 
         const commandSuffix =
           isPlainShell && initialCommand
             ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
             : '';
-        ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
 
-        if (isLoginCommand) {
+        // B-MU-PTY-KEY (fail-closed): the session key is namespaced per
+        // authenticated user so one user can never reattach to (hijack) another
+        // user's live PTY. verifyWebSocketClient already rejects any upgrade
+        // without request.user in BOTH platform and OSS modes, so a missing
+        // userId here is an unexpected/broken state — never a sanctioned
+        // anonymous session. Refuse to spawn rather than fall back to a shared
+        // 'anon' key that two no-userId connections could collide on and use to
+        // hijack each other's terminals. The guard is bound to the same
+        // condition that enforces authentication (REQUIRE_PTY_USER): auth is
+        // enforced unconditionally for PTY upgrades, so the refusal is too.
+        if (REQUIRE_PTY_USER && (userId === null || userId === undefined)) {
+          console.error(
+            '[ERROR] Shell WebSocket rejected: missing authenticated userId on PTY init'
+          );
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                message: 'Authentication required for terminal session',
+              })
+            );
+          }
+          ws.close(4401, 'Authentication required');
+          return;
+        }
+
+        // B-36 / B-PRIV: same spawn guard as chat — refuse to open a PTY inside
+        // a KNOWN private project the authenticated user is not a member of
+        // (404-equivalent), before any reattach or spawn. Unregistered paths
+        // pass (creation/first-run flow), mirroring the chat behavior.
+        if (!isProjectPathVisibleToUser(projectPath, userId)) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Project not found' }));
+          ws.close(4404, 'Project not found');
+          return;
+        }
+
+        const userKey = userId;
+        ptySessionKey = `${userKey}_${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
+
+        if (isLoginCommand || forceRestart) {
           const oldSession = ptySessionsMap.get(ptySessionKey);
           if (oldSession) {
             if (oldSession.timeoutId) {
@@ -211,7 +331,8 @@ export function handleShellConnection(
           }
         }
 
-        const existingSession = isLoginCommand ? null : ptySessionsMap.get(ptySessionKey);
+        const existingSession =
+          isLoginCommand || forceRestart ? null : ptySessionsMap.get(ptySessionKey);
         if (existingSession) {
           shellProcess = existingSession.pty;
           if (existingSession.timeoutId) {
@@ -264,13 +385,25 @@ export function handleShellConnection(
         const termCols = readNumber(data.cols, 80);
         const termRows = readNumber(data.rows, 24);
 
+        // B-MU-PTY-ENV: build the PTY environment through the central isolation
+        // seam (same resolver as claude-sdk.js:784) so the terminal process runs
+        // under the authenticated user's credential dir (CLAUDE_CONFIG_DIR /
+        // GEMINI_CLI_HOME / ...) instead of the operator's raw process.env. When
+        // no userId is present, or the provider is marked shared, resolveProviderEnv
+        // returns the base env unchanged — preserving single-user behavior.
+        const isolatedEnv = resolveProviderEnv(
+          userId,
+          readIsolationProvider(provider),
+          process.env
+        );
+
         shellProcess = pty.spawn(shell, shellArgs, {
           name: 'xterm-256color',
           cols: termCols,
           rows: termRows,
           cwd: resolvedProjectPath,
           env: {
-            ...process.env,
+            ...isolatedEnv,
             TERM: 'xterm-256color',
             COLORTERM: 'truecolor',
             FORCE_COLOR: '3',
@@ -368,6 +501,10 @@ export function handleShellConnection(
           }
 
           const session = ptySessionsMap.get(ptySessionKey);
+          if (session && session.pty !== shellProcess) {
+            return;
+          }
+
           if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
             session.ws.send(
               JSON.stringify({
@@ -451,6 +588,10 @@ export function handleShellConnection(
 
     session.ws = null;
     session.timeoutId = setTimeout(() => {
+      if (ptySessionsMap.get(ptySessionKey as string) !== session) {
+        return;
+      }
+
       session.pty.kill();
       ptySessionsMap.delete(ptySessionKey as string);
     }, PTY_SESSION_TIMEOUT);

@@ -1,44 +1,99 @@
-import { Brain, Zap, Sparkles, Atom } from 'lucide-react';
+import type { ComponentType } from 'react';
+import {
+  Minus,
+  Gauge,
+  Zap,
+  Flame,
+  Cpu,
+  Layers,
+  Sparkles,
+  Wand2,
+} from 'lucide-react';
 
-export const thinkingModes = [
+export type EffortMode = {
+  id: string;
+  /** Technical value sent as `effort` field. Empty string = no effort field. */
+  effortValue: string;
+  name: string;
+  description: string;
+  icon: ComponentType<{ className?: string }> | null;
+  color: string;
+  /** Intensity level for visual treatment: 0 = none, 1 = light, 2 = medium, 3 = high, 4 = max */
+  intensity: 0 | 1 | 2 | 3 | 4;
+};
+
+export const effortModes: EffortMode[] = [
   {
     id: 'none',
-    name: 'Standard',
-    description: 'Regular Claude response',
-    icon: null,
-    prefix: '',
-    color: 'text-gray-600'
+    effortValue: '',
+    name: 'standard',
+    description: '',
+    icon: Minus,
+    color: 'text-gray-400',
+    intensity: 0,
   },
   {
-    id: 'think',
-    name: 'Think',
-    description: 'Basic extended thinking',
-    icon: Brain,
-    prefix: 'think',
-    color: 'text-blue-600'
+    id: 'auto',
+    /** Empty string = no effort field sent; model decides autonomously. */
+    effortValue: '',
+    name: 'auto',
+    description: '',
+    icon: Wand2,
+    color: 'text-gray-500',
+    intensity: 1,
   },
   {
-    id: 'think-hard',
-    name: 'Think Hard',
-    description: 'More thorough evaluation',
+    id: 'low',
+    effortValue: 'low',
+    name: 'low',
+    description: '',
+    icon: Gauge,
+    color: 'text-green-500',
+    intensity: 1,
+  },
+  {
+    id: 'medium',
+    effortValue: 'medium',
+    name: 'medium',
+    description: '',
     icon: Zap,
-    prefix: 'think hard',
-    color: 'text-purple-600'
+    color: 'text-blue-500',
+    intensity: 2,
   },
   {
-    id: 'think-harder',
-    name: 'Think Harder',
-    description: 'Deep analysis with alternatives',
+    id: 'high',
+    effortValue: 'high',
+    name: 'high',
+    description: '',
+    icon: Flame,
+    color: 'text-indigo-500',
+    intensity: 2,
+  },
+  {
+    id: 'xhigh',
+    effortValue: 'xhigh',
+    name: 'xhigh',
+    description: '',
+    icon: Cpu,
+    color: 'text-purple-500',
+    intensity: 3,
+  },
+  {
+    id: 'max',
+    effortValue: 'max',
+    name: 'max',
+    description: '',
+    icon: Layers,
+    color: 'text-orange-500',
+    intensity: 3,
+  },
+  {
+    id: 'ultracode',
+    effortValue: 'ultracode',
+    name: 'ultracode',
+    description: '',
     icon: Sparkles,
-    prefix: 'think harder',
-    color: 'text-indigo-600'
+    color: 'text-red-500',
+    intensity: 4,
   },
-  {
-    id: 'ultrathink',
-    name: 'Ultrathink',
-    description: 'Maximum thinking budget',
-    icon: Atom,
-    prefix: 'ultrathink',
-    color: 'text-red-600'
-  }
 ];

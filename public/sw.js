@@ -1,7 +1,7 @@
 // Service Worker for CloudCLI PWA
 // Cache only manifest (needed for PWA install). HTML and JS are never pre-cached
 // so a rebuild + refresh always picks up the latest assets.
-const CACHE_NAME = 'claude-ui-v2';
+const CACHE_NAME = 'claude-ui-v5';
 const urlsToCache = [
   '/manifest.json'
 ];
@@ -18,6 +18,13 @@ self.addEventListener('install', event => {
 // Fetch event — network-first for everything except hashed assets
 self.addEventListener('fetch', event => {
   const url = event.request.url;
+
+  // Never intercept cross-origin requests (e.g. cloudflareinsights beacon, CDNs).
+  // Passing them through prevents TypeError when the response can't be cloned or
+  // cached, and stops console errors from third-party fetches.
+  if (!url.startsWith(self.location.origin)) {
+    return;
+  }
 
   // Never intercept API requests or WebSocket upgrades
   if (url.includes('/api/') || url.includes('/ws')) {
@@ -45,15 +52,20 @@ self.addEventListener('fetch', event => {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           return response;
-        });
+        }).catch(() => Response.error());
       })
     );
     return;
   }
 
-  // Everything else — network-first
+  // Everything else — network-first with safe cache fallback.
+  // caches.match() resolves to undefined when there is no cached entry;
+  // wrapping with || Response.error() ensures respondWith always receives a
+  // valid Response and never throws TypeError.
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(event.request).catch(() =>
+      caches.match(event.request).then(cached => cached || Response.error())
+    )
   );
 });
 
@@ -75,25 +87,42 @@ self.addEventListener('activate', event => {
 self.addEventListener('push', event => {
   if (!event.data) return;
 
-  let payload;
-  try {
-    payload = event.data.json();
-  } catch {
-    payload = { title: 'CloudCLI', body: event.data.text() };
-  }
+  event.waitUntil((async () => {
+    let payload;
+    try {
+      payload = event.data.json();
+    } catch {
+      payload = { body: event.data.text() };
+    }
 
-  const options = {
-    body: payload.body || '',
-    icon: '/logo-256.png',
-    badge: '/logo-128.png',
-    data: payload.data || {},
-    tag: payload.data?.tag || `${payload.data?.sessionId || 'global'}:${payload.data?.code || 'default'}`,
-    renotify: true
-  };
+    // The server already sends the branded title in JSON payloads (see
+    // notification-orchestrator buildPushBody). For payloads without a title
+    // (e.g. plain-text pushes) resolve it from the PUBLIC branding endpoint so
+    // the notification still carries the configured app name.
+    let title = payload.title;
+    if (!title) {
+      try {
+        const response = await fetch('/api/settings/branding');
+        const branding = await response.json();
+        if (typeof branding?.title === 'string' && branding.title) {
+          title = branding.title;
+        }
+      } catch {
+        // Offline / fetch failed — fall through to the stock default below.
+      }
+    }
 
-  event.waitUntil(
-    self.registration.showNotification(payload.title || 'CloudCLI', options)
-  );
+    const options = {
+      body: payload.body || '',
+      icon: '/logo-256.png',
+      badge: '/logo-128.png',
+      data: payload.data || {},
+      tag: payload.data?.tag || `${payload.data?.sessionId || 'global'}:${payload.data?.code || 'default'}`,
+      renotify: true
+    };
+
+    return self.registration.showNotification(title || 'CloudCLI', options);
+  })());
 });
 
 // Notification click event

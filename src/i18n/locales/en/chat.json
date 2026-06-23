@@ -38,7 +38,26 @@
   },
   "subagent": {
     "badge": "Sub-agent",
+    "shortBadge": "Sub-agent",
     "badgeLabel": "Sub-agent task"
+  },
+  "coordinator": {
+    "label": "Coordinator",
+    "withName": "Coordinator: {{username}}"
+  },
+  "userAuthor": {
+    "withName": "User: {{username}}"
+  },
+  "externalOrigin": {
+    "label": "Created outside the UI"
+  },
+  "coordinatorPrompt": {
+    "label": "Coordinator → Sub-agent",
+    "ariaLabel": "Coordinator prompt to sub-agent"
+  },
+  "systemMessage": {
+    "label": "System message",
+    "ariaLabel": "Automated system message"
   },
   "sessionNotResumable": {
     "message": "This session could not be resumed — it no longer exists at the provider.",
@@ -154,49 +173,57 @@
     "send": "Send",
     "stop": "Stop",
     "hintText": {
-      "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands",
-      "enter": "Enter to send • Shift+Enter for new line • Tab to change modes • / for slash commands"
+      "ctrlEnter": "Ctrl+Enter to send • Shift+Enter for new line",
+      "enter": "Enter to send • Shift+Enter for new line"
     },
     "clickToChangeMode": "Click to change permission mode (or press Tab in input)",
     "showAllCommands": "Show all commands",
     "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Thinking Mode",
-      "description": "Extended thinking gives Claude more time to evaluate alternatives",
+      "title": "Effort Level",
+      "description": "Controls how much compute Claude dedicates to your request",
       "active": "Active",
-      "tip": "Higher thinking modes take more time but provide more thorough analysis"
+      "tip": "ultracode activates maximum depth with multi-agent formatting — ultracode and max add color cues"
     },
     "modes": {
       "none": {
-        "name": "Standard",
-        "description": "Regular Claude response",
-        "prefix": ""
+        "name": "standard",
+        "description": "No effort parameter — default behavior"
       },
-      "think": {
-        "name": "Think",
-        "description": "Basic extended thinking",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "Model picks effort by request complexity"
       },
-      "thinkHard": {
-        "name": "Think Hard",
-        "description": "More thorough evaluation",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "Fast, light — best for simple questions"
       },
-      "thinkHarder": {
-        "name": "Think Harder",
-        "description": "Deep analysis with alternatives",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "Balanced depth and speed"
       },
-      "ultrathink": {
-        "name": "Ultrathink",
-        "description": "Maximum thinking budget",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "Deeper reasoning for complex tasks"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Extra-high effort for demanding problems"
+      },
+      "max": {
+        "name": "max",
+        "description": "Maximum effort — full compute budget"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Peak depth + multi-agent formatting"
       }
     },
-    "buttonTitle": "Thinking mode: {{mode}}"
+    "buttonTitle": "Effort: {{mode}}",
+    "ultracodeActive": "Ultracode effort active"
   },
   "providerSelection": {
     "title": "Choose Your AI Assistant",
@@ -223,7 +250,13 @@
       "loading": "Loading…",
       "unknown": "Unknown"
     },
-    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
+    "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits",
+    "refresh": {
+      "button": "Refresh models and auth status",
+      "refreshing": "Refreshing…"
+    },
+    "providerUnavailable": "Provider not available",
+    "signIn": "Sign in"
   },
   "session": {
     "continue": {
@@ -259,7 +292,7 @@
       "disconnect": "Disconnect",
       "disconnectTitle": "Disconnect from shell",
       "restart": "Restart",
-      "restartTitle": "Restart Shell (disconnect first)",
+      "restartTitle": "Restart Shell",
       "connect": "Continue in Shell",
       "connectTitle": "Connect to shell"
     },
@@ -296,7 +329,32 @@
     },
     "providers": {
       "assistant": "Assistant"
-    }
+    },
+    "frozen": "Paused (process frozen)"
+  },
+  "runProgress": {
+    "tasksLabel": "Tasks",
+    "barAria": "Task progress",
+    "tasksTooltip": "Tasks: {{done}} of {{total}} done",
+    "inProgressTooltip_one": "{{count}} in progress",
+    "inProgressTooltip_other": "{{count}} in progress",
+    "agentsTooltip": "Sub-agents: {{done}}/{{total}}",
+    "agentWorking": "Agent · {{calls}}",
+    "agentWorkingTooltip": "Sub-agent working: {{calls}} calls",
+    "estimateRemaining": "≈ {{time}} left",
+    "estimating": "estimating…",
+    "estimateTooltip": "Rough estimate — based on completed tasks so far."
+  },
+  "agentActivity": {
+    "title": "Agent activity",
+    "summary": "{{running}}/{{total}} running",
+    "running": "Running",
+    "done": "Done",
+    "currently": "now",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} tool calls",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "Tool history coming soon."
   },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
@@ -305,12 +363,16 @@
     "nextTaskPrompt": "Start the next task"
   },
   "participants": {
+    "hide": "Hide participants bar",
+    "show": "Show participants bar",
     "lastSeen": "Last seen",
     "invocations_one": "{{count}} invocation",
     "invocations_other": "{{count}} invocations",
     "usersAria_one": "{{count}} participant",
     "usersAria_other": "{{count}} participants",
     "barAria": "Conversation participants",
+    "openSessionsNow": "Active conversations",
+    "openSessionsNowCount": "{{count}} active conversations",
     "andMore_one": "and {{count}} more",
     "andMore_other": "and {{count}} more",
     "projectSummary": "{{users}} users · {{agents}} agents",
@@ -322,6 +384,33 @@
     "agentKinds": {
       "model": "Base model",
       "subagent": "Subagent"
-    }
+    },
+    "agentSummary_one": "{{count}} agent",
+    "agentSummary_other": "{{count}} agents",
+    "totalInvocations_one": "{{count}} call",
+    "totalInvocations_other": "{{count}} calls",
+    "agentSummaryAria": "{{agents}} distinct agents · {{calls}} total calls",
+    "unknownAuthor": "Unknown author"
+  },
+  "ws": {
+    "statusConnected": "Connected",
+    "statusReconnecting": "Reconnecting…",
+    "statusDisconnected": "Disconnected",
+    "ariaConnected": "WebSocket connected",
+    "ariaReconnecting": "WebSocket reconnecting",
+    "ariaDisconnected": "WebSocket disconnected",
+    "sendFailed": "Message not sent — connection lost",
+    "sendDisabledTitle": "Cannot send — connection lost"
+  },
+  "serverError": {
+    "project_dir_missing": "Project folder not found on disk",
+    "cli_not_installed": "CLI not installed — please install the required CLI tool",
+    "spawn_failed": "Failed to start the process — check server logs for details",
+    "session_create_failed": "Could not start a new session — please try again",
+    "unknown": "An unexpected server error occurred"
+  },
+  "refreshChat": {
+    "button": "Refresh chat",
+    "refreshing": "Refreshing…"
   }
 }

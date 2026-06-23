@@ -18,7 +18,9 @@ import { notifyRunFailed, notifyRunStopped } from './services/notification-orche
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
-import { createNormalizedMessage } from './shared/utils.js';
+import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
+import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
+import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
 
 // Track active sessions
@@ -223,6 +225,20 @@ function mapPermissionModeToCodexOptions(permissionMode) {
  * @param {WebSocket|object} ws - WebSocket connection or response writer
  */
 export async function queryCodex(command, options = {}, ws) {
+  // B-31: verify the project directory exists before spawning Codex.
+  const cwdToCheck = options.cwd || options.projectPath;
+  if (cwdToCheck) {
+    const cwdCheck = await checkCwdExists(cwdToCheck);
+    if (!cwdCheck.ok) {
+      if (ws) {
+        ws.send(createNormalizedMessage(
+          buildCwdMissingPayload(cwdCheck.error, { sessionId: options.sessionId || null, provider: 'codex' })
+        ));
+      }
+      return;
+    }
+  }
+
   const {
     sessionId,
     sessionSummary,
@@ -256,7 +272,10 @@ export async function queryCodex(command, options = {}, ws) {
       return;
     }
     participantRecorded = true;
-    participantsDb.recordSpawn(sid, ws.userId);
+    participantsDb.recordSpawn(sid, ws.userId, {
+      provider: 'codex',
+      projectPath: workingDirectory,
+    });
   };
 
   try {
@@ -343,6 +362,9 @@ export async function queryCodex(command, options = {}, ws) {
       // Normalize the transformed event into NormalizedMessage(s) via adapter
       const normalizedMsgs = sessionsService.normalizeMessage('codex', transformed, capturedSessionId || sessionId || null);
       for (const msg of normalizedMsgs) {
+        // Coordinator attribution (B-MU-UX-FIX-ASSISTANT-AUTHOR): tag assistant
+        // output with the JWT-sourced spawner so viewers attribute it correctly.
+        stampCoordinatorId(msg, ws?.userId);
         sendMessage(ws, msg);
       }
 
@@ -393,13 +415,26 @@ export async function queryCodex(command, options = {}, ws) {
     if (!wasAborted) {
       console.error('[Codex] Error:', error);
 
-      // Check if Codex SDK is available for a clearer error message
+      // B-32: map spawn/runtime errors to structured codes.
       const installed = await providerAuthService.isProviderInstalled('codex');
-      const errorContent = !installed
-        ? 'Codex CLI is not configured. Please set up authentication first.'
-        : error.message;
+      let errorCode;
+      let errorContent;
+      if (!installed) {
+        errorCode = 'cli_not_installed';
+        errorContent = 'Codex CLI is not configured. Please set up authentication first.';
+      } else {
+        const mapped = mapSpawnError(error);
+        errorCode = mapped.code;
+        errorContent = mapped.fallbackMessage;
+      }
 
-      sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
+      sendMessage(ws, createNormalizedMessage({
+        kind: 'error',
+        code: errorCode,
+        content: errorContent,
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'codex',
+      }));
       if (!terminalFailure) {
         notifyRunFailed({
           userId: ws?.userId || null,

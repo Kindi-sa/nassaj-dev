@@ -258,12 +258,15 @@ const parseSessionSearchLimit = (value: unknown): number => {
 // ----------------- Claude usage route -----------------
 // Specific path declared before the generic `/:provider/*` routes so it is not
 // shadowed. Calls Anthropic from the backend only; the OAuth token never leaves
-// the server. Cached >= 180s (shared credential) with stale fallback on 429.
+// the server. Cached >= 180s per resolved credential with stale fallback on 429.
+// The authenticated user is forwarded so an isolated user sees THEIR own
+// subscription usage, not the operator's (ADR-014).
 router.get(
   '/claude/usage',
-  asyncHandler(async (_req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     try {
-      const usage = await claudeUsageService.getUsage();
+      const userId = (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+      const usage = await claudeUsageService.getUsage(userId);
       res.json(usage);
     } catch (error) {
       // Emit the flat frontend error contract `{ error, code }` with a real

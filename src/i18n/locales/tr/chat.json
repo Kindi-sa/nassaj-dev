@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Arayüz dışında oluşturuldu"
+  },
   "tools": {
     "settings": "Araç Ayarları",
     "error": "Araç Hatası",
@@ -130,49 +133,57 @@
     "send": "Gönder",
     "stop": "Durdur",
     "hintText": {
-      "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /",
-      "enter": "Göndermek için Enter • Yeni satır için Shift+Enter • Mod değiştirmek için Tab • Slash komutları için /"
+      "ctrlEnter": "Göndermek için Ctrl+Enter • Yeni satır için Shift+Enter",
+      "enter": "Göndermek için Enter • Yeni satır için Shift+Enter"
     },
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
     "clearInput": "Girdiyi temizle",
     "scrollToBottom": "En alta git"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Düşünme Modu",
-      "description": "Uzatılmış düşünme, Claude'a alternatifleri değerlendirmek için daha fazla zaman verir",
+      "title": "Çaba Seviyesi",
+      "description": "Claude'un isteğiniz için ayırdığı hesaplama miktarını kontrol eder",
       "active": "Aktif",
-      "tip": "Daha yüksek düşünme modları daha fazla zaman alır ama daha kapsamlı analiz sağlar"
+      "tip": "ultracode, çok ajanlı biçimlendirme ile maksimum derinliği etkinleştirir"
     },
     "modes": {
       "none": {
         "name": "Standart",
-        "description": "Normal Claude yanıtı",
-        "prefix": ""
+        "description": "effort parametresi yok — varsayılan Claude davranışı"
       },
-      "think": {
-        "name": "Düşün",
-        "description": "Temel uzatılmış düşünme",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "Model, istek karmaşıklığına göre çabayı otomatik seçer"
       },
-      "thinkHard": {
-        "name": "Daha Fazla Düşün",
-        "description": "Daha kapsamlı değerlendirme",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "Hızlı, hafif yanıtlar — basit sorular için ideal"
       },
-      "thinkHarder": {
-        "name": "Derin Düşün",
-        "description": "Alternatiflerle derin analiz",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "Derinlik ve hız arasında denge"
       },
-      "ultrathink": {
-        "name": "Ultra Düşün",
-        "description": "Maksimum düşünme bütçesi",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "Karmaşık görevler için daha derin akıl yürütme"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Zorlu problemler için çok yüksek çaba"
+      },
+      "max": {
+        "name": "max",
+        "description": "Maksimum çaba — tam hesaplama bütçesi"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Çok ajanlı çıktı biçimlendirmeli maksimum derinlik — büyük kod tabanları için"
       }
     },
-    "buttonTitle": "Düşünme modu: {{mode}}"
+    "buttonTitle": "Çaba: {{mode}}",
+    "ultracodeActive": "Ultracode çabası etkin"
   },
   "providerSelection": {
     "title": "AI Asistanını Seç",
@@ -264,12 +275,21 @@
     },
     "providers": {
       "assistant": "Asistan"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeye başlamak için bir proje seç"
   },
   "tasks": {
     "nextTaskPrompt": "Sonraki görevi başlat"
+  },
+  "participants": {
+    "hide": "Katılımcı çubuğunu gizle",
+    "show": "Katılımcı çubuğunu göster"
+  },
+  "refreshChat": {
+    "button": "Sohbeti yenile",
+    "refreshing": "Yenileniyor…"
   }
 }

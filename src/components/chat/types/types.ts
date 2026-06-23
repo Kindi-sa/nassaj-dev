@@ -29,6 +29,32 @@ export interface ChatMessage {
   type: string;
   content?: string;
   displayText?: string;
+  /**
+   * Authenticated author (users.id) of a user message — same id as the
+   * participants API. Absent = author unknown; renderers must fall back to a
+   * neutral avatar, never the viewing user's.
+   */
+  userId?: number;
+  /**
+   * Coordinator attribution for an `assistant` message (server commit 9c61b60):
+   * the users.id of the participant who launched the run that produced this
+   * reply — same id space as the participants API. Stamped live and on
+   * reloaded history. `null`/absent = unknown coordinator (legacy rows); the
+   * renderer falls back to the session owner. User messages never carry it
+   * (they use `userId`).
+   */
+  coordinatorId?: number | null;
+  /**
+   * Machine origin discriminator for a `type:'user'` message (server commit
+   * 91b8b39). Absent = genuine human input (userId present).
+   * Present = programmatic / machine-authored row with no userId:
+   *   'coordinator' — coordinator prompting a sub-agent (Task/Agent tool).
+   *   'peer'        — inter-agent peer message.
+   *   'channel'     — broadcast channel injection.
+   *   'task-notification' — automated task status update.
+   * Rule: type:'user' + originKind present ⇒ machine-authored; absent ⇒ human.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | string;
   timestamp: string | number | Date;
   images?: ChatImage[];
   reasoning?: string;
@@ -106,7 +132,7 @@ export interface ChatInterfaceProps {
   selectedProject: Project | null;
   selectedSession: ProjectSession | null;
   ws: WebSocket | null;
-  sendMessage: (message: unknown) => void;
+  sendMessage: (message: unknown) => { ok: boolean; reason?: string } | void;
   latestMessage: any;
   onFileOpen?: (filePath: string, diffInfo?: any) => void;
   onInputFocusChange?: (focused: boolean) => void;
@@ -120,6 +146,7 @@ export interface ChatInterfaceProps {
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
+  hideToolCalls?: boolean;
   autoScrollToBottom?: boolean;
   sendByCtrlEnter?: boolean;
   externalMessageUpdate?: number;

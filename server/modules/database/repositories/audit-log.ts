@@ -13,6 +13,8 @@ import { getConnection } from '@/modules/database/connection.js';
 export type AuditAction =
   | 'login_success'
   | 'login_failure'
+  | 'logout'
+  | 'auth_rejected'
   | 'token_refresh'
   | 'bootstrap_owner'
   | 'invite_created'
@@ -21,13 +23,25 @@ export type AuditAction =
   | 'invite_rejected'
   | 'user_disabled'
   | 'user_enabled'
+  | 'user_deleted'
   | 'role_changed'
+  | 'insufficient_role'
+  | 'participants_backfilled'
   | 'user_dirs_provisioned'
   | 'password_changed'
   | 'username_changed'
   | 'password_reset'
   | 'avatar_updated'
-  | 'admin_provider_sharing_update';
+  | 'admin_provider_sharing_update'
+  | 'passkey_registered'
+  | 'passkey_removed';
+
+/**
+ * Hard cap on the stored User-Agent string (T-182). UA headers can be long and
+ * are attacker-controlled, so we truncate to bound the row size; the prefix is
+ * sufficient for forensic correlation.
+ */
+const MAX_USER_AGENT_LEN = 512;
 
 type AuditLogRow = {
   id: number;
@@ -35,6 +49,7 @@ type AuditLogRow = {
   action: string;
   metadata: string | null;
   ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 };
 
@@ -49,15 +64,20 @@ export const auditLogDb = {
       userId?: number | null;
       metadata?: Record<string, unknown>;
       ipAddress?: string | null;
+      userAgent?: string | null;
     } = {}
   ): void {
     try {
       const db = getConnection();
       const metadataJson =
         options.metadata === undefined ? null : JSON.stringify(options.metadata);
+      const userAgent =
+        typeof options.userAgent === 'string'
+          ? options.userAgent.slice(0, MAX_USER_AGENT_LEN)
+          : null;
       db.prepare(
-        'INSERT INTO audit_log (user_id, action, metadata, ip_address) VALUES (?, ?, ?, ?)'
-      ).run(options.userId ?? null, action, metadataJson, options.ipAddress ?? null);
+        'INSERT INTO audit_log (user_id, action, metadata, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)'
+      ).run(options.userId ?? null, action, metadataJson, options.ipAddress ?? null, userAgent);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Failed to write audit log', { action, error: message });

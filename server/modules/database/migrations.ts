@@ -5,14 +5,18 @@ import {
   AUDIT_LOG_TABLE_SCHEMA_SQL,
   INVITES_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
+  MESSAGE_AUTHORS_TABLE_SCHEMA_SQL,
+  PROJECT_MEMBERS_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL,
   SESSION_AGENTS_META_TABLE_SCHEMA_SQL,
   SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  STARRED_SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
+  WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
 
 const SQLITE_UUID_SQL = `
@@ -130,6 +134,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'custom_project_name', 'TEXT DEFAULT NULL');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
+    addColumnToTableIfNotExists(db, 'projects', columnNames, 'visibility', "TEXT NOT NULL DEFAULT 'public'");
+    addColumnToTableIfNotExists(db, 'projects', columnNames, 'created_by', 'INTEGER');
     db.exec(`
       UPDATE projects
       SET project_id = ${SQLITE_UUID_SQL}
@@ -156,6 +162,12 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
 
   const isArchivedExpression = columnNames.includes('isArchived') ? 'COALESCE(isArchived, 0)' : '0';
 
+  const visibilityExpression = columnNames.includes('visibility')
+    ? "COALESCE(visibility, 'public')"
+    : "'public'";
+
+  const createdByExpression = columnNames.includes('created_by') ? 'created_by' : 'NULL';
+
   const projectIdExpression = columnNames.includes('project_id')
     ? `CASE
          WHEN project_id IS NULL OR trim(project_id) = ''
@@ -174,7 +186,9 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path TEXT NOT NULL UNIQUE,
         custom_project_name TEXT DEFAULT NULL,
         isStarred BOOLEAN DEFAULT 0,
-        isArchived BOOLEAN DEFAULT 0
+        isArchived BOOLEAN DEFAULT 0,
+        visibility TEXT NOT NULL DEFAULT 'public',
+        created_by INTEGER
       )
     `);
     db.exec(`
@@ -184,6 +198,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           ${customProjectNameExpression} AS custom_project_name,
           ${isStarredExpression} AS isStarred,
           ${isArchivedExpression} AS isArchived,
+          ${visibilityExpression} AS visibility,
+          ${createdByExpression} AS created_by,
           ${projectIdExpression} AS candidate_project_id,
           rowid AS source_rowid
         FROM projects
@@ -195,6 +211,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           custom_project_name,
           isStarred,
           isArchived,
+          visibility,
+          created_by,
           candidate_project_id,
           source_rowid,
           ROW_NUMBER() OVER (PARTITION BY project_path ORDER BY source_rowid) AS project_path_rank
@@ -210,7 +228,9 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           project_path,
           custom_project_name,
           isStarred,
-          isArchived
+          isArchived,
+          visibility,
+          created_by
         FROM deduped_paths
         WHERE project_path_rank = 1
       )
@@ -219,14 +239,18 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        visibility,
+        created_by
       )
       SELECT
         project_id,
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        visibility,
+        created_by
       FROM prepared_rows
     `);
     db.exec('DROP TABLE projects');
@@ -449,6 +473,28 @@ const migrateMultiUserAuth = (db: Database, userColumnNames: string[]): void => 
 };
 
 /**
+ * audit_log diagnostic enrichment (T-182). Adds the `user_agent` column to the
+ * audit_log table on existing installs so auth events can record the caller's
+ * User-Agent string for forensics (e.g. distinguishing a real browser from a
+ * scripted client during an account-takeover investigation). Fresh installs get
+ * the column from AUDIT_LOG_TABLE_SCHEMA_SQL; this migration is the additive,
+ * idempotent backstop for upgraded databases.
+ *
+ * Forward-only: no backfill (historical rows keep NULL), no index (the column is
+ * read for inspection, never filtered/joined on). Guarded by tableExists so it
+ * is a no-op on a pre-bootstrap database that has not created audit_log yet.
+ */
+const migrateAuditLogUserAgent = (db: Database): void => {
+  if (!tableExists(db, 'audit_log')) {
+    return;
+  }
+  const cols = (db.prepare('PRAGMA table_info(audit_log)').all() as { name: string }[]).map(
+    (r) => r.name
+  );
+  addColumnToTableIfNotExists(db, 'audit_log', cols, 'user_agent', 'TEXT DEFAULT NULL');
+};
+
+/**
  * Password-lifecycle migration (C-1): adds the columns backing JWT invalidation
  * on password change and forced password rotation.
  *
@@ -539,6 +585,196 @@ const migrateParticipantsAndAgents = (db: Database): void => {
   }
 };
 
+/**
+ * Per-message sender attribution (B-MU-UX-FIX-MSG-AUTHOR). Creates the
+ * message_authors sidecar table the run path writes a row into for every user
+ * prompt, plus the session lookup index the history-stamping path reads.
+ * Idempotent (IF NOT EXISTS); no backfill is possible — pre-existing messages
+ * have no recorded author and stay unattributed by design.
+ */
+const migrateMessageAuthors = (db: Database): void => {
+  db.exec(MESSAGE_AUTHORS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_message_authors_session ON message_authors(session_id)');
+};
+
+/**
+ * Private-project visibility (B-PRIV-1). Ensures the `visibility` + `created_by`
+ * columns exist on `projects` and creates the visibility lookup index.
+ *
+ * The columns are normally added by rebuildProjectsTableWithPrimaryKeySchema
+ * (which also keeps the table-rebuild path in sync — critical so they are not
+ * dropped on a future legacy rebuild). This function is a defensive, idempotent
+ * backstop that also owns the index (index lives in migrations, never in
+ * INIT_SCHEMA_SQL — see the 502 lesson). Existing rows default to 'public', so
+ * the introduction of private projects never retroactively hides any project.
+ */
+const migrateProjectVisibility = (db: Database): void => {
+  const projectsTableInfo = getTableInfo(db, 'projects');
+  const columnNames = projectsTableInfo.map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'projects', columnNames, 'visibility', "TEXT NOT NULL DEFAULT 'public'");
+  addColumnToTableIfNotExists(db, 'projects', columnNames, 'created_by', 'INTEGER');
+
+  // Defensive backfill: any NULL visibility (e.g. from a partial legacy rebuild)
+  // resolves to the safe 'public' default so it is never silently hidden.
+  db.exec("UPDATE projects SET visibility = 'public' WHERE visibility IS NULL");
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_projects_visibility ON projects(visibility)');
+};
+
+/**
+ * Explicit project membership (B-PRIV-1). Creates the project_members table and
+ * its user lookup index (index lives here, never in INIT_SCHEMA_SQL — see the
+ * 502 lesson). Idempotent (IF NOT EXISTS); no backfill — membership is derived
+ * for legacy private conversions at conversion time, and public projects need
+ * no rows. Must run AFTER both `projects` and `users` exist so the FKs resolve.
+ */
+const migrateProjectMembers = (db: Database): void => {
+  db.exec(PROJECT_MEMBERS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_project_members_user ON project_members(user_id)');
+};
+
+/**
+ * Passkey support (B-PK-1). Creates the webauthn_credentials table and its
+ * user lookup index (index lives here, never in INIT_SCHEMA_SQL — see the 502
+ * lesson). Idempotent (IF NOT EXISTS); no backfill — users register passkeys
+ * explicitly from their account settings.
+ */
+const migrateWebAuthnCredentials = (db: Database): void => {
+  db.exec(WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL);
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user_id ON webauthn_credentials(user_id)'
+  );
+};
+
+/**
+ * Per-user session stars/favorites (B-STAR). Creates the starred_sessions table
+ * and its user lookup index (index lives here, never in INIT_SCHEMA_SQL — see
+ * the 502 lesson). Idempotent (IF NOT EXISTS); no backfill — stars are an
+ * explicit user action, so existing sessions start unstarred for everyone. Must
+ * run AFTER users exists so the user_id FK resolves.
+ */
+const migrateStarredSessions = (db: Database): void => {
+  db.exec(STARRED_SESSIONS_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_starred_sessions_user ON starred_sessions(user_id)');
+};
+
+/**
+ * Adds ON DELETE CASCADE from session_agents_cache and session_agents_meta to
+ * sessions. SQLite does not support ALTER TABLE … ADD CONSTRAINT, so we use
+ * the safe rename-and-rebuild pattern inside an explicit transaction.
+ *
+ * Idempotent: checks whether the FK already carries the CASCADE action by
+ * inspecting `PRAGMA foreign_key_list` — a rebuild is only performed when
+ * needed, so this function is always safe to call during boot.
+ *
+ * Data preservation is guaranteed: all existing rows are copied to the new
+ * tables before the old ones are dropped. The operation runs under a single
+ * transaction so a partial failure leaves the original tables intact.
+ *
+ * (B-38 / ADR-023.)
+ */
+const migrateSessionAgentsCascade = (db: Database): void => {
+  type FkListRow = { table: string; on_delete: string };
+
+  const cascadeNeededFor = (tableName: string): boolean => {
+    if (!tableExists(db, tableName)) {
+      return false;
+    }
+    const fkList = db.prepare(`PRAGMA foreign_key_list(${tableName})`).all() as FkListRow[];
+    // Look for the FK that points at sessions — if it's already CASCADE we're done.
+    const sessionFk = fkList.find((row) => row.table === 'sessions');
+    return !sessionFk || sessionFk.on_delete !== 'CASCADE';
+  };
+
+  const needsCacheRebuild = cascadeNeededFor('session_agents_cache');
+  const needsMetaRebuild = cascadeNeededFor('session_agents_meta');
+
+  if (!needsCacheRebuild && !needsMetaRebuild) {
+    return;
+  }
+
+  console.log('Running migration: Adding ON DELETE CASCADE to session_agents tables');
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN TRANSACTION');
+
+    if (needsCacheRebuild) {
+      db.exec('DROP TABLE IF EXISTS session_agents_cache__new');
+      db.exec(`
+        CREATE TABLE session_agents_cache__new (
+          session_id TEXT NOT NULL,
+          agent_name TEXT NOT NULL,
+          agent_kind TEXT NOT NULL,
+          invocation_count INTEGER DEFAULT 1,
+          PRIMARY KEY (session_id, agent_name, agent_kind),
+          FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+        )
+      `);
+      db.exec(`
+        INSERT INTO session_agents_cache__new
+          (session_id, agent_name, agent_kind, invocation_count)
+        SELECT session_id, agent_name, agent_kind, invocation_count
+        FROM session_agents_cache
+      `);
+      db.exec('DROP TABLE session_agents_cache');
+      db.exec('ALTER TABLE session_agents_cache__new RENAME TO session_agents_cache');
+      // Recreate the index that normally lives in migrateParticipantsAndAgents.
+      db.exec(
+        'CREATE INDEX IF NOT EXISTS idx_session_agents_cache_session ON session_agents_cache(session_id)'
+      );
+    }
+
+    if (needsMetaRebuild) {
+      db.exec('DROP TABLE IF EXISTS session_agents_meta__new');
+      db.exec(`
+        CREATE TABLE session_agents_meta__new (
+          session_id TEXT PRIMARY KEY,
+          transcript_mtime INTEGER NOT NULL,
+          parsed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+        )
+      `);
+      db.exec(`
+        INSERT INTO session_agents_meta__new
+          (session_id, transcript_mtime, parsed_at)
+        SELECT session_id, transcript_mtime, parsed_at
+        FROM session_agents_meta
+      `);
+      db.exec('DROP TABLE session_agents_meta');
+      db.exec('ALTER TABLE session_agents_meta__new RENAME TO session_agents_meta');
+    }
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+};
+
+/**
+ * Adds the `agent_model` column to `session_agents_cache` so that the
+ * transcript parser can record the resolved model string for each agent
+ * (coordinator model and per-subagent model when recoverable from subagent
+ * JSONL files). Idempotent — uses `addColumnToTableIfNotExists`.
+ *
+ * Fresh installs already have this column from SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL;
+ * this migration handles existing databases that were created before the column
+ * was added.
+ */
+const migrateSessionAgentsModel = (db: Database): void => {
+  if (!tableExists(db, 'session_agents_cache')) {
+    return;
+  }
+  const cols = (db.prepare('PRAGMA table_info(session_agents_cache)').all() as { name: string }[]).map(
+    (r) => r.name
+  );
+  addColumnToTableIfNotExists(db, 'session_agents_cache', cols, 'agent_model', 'TEXT DEFAULT NULL');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -556,6 +792,9 @@ export const runMigrations = (db: Database) => {
     );
 
     migrateMultiUserAuth(db, userColumnNames);
+    // audit_log.user_agent (T-182) — after migrateMultiUserAuth has ensured the
+    // audit_log table exists, so the additive column migration finds its target.
+    migrateAuditLogUserAgent(db);
     migratePasswordLifecycle(db, userColumnNames);
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
@@ -594,9 +833,60 @@ export const runMigrations = (db: Database) => {
     // FKs resolve and the owner backfill can find both tables.
     migrateParticipantsAndAgents(db);
 
+    // Message sender attribution — after users exist so the FK resolves.
+    migrateMessageAuthors(db);
+
+    // Private-project visibility + membership — after the projects table has its
+    // project_id primary key (rebuildProjectsTableWithPrimaryKeySchema, above)
+    // and after users exist so the project_members FKs resolve.
+    migrateProjectVisibility(db);
+    migrateProjectMembers(db);
+
+    // Passkeys (WebAuthn) — after users exist so the FK resolves.
+    migrateWebAuthnCredentials(db);
+
+    // Per-user session stars — after users exist so the FK resolves.
+    migrateStarredSessions(db);
+
+    // FK CASCADE on session_agents tables — must run after sessions exist so
+    // the REFERENCES sessions(session_id) constraint is satisfiable. (B-38.)
+    migrateSessionAgentsCascade(db);
+
+    // agent_model column on session_agents_cache — stores the resolved model
+    // string for each agent row so the UI can display per-agent model badges.
+    migrateSessionAgentsModel(db);
+
     console.log('Database migrations completed successfully');
   } catch (error: any) {
     console.error('Error running migrations:', error.message);
     throw error;
+  }
+};
+
+/** Retention horizon for audit_log rows (T-182, qa-critic D-3): 90 days. */
+const AUDIT_LOG_RETENTION_DAYS = 90;
+
+/**
+ * Prunes audit_log rows older than the retention horizon (T-182, qa-critic D-3).
+ * The audit log is append-only and grows unbounded otherwise; this bounds it to
+ * a rolling 90-day window. Called once at boot after runMigrations (best-effort:
+ * a prune failure must never block startup). Parameterized + guarded by
+ * tableExists so it is a safe no-op on a pre-bootstrap database.
+ */
+export const pruneAuditLog = (db: Database): void => {
+  try {
+    if (!tableExists(db, 'audit_log')) {
+      return;
+    }
+    const cutoff = `-${AUDIT_LOG_RETENTION_DAYS} days`;
+    const result = db
+      .prepare("DELETE FROM audit_log WHERE created_at < datetime('now', ?)")
+      .run(cutoff);
+    if (result.changes > 0) {
+      console.log('Pruned old audit_log rows', { deleted: result.changes });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Failed to prune audit_log (non-fatal)', { error: message });
   }
 };

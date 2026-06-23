@@ -73,6 +73,46 @@ export const api = {
         body: formData,
       });
     },
+    // Pick a generated gallery avatar or a palette colour (no file upload).
+    // Pass exactly one of { color } or { avatar } (an svg+xml data URI).
+    updateAvatarChoice: (choice) =>
+      authenticatedFetch('/api/auth/me/avatar-choice', {
+        method: 'PATCH',
+        body: JSON.stringify(choice),
+      }),
+
+    // WebAuthn passkeys (B-PK / C-PK). The two login endpoints are public
+    // (no token yet); registration and credential management require auth.
+    // Options endpoints return raw @simplewebauthn option JSON — pass them
+    // straight to startRegistration/startAuthentication({ optionsJSON }).
+    webauthn: {
+      registerOptions: () =>
+        authenticatedFetch('/api/auth/webauthn/register/options', { method: 'POST' }),
+      // `response` is the RegistrationResponseJSON produced by startRegistration.
+      registerVerify: (response, name) =>
+        authenticatedFetch('/api/auth/webauthn/register/verify', {
+          method: 'POST',
+          body: JSON.stringify(name ? { response, name } : { response }),
+        }),
+      listCredentials: () => authenticatedFetch('/api/auth/webauthn/credentials'),
+      renameCredential: (id, name) =>
+        authenticatedFetch(`/api/auth/webauthn/credentials/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ name }),
+        }),
+      deleteCredential: (id) =>
+        authenticatedFetch(`/api/auth/webauthn/credentials/${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+        }),
+      // Public login pair — same contract as POST /api/auth/login on verify.
+      loginOptions: () => fetch('/api/auth/webauthn/login/options', { method: 'POST' }),
+      // `response` is the AuthenticationResponseJSON produced by startAuthentication.
+      loginVerify: (response) => fetch('/api/auth/webauthn/login/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response }),
+      }),
+    },
 
     // Invite acceptance (public): creates a `user` account from an invite token.
     acceptInvite: (token, username, password) => fetch('/api/auth/invite/accept', {
@@ -111,6 +151,45 @@ export const api = {
       authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}/reset-password`, {
         method: 'POST',
       }),
+    // Permanently delete a user account (owner-only). Cannot delete self or last owner.
+    deleteUser: (id) =>
+      authenticatedFetch(`/api/auth/users/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // App-wide branding (custom logo + title). Read is available to any
+  // authenticated user (needed to render the header); writes are owner-only,
+  // enforced on the server.
+  branding: {
+    get: () => authenticatedFetch('/api/settings/branding'),
+    updateTitle: (title) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ title }),
+      }),
+    updateLogoOnly: (logoOnly) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ logoOnly }),
+      }),
+    updateSplashHideTitle: (splashHideTitle) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ splashHideTitle }),
+      }),
+    uploadLogo: (file, variant = 'light') => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      return authenticatedFetch(`/api/settings/branding/logo?variant=${encodeURIComponent(variant)}`, {
+        method: 'POST',
+        body: formData,
+      });
+    },
+    deleteLogo: (variant = 'light') =>
+      authenticatedFetch(`/api/settings/branding/logo?variant=${encodeURIComponent(variant)}`, {
+        method: 'DELETE',
+      }),
   },
 
   // Admin-only: per-provider credential sharing mode (shared vs isolated).
@@ -137,6 +216,16 @@ export const api = {
   },
   projectTaskmaster: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/taskmaster`),
+  // Project Board — live projection of docs/project-state.json + ARCHITECTURE files.
+  projectBoard: (projectId) =>
+    authenticatedFetch(`/api/project-board/${encodeURIComponent(projectId)}`),
+  // Runner Bridge — read runner state + write control files (ADR-RUNNER-BRIDGE-001).
+  runnerStatus: (projectId) =>
+    authenticatedFetch(`/api/runner/${encodeURIComponent(projectId)}`),
+  runnerControl: (projectId, action) =>
+    authenticatedFetch(`/api/runner/${encodeURIComponent(projectId)}/${action}`, {
+      method: 'POST',
+    }),
   // Multi-user participation (Phase-MU): humans + agents seen in a session/project.
   // Lazy endpoints — fetched on demand (hover/open), never in the initial load.
   sessionParticipants: (sessionId) =>
@@ -165,6 +254,26 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/restore`, {
       method: 'POST',
     }),
+  // Project privacy (C-PRIV-6). Server returns { success, data:{ projectId, visibility } }
+  // and broadcasts `projects_updated`; the frontend updates optimistically first.
+  setProjectVisibility: (projectId, visibility) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/visibility`, {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+    }),
+  // Project membership management (manager-only). Optional in this UI wave.
+  getProjectMembers: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/members`),
+  addProjectMember: (projectId, userId, role = 'member') =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/members`, {
+      method: 'POST',
+      body: JSON.stringify({ userId, role }),
+    }),
+  removeProjectMember: (projectId, userId) =>
+    authenticatedFetch(
+      `/api/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+      { method: 'DELETE' },
+    ),
   // Session deletion now mirrors project deletion:
   // - default: archive only (`isArchived = 1`)
   // - hardDelete: remove the row and, by default, its persisted transcript file
@@ -217,6 +326,14 @@ export const api = {
   toggleProjectStar: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
+    }),
+  // Per-user session star/favorite. Idempotent — `starred` is the desired
+  // absolute state, not a toggle. The user is taken from the auth token server-side.
+  // Returns { success, data: { sessionId, projectName, starred } }.
+  starSession: (sessionId, projectName, starred) =>
+    authenticatedFetch('/api/sessions/star', {
+      method: 'POST',
+      body: JSON.stringify({ sessionId, projectName, starred }),
     }),
   readFile: (projectId, filePath) =>
     authenticatedFetch(`/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`),
@@ -324,6 +441,17 @@ export const api = {
       authenticatedFetch('/api/user/complete-onboarding', {
         method: 'POST',
       }),
+    // Per-user Claude subscription link status (Phase-MU, B-MU-ONBOARD).
+    // Returns { connected: boolean, provider: 'claude' }. With per-user
+    // isolation each user links their own Claude credential via the terminal
+    // (`claude setup-token`); the owner is symbolically linked automatically.
+    claudeConnection: () => authenticatedFetch('/api/user/claude-connection'),
+    // Per-user Antigravity (agy) subscription link status. Mirrors
+    // claudeConnection: returns { connected: boolean, provider: 'agy' }. Each
+    // user links their own agy credential by running `agy` interactively in the
+    // terminal (which launches OAuth when no valid token exists); the owner is
+    // symbolically linked automatically and always reports connected: true.
+    agyConnection: () => authenticatedFetch('/api/user/agy-connection'),
   },
 
   // Provider account/usage endpoints.

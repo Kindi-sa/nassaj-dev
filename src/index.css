@@ -2,6 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Ultracode effort mode: terminal glow ring ──────────────────────────── */
+@keyframes ultracode-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.70),
+      0 0 10px 3px rgba(239, 68, 68, 0.35),
+      0 0 20px 6px rgba(249, 115, 22, 0.20);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(220, 38, 38, 0.90),
+      0 0 16px 5px rgba(220, 38, 38, 0.55),
+      0 0 30px 10px rgba(239, 68, 68, 0.25);
+  }
+}
+
+.ultracode-ring {
+  border-radius: 9999px;
+  animation: ultracode-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ultracode-ring {
+    animation: none;
+    box-shadow:
+      0 0 0 2px rgba(239, 68, 68, 0.75),
+      0 0 12px 4px rgba(239, 68, 68, 0.40),
+      0 0 22px 7px rgba(249, 115, 22, 0.20);
+  }
+}
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 /* Global spinner animation - defined early to ensure it loads */
 @keyframes spin {
   0% {
@@ -381,7 +413,7 @@
   
   /* Ensure checkbox styling is preserved */
   input[type="checkbox"] {
-    @apply accent-blue-600;
+    @apply accent-primary;
     opacity: 1;
   }
   
@@ -393,38 +425,38 @@
   
   /* Fix checkbox appearance in dark mode */
   .dark input[type="checkbox"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border));
+    color: hsl(var(--primary));
     color-scheme: dark;
   }
-  
+
   .dark input[type="checkbox"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
   }
-  
+
   .dark input[type="checkbox"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: hsl(var(--ring));
+    --tw-ring-offset-color: hsl(var(--background));
   }
-  
+
   /* Fix radio button appearance in dark mode */
   .dark input[type="radio"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--card));
+    border-color: hsl(var(--border));
+    color: hsl(var(--primary));
     color-scheme: dark;
   }
-  
+
   .dark input[type="radio"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: hsl(var(--primary));
+    border-color: hsl(var(--primary));
   }
-  
+
   .dark input[type="radio"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: hsl(var(--ring));
+    --tw-ring-offset-color: hsl(var(--background));
   }
   
   /* Ensure textarea text is always visible in dark mode */
@@ -938,12 +970,13 @@
 /* ============================================================
    RTL & Arabic typography
    ------------------------------------------------------------
-   The RTL toggle lives in Appearance settings (RtlContext) and
-   sets `dir="rtl"` + `lang="ar"` on <html>. We keep the default
-   sans stack for LTR and switch to Tajawal only when RTL is on.
-   Technical surfaces (CodeMirror, xterm, git diffs, file paths)
-   override with dir="ltr" inline; they keep their monospace font
-   via the existing component styles.
+   Direction is derived automatically from the active i18n language
+   (RtlContext): Arabic sets `dir="rtl"` + `lang="ar"` on <html>;
+   all other languages use LTR. We keep the default sans stack for
+   LTR and switch to Tajawal only when RTL is active. Technical
+   surfaces (CodeMirror, xterm, git diffs, file paths) override with
+   dir="ltr" inline; they keep their monospace font via the existing
+   component styles.
    ============================================================ */
 :root[dir="rtl"] body,
 :root[dir="rtl"] {

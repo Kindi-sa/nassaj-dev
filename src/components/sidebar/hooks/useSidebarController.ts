@@ -8,6 +8,7 @@ import type {
   ArchivedProjectListItem,
   ArchivedSessionListItem,
   DeleteProjectConfirmation,
+  ProjectMembershipFilter,
   ProjectSortOrder,
   SidebarSearchMode,
   SessionDeleteConfirmation,
@@ -16,52 +17,16 @@ import type {
 import {
   clearLegacyStarredProjectIds,
   filterProjects,
+  filterProjectsByMembership,
   getAllSessions,
+  getMatchedSessionIds,
+  getSessionCreationDate,
   readLegacyStarredProjectIds,
+  readProjectMembershipFilter,
   readProjectSortOrder,
   sortProjects,
+  writeProjectMembershipFilter,
 } from '../utils/utils';
-
-type SnippetHighlight = {
-  start: number;
-  end: number;
-};
-
-type ConversationMatch = {
-  role: string;
-  snippet: string;
-  highlights: SnippetHighlight[];
-  timestamp: string | null;
-  provider?: string;
-  messageUuid?: string | null;
-};
-
-type ConversationSession = {
-  sessionId: string;
-  sessionSummary: string;
-  provider?: string;
-  matches: ConversationMatch[];
-};
-
-type ConversationProjectResult = {
-  // Emitted by the provider search service so the sidebar can map a
-  // match back to the Project in its current state by projectId.
-  projectId: string | null;
-  projectName: string;
-  projectDisplayName: string;
-  sessions: ConversationSession[];
-};
-
-export type ConversationSearchResults = {
-  results: ConversationProjectResult[];
-  totalMatches: number;
-  query: string;
-};
-
-export type SearchProgress = {
-  scannedProjects: number;
-  totalProjects: number;
-};
 
 type ArchivedSessionsApiPayload = {
   success?: boolean;
@@ -121,6 +86,8 @@ export function useSidebarController({
   const [initialSessionsLoaded, setInitialSessionsLoaded] = useState<Set<string>>(new Set());
   const [currentTime, setCurrentTime] = useState(new Date());
   const [projectSortOrder, setProjectSortOrder] = useState<ProjectSortOrder>('name');
+  // "My Projects / All" view filter (C-MU-UX-PROJ-FILTER), persisted per-browser.
+  const [membershipFilter, setMembershipFilterState] = useState<ProjectMembershipFilter>(readProjectMembershipFilter);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingSession, setEditingSession] = useState<string | null>(null);
   const [editingSessionName, setEditingSessionName] = useState('');
@@ -130,18 +97,25 @@ export function useSidebarController({
   const [sessionDeleteConfirmation, setSessionDeleteConfirmation] = useState<SessionDeleteConfirmation | null>(null);
   const [showVersionModal, setShowVersionModal] = useState(false);
   const [searchMode, setSearchMode] = useState<SidebarSearchMode>('projects');
-  const [conversationResults, setConversationResults] = useState<ConversationSearchResults | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchProgress, setSearchProgress] = useState<SearchProgress | null>(null);
   const [archivedProjects, setArchivedProjects] = useState<ArchivedProjectListItem[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<ArchivedSessionListItem[]>([]);
   const [isArchivedSessionsLoading, setIsArchivedSessionsLoading] = useState(false);
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [optimisticStarByProjectId, setOptimisticStarByProjectId] = useState<Map<string, boolean>>(new Map());
+  // Optimistic project visibility (C-PRIV-6): flip locally on click, then let the
+  // `projects_updated` broadcast / refresh confirm the authoritative value.
+  const [optimisticVisibilityByProjectId, setOptimisticVisibilityByProjectId] = useState<
+    Map<string, 'public' | 'private'>
+  >(new Map());
   const [loadingMoreProjects, setLoadingMoreProjects] = useState<Set<string>>(new Set());
-  const searchSeqRef = useRef(0);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  // Optimistic per-session star state, keyed by sessionId. Flip locally on
+  // click, then reconcile to the server's authoritative `starred` once it
+  // responds (POST /api/sessions/star returns the new value). The map is
+  // pruned whenever the projects payload already reflects the optimistic value.
+  const [optimisticStarBySessionId, setOptimisticStarBySessionId] = useState<Map<string, boolean>>(new Map());
+  const starToggleSequenceBySessionRef = useRef<Map<string, number>>(new Map());
   const starToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
+  const visibilityToggleSequenceByProjectRef = useRef<Map<string, number>>(new Map());
   const migrationStartedRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
 
@@ -322,8 +296,44 @@ export function useSidebarController({
     });
   }, [projects]);
 
-  // Debounce search text updates so both project filtering and conversation
-  // SSE requests avoid running on every keypress.
+  // Drop optimistic session stars once the projects payload (which carries the
+  // per-session `starred` flag) already reflects the optimistic value, so the
+  // server stays the source of truth after a refresh.
+  useEffect(() => {
+    setOptimisticStarBySessionId((previous) => {
+      if (previous.size === 0) {
+        return previous;
+      }
+
+      const serverStarBySessionId = new Map<string, boolean>();
+      for (const project of projects) {
+        for (const session of getAllSessions(project)) {
+          serverStarBySessionId.set(session.id, Boolean(session.starred));
+        }
+      }
+
+      const next = new Map(previous);
+      let changed = false;
+
+      for (const [sessionId, optimisticValue] of previous.entries()) {
+        // Keep the optimistic value while the session is absent from the
+        // current payload (e.g. not yet loaded), since the user just acted on it.
+        if (!serverStarBySessionId.has(sessionId)) {
+          continue;
+        }
+
+        if (serverStarBySessionId.get(sessionId) === optimisticValue) {
+          next.delete(sessionId);
+          changed = true;
+        }
+      }
+
+      return changed ? next : previous;
+    });
+  }, [projects]);
+
+  // Debounce search text updates so project and archive filtering avoid
+  // running on every keypress.
   useEffect(() => {
     const timeout = setTimeout(() => {
       setDebouncedSearchQuery(searchFilter.trim());
@@ -334,94 +344,55 @@ export function useSidebarController({
     };
   }, [searchFilter]);
 
-  // Debounced conversation search with SSE streaming
+  // Auto-expand projects whose sessions match the search query (but whose own
+  // name does not), so the user sees the matching sessions without having to
+  // open each project manually.  When the search is cleared the expanded set
+  // returns to its previous state (the effect below is additive only).
   useEffect(() => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-
-    const query = debouncedSearchQuery;
-    if (searchMode !== 'conversations' || query.length < 2) {
-      searchSeqRef.current += 1;
-      setConversationResults(null);
-      setSearchProgress(null);
-      setIsSearching(false);
+    if (!debouncedSearchQuery) {
       return;
     }
 
-    setIsSearching(true);
-    const seq = ++searchSeqRef.current;
+    const normalizedSearch = debouncedSearchQuery.trim().toLowerCase()
+      // Strip Arabic diacritics – mirrors normalizeForSearch in utils.ts.
+      .replace(/[ً-ٟ]/g, '');
 
-    if (seq !== searchSeqRef.current) {
+    if (!normalizedSearch) {
       return;
     }
 
-    const url = api.searchConversationsUrl(query);
-    const es = new EventSource(url);
-    eventSourceRef.current = es;
+    setExpandedProjects((prev) => {
+      let changed = false;
+      const next = new Set(prev);
 
-    const accumulated: ConversationProjectResult[] = [];
-    let totalMatches = 0;
+      for (const project of projects) {
+        // Already expanded — nothing to do.
+        if (next.has(project.projectId)) {
+          continue;
+        }
 
-    es.addEventListener('result', (evt) => {
-      if (seq !== searchSeqRef.current) { es.close(); return; }
-      try {
-        const data = JSON.parse(evt.data) as {
-          projectResult: ConversationProjectResult;
-          totalMatches: number;
-          scannedProjects: number;
-          totalProjects: number;
-        };
-        accumulated.push(data.projectResult);
-        totalMatches = data.totalMatches;
-        setConversationResults({ results: [...accumulated], totalMatches, query });
-        setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
-      } catch {
-        // Ignore malformed SSE data
+        // If the project name itself matched there is no need to force-expand
+        // (the project is visible but there is no session filter to reveal).
+        const projectNameNorm = (project.displayName || project.projectId)
+          .toLowerCase()
+          .replace(/[ً-ٟ]/g, '');
+        const pathNorm = (project.path || project.fullPath || '')
+          .toLowerCase()
+          .replace(/[ً-ٟ]/g, '');
+
+        if (projectNameNorm.includes(normalizedSearch) || pathNorm.includes(normalizedSearch)) {
+          continue;
+        }
+
+        if (getMatchedSessionIds(project, normalizedSearch).size > 0) {
+          next.add(project.projectId);
+          changed = true;
+        }
       }
+
+      return changed ? next : prev;
     });
-
-    es.addEventListener('progress', (evt) => {
-      if (seq !== searchSeqRef.current) { es.close(); return; }
-      try {
-        const data = JSON.parse(evt.data) as { totalMatches: number; scannedProjects: number; totalProjects: number };
-        totalMatches = data.totalMatches;
-        setSearchProgress({ scannedProjects: data.scannedProjects, totalProjects: data.totalProjects });
-      } catch {
-        // Ignore malformed SSE data
-      }
-    });
-
-    es.addEventListener('done', () => {
-      if (seq !== searchSeqRef.current) { es.close(); return; }
-      es.close();
-      eventSourceRef.current = null;
-      setIsSearching(false);
-      setSearchProgress(null);
-      if (accumulated.length === 0) {
-        setConversationResults({ results: [], totalMatches: 0, query });
-      }
-    });
-
-    es.addEventListener('error', () => {
-      if (seq !== searchSeqRef.current) { es.close(); return; }
-      es.close();
-      eventSourceRef.current = null;
-      setIsSearching(false);
-      setSearchProgress(null);
-      if (accumulated.length === 0) {
-        setConversationResults({ results: [], totalMatches: 0, query });
-      }
-    });
-
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  }, [debouncedSearchQuery, searchMode]);
+  }, [debouncedSearchQuery, projects]);
 
   // All sidebar state keys (expanded, starred, loading, etc.) use the DB
   // `projectId` as their identifier after the migration.
@@ -517,7 +488,189 @@ export function useSidebarController({
     [resolveProjectStarState],
   );
 
-  const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
+  // Resolve a session's star state: optimistic value wins while a toggle is in
+  // flight, otherwise fall back to the server-stamped `starred` field.
+  const resolveSessionStarState = useCallback(
+    (session: SessionWithProvider): boolean => {
+      if (optimisticStarBySessionId.has(session.id)) {
+        return Boolean(optimisticStarBySessionId.get(session.id));
+      }
+      return Boolean(session.starred);
+    },
+    [optimisticStarBySessionId],
+  );
+
+  // Toggle a session's per-user star. Flip optimistically (so the icon fills and
+  // the row floats to the top immediately), call the idempotent endpoint, then
+  // reconcile to the server's returned value. Errors roll the value back.
+  // `projectName` is the owning project's DB id, used by the server to scope the row.
+  const toggleStarSession = useCallback(
+    (session: SessionWithProvider, projectName: string) => {
+      const previousStarState = resolveSessionStarState(session);
+      const optimisticStarState = !previousStarState;
+      const sessionId = session.id;
+      const latestSequence = (starToggleSequenceBySessionRef.current.get(sessionId) ?? 0) + 1;
+      starToggleSequenceBySessionRef.current.set(sessionId, latestSequence);
+
+      setOptimisticStarBySessionId((previous) => {
+        const next = new Map(previous);
+        next.set(sessionId, optimisticStarState);
+        return next;
+      });
+
+      const run = async () => {
+        try {
+          const response = await api.starSession(sessionId, projectName, optimisticStarState);
+          if (!response.ok) {
+            throw new Error(`star request failed (${response.status})`);
+          }
+
+          const payload = (await response.json()) as { data?: { starred?: boolean } };
+          if (starToggleSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+            return;
+          }
+
+          const confirmedStar = Boolean(payload.data?.starred ?? optimisticStarState);
+          setOptimisticStarBySessionId((previous) => {
+            const next = new Map(previous);
+            next.set(sessionId, confirmedStar);
+            return next;
+          });
+        } catch (error) {
+          if (starToggleSequenceBySessionRef.current.get(sessionId) !== latestSequence) {
+            return;
+          }
+
+          setOptimisticStarBySessionId((previous) => {
+            const next = new Map(previous);
+            next.set(sessionId, previousStarState);
+            return next;
+          });
+          console.error('[Sidebar] Failed to toggle session star:', error);
+        }
+      };
+
+      void run();
+    },
+    [resolveSessionStarState],
+  );
+
+  const isSessionStarred = useCallback(
+    (session: SessionWithProvider) => resolveSessionStarState(session),
+    [resolveSessionStarState],
+  );
+
+  // C-PRIV-6: flip project visibility. Update optimistically, call the server,
+  // then drop the optimistic value once the authoritative `projects_updated`
+  // broadcast (or a manual refresh) lands. Errors roll the value back.
+  const setProjectVisibility = useCallback(
+    (projectId: string, nextVisibility: 'public' | 'private') => {
+      const previousVisibility =
+        optimisticVisibilityByProjectId.get(projectId) ??
+        projects.find((candidate) => candidate.projectId === projectId)?.visibility ??
+        'public';
+
+      const latestSequence = (visibilityToggleSequenceByProjectRef.current.get(projectId) ?? 0) + 1;
+      visibilityToggleSequenceByProjectRef.current.set(projectId, latestSequence);
+
+      setOptimisticVisibilityByProjectId((previous) => {
+        const next = new Map(previous);
+        next.set(projectId, nextVisibility);
+        return next;
+      });
+
+      const clearOptimistic = () => {
+        if (visibilityToggleSequenceByProjectRef.current.get(projectId) !== latestSequence) {
+          return;
+        }
+        setOptimisticVisibilityByProjectId((previous) => {
+          if (!previous.has(projectId)) {
+            return previous;
+          }
+          const next = new Map(previous);
+          next.delete(projectId);
+          return next;
+        });
+      };
+
+      const run = async () => {
+        try {
+          const response = await api.setProjectVisibility(projectId, nextVisibility);
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as {
+              error?: string | { message?: string };
+            };
+            const errorPayload = payload.error;
+            const message =
+              typeof errorPayload === 'string'
+                ? errorPayload
+                : errorPayload && typeof errorPayload === 'object' && errorPayload.message
+                  ? errorPayload.message
+                  : t('messages.updateProjectError');
+            throw new Error(message);
+          }
+
+          // The server broadcasts `projects_updated`; refresh to pick up the
+          // authoritative list (private projects may even disappear), then drop
+          // the optimistic override so the canonical value drives the UI.
+          await Promise.resolve(onRefreshRef.current());
+          clearOptimistic();
+        } catch (error) {
+          if (visibilityToggleSequenceByProjectRef.current.get(projectId) === latestSequence) {
+            setOptimisticVisibilityByProjectId((previous) => {
+              const next = new Map(previous);
+              next.set(projectId, previousVisibility);
+              return next;
+            });
+          }
+          console.error('[Sidebar] Failed to change project visibility:', error);
+          alert(t('messages.updateProjectError'));
+        }
+      };
+
+      void run();
+    },
+    [optimisticVisibilityByProjectId, projects, t],
+  );
+
+  // Build the project's session list, then overlay any optimistic star state so
+  // a just-clicked session fills its icon and floats to the top without waiting
+  // for the next refresh. getAllSessions already sorts starred-first by `starred`.
+  const getProjectSessions = useCallback(
+    (project: Project) => {
+      const sessions = getAllSessions(project);
+      if (optimisticStarBySessionId.size === 0) {
+        return sessions;
+      }
+
+      let mutated = false;
+      const overlaid = sessions.map((session) => {
+        if (!optimisticStarBySessionId.has(session.id)) {
+          return session;
+        }
+        const optimisticStar = Boolean(optimisticStarBySessionId.get(session.id));
+        if (Boolean(session.starred) === optimisticStar) {
+          return session;
+        }
+        mutated = true;
+        return { ...session, starred: optimisticStar };
+      });
+
+      if (!mutated) {
+        return sessions;
+      }
+
+      return overlaid.sort((a, b) => {
+        const aStarred = Boolean(a.starred);
+        const bStarred = Boolean(b.starred);
+        if (aStarred !== bStarred) {
+          return aStarred ? -1 : 1;
+        }
+        return getSessionCreationDate(b).getTime() - getSessionCreationDate(a).getTime();
+      });
+    },
+    [optimisticStarBySessionId],
+  );
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
     if (!onLoadMoreSessions) {
@@ -555,27 +708,34 @@ export function useSidebarController({
   }, [onLoadMoreSessions, t]);
 
   const projectsWithResolvedStarState = useMemo(() => {
-    if (optimisticStarByProjectId.size === 0) {
+    if (optimisticStarByProjectId.size === 0 && optimisticVisibilityByProjectId.size === 0) {
       return projects;
     }
 
     return projects.map((project) => {
       const optimisticStarState = optimisticStarByProjectId.get(project.projectId);
-      if (optimisticStarState === undefined) {
-        return project;
-      }
+      const optimisticVisibility = optimisticVisibilityByProjectId.get(project.projectId);
 
-      const currentStarState = Boolean(project.isStarred);
-      if (currentStarState === optimisticStarState) {
+      const nextStar =
+        optimisticStarState !== undefined && Boolean(project.isStarred) !== optimisticStarState
+          ? optimisticStarState
+          : undefined;
+      const nextVisibility =
+        optimisticVisibility !== undefined && project.visibility !== optimisticVisibility
+          ? optimisticVisibility
+          : undefined;
+
+      if (nextStar === undefined && nextVisibility === undefined) {
         return project;
       }
 
       return {
         ...project,
-        isStarred: optimisticStarState,
+        ...(nextStar !== undefined ? { isStarred: nextStar } : {}),
+        ...(nextVisibility !== undefined ? { visibility: nextVisibility } : {}),
       };
     });
-  }, [optimisticStarByProjectId, projects]);
+  }, [optimisticStarByProjectId, optimisticVisibilityByProjectId, projects]);
 
   const sortedProjects = useMemo(
     () => sortProjects(projectsWithResolvedStarState, projectSortOrder),
@@ -583,9 +743,18 @@ export function useSidebarController({
   );
 
   const filteredProjects = useMemo(
-    () => filterProjects(sortedProjects, debouncedSearchQuery),
-    [debouncedSearchQuery, sortedProjects],
+    () => filterProjectsByMembership(
+      filterProjects(sortedProjects, debouncedSearchQuery),
+      membershipFilter,
+    ),
+    [debouncedSearchQuery, membershipFilter, sortedProjects],
   );
+
+  // Persist the view filter so the choice survives reloads on this browser.
+  const setMembershipFilter = useCallback((filter: ProjectMembershipFilter) => {
+    setMembershipFilterState(filter);
+    writeProjectMembershipFilter(filter);
+  }, []);
 
   const filteredArchivedSessions = useMemo(() => {
     const normalizedSearch = debouncedSearchQuery.trim().toLowerCase();
@@ -914,6 +1083,8 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    membershipFilter,
+    setMembershipFilter,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,
     archivedSessionsCount: archivedProjects.length + archivedSessions.length,
@@ -922,6 +1093,9 @@ export function useSidebarController({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleStarSession,
+    isSessionStarred,
+    setProjectVisibility,
     getProjectSessions,
     loadMoreSessionsForProject,
     startEditing,
@@ -945,19 +1119,6 @@ export function useSidebarController({
     setEditingSessionName,
     searchMode,
     setSearchMode,
-    conversationResults,
-    isSearching,
-    searchProgress,
-    clearConversationResults: useCallback(() => {
-      searchSeqRef.current += 1;
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-      setIsSearching(false);
-      setSearchProgress(null);
-      setConversationResults(null);
-    }, []),
     setSearchFilter,
     setDeleteConfirmation,
     setSessionDeleteConfirmation,

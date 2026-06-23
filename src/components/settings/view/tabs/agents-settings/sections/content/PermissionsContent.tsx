@@ -501,7 +501,7 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
               name="codexPermissionMode"
               checked={permissionMode === 'default'}
               onChange={() => onPermissionModeChange('default')}
-              className="mt-1 h-4 w-4 text-green-600"
+              className="mt-1 h-4 w-4 text-green-600 accent-emerald-600"
             />
             <div>
               <div className="font-medium text-foreground">{t('permissions.codex.modes.default.title')}</div>
@@ -525,7 +525,7 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
               name="codexPermissionMode"
               checked={permissionMode === 'acceptEdits'}
               onChange={() => onPermissionModeChange('acceptEdits')}
-              className="mt-1 h-4 w-4 text-green-600"
+              className="mt-1 h-4 w-4 text-green-600 accent-emerald-600"
             />
             <div>
               <div className="font-medium text-green-900 dark:text-green-100">{t('permissions.codex.modes.acceptEdits.title')}</div>
@@ -549,7 +549,7 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
               name="codexPermissionMode"
               checked={permissionMode === 'bypassPermissions'}
               onChange={() => onPermissionModeChange('bypassPermissions')}
-              className="mt-1 h-4 w-4 text-orange-600"
+              className="mt-1 h-4 w-4 text-orange-600 accent-orange-600"
             />
             <div>
               <div className="flex items-center gap-2 font-medium text-orange-900 dark:text-orange-100">
@@ -615,7 +615,7 @@ function GeminiPermissions({ permissionMode, onPermissionModeChange }: Omit<Gemi
               name="geminiPermissionMode"
               checked={permissionMode === 'default'}
               onChange={() => onPermissionModeChange('default')}
-              className="mt-1 h-4 w-4 text-green-600"
+              className="mt-1 h-4 w-4 text-green-600 accent-emerald-600"
             />
             <div>
               <div className="font-medium text-foreground">{t('gemini.modes.default.title')}</div>
@@ -640,7 +640,7 @@ function GeminiPermissions({ permissionMode, onPermissionModeChange }: Omit<Gemi
               name="geminiPermissionMode"
               checked={permissionMode === 'auto_edit'}
               onChange={() => onPermissionModeChange('auto_edit')}
-              className="mt-1 h-4 w-4 text-green-600"
+              className="mt-1 h-4 w-4 text-green-600 accent-emerald-600"
             />
             <div>
               <div className="font-medium text-green-900 dark:text-green-100">{t('gemini.modes.autoEdit.title')}</div>
@@ -665,7 +665,7 @@ function GeminiPermissions({ permissionMode, onPermissionModeChange }: Omit<Gemi
               name="geminiPermissionMode"
               checked={permissionMode === 'yolo'}
               onChange={() => onPermissionModeChange('yolo')}
-              className="mt-1 h-4 w-4 text-orange-600"
+              className="mt-1 h-4 w-4 text-orange-600 accent-orange-600"
             />
             <div>
               <div className="flex items-center gap-2 font-medium text-orange-900 dark:text-orange-100">

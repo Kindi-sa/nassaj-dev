@@ -48,7 +48,9 @@
     "activeSessionIndicator": "최근 활성 세션 (지난 10분)",
     "save": "저장",
     "cancel": "취소",
-    "openCommandPalette": "명령 팔레트 열기"
+    "openCommandPalette": "명령 팔레트 열기",
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "채팅",
@@ -60,15 +62,19 @@
   "actions": {
     "refresh": "새로고침",
     "settings": "설정",
+    "logout": "로그아웃",
+    "logoutConfirm": "계정에서 로그아웃하시겠습니까?",
     "collapseAll": "모두 접기",
     "expandAll": "모두 펼치기",
     "cancel": "취소",
     "save": "저장",
     "delete": "삭제",
     "rename": "이름 변경",
-    "joinCommunity": "커뮤니티 참여",
-    "reportIssue": "문제 신고",
     "starOnGithub": "GitHub에서 스타"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "오픈 소스"
@@ -120,5 +126,10 @@
     "deleteAllData": "모든 데이터 영구 삭제",
     "allConversationsDeleted": "프로젝트가 사이드바에서 제거됩니다. 파일, 메모리 및 세션 데이터는 보존됩니다.",
     "cannotUndo": "나중에 프로젝트를 다시 추가할 수 있습니다."
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }

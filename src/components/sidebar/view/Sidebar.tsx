@@ -42,9 +42,13 @@ function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation(['sidebar', 'common']);
   const { isPWA } = useDeviceSettings({ trackMobile: false });
+  // fetchEnabled=false: Kindi-sa/nassaj-dev is a private fork with no public releases.
+  // GitHub would return 404 which the browser logs at network level regardless of JS handling.
+  // Disabling the fetch entirely silences the 404; updateAvailable stays false.
   const { updateAvailable, latestVersion, currentVersion, releaseInfo, installMode } = useVersionCheck(
-    'siteboon',
-    'claudecodeui',
+    'Kindi-sa',
+    'nassaj-dev',
+    false,
   );
   const { preferences, setPreference } = useUiPreferences();
   const { sidebarVisible } = preferences;
@@ -66,15 +70,13 @@ function Sidebar({
     searchFilter,
     searchMode,
     setSearchMode,
-    conversationResults,
-    isSearching,
-    searchProgress,
-    clearConversationResults,
     deletingProjects,
     deleteConfirmation,
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    membershipFilter,
+    setMembershipFilter,
     archivedProjects,
     archivedSessions,
     archivedSessionsCount,
@@ -83,6 +85,9 @@ function Sidebar({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleStarSession,
+    isSessionStarred,
+    setProjectVisibility,
     getProjectSessions,
     loadingMoreProjects,
     loadMoreSessionsForProject,
@@ -160,10 +165,13 @@ function Sidebar({
     getProjectSessions,
     loadingMoreProjects,
     isProjectStarred,
+    isSessionStarred,
+    onToggleStarSession: toggleStarSession,
     onEditingNameChange: setEditingName,
     onToggleProject: toggleProject,
     onProjectSelect: handleProjectSelect,
     onToggleStarProject: toggleStarProject,
+    onSetProjectVisibility: setProjectVisibility,
     onStartEditingProject: startEditing,
     onCancelEditingProject: cancelEditing,
     onSaveProjectName: (projectName) => {
@@ -220,6 +228,8 @@ function Sidebar({
           onShowSettings={onShowSettings}
           updateAvailable={updateAvailable}
           onShowVersionModal={() => setShowVersionModal(true)}
+          projects={projects}
+          onProjectSelect={handleProjectSelect}
           t={t}
         />
       ) : (
@@ -237,13 +247,9 @@ function Sidebar({
             onSearchFilterChange={setSearchFilter}
             onClearSearchFilter={() => setSearchFilter('')}
             searchMode={searchMode}
-            onSearchModeChange={(mode) => {
-              setSearchMode(mode);
-              if (mode === 'projects') clearConversationResults();
-            }}
-            conversationResults={conversationResults}
-            isSearching={isSearching}
-            searchProgress={searchProgress}
+            onSearchModeChange={setSearchMode}
+            membershipFilter={membershipFilter}
+            onMembershipFilterChange={setMembershipFilter}
             onRestoreArchivedProject={restoreArchivedProject}
             onArchivedSessionClick={openArchivedSession}
             onRestoreArchivedSession={restoreArchivedSession}
@@ -256,39 +262,13 @@ function Sidebar({
                 { isArchived: true },
               );
             }}
-            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
-              // `projectId` (DB key) is the canonical identifier post-migration.
-              // The server emits null when it can't resolve a project row for
-              // the search hit; treat that as "no project" and still navigate
-              // to the session so the user can open it from the URL.
-              const resolvedProvider = (provider || 'claude') as LLMProvider;
-              const project = projectId ? projects.find(p => p.projectId === projectId) : null;
-              const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
-              const sessionObj = {
-                id: sessionId,
-                __provider: resolvedProvider,
-                __projectId: projectId ?? undefined,
-                ...searchTarget,
-              };
-              if (project) {
-                handleProjectSelect(project);
-                const sessions = getProjectSessions(project);
-                const existing = sessions.find(s => s.id === sessionId);
-                if (existing) {
-                  handleSessionClick({ ...existing, ...searchTarget }, project.projectId);
-                } else {
-                  handleSessionClick(sessionObj, project.projectId);
-                }
-              } else {
-                handleSessionClick(sessionObj, projectId ?? '');
-              }
-            }}
             onRefresh={() => {
               void refreshProjects();
             }}
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
+            onProjectSelect={handleProjectSelect}
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}
             latestVersion={latestVersion}

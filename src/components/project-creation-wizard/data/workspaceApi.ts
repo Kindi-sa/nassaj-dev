@@ -7,8 +7,11 @@ import type {
   CreateProjectResponse,
   CredentialsResponse,
   FolderSuggestion,
+  GithubReposErrorCode,
+  GithubReposResponse,
   TokenMode,
 } from '../types';
+import { GithubReposError } from '../types';
 
 type CloneWorkspaceParams = {
   workspacePath: string;
@@ -72,6 +75,21 @@ export const fetchGithubTokenCredentials = async () => {
   }
 
   return (data.credentials || []).filter((credential) => credential.is_active);
+};
+
+export const fetchGithubRepos = async (tokenId?: string) => {
+  const endpoint = tokenId
+    ? `/github/repos?tokenId=${encodeURIComponent(tokenId)}`
+    : '/github/repos';
+  const response = await api.get(endpoint);
+  const data = await parseJson<GithubReposResponse>(response);
+
+  if (!response.ok) {
+    const code = (data.code as GithubReposErrorCode | undefined) ?? null;
+    throw new GithubReposError(data.error || 'Failed to load GitHub repositories', code);
+  }
+
+  return data.repositories || [];
 };
 
 export const browseFilesystemFolders = async (pathToBrowse: string) => {

@@ -69,6 +69,14 @@ const isPromiseLike = (value: unknown): value is Promise<unknown> =>
 const isSkillCommand = (command: SlashCommand) =>
   command.type === 'skill' || command.metadata?.type === 'skill';
 
+// Built-in Claude Code commands that have no dedicated UI handler. They must be
+// forwarded raw to the CLI dispatch path (not /api/commands/execute). In the
+// menu they behave like skills: selecting them inserts the command into the
+// input so the user can append arguments (e.g. `/review 123`) and press Enter.
+export const isPassthroughBuiltInCommand = (command: SlashCommand) =>
+  (command.type === 'built-in' || command.namespace === 'builtin') &&
+  command.metadata?.hasHandler === false;
+
 const dedupeProviderSkills = (skills: ProviderSkill[]): ProviderSkill[] => {
   const seenCommands = new Set<string>();
 
@@ -179,39 +187,53 @@ export function useSlashCommands({
 
       try {
         const workspacePath = selectedProject.fullPath || selectedProject.path || '';
-        const response = await authenticatedFetch('/api/commands/list', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            projectPath: workspacePath || selectedProject.path,
+        const skillsParams = new URLSearchParams();
+        if (workspacePath) {
+          skillsParams.set('workspacePath', workspacePath);
+        }
+
+        const [response, skillsResponse] = await Promise.all([
+          authenticatedFetch('/api/commands/list', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              projectPath: workspacePath || selectedProject.path,
+              provider,
+            }),
           }),
-        });
+          authenticatedFetch(
+            `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
+          ).catch(() => null as unknown as Response),
+        ]);
 
         if (!response.ok) {
           throw new Error('Failed to fetch commands');
         }
 
         const data = await response.json();
-        const skillsParams = new URLSearchParams();
-        if (workspacePath) {
-          skillsParams.set('workspacePath', workspacePath);
-        }
-
-        const skillsResponse = await authenticatedFetch(
-          `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
-        );
-        const skillsData = skillsResponse.ok
-          ? ((await skillsResponse.json()) as ProviderSkillsResponse)
-          : null;
+        const skillsData =
+          skillsResponse !== null && skillsResponse.ok
+            ? ((await skillsResponse.json()) as ProviderSkillsResponse)
+            : null;
         const skillCommands = dedupeProviderSkills(skillsData?.data?.skills || [])
           .map(mapSkillToSlashCommand);
+        // The CLI's dynamic built-in list (server /list probe) echoes the user's
+        // skills under their slash names. The skills endpoint already provides
+        // those with richer metadata (scope, sourcePath, plugin info), so any
+        // built-in whose name collides with a skill command is dropped here to
+        // keep each invocation listed once.
+        const skillCommandNames = new Set(
+          skillCommands.map((command) => command.name.toLowerCase()),
+        );
         const allCommands: SlashCommand[] = [
-          ...((data.builtIn || []) as SlashCommand[]).map((command) => ({
-            ...command,
-            type: 'built-in',
-          })),
+          ...((data.builtIn || []) as SlashCommand[])
+            .filter((command) => !skillCommandNames.has(command.name.toLowerCase()))
+            .map((command) => ({
+              ...command,
+              type: 'built-in',
+            })),
           ...skillCommands,
           ...((data.custom || []) as SlashCommand[]).map((command) => ({
             ...command,
@@ -332,7 +354,7 @@ export function useSlashCommands({
 
   const selectCommandFromKeyboard = useCallback(
     (command: SlashCommand) => {
-      if (isSkillCommand(command)) {
+      if (isSkillCommand(command) || isPassthroughBuiltInCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }
@@ -354,7 +376,7 @@ export function useSlashCommands({
       }
 
       trackCommandUsage(command);
-      if (isSkillCommand(command)) {
+      if (isSkillCommand(command) || isPassthroughBuiltInCommand(command)) {
         insertCommandIntoInput(command);
         return;
       }
@@ -393,7 +415,8 @@ export function useSlashCommands({
         return;
       }
 
-      const slashPattern = /^\/(\S*)$/;
+      // Match / at start of input OR after whitespace, capturing the /word up to cursor.
+      const slashPattern = /(?:^|\s)(\/\S*)$/;
       const match = textBeforeCursor.match(slashPattern);
 
       if (!match) {
@@ -401,8 +424,9 @@ export function useSlashCommands({
         return;
       }
 
-      const slashPos = 0;
-      const query = match[1];
+      // Compute actual position of / in the full input string.
+      const slashPos = match.index! + (match[0].length - match[1].length);
+      const query = match[1].slice(1); // strip leading /
 
       setSlashPosition(slashPos);
       setShowCommandMenu(true);

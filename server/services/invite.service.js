@@ -13,6 +13,7 @@ import crypto from 'crypto';
 
 import { userDb, invitesDb, auditLogDb } from '../modules/database/index.js';
 
+import { provisionUserDirs } from './isolation/provision-user-dirs.js';
 import { hashPassword } from './password.service.js';
 
 const DEFAULT_TTL_HOURS = 72;
@@ -134,6 +135,23 @@ export async function acceptInvite(input, ipAddress = null) {
     metadata: { inviteId: invite.id, role: invite.role },
     ipAddress,
   });
+
+  // Provision the new user's isolated config tree (+ shared symlinks) eagerly,
+  // so they can register their own Claude subscription the moment the account
+  // exists rather than waiting for the first provider spawn (B-ISO-PROVISION).
+  // provisionUserDirs is idempotent and swallows its own errors, but we still
+  // guard here: a provisioning failure must never roll back an accepted invite —
+  // the lazy path on first spawn remains a fallback. Audit the failure for
+  // visibility.
+  try {
+    provisionUserDirs(user.id);
+  } catch (err) {
+    auditLogDb.record('user_dirs_provision_failed', {
+      userId: user.id,
+      metadata: { stage: 'accept_invite', error: err?.message || String(err) },
+      ipAddress,
+    });
+  }
 
   return user;
 }

@@ -11,6 +11,9 @@ export type CodeEditorFile = {
   // URLs for reading and saving content.
   projectId?: string;
   diffInfo?: CodeEditorDiffInfo | null;
+  // Open .md files directly in the rendered markdown preview (read-first
+  // entry points such as project-board decision links).
+  openMarkdownPreview?: boolean;
   [key: string]: unknown;
 };
 

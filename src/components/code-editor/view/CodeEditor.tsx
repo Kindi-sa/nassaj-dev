@@ -1,7 +1,7 @@
 import { EditorView } from '@codemirror/view';
 import { unifiedMergeView } from '@codemirror/merge';
 import type { Extension } from '@codemirror/state';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useCodeEditorDocument } from '../hooks/useCodeEditorDocument';
@@ -40,7 +40,13 @@ export default function CodeEditor({
   const paletteOps = usePaletteOps();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showDiff, setShowDiff] = useState(Boolean(file.diffInfo));
-  const [markdownPreview, setMarkdownPreview] = useState(false);
+  const [markdownPreview, setMarkdownPreview] = useState(Boolean(file.openMarkdownPreview));
+
+  // The editor instance is reused across opened files, so each newly opened
+  // file re-applies its requested initial view mode (preview vs. source).
+  useEffect(() => {
+    setMarkdownPreview(Boolean(file.openMarkdownPreview));
+  }, [file]);
 
   const {
     isDarkMode,

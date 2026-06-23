@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -10,9 +10,11 @@ import type {
   TouchEvent,
 } from 'react';
 import { useDropzone } from 'react-dropzone';
+import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../utils/api';
-import { thinkingModes } from '../constants/thinkingModes';
+import { useAuth } from '../../auth/context/AuthContext';
+import { effortModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
 import type {
@@ -24,7 +26,11 @@ import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } fr
 import { escapeRegExp } from '../utils/chatFormatting';
 
 import { useFileMentions } from './useFileMentions';
-import { type SlashCommand, useSlashCommands } from './useSlashCommands';
+import { isPassthroughBuiltInCommand, type SlashCommand, useSlashCommands } from './useSlashCommands';
+
+// Maximum number of images that can be attached to a single chat message.
+// Must stay in sync with the server-side multer limit (`upload.array('images', 15)`).
+const MAX_IMAGES = 15;
 
 type PendingViewSession = {
   sessionId: string | null;
@@ -47,7 +53,7 @@ interface UseChatComposerStateArgs {
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
-  sendMessage: (message: unknown) => void;
+  sendMessage: (message: unknown) => { ok: boolean; reason?: string } | void;
   sendByCtrlEnter?: boolean;
   onSessionActive?: (sessionId?: string | null) => void;
   onSessionProcessing?: (sessionId?: string | null) => void;
@@ -195,6 +201,17 @@ export function useChatComposerState({
   setIsUserScrolledUp,
   setPendingPermissionRequests,
 }: UseChatComposerStateArgs) {
+  const { user } = useAuth();
+  const { t } = useTranslation('chat');
+  // Numeric users.id of the signed-in sender, stamped on optimistic user
+  // messages so the author avatar resolves locally before the server-stamped
+  // echo/history rows arrive (B-MU-UX-FIX-MSG-AUTHOR). Undefined when the
+  // identity layer exposes no numeric id (e.g. platform mode).
+  const authUserId = useMemo(() => {
+    const raw = user?.id;
+    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isInteger(numeric) ? numeric : undefined;
+  }, [user?.id]);
   const [input, setInput] = useState(() => {
     if (typeof window !== 'undefined' && selectedProject) {
       // Draft inputs are keyed by the DB projectId so per-project drafts
@@ -207,8 +224,11 @@ export function useChatComposerState({
   const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
-  const [thinkingMode, setThinkingMode] = useState('none');
+  const [thinkingMode, setThinkingMode] = useState('auto');
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
+  // Non-null while a send failed due to WS disconnect; cleared on next attempt or after timeout.
+  const [sendError, setSendError] = useState<string | null>(null);
+  const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -484,7 +504,23 @@ export function useChatComposerState({
     });
 
     if (validFiles.length > 0) {
-      setAttachedImages((previous) => [...previous, ...validFiles].slice(0, 5));
+      setAttachedImages((previous) => {
+        const combined = [...previous, ...validFiles];
+        const next = combined.slice(0, MAX_IMAGES);
+
+        if (combined.length > MAX_IMAGES && next.length > 0) {
+          // Surface a visible error on the last kept attachment, since the
+          // overflow files are dropped and never rendered as attachments.
+          const anchorName = next[next.length - 1].name || 'Unknown file';
+          setImageErrors((previousErrors) => {
+            const updated = new Map(previousErrors);
+            updated.set(anchorName, `You can attach at most ${MAX_IMAGES} images`);
+            return updated;
+          });
+        }
+
+        return next;
+      });
     }
   }, []);
 
@@ -518,7 +554,7 @@ export function useChatComposerState({
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
     },
     maxSize: 5 * 1024 * 1024,
-    maxFiles: 5,
+    maxFiles: MAX_IMAGES,
     onDrop: handleImageFiles,
     noClick: true,
     noKeyboard: true,
@@ -553,19 +589,22 @@ export function useChatComposerState({
   // `targetSessionId` is null/undefined for a brand-new conversation. Shared by
   // the composer submit and the explicit "start new session" retry action so
   // both paths stay in lockstep across providers.
+  // Returns false when the WS was not connected (message not sent).
   const dispatchProviderCommand = useCallback(
     (
       messageContent: string,
       targetSessionId: string | null | undefined,
       uploadedImages: unknown[] = [],
-    ) => {
+      effortValue?: string,
+    ): boolean => {
       const toolsSettings = getToolsSettings();
       const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, messageContent);
       const resume = Boolean(targetSessionId);
 
+      let result: { ok: boolean } | void;
       if (provider === 'cursor') {
-        sendMessage({
+        result = sendMessage({
           type: 'cursor-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -576,7 +615,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'codex') {
-        sendMessage({
+        result = sendMessage({
           type: 'codex-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -587,7 +626,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'gemini') {
-        sendMessage({
+        result = sendMessage({
           type: 'gemini-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -597,7 +636,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'antigravity') {
-        sendMessage({
+        result = sendMessage({
           type: 'antigravity-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -607,7 +646,7 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'opencode') {
-        sendMessage({
+        result = sendMessage({
           type: 'opencode-command',
           command: messageContent,
           sessionId: targetSessionId,
@@ -617,16 +656,23 @@ export function useChatComposerState({
           },
         });
       } else {
-        sendMessage({
+        // Anthropic / Claude provider. Attach `effort` only when a non-empty value is chosen.
+        const claudeOptions: Record<string, unknown> = {
+          projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
+          resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
+          images: uploadedImages,
+        };
+        if (effortValue) {
+          claudeOptions.effort = effortValue;
+        }
+        result = sendMessage({
           type: 'claude-command',
           command: messageContent,
-          options: {
-            projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
-            resume, toolsSettings, permissionMode, model: claudeModel, sessionSummary,
-            images: uploadedImages,
-          },
+          options: claudeOptions,
         });
       }
+      // If sendMessage returns void (legacy/compat callers), treat as ok.
+      return result == null ? true : result.ok;
     },
     [
       antigravityModel, claudeModel, codexModel, cursorModel, geminiModel, opencodeModel,
@@ -663,7 +709,15 @@ export function useChatComposerState({
                 metadata: { type: 'builtin' },
               } as SlashCommand)
             : undefined);
-        if (matchedCommand && matchedCommand.type !== 'skill') {
+        // Built-in commands without a UI handler (passthrough) and skills are NOT
+        // sent to /api/commands/execute. They fall through below so the raw text
+        // (including any args, e.g. `/review 123`) is dispatched straight to the
+        // CLI via dispatchProviderCommand, exactly like a normal message.
+        if (
+          matchedCommand &&
+          matchedCommand.type !== 'skill' &&
+          !isPassthroughBuiltInCommand(matchedCommand)
+        ) {
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';
@@ -679,11 +733,10 @@ export function useChatComposerState({
         }
       }
 
-      let messageContent = currentInput;
-      const selectedThinkingMode = thinkingModes.find((mode: { id: string; prefix?: string }) => mode.id === thinkingMode);
-      if (selectedThinkingMode && selectedThinkingMode.prefix) {
-        messageContent = `${selectedThinkingMode.prefix}: ${currentInput}`;
-      }
+      const messageContent = currentInput;
+      // Resolve the effort value for the selected mode (empty string = no effort field).
+      const selectedEffortMode = effortModes.find(m => m.id === thinkingMode);
+      const effortValue = selectedEffortMode?.effortValue ?? '';
 
       let uploadedImages: unknown[] = [];
       if (attachedImages.length > 0) {
@@ -725,6 +778,7 @@ export function useChatComposerState({
         content: currentInput,
         images: uploadedImages as any,
         timestamp: new Date(),
+        userId: authUserId,
       };
 
       addMessage(userMessage);
@@ -749,7 +803,25 @@ export function useChatComposerState({
         onSessionProcessing?.(effectiveSessionId);
       }
 
-      dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages);
+      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages, effortValue);
+
+      if (!sent) {
+        // WS was not open — roll back optimistic UI state and surface error.
+        setIsLoading(false);
+        setCanAbortSession(false);
+        setClaudeStatus(null);
+        const errMsg = t('ws.sendFailed', { defaultValue: 'Message not sent — connection lost' });
+        setSendError(errMsg);
+        if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = setTimeout(() => setSendError(null), 6000);
+        return;
+      }
+
+      setSendError(null);
+      if (sendErrorTimerRef.current) {
+        clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = null;
+      }
 
       setInput('');
       inputValueRef.current = '';
@@ -758,7 +830,7 @@ export function useChatComposerState({
       setUploadingImages(new Map());
       setImageErrors(new Map());
       setIsTextareaExpanded(false);
-      setThinkingMode('none');
+      setThinkingMode('auto');
 
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
@@ -769,6 +841,7 @@ export function useChatComposerState({
     [
       selectedSession,
       attachedImages,
+      authUserId,
       currentSessionId,
       dispatchProviderCommand,
       executeCommand,
@@ -805,7 +878,7 @@ export function useChatComposerState({
       }
       pendingViewSessionRef.current = { sessionId: null, startedAt: Date.now() };
 
-      addMessage({ type: 'user', content: command, timestamp: new Date() });
+      addMessage({ type: 'user', content: command, timestamp: new Date(), userId: authUserId });
       setIsLoading(true);
       setCanAbortSession(true);
       setClaudeStatus({ text: 'Processing', tokens: 0, can_interrupt: true });
@@ -815,7 +888,7 @@ export function useChatComposerState({
       dispatchProviderCommand(command, undefined);
     },
     [
-      addMessage, dispatchProviderCommand, isLoading, pendingViewSessionRef, scrollToBottom,
+      addMessage, authUserId, dispatchProviderCommand, isLoading, pendingViewSessionRef, scrollToBottom,
       selectedProject, setCanAbortSession, setClaudeStatus, setIsLoading, setIsUserScrolledUp,
     ],
   );
@@ -827,6 +900,17 @@ export function useChatComposerState({
   useEffect(() => {
     inputValueRef.current = input;
   }, [input]);
+
+  // Clean up the send-error auto-dismiss timer on unmount to prevent setting
+  // state on an already-unmounted component. (memory-leak fix)
+  useEffect(() => {
+    return () => {
+      if (sendErrorTimerRef.current) {
+        clearTimeout(sendErrorTimerRef.current);
+        sendErrorTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -1093,5 +1177,6 @@ export function useChatComposerState({
     isInputFocused,
     commandModalPayload,
     closeCommandModal,
+    sendError,
   };
 }

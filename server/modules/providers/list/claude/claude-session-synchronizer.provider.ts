@@ -1,6 +1,6 @@
 import os from 'node:os';
 import path from 'node:path';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import {
@@ -59,6 +59,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       processed += 1;
     }
 
+    await this.pruneDeletedSessionFiles();
+
     return processed;
   }
 
@@ -89,6 +91,42 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       timestamps.updatedAt,
       filePath
     );
+  }
+
+  /**
+   * Removes "ghost" session rows whose transcript file no longer exists on disk.
+   *
+   * Claude's retention sweep deletes transcripts older than ~30 days from
+   * ~/.claude/projects, leaving DB rows that can neither be opened nor resumed.
+   * Scoped to provider "claude" rows with a stored jsonl_path so rows of other
+   * providers (or rows that legitimately have no transcript file) are untouched.
+   */
+  private async pruneDeletedSessionFiles(): Promise<number> {
+    const rows = sessionsDb.getSessionFilePathsByProvider(this.provider);
+    let pruned = 0;
+
+    for (const row of rows) {
+      try {
+        await access(row.jsonl_path);
+      } catch (error) {
+        const fileError = error as NodeJS.ErrnoException;
+        if (fileError.code !== 'ENOENT') {
+          // Transient/permission errors must not delete rows for files that may still exist.
+          continue;
+        }
+        if (sessionsDb.deleteSessionById(row.session_id)) {
+          pruned += 1;
+        }
+      }
+    }
+
+    if (pruned > 0) {
+      console.log(`Pruned ghost sessions whose transcript files were deleted for provider "${this.provider}"`, {
+        pruned,
+      });
+    }
+
+    return pruned;
   }
 
   /**

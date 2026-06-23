@@ -41,6 +41,20 @@ export interface NormalizedMessage {
   role?: 'user' | 'assistant';
   content?: string;
   /**
+   * Authenticated author (users.id) of a kind:'text' role:'user' message in
+   * multi-user sessions; same id as the participants API. Absent = author
+   * unknown (rows recorded before author tracking, provider-internal echoes) —
+   * never assume the viewing user wrote it.
+   */
+  userId?: number;
+  /**
+   * Coordinator attribution for a kind:'text' role:'assistant' message (server
+   * commit 9c61b60): the users.id of the participant who launched the run that
+   * produced this reply. Stamped live and on reloaded history. Absent/null =
+   * unknown coordinator (legacy rows) — clients fall back to the session owner.
+   */
+  coordinatorId?: number | null;
+  /**
    * Mirrors optional transcript metadata from the server.
    *
    * These fields are currently used by Claude history normalization so local
@@ -64,6 +78,18 @@ export interface NormalizedMessage {
   code?: string;
   /** Stale resume target reported alongside a 'conversation_not_found' error. */
   staleSessionId?: string;
+  /**
+   * Machine origin discriminator for a kind:'text' role:'user' message (server
+   * commit 91b8b39). Absent = genuine human input (has a userId stamp).
+   * Present = the row was written programmatically, not by a human:
+   *   'coordinator' — the coordinator (main agent) prompted a sub-agent via
+   *                   Task/Agent tool; never has a userId.
+   *   'peer'        — inter-agent peer message.
+   *   'channel'     — broadcast channel injection.
+   *   'task-notification' — automated task status update.
+   * Rule: role:'user' + originKind present ⇒ machine-authored; absent ⇒ human.
+   */
+  originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | string;
   /** Original command that failed to resume, used to retry as a new session. */
   command?: string;
   text?: string;
@@ -272,6 +298,12 @@ export function useSessionStore() {
   const storeRef = useRef(new Map<string, SessionSlot>());
   const sessionAliasesRef = useRef(new Map<string, string>());
   const activeSessionIdRef = useRef<string | null>(null);
+  // ADR-041 (B-80): highest stream `sequence` seen per session. Sent as `lastSeq`
+  // in check-session-status so the server replays only the delta on reconnect.
+  // Kept in a ref (not slot state) because it must survive independently of the
+  // message arrays and is read synchronously; it monotonically increases and is
+  // never reset for the life of a session id.
+  const lastSeqRef = useRef(new Map<string, number>());
   // Bump to force re-render — only when the active session's data changes
   const [, setTick] = useState(0);
   const notify = useCallback((sessionId: string) => {
@@ -308,6 +340,28 @@ export function useSessionStore() {
 
   const setActiveSession = useCallback((sessionId: string | null) => {
     activeSessionIdRef.current = resolveSessionId(sessionId);
+  }, [resolveSessionId]);
+
+  // ADR-041 (B-80): record the highest stream `sequence` seen for a session.
+  // Monotonic max — an out-of-order or older payload never lowers it. No-op for
+  // a non-finite/absent sequence (legacy payloads, or the registry flag off
+  // server-side so no `sequence` is ever stamped). Keyed by the resolved session
+  // id so an alias (post session_created rename) shares one counter.
+  const recordSeq = useCallback((sessionId: string, sequence: unknown) => {
+    if (typeof sequence !== 'number' || !Number.isFinite(sequence)) return;
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    const prev = lastSeqRef.current.get(resolvedSessionId) ?? 0;
+    if (sequence > prev) {
+      lastSeqRef.current.set(resolvedSessionId, sequence);
+    }
+  }, [resolveSessionId]);
+
+  // ADR-041 (B-80): highest stream `sequence` seen for a session (0 when unknown).
+  // Sent as `lastSeq` in check-session-status so the server replays only seq >
+  // lastSeq on reconnect.
+  const getLastSeq = useCallback((sessionId: string): number => {
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    return lastSeqRef.current.get(resolvedSessionId) ?? 0;
   }, [resolveSessionId]);
 
   const getSlot = useCallback((sessionId: string): SessionSlot => {
@@ -433,6 +487,9 @@ export function useSessionStore() {
   const appendRealtime = useCallback((sessionId: string, msg: NormalizedMessage) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
+    // ADR-041 (B-80): track the highest server-stamped stream sequence so reconnect
+    // requests only the delta. No-op when `sequence` is absent (flag off / legacy).
+    recordSeq(resolvedSessionId, (msg as NormalizedMessage).sequence);
     const normalizedMessage =
       msg.sessionId === resolvedSessionId
         ? msg
@@ -453,6 +510,10 @@ export function useSessionStore() {
     if (msgs.length === 0) return;
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
+    // ADR-041 (B-80): track the highest server-stamped stream sequence in the batch.
+    for (const msg of msgs) {
+      recordSeq(resolvedSessionId, (msg as NormalizedMessage).sequence);
+    }
     const normalizedMessages = msgs.map((msg) =>
       msg.sessionId === resolvedSessionId
         ? msg
@@ -526,11 +587,29 @@ export function useSessionStore() {
   /**
    * Update or create a streaming message (accumulated text so far).
    * Uses a well-known ID so subsequent calls replace the same message.
+   *
+   * `attribution` mirrors the coordinator/origin fields stamped by the server on
+   * completed assistant rows (commit 9c61b60 / 91b8b39). The live `stream_delta`
+   * events already carry `coordinatorId`, but the previous implementation rebuilt
+   * the streaming row from scratch and dropped it — so the active-speaker
+   * highlight and per-message attribution only appeared once the run finalized.
+   * Carrying it here makes attribution correct *while* streaming (B-43).
    */
-  const updateStreaming = useCallback((sessionId: string, accumulatedText: string, msgProvider: LLMProvider) => {
+  const updateStreaming = useCallback((
+    sessionId: string,
+    accumulatedText: string,
+    msgProvider: LLMProvider,
+    attribution?: { coordinatorId?: number | null; originKind?: string },
+  ) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
     const streamId = `__streaming_${resolvedSessionId}`;
+    const existing = slot.realtimeMessages.find(m => m.id === streamId);
+    // Prefer a freshly-supplied coordinator, but never lose one already stamped
+    // on the streaming row by an earlier delta if a later call omits it.
+    const coordinatorId =
+      attribution?.coordinatorId ?? existing?.coordinatorId;
+    const originKind = attribution?.originKind ?? existing?.originKind;
     const msg: NormalizedMessage = {
       id: streamId,
       sessionId: resolvedSessionId,
@@ -538,6 +617,8 @@ export function useSessionStore() {
       provider: msgProvider,
       kind: 'stream_delta',
       content: accumulatedText,
+      ...(coordinatorId != null ? { coordinatorId } : {}),
+      ...(originKind ? { originKind } : {}),
     };
     const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
     if (idx >= 0) {
@@ -686,11 +767,14 @@ export function useSessionStore() {
     getMessages,
     getSessionSlot,
     replaceSessionId,
+    recordSeq,
+    getLastSeq,
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
     clearRealtime, getMessages, getSessionSlot, replaceSessionId,
+    recordSeq, getLastSeq,
   ]);
 }
 

@@ -46,7 +46,7 @@ function UsageContent({ data }: { data: ClaudeUsage }) {
             utilization={extraUsage.utilization}
             resetsAt={null}
           />
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-muted-foreground">
             {t('claudeUsage.extraUsageDetail', {
               used: formatCredits(extraUsage.usedCredits, extraUsage.currency, locale),
               limit: formatCredits(extraUsage.monthlyLimit, extraUsage.currency, locale),
@@ -56,7 +56,7 @@ function UsageContent({ data }: { data: ClaudeUsage }) {
       )}
 
       {data.stale && (
-        <p className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Database className="h-3 w-3" aria-hidden="true" />
           {t('claudeUsage.stale')}
         </p>
@@ -90,7 +90,7 @@ export default function ClaudeUsageSection({ isOpen }: ClaudeUsageSectionProps) 
   return (
     <QuickSettingsSection title={title}>
       {(usage.status === 'idle' || usage.status === 'loading') && (
-        <div className="flex items-center gap-2 py-2 text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           {t('claudeUsage.loading')}
         </div>

@@ -19,6 +19,7 @@ import type {
   ProjectSortOrder,
   SettingsMainTab,
 } from '../types/types';
+import { TASKMASTER_ENABLED } from '../../../constants/features';
 
 export type SettingsMainTabMeta = {
   id: SettingsMainTab;
@@ -27,7 +28,7 @@ export type SettingsMainTabMeta = {
   icon: ComponentType<{ className?: string }>;
 };
 
-export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
+const ALL_SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
   { id: 'agents', label: 'Agents', keywords: 'agents subagents claude code', icon: Bot },
   { id: 'appearance', label: 'Appearance', keywords: 'appearance theme dark light language', icon: Palette },
   { id: 'git', label: 'Git', keywords: 'git github commits', icon: GitBranch },
@@ -38,6 +39,10 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = [
   { id: 'users', label: 'Users', keywords: 'users members invites roles team', icon: Users },
   { id: 'about', label: 'About', keywords: 'about version info', icon: Info },
 ];
+
+export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = ALL_SETTINGS_MAIN_TABS.filter(
+  (tab) => TASKMASTER_ENABLED || tab.id !== 'tasks',
+);
 
 export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
 export const AGENT_CATEGORIES: AgentCategory[] = ['account', 'permissions', 'mcp'];

@@ -122,10 +122,78 @@ test('provider models are cached for the three-day ttl', async () => {
     await service.getProviderModels('codex');
     assert.equal(loadCount, 1);
 
+    // Just past the TTL: stale-while-revalidate serves the cached entry
+    // immediately (still codex-1) and kicks off the refresh in the background,
+    // so the request itself does NOT block on the fetch.
     currentTime += 2;
+    const stale = await service.getProviderModels('codex');
+    assert.equal(stale.models.DEFAULT, 'codex-1');
+    assert.equal(stale.cache.source, 'memory');
+
+    // The background refresh runs after the current task; await a microtask/macro
+    // turn so it can settle, then the next read sees the fresh catalog.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(loadCount, 2, 'background refresh ran after the stale read');
+
     const refreshed = await service.getProviderModels('codex');
-    assert.equal(loadCount, 2);
+    assert.equal(loadCount, 2, 'fresh entry served from cache, no extra fetch');
     assert.equal(refreshed.models.DEFAULT, 'codex-2');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('stale-while-revalidate: an expired entry is served instantly while refreshing in the background', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-swr-'));
+  let currentTime = 1_000;
+  let loadCount = 0;
+  // Held in an object so control-flow analysis cannot narrow the field to `never`
+  // after the async refresh assigns it.
+  const slowFetch: { resolve: (() => void) | null } = { resolve: null };
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: path.join(tempRoot, 'models-cache.json'),
+      now: () => currentTime,
+      resolveProvider: (provider) => ({
+        models: {
+          getSupportedModels: async () => {
+            loadCount += 1;
+            if (loadCount === 1) {
+              return createModels(`${provider}-1`);
+            }
+            // The background refresh is slow: it must NOT block the stale read.
+            await new Promise<void>((resolve) => {
+              slowFetch.resolve = resolve;
+            });
+            return createModels(`${provider}-2`);
+          },
+          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        },
+      }),
+    });
+
+    // Prime the cache.
+    const first = await service.getProviderModels('claude');
+    assert.equal(first.models.DEFAULT, 'claude-1');
+    assert.equal(loadCount, 1);
+
+    // Expire it, then read again: the stale value comes back immediately even
+    // though the background refresh is still pending (resolveSlowFetch not yet
+    // called), proving the live fetch is off the request hot path.
+    currentTime += PROVIDER_MODELS_CACHE_TTL_MS + 1;
+    const stale = await service.getProviderModels('claude');
+    assert.equal(stale.models.DEFAULT, 'claude-1', 'stale entry served instantly');
+    assert.equal(loadCount, 2, 'background refresh was triggered');
+    assert.ok(slowFetch.resolve, 'background refresh is in-flight (still pending)');
+
+    // Let the background refresh finish, then the next read sees the fresh value.
+    slowFetch.resolve?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const refreshed = await service.getProviderModels('claude');
+    assert.equal(refreshed.models.DEFAULT, 'claude-2');
+    assert.equal(loadCount, 2, 'no additional fetch beyond the single background refresh');
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
@@ -162,11 +230,16 @@ test('degraded provider catalog is cached under the short ttl, not the three-day
     await service.getProviderModels('antigravity');
     assert.equal(loadCount, 1);
 
-    // Just after the short TTL, the live fetch is re-attempted — proving the
-    // degraded result was NOT pinned for the multi-day TTL.
+    // Just after the short TTL, the live fetch is re-attempted (in the
+    // background via stale-while-revalidate) — proving the degraded result was
+    // NOT pinned for the multi-day TTL. The stale read returns instantly; the
+    // refresh runs after the current task.
     currentTime += 2;
+    const stale = await service.getProviderModels('antigravity');
+    assert.equal(stale.models.DEFAULT, 'antigravity-1', 'degraded entry served stale instantly');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(loadCount, 2, 'short TTL elapsed -> background re-fetch ran');
     const refreshed = await service.getProviderModels('antigravity');
-    assert.equal(loadCount, 2);
     assert.equal(refreshed.models.DEFAULT, 'antigravity-2');
 
     // Guard the contrast explicitly: the short TTL is far below the long one.

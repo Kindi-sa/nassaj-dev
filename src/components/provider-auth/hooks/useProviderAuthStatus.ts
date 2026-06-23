@@ -13,6 +13,7 @@ import type {
 
 type ProviderAuthStatusPayload = {
   authenticated?: boolean;
+  installed?: boolean;
   email?: string | null;
   method?: string | null;
   error?: string | null;
@@ -35,10 +36,17 @@ const toProviderAuthStatus = (
   fallbackError: string | null = null,
 ): ProviderAuthStatus => ({
   authenticated: Boolean(payload.authenticated),
+  // fail-open: if the backend does not return installed, default to true so the
+  // provider remains visible rather than being silently hidden.
+  installed: payload.installed !== false,
   email: payload.email ?? null,
   method: payload.method ?? null,
   error: payload.error ?? fallbackError,
   loading: false,
+  // The request itself succeeded (HTTP 200) — this is a confirmed state, not a
+  // failed check. error may still be populated (e.g. "Not installed") but that
+  // is a legitimate negative state, not a request failure.
+  checkFailed: false,
 });
 
 type UseProviderAuthStatusOptions = {
@@ -79,10 +87,12 @@ export function useProviderAuthStatus(
       if (!response.ok) {
         const status: ProviderAuthStatus = {
           authenticated: false,
+          installed: true, // fail-open on HTTP error
           email: null,
           method: null,
           loading: false,
           error: FALLBACK_STATUS_ERROR,
+          checkFailed: true, // HTTP request did not succeed — use fail-open
         };
         setProviderStatus(provider, status);
         return status;
@@ -96,10 +106,12 @@ export function useProviderAuthStatus(
       console.error(`Error checking ${provider} auth status:`, caughtError);
       const status: ProviderAuthStatus = {
         authenticated: false,
+        installed: true, // fail-open on network/fetch error
         email: null,
         method: null,
         loading: false,
         error: toErrorMessage(caughtError),
+        checkFailed: true, // network/fetch failure — use fail-open
       };
       setProviderStatus(provider, status);
       return status;

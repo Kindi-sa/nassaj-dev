@@ -1,9 +1,11 @@
 import { useEffect, useReducer, useRef } from 'react';
+import { onApplyServerPreference } from '../preferences/preferencesSync';
 
 type UiPreferences = {
   autoExpandTools: boolean;
   showRawParameters: boolean;
   showThinking: boolean;
+  hideToolCalls: boolean;
   autoScrollToBottom: boolean;
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
@@ -36,6 +38,7 @@ const DEFAULTS: UiPreferences = {
   autoExpandTools: false,
   showRawParameters: false,
   showThinking: true,
+  hideToolCalls: true,
   autoScrollToBottom: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
@@ -210,9 +213,22 @@ export function useUiPreferences(storageKey = 'uiPreferences') {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
 
+    // Reflect an account-sourced value live after sign-in (server authoritative).
+    const offApply = onApplyServerPreference(storageKey, (raw) => {
+      if (raw === null) {
+        return;
+      }
+      try {
+        applyExternalUpdate(JSON.parse(raw));
+      } catch {
+        // Ignore malformed server value.
+      }
+    });
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener(SYNC_EVENT, handleSyncEvent as EventListener);
+      offApply();
     };
   }, [storageKey]);
 

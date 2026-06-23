@@ -71,11 +71,21 @@ export default {
           from: { opacity: '0', transform: 'translate(-50%, -48%) scale(0.96)' },
           to: { opacity: '1', transform: 'translate(-50%, -50%) scale(1)' },
         },
+        'participants-bar-slide-down': {
+          from: { opacity: '0', transform: 'translateY(-8px)', maxHeight: '0' },
+          to: { opacity: '1', transform: 'translateY(0)', maxHeight: '8rem' },
+        },
+        'participants-bar-slide-up': {
+          from: { opacity: '1', transform: 'translateY(0)', maxHeight: '8rem' },
+          to: { opacity: '0', transform: 'translateY(-8px)', maxHeight: '0' },
+        },
       },
       animation: {
         shimmer: 'shimmer 2s linear infinite',
         'dialog-overlay-show': 'dialog-overlay-show 150ms ease-out',
         'dialog-content-show': 'dialog-content-show 150ms ease-out',
+        'participants-bar-slide-down': 'participants-bar-slide-down 200ms ease-out',
+        'participants-bar-slide-up': 'participants-bar-slide-up 200ms ease-in forwards',
       },
     },
   },

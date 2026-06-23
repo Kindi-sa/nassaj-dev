@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useBranding } from '../../../contexts/BrandingContext';
 import { useAuth } from '../context/AuthContext';
 import AuthErrorAlert from './AuthErrorAlert';
 import AuthInputField from './AuthInputField';
@@ -50,6 +51,11 @@ function validateSetupForm(formState: SetupFormState): string | null {
  */
 export default function SetupForm() {
   const { register } = useAuth();
+  // Custom branding title (if configured) replaces the stock product name. The
+  // logo is no longer passed explicitly: AuthScreenLayout renders the branding
+  // logo when set, or a neutral icon otherwise.
+  const { title: brandingTitle } = useBranding();
+  const appName = brandingTitle ?? 'ـنسَّاجـ';
 
   const [formState, setFormState] = useState<SetupFormState>(initialState);
   const [errorMessage, setErrorMessage] = useState('');
@@ -82,10 +88,9 @@ export default function SetupForm() {
 
   return (
     <AuthScreenLayout
-      title="Welcome to CloudCLI"
+      title={`Welcome to ${appName}`}
       description="Set up your account to get started"
       footerText="This is a single-user system. Only one account can be created."
-      logo={<img src="/logo.svg" alt="CloudCLI" className="h-16 w-16" />}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <AuthInputField

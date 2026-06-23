@@ -20,6 +20,9 @@
     "codex": "Codex",
     "gemini": "Gemini"
   },
+  "externalOrigin": {
+    "label": "Creato al di fuori dell'interfaccia"
+  },
   "tools": {
     "settings": "Impostazioni strumento",
     "error": "Errore strumento",
@@ -130,49 +133,57 @@
     "send": "Invia",
     "stop": "Ferma",
     "hintText": {
-      "ctrlEnter": "Ctrl+Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi",
-      "enter": "Invio per inviare • Shift+Invio per nuova riga • Tab per cambiare modalità • / per comandi"
+      "ctrlEnter": "Ctrl+Invio per inviare • Shift+Invio per nuova riga",
+      "enter": "Invio per inviare • Shift+Invio per nuova riga"
     },
     "clickToChangeMode": "Clicca per cambiare modalità permessi (o premi Tab nell'input)",
     "showAllCommands": "Mostra tutti i comandi",
     "clearInput": "Cancella input",
     "scrollToBottom": "Scorri in basso"
   },
-  "thinkingMode": {
+  "effortMode": {
     "selector": {
-      "title": "Modalità ragionamento",
-      "description": "Il ragionamento esteso dà a Claude più tempo per valutare le alternative",
+      "title": "Livello di impegno",
+      "description": "Controlla quante risorse Claude dedica alla tua richiesta",
       "active": "Attivo",
-      "tip": "Modalità di ragionamento più elevate richiedono più tempo ma forniscono un'analisi più approfondita"
+      "tip": "ultracode attiva la massima profondità con formattazione multi-agente"
     },
     "modes": {
       "none": {
         "name": "Standard",
-        "description": "Risposta Claude normale",
-        "prefix": ""
+        "description": "Nessun parametro effort — comportamento predefinito di Claude"
       },
-      "think": {
-        "name": "Pensa",
-        "description": "Ragionamento esteso base",
-        "prefix": "think"
+      "auto": {
+        "name": "auto",
+        "description": "Il modello sceglie automaticamente l'impegno in base alla complessità"
       },
-      "thinkHard": {
-        "name": "Pensa di più",
-        "description": "Valutazione più approfondita",
-        "prefix": "think hard"
+      "low": {
+        "name": "low",
+        "description": "Risposte rapide e leggere — ideale per domande semplici"
       },
-      "thinkHarder": {
-        "name": "Pensa ancora",
-        "description": "Analisi profonda con alternative",
-        "prefix": "think harder"
+      "medium": {
+        "name": "medium",
+        "description": "Equilibrio tra profondità e velocità"
       },
-      "ultrathink": {
-        "name": "Ultrapensiero",
-        "description": "Budget massimo di ragionamento",
-        "prefix": "ultrathink"
+      "high": {
+        "name": "high",
+        "description": "Ragionamento più profondo per compiti complessi"
+      },
+      "xhigh": {
+        "name": "xhigh",
+        "description": "Impegno molto elevato per problemi impegnativi"
+      },
+      "max": {
+        "name": "max",
+        "description": "Impegno massimo — budget di calcolo completo"
+      },
+      "ultracode": {
+        "name": "ultracode",
+        "description": "Profondità massima con formattazione multi-agente — per grandi codebase"
       }
     },
-    "buttonTitle": "Modalità ragionamento: {{mode}}"
+    "buttonTitle": "Impegno: {{mode}}",
+    "ultracodeActive": "Sforzo Ultracode attivo"
   },
   "providerSelection": {
     "title": "Scegli il tuo assistente AI",
@@ -264,12 +275,21 @@
     },
     "providers": {
       "assistant": "Assistente"
-    }
+    },
+    "frozen": "Paused (process frozen)"
   },
   "projectSelection": {
     "startChatWithProvider": "Seleziona un progetto per iniziare a chattare con {{provider}}"
   },
   "tasks": {
     "nextTaskPrompt": "Inizia l'attività successiva"
+  },
+  "participants": {
+    "hide": "Nascondi barra partecipanti",
+    "show": "Mostra barra partecipanti"
+  },
+  "refreshChat": {
+    "button": "Aggiorna chat",
+    "refreshing": "Aggiornamento…"
   }
 }

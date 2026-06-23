@@ -11,7 +11,6 @@
 
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
-// eslint-disable-next-line import-x/order
 import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Import translation resources
@@ -21,8 +20,10 @@ import enAuth from './locales/en/auth.json';
 import enSidebar from './locales/en/sidebar.json';
 import enChat from './locales/en/chat.json';
 import enCodeEditor from './locales/en/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import enTasks from './locales/en/tasks.json';
+import enPresence from './locales/en/presence.json';
+// eslint-disable-next-line import-x/order
+import enProjectBoard from './locales/en/projectBoard.json';
 
 import arCommon from './locales/ar/common.json';
 import arSettings from './locales/ar/settings.json';
@@ -30,24 +31,28 @@ import arAuth from './locales/ar/auth.json';
 import arSidebar from './locales/ar/sidebar.json';
 import arChat from './locales/ar/chat.json';
 import arCodeEditor from './locales/ar/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import arTasks from './locales/ar/tasks.json';
+import arPresence from './locales/ar/presence.json';
+// eslint-disable-next-line import-x/order
+import arProjectBoard from './locales/ar/projectBoard.json';
 
 import koCommon from './locales/ko/common.json';
 import koSettings from './locales/ko/settings.json';
 import koAuth from './locales/ko/auth.json';
 import koSidebar from './locales/ko/sidebar.json';
 import koChat from './locales/ko/chat.json';
-// eslint-disable-next-line import-x/order
 import koCodeEditor from './locales/ko/codeEditor.json';
+// eslint-disable-next-line import-x/order
+import koProjectBoard from './locales/ko/projectBoard.json';
 
 import zhCommon from './locales/zh-CN/common.json';
 import zhSettings from './locales/zh-CN/settings.json';
 import zhAuth from './locales/zh-CN/auth.json';
 import zhSidebar from './locales/zh-CN/sidebar.json';
 import zhChat from './locales/zh-CN/chat.json';
-// eslint-disable-next-line import-x/order
 import zhCodeEditor from './locales/zh-CN/codeEditor.json';
+// eslint-disable-next-line import-x/order
+import zhProjectBoard from './locales/zh-CN/projectBoard.json';
 
 import jaCommon from './locales/ja/common.json';
 import jaSettings from './locales/ja/settings.json';
@@ -55,8 +60,9 @@ import jaAuth from './locales/ja/auth.json';
 import jaSidebar from './locales/ja/sidebar.json';
 import jaChat from './locales/ja/chat.json';
 import jaCodeEditor from './locales/ja/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import jaTasks from './locales/ja/tasks.json';
+// eslint-disable-next-line import-x/order
+import jaProjectBoard from './locales/ja/projectBoard.json';
 
 import ruCommon from './locales/ru/common.json';
 import ruSettings from './locales/ru/settings.json';
@@ -64,8 +70,9 @@ import ruAuth from './locales/ru/auth.json';
 import ruSidebar from './locales/ru/sidebar.json';
 import ruChat from './locales/ru/chat.json';
 import ruCodeEditor from './locales/ru/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import ruTasks from './locales/ru/tasks.json';
+// eslint-disable-next-line import-x/order
+import ruProjectBoard from './locales/ru/projectBoard.json';
 
 import deCommon from './locales/de/common.json';
 import deSettings from './locales/de/settings.json';
@@ -73,8 +80,9 @@ import deAuth from './locales/de/auth.json';
 import deSidebar from './locales/de/sidebar.json';
 import deChat from './locales/de/chat.json';
 import deCodeEditor from './locales/de/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import deTasks from './locales/de/tasks.json';
+// eslint-disable-next-line import-x/order
+import deProjectBoard from './locales/de/projectBoard.json';
 
 import trCommon from './locales/tr/common.json';
 import trSettings from './locales/tr/settings.json';
@@ -82,16 +90,17 @@ import trAuth from './locales/tr/auth.json';
 import trSidebar from './locales/tr/sidebar.json';
 import trChat from './locales/tr/chat.json';
 import trCodeEditor from './locales/tr/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import trTasks from './locales/tr/tasks.json';
+import trProjectBoard from './locales/tr/projectBoard.json';
 import itCommon from './locales/it/common.json';
 import itSettings from './locales/it/settings.json';
 import itAuth from './locales/it/auth.json';
 import itSidebar from './locales/it/sidebar.json';
 import itChat from './locales/it/chat.json';
 import itCodeEditor from './locales/it/codeEditor.json';
-// eslint-disable-next-line import-x/order
 import itTasks from './locales/it/tasks.json';
+// eslint-disable-next-line import-x/order
+import itProjectBoard from './locales/it/projectBoard.json';
 
 // Import supported languages configuration
 import { languages } from './languages.js';
@@ -125,6 +134,8 @@ i18n
         chat: enChat,
         codeEditor: enCodeEditor,
         tasks: enTasks,
+        presence: enPresence,
+        projectBoard: enProjectBoard,
       },
       ar: {
         common: arCommon,
@@ -134,6 +145,8 @@ i18n
         chat: arChat,
         codeEditor: arCodeEditor,
         tasks: arTasks,
+        presence: arPresence,
+        projectBoard: arProjectBoard,
       },
       ko: {
         common: koCommon,
@@ -142,6 +155,7 @@ i18n
         sidebar: koSidebar,
         chat: koChat,
         codeEditor: koCodeEditor,
+        projectBoard: koProjectBoard,
       },
       'zh-CN': {
         common: zhCommon,
@@ -150,6 +164,7 @@ i18n
         sidebar: zhSidebar,
         chat: zhChat,
         codeEditor: zhCodeEditor,
+        projectBoard: zhProjectBoard,
       },
       ja: {
         common: jaCommon,
@@ -159,6 +174,7 @@ i18n
         chat: jaChat,
         codeEditor: jaCodeEditor,
         tasks: jaTasks,
+        projectBoard: jaProjectBoard,
       },
       ru: {
         common: ruCommon,
@@ -168,6 +184,7 @@ i18n
         chat: ruChat,
         codeEditor: ruCodeEditor,
         tasks: ruTasks,
+        projectBoard: ruProjectBoard,
       },
       de: {
         common: deCommon,
@@ -177,6 +194,7 @@ i18n
         chat: deChat,
         codeEditor: deCodeEditor,
         tasks: deTasks,
+        projectBoard: deProjectBoard,
       },
       tr: {
         common: trCommon,
@@ -186,6 +204,7 @@ i18n
         chat: trChat,
         codeEditor: trCodeEditor,
         tasks: trTasks,
+        projectBoard: trProjectBoard,
       },
       it: {
         common: itCommon,
@@ -195,6 +214,7 @@ i18n
         chat: itChat,
         codeEditor: itCodeEditor,
         tasks: itTasks,
+        projectBoard: itProjectBoard,
       },
     },
 
@@ -208,7 +228,7 @@ i18n
     debug: false,
 
     // Namespaces - load only what's needed
-    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks'],
+    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'presence', 'projectBoard'],
     defaultNS: 'common',
 
     // Key separator for nested keys (default: '.')
@@ -253,5 +273,22 @@ i18n.on('languageChanged', (lng) => {
     console.error('Failed to save language preference:', error);
   }
 });
+
+// Apply an account-sourced language live when the preferences sync layer
+// hydrates it after sign-in (server is authoritative — no reload). The
+// localStorage value is already written by the time this fires; changeLanguage
+// only re-renders the UI. Guarded against unsupported values and no-op changes.
+if (typeof window !== 'undefined') {
+  window.addEventListener('preferences:apply', (event) => {
+    const detail = event.detail;
+    if (!detail || detail.storageKey !== 'userLanguage') {
+      return;
+    }
+    const next = detail.rawValue;
+    if (next && languages.some((lang) => lang.value === next) && i18n.language !== next) {
+      i18n.changeLanguage(next);
+    }
+  });
+}
 
 export default i18n;

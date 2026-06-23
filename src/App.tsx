@@ -3,12 +3,14 @@ import { I18nextProvider } from 'react-i18next';
 
 import { ThemeProvider } from './contexts/ThemeContext';
 import { RtlProvider } from './contexts/RtlContext';
+import { ParticipantsBarProvider } from './contexts/ParticipantsBarContext';
 import { AuthProvider, ProtectedRoute } from './components/auth';
 import JoinPage from './components/auth/view/JoinPage';
 import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { PluginsProvider } from './contexts/PluginsContext';
+import { BrandingProvider } from './contexts/BrandingContext';
 import AppContent from './components/app/AppContent';
 import i18n from './i18n/config.js';
 
@@ -130,16 +132,23 @@ export default function App() {
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
         <RtlProvider>
-          <AuthProvider>
-            <Router basename={routerBasename}>
-              <Routes>
-                {/* Public invite-acceptance route — must bypass the auth gate. */}
-                <Route path="/join" element={<JoinPage />} />
-                {/* Everything else is gated behind authentication. */}
-                <Route path="/*" element={<AuthenticatedApp />} />
-              </Routes>
-            </Router>
-          </AuthProvider>
+          <ParticipantsBarProvider>
+            <AuthProvider>
+              {/* Branding sits ABOVE the auth gate: its endpoint is public, so the
+                  login/setup/join screens and the document chrome (title/favicon)
+                  already carry the custom identity before any token exists. */}
+              <BrandingProvider>
+                <Router basename={routerBasename}>
+                  <Routes>
+                    {/* Public invite-acceptance route — must bypass the auth gate. */}
+                    <Route path="/join" element={<JoinPage />} />
+                    {/* Everything else is gated behind authentication. */}
+                    <Route path="/*" element={<AuthenticatedApp />} />
+                  </Routes>
+                </Router>
+              </BrandingProvider>
+            </AuthProvider>
+          </ParticipantsBarProvider>
         </RtlProvider>
       </ThemeProvider>
     </I18nextProvider>

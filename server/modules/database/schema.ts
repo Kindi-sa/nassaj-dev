@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     action TEXT NOT NULL,
     metadata TEXT,
     ip_address TEXT,
+    user_agent TEXT DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
@@ -89,6 +90,22 @@ CREATE TABLE IF NOT EXISTS user_notification_preferences (
 );
 `;
 
+/**
+ * user_ui_preferences — per-user UI preferences synced across devices (replaces
+ * localStorage-only storage). Stored as a single JSON blob (preferences_json)
+ * for forward-compatibility: the frontend owns the schema/contract, so new
+ * preference keys can be added without a server migration. Mirrors
+ * user_notification_preferences in shape and lifecycle.
+ */
+export const USER_UI_PREFERENCES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS user_ui_preferences (
+    user_id INTEGER PRIMARY KEY,
+    preferences_json TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
 export const VAPID_KEYS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS vapid_keys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,7 +133,38 @@ CREATE TABLE IF NOT EXISTS projects (
     project_path TEXT NOT NULL UNIQUE,
     custom_project_name TEXT DEFAULT NULL,
     isStarred BOOLEAN DEFAULT 0,
-    isArchived BOOLEAN DEFAULT 0
+    isArchived BOOLEAN DEFAULT 0,
+    visibility TEXT NOT NULL DEFAULT 'public',
+    created_by INTEGER
+);
+`;
+
+/**
+ * project_members — explicit membership of a project (B-PRIV).
+ *
+ * Backs the "private project" feature: a private project is only visible to its
+ * creator (projects.created_by), users explicitly listed here, and users
+ * derived from session_participants. There is NO platform-owner override on
+ * visibility — by owner decision, privacy is absolute and even the platform
+ * owner cannot see a private project's content unless they are a member.
+ *
+ * role: 'owner' (can manage visibility + members) | 'member' (read access only).
+ * added_by records who granted the membership (nullable; users.id).
+ *
+ * NOTE: created via migration (migrateProjectMembers), NOT in INIT_SCHEMA_SQL.
+ * Its index likewise lives only in the migration (see the 502 lesson where
+ * indexing migration-added structures at init broke fresh boots).
+ */
+export const PROJECT_MEMBERS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS project_members (
+    project_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    added_by INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, user_id),
+    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;
 
@@ -161,6 +209,34 @@ CREATE TABLE IF NOT EXISTS session_participants (
 `;
 
 /**
+ * message_authors — per-message sender attribution for multi-user sessions
+ * (B-MU-UX-FIX-MSG-AUTHOR). One row is written on the run path for every user
+ * prompt an authenticated user sends; history loads join user-authored text
+ * messages back to their author by (session_id, content_hash) plus timestamp
+ * proximity. The transcript .jsonl itself is written by the provider CLI/SDK
+ * (not by this server), so authorship cannot be embedded in the transcript
+ * line without breaking format compatibility — this table is the sidecar.
+ *
+ * No FK on session_id on purpose: the run path can outrace the session
+ * synchronizer (the sessions row may not exist yet at spawn time) and stale
+ * rows for deleted sessions are harmless (matched by session_id only).
+ * Messages recorded before this table existed simply have no row — the
+ * frontend treats a missing userId as "unknown author" and falls back.
+ *
+ * NOTE: created via migration (migrateMessageAuthors), NOT in INIT_SCHEMA_SQL.
+ */
+export const MESSAGE_AUTHORS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS message_authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    content_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
  * session_agents_cache — parsed-on-demand inventory of the non-human actors in
  * a session transcript: the base model ('model') and any spawned subagents
  * ('subagent'). Populated by the transcript parser and keyed so repeated parses
@@ -174,6 +250,7 @@ CREATE TABLE IF NOT EXISTS session_agents_cache (
     agent_name TEXT NOT NULL,
     agent_kind TEXT NOT NULL,
     invocation_count INTEGER DEFAULT 1,
+    agent_model TEXT DEFAULT NULL,
     PRIMARY KEY (session_id, agent_name, agent_kind)
 );
 `;
@@ -190,6 +267,60 @@ CREATE TABLE IF NOT EXISTS session_agents_meta (
     session_id TEXT PRIMARY KEY,
     transcript_mtime INTEGER NOT NULL,
     parsed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+/**
+ * webauthn_credentials — registered passkeys (WebAuthn credentials) per user.
+ * id is the credential ID as a base64url string (what the authenticator returns
+ * and what login responses are looked up by). public_key is the COSE public key
+ * bytes used to verify assertion signatures; counter backs clone detection.
+ * transports is a JSON array of hint strings (e.g. ["internal","hybrid"]).
+ *
+ * NOTE: created via migration (migrateWebAuthnCredentials), NOT included in
+ * INIT_SCHEMA_SQL. Its index likewise lives only in the migration.
+ */
+export const WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id INTEGER NOT NULL,
+    public_key BLOB NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT,
+    device_type TEXT,
+    backed_up INTEGER NOT NULL DEFAULT 0,
+    aaguid TEXT,
+    name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`;
+
+/**
+ * starred_sessions — per-user "favorite/pin" flag for a session, so a user can
+ * mark sessions they want to return to. Star is PER USER (composite primary key
+ * user_id + session_id): the same session may be starred by some users and not
+ * others. project_name records the providerless project identifier the frontend
+ * already uses for the session, stored alongside so the starred list can be
+ * rendered without re-joining through projects/sessions.
+ *
+ * No FK on session_id on purpose (mirrors message_authors): the session row may
+ * be synchronized lazily and stars must survive transient absence; a star whose
+ * session no longer exists is harmless and filtered at read time by the caller.
+ * user_id keeps its FK with ON DELETE CASCADE so deleting a user clears stars.
+ *
+ * NOTE: created via migration (migrateStarredSessions), NOT in INIT_SCHEMA_SQL.
+ * Its index likewise lives only in the migration (see the 502 lesson).
+ */
+export const STARRED_SESSIONS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS starred_sessions (
+    user_id INTEGER NOT NULL,
+    session_id TEXT NOT NULL,
+    project_name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, session_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 `;
 
@@ -241,6 +372,9 @@ CREATE INDEX IF NOT EXISTS idx_user_credentials_active ON user_credentials(is_ac
 
 ${USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_user_notification_preferences_user_id ON user_notification_preferences(user_id);
+
+${USER_UI_PREFERENCES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_user_ui_preferences_user_id ON user_ui_preferences(user_id);
 
 ${VAPID_KEYS_TABLE_SCHEMA_SQL}
 

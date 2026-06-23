@@ -49,7 +49,9 @@
     "save": "Kaydet",
     "cancel": "İptal",
     "clearSearch": "Aramayı temizle",
-    "openCommandPalette": "Komut paletini aç"
+    "openCommandPalette": "Komut paletini aç",
+    "openWiki": "Open Nassaj Wiki",
+    "goHome": "Home"
   },
   "navigation": {
     "chat": "Sohbet",
@@ -61,15 +63,19 @@
   "actions": {
     "refresh": "Yenile",
     "settings": "Ayarlar",
+    "logout": "Çıkış Yap",
+    "logoutConfirm": "Hesabınızdan çıkış yapılsın mı?",
     "collapseAll": "Tümünü Daralt",
     "expandAll": "Tümünü Genişlet",
     "cancel": "İptal",
     "save": "Kaydet",
     "delete": "Sil",
     "rename": "Yeniden Adlandır",
-    "joinCommunity": "Topluluğa Katıl",
-    "reportIssue": "Sorun Bildir",
     "starOnGithub": "GitHub'da Yıldızla"
+  },
+  "systemStats": {
+    "cpuUsage": "CPU usage",
+    "memoryUsage": "Memory usage"
   },
   "branding": {
     "openSource": "Açık Kaynak"
@@ -111,18 +117,6 @@
   "version": {
     "updateAvailable": "Güncelleme mevcut"
   },
-  "search": {
-    "modeProjects": "Projeler",
-    "modeConversations": "Konuşmalar",
-    "conversationsPlaceholder": "Konuşmalarda ara...",
-    "searching": "Aranıyor...",
-    "noResults": "Sonuç bulunamadı",
-    "tryDifferentQuery": "Farklı bir arama sorgusu dene",
-    "matches_one": "{{count}} eşleşme",
-    "matches_other": "{{count}} eşleşme",
-    "projectsScanned_one": "{{count}} proje tarandı",
-    "projectsScanned_other": "{{count}} proje tarandı"
-  },
   "deleteConfirmation": {
     "deleteProject": "Projeyi Kaldır",
     "deleteSession": "Oturumu Sil",
@@ -133,5 +127,10 @@
     "deleteAllData": "Tüm veriyi kalıcı olarak sil",
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
     "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin."
+  },
+  "upstream": {
+    "newRelease": "Upstream v{{version}} released",
+    "openRelease": "Open the upstream v{{version}} release page",
+    "acknowledge": "Acknowledge"
   }
 }
