@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-24T12:17:19.068Z",
+  "updated": "2026-06-24T13:40:12.270Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2380,6 +2380,25 @@
       "priority": "medium",
       "description": "ProviderLoginModal.tsx: «hermes» ← «hermes setup --portal» (onboarding Nous Portal: OAuth+اختيار نموذج، الأقل تدميراً، وليس hermes login المهمَل). hermes-auth.provider.ts: stub ← فحص فعلي يقرأ ~/.hermes/auth.json (access_token أو credential_pool ⇒ authenticated:true method:oauth). provider.routes.ts: إخراج hermes من STUB_CLI_PROVIDERS. مؤكَّد بالتحقّق: المستخدم مصادَق على Nous (auth status=logged in)، النموذج الافتراضي stepfun/step-3.7-flash:free. تحقّق المسار: command يُنفَّذ عبر bash -c فأمر متعدد الكلمات يعمل. build:client+server ناجح. الواجهة حيّة بـbuild:client؛ auth-status يلزمه restart nassaj-dev (محجوب بحارس العميل — ينفّذه المالك). يعالج B-84.",
       "completedAt": "2026-06-24T12:17:19.068Z"
+    },
+    {
+      "id": "T-204",
+      "kind": "bug",
+      "title": "إظهار هرمز في منتقي المزوّد/النموذج عند محادثة جديدة + نماذج Nous فعلية",
+      "status": "done",
+      "phase": "P4",
+      "priority": "high",
+      "description": "6 ملفات: PROVIDER_META + قائمة جلب providers[] + PROVIDER_ORDER + state مخصّص hermesModel (مفتاح hermes-model مستقل، لا تلوّث cursor) + HERMES_FALLBACK_MODELS (خادم hermes.provider.ts + مرآة عميل providerModelFallbacks.ts) بقيم provider/model فعلية (افتراضي nous/stepfun/step-3.7-flash:free + copilot/claude-opus-4.8.. + nous/glm-5.2..). build:client+server أخضر، مُتحقَّق qa-critic + grep dist. الواجهة تكفيها build:client؛ نماذج الخادم الفعلية تلزم restart. يعالج B-85. لا يكفي للمحادثة (T-205).",
+      "completedAt": "2026-06-24T13:40:12.270Z"
+    },
+    {
+      "id": "T-205",
+      "kind": "bug",
+      "title": "توصيل مسار محادثة هرمز فعلياً (hermes-command + spawn + sessions) — حالياً اختياره يُوجَّه لـClaude",
+      "status": "todo",
+      "phase": "P4",
+      "priority": "high",
+      "description": "بعد T-204 يظهر هرمز ويُختار، لكن الإرسال يُولّد claude-command: لا فرع hermes في useChatComposerState:638-673، لا معالج hermes-command بـchat-websocket.service، وhermesModel لا يُمرَّر للـcomposer بـChatInterface (سطور 327-340/678). يلزم: فرع hermes يبعث hermes-command + تمرير hermesModel + معالج خادمي يُسبَاون CLI هرمز headless + HermesSessions.fetchHistory/normalizeMessage (stubs 501 اليوم). تنبيه حرج: حتى الإنجاز، اختيار هرمز للمحادثة misroute صامت لـClaude."
     }
   ],
   "issues": [
@@ -3125,6 +3144,22 @@
       "severity": "medium",
       "phase": "P4",
       "description": "ProviderLoginModal كان يُرجِع الأمر `hermes` العاري لهرمز فيفتح وضع الـchat على النموذج المجاني بدل مصادقة. كاشف ثانوي: hermes-auth.provider stub ثابت (authenticated:false) وhermes ضمن STUB_CLI_PROVIDERS فاللوحة تعرض «Authentication not yet supported» رغم أن المستخدم مصادَق فعلاً على Nous (OAuth). التتبّع: T-203."
+    },
+    {
+      "id": "B-85",
+      "title": "غياب هرمز من منتقي المزوّد/النموذج عند فتح محادثة جديدة",
+      "status": "resolved",
+      "severity": "high",
+      "phase": "P4",
+      "description": "هرمز مستبعَد من 3 قوائم ثابتة بالعميل (PROVIDER_META + providers[] في useChatProviderState + PROVIDER_ORDER) رغم جاهزية الخادم (HermesProvider مسجَّل، /api/providers/hermes/models يعمل). الإخفاء لعدم الإدراج لا فشل مصادقة (مطابق لظهور Google بـSign in). أُصلح: T-204. كشف فجوة منفصلة في مسار الإرسال: T-205."
+    },
+    {
+      "id": "B-86",
+      "title": "نصف الـworkflow في مستوى الجهد ultracode خامد (CLAUDE_CODE_WORKFLOWS غير مضبوط)",
+      "status": "open",
+      "severity": "low",
+      "phase": "P4",
+      "description": "ultracode بنسّاج = --effort max (حقيقي عبر EFFORT_ALIASES بـclaude-sdk.js) + حقن نص ثابت ultrathink ultrawork. ultrathink فعّال (تفكير أعمق، كاشف حقيقي بثنائية SDK 0.3.152). لكن ultrawork (توجيه Workflow tool) خامد: معالج ultrawork_request خلف بوابة CN() التي تتطلب process.env.CLAUDE_CODE_WORKFLOWS، غير مضبوط في نسّاج (صفر بالشجرة/ecosystem/.env). الإصلاح إن أُريد: ضبط CLAUDE_CODE_WORKFLOWS=1 ببيئة الـspawn. مُتحقَّق سطراً بسطر + qa-critic."
     }
   ],
   "decisions": [

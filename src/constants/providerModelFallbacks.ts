@@ -727,6 +727,25 @@ export const PLACEHOLDER_FALLBACK_MODELS: ProviderModelsDefinition = {
   DEFAULT: 'auto',
 };
 
+// Client-side mirror of the server's HERMES_FALLBACK_MODELS
+// (server/modules/providers/list/hermes/hermes.provider.ts). Used when the live
+// /api/providers/hermes/models call fails. Keep in sync with the server list.
+export const HERMES_FALLBACK_MODELS: ProviderModelsDefinition = {
+  OPTIONS: [
+    { value: 'nous/stepfun/step-3.7-flash:free', label: 'Step 3.7 Flash (free)', description: 'nous — default free tier' },
+    { value: 'nous/deepseek-v4-pro', label: 'DeepSeek V4 Pro', description: 'nous' },
+    { value: 'nous/glm-5.2', label: 'GLM 5.2', description: 'nous' },
+    { value: 'nous/kimi-k2.5', label: 'Kimi K2.5', description: 'nous' },
+    { value: 'nous/minimax-m3', label: 'MiniMax M3', description: 'nous' },
+    { value: 'nous/qwen3-coder:480b', label: 'Qwen3 Coder 480B', description: 'nous' },
+    { value: 'copilot/claude-opus-4.8', label: 'Claude Opus 4.8', description: 'copilot' },
+    { value: 'copilot/claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'copilot' },
+    { value: 'copilot/gpt-5.5', label: 'GPT-5.5', description: 'copilot' },
+    { value: 'copilot/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro Preview', description: 'copilot' },
+  ],
+  DEFAULT: 'nous/stepfun/step-3.7-flash:free',
+};
+
 export const PROVIDER_FALLBACK_MODELS: Record<LLMProvider, ProviderModelsDefinition> = {
   claude: CLAUDE_FALLBACK_MODELS,
   cursor: CURSOR_FALLBACK_MODELS,
@@ -736,7 +755,7 @@ export const PROVIDER_FALLBACK_MODELS: Record<LLMProvider, ProviderModelsDefinit
   opencode: OPENCODE_FALLBACK_MODELS,
   deepseek: PLACEHOLDER_FALLBACK_MODELS,
   glm: PLACEHOLDER_FALLBACK_MODELS,
-  hermes: PLACEHOLDER_FALLBACK_MODELS,
+  hermes: HERMES_FALLBACK_MODELS,
   sakana: PLACEHOLDER_FALLBACK_MODELS,
 };
 
@@ -754,7 +773,7 @@ export const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   opencode: OPENCODE_FALLBACK_MODELS.DEFAULT,
   deepseek: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
   glm: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
-  hermes: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
+  hermes: HERMES_FALLBACK_MODELS.DEFAULT,
   sakana: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
 };
 

@@ -49,6 +49,8 @@ interface ChatMessagesPaneProps {
   setAntigravityModel: (model: string) => void;
   opencodeModel: string;
   setOpenCodeModel: (model: string) => void;
+  hermesModel: string;
+  setHermesModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   providerModelsRefreshing: boolean;
@@ -107,6 +109,8 @@ export default function ChatMessagesPane({
   setAntigravityModel,
   opencodeModel,
   setOpenCodeModel,
+  hermesModel,
+  setHermesModel,
   providerModelCatalog,
   providerModelsLoading,
   providerModelsRefreshing,
@@ -216,6 +220,8 @@ export default function ChatMessagesPane({
           setAntigravityModel={setAntigravityModel}
           opencodeModel={opencodeModel}
           setOpenCodeModel={setOpenCodeModel}
+          hermesModel={hermesModel}
+          setHermesModel={setHermesModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
           providerModelsRefreshing={providerModelsRefreshing}

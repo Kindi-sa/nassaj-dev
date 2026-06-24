@@ -182,6 +182,8 @@ function ChatInterface({
     setAntigravityModel,
     opencodeModel,
     setOpenCodeModel,
+    hermesModel,
+    setHermesModel,
     permissionMode,
     pendingPermissionRequests,
     setPendingPermissionRequests,
@@ -207,7 +209,7 @@ function ChatInterface({
     if (!shouldResetProvider(currentStatus)) return;
 
     // Find first qualified provider (installed===true), defaulting to 'claude'.
-    const PROVIDER_ORDER: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+    const PROVIDER_ORDER: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes'];
     const fallback = PROVIDER_ORDER.find((p) => {
       const s = providerAuthStatus[p];
       return s.installed !== false;
@@ -585,6 +587,8 @@ function ChatInterface({
           setAntigravityModel={setAntigravityModel}
           opencodeModel={opencodeModel}
           setOpenCodeModel={setOpenCodeModel}
+          hermesModel={hermesModel}
+          setHermesModel={setHermesModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
           providerModelsRefreshing={providerModelsRefreshing}

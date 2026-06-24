@@ -74,6 +74,9 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   const [opencodeModel, setOpenCodeModel] = useState<string>(() => {
     return sanitizeStoredModel('opencode', localStorage.getItem('opencode-model'));
   });
+  const [hermesModel, setHermesModel] = useState<string>(() => {
+    return sanitizeStoredModel('hermes', localStorage.getItem('hermes-model'));
+  });
   // Antigravity (agy) does not expose model selection from the UI; the real
   // model is chosen inside agy's own settings. We still carry a tiny piece of
   // state so the provider plugs into existing model-aware helpers uniformly.
@@ -123,12 +126,18 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       return;
     }
 
+    if (targetProvider === 'hermes') {
+      setHermesModel(model);
+      localStorage.setItem('hermes-model', model);
+      return;
+    }
+
     setOpenCodeModel(model);
     localStorage.setItem('opencode-model', model);
   }, []);
 
   const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
-    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes'];
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
     const isHardRefresh = options.bypassCache === true;
@@ -236,6 +245,9 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     const offAntigravity = onApplyServerPreference('antigravity-model', (raw) => {
       setAntigravityModel(sanitizeStoredModel('antigravity', raw));
     });
+    const offHermes = onApplyServerPreference('hermes-model', (raw) => {
+      setHermesModel(sanitizeStoredModel('hermes', raw));
+    });
     return () => {
       offProvider();
       offClaude();
@@ -244,6 +256,7 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       offGemini();
       offOpencode();
       offAntigravity();
+      offHermes();
     };
   }, []);
 
@@ -296,6 +309,10 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       setOpenCodeModel,
     );
   }, [providerModelCatalog.opencode, opencodeModel, reconcileProviderModel]);
+
+  useEffect(() => {
+    reconcileProviderModel('hermes-model', providerModelCatalog.hermes, hermesModel, setHermesModel);
+  }, [providerModelCatalog.hermes, hermesModel, reconcileProviderModel]);
 
   useEffect(() => {
     if (!selectedSession?.id) {
@@ -410,6 +427,8 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     setAntigravityModel,
     opencodeModel,
     setOpenCodeModel,
+    hermesModel,
+    setHermesModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,

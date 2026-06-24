@@ -34,6 +34,7 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "antigravity", name: "Antigravity (agy)" },
   { id: "cursor", name: "Cursor" },
   { id: "opencode", name: "OpenCode" },
+  { id: "hermes", name: "Hermes (Nous)" },
 ];
 
 const MOD_KEY =
@@ -57,6 +58,8 @@ type ProviderSelectionEmptyStateProps = {
   setAntigravityModel: (model: string) => void;
   opencodeModel: string;
   setOpenCodeModel: (model: string) => void;
+  hermesModel: string;
+  setHermesModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   providerModelsRefreshing: boolean;
@@ -91,12 +94,14 @@ function getCurrentModel(
   g: string,
   a: string,
   o: string,
+  h: string,
 ) {
   if (p === "claude") return c;
   if (p === "codex") return co;
   if (p === "gemini") return g;
   if (p === "antigravity") return a;
   if (p === "opencode") return o;
+  if (p === "hermes") return h;
   return cu;
 }
 
@@ -106,6 +111,7 @@ function getProviderDisplayName(p: LLMProvider) {
   if (p === "codex") return "Codex";
   if (p === "antigravity") return "Antigravity (agy)";
   if (p === "opencode") return "OpenCode";
+  if (p === "hermes") return "Hermes (Nous)";
   return "Gemini";
 }
 
@@ -127,6 +133,8 @@ export default function ProviderSelectionEmptyState({
   setAntigravityModel,
   opencodeModel,
   setOpenCodeModel,
+  hermesModel,
+  setHermesModel,
   providerModelCatalog,
   providerModelsLoading,
   providerModelsRefreshing,
@@ -246,6 +254,7 @@ export default function ProviderSelectionEmptyState({
     geminiModel,
     antigravityModel,
     opencodeModel,
+    hermesModel,
   );
 
   const currentModelLabel = useMemo(() => {
@@ -273,12 +282,15 @@ export default function ProviderSelectionEmptyState({
       } else if (providerId === "opencode") {
         setOpenCodeModel(modelValue);
         localStorage.setItem("opencode-model", modelValue);
+      } else if (providerId === "hermes") {
+        setHermesModel(modelValue);
+        localStorage.setItem("hermes-model", modelValue);
       } else {
         setCursorModel(modelValue);
         localStorage.setItem("cursor-model", modelValue);
       }
     },
-    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel, setAntigravityModel, setOpenCodeModel],
+    [setClaudeModel, setCursorModel, setCodexModel, setGeminiModel, setAntigravityModel, setOpenCodeModel, setHermesModel],
   );
 
   const handleModelSelect = useCallback(
@@ -488,6 +500,10 @@ export default function ProviderSelectionEmptyState({
                   model: opencodeModel,
                   defaultValue: "Ready with OpenCode {{model}}",
                 }),
+                hermes: t("providerSelection.readyPrompt.hermes", {
+                  model: hermesModel,
+                  defaultValue: "Ready with Hermes {{model}}",
+                }),
                 // Placeholder providers: not surfaced in PROVIDER_META yet, so
                 // these branches are unreachable at runtime; present only to keep
                 // the lookup exhaustive over the LLMProvider union.
@@ -496,9 +512,6 @@ export default function ProviderSelectionEmptyState({
                 }),
                 glm: t("providerSelection.readyPrompt.glm", {
                   defaultValue: "Ready with GLM 5.2",
-                }),
-                hermes: t("providerSelection.readyPrompt.hermes", {
-                  defaultValue: "Ready with Hermes",
                 }),
                 sakana: t("providerSelection.readyPrompt.sakana", {
                   defaultValue: "Ready with Sakana",
