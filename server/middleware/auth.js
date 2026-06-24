@@ -233,6 +233,12 @@ const authenticateWebSocket = (token) => {
     if (!user) {
       return null;
     }
+    // Reject tokens minted before the user's last password change (logout-all on
+    // password change / admin reset) — matches REST authenticateToken so a live
+    // WebSocket cannot outlive a password change to its TTL.
+    if (user.password_changed_at && decoded.pwd_iat < user.password_changed_at) {
+      return null;
+    }
     return { id: user.id, userId: user.id, username: user.username, role: user.role };
   } catch {
     return null;
