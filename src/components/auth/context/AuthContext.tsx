@@ -169,6 +169,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [checkOnboardingStatus, clearSession, hydratePreferences, token]);
 
+  // Listen for 401 responses dispatched by authenticatedFetch (api.js). When
+  // any endpoint rejects the token we clear the local session and redirect to
+  // the login page so the user is never left in a broken "logged-in" state.
+  useEffect(() => {
+    if (IS_PLATFORM) return;
+
+    const handleUnauthorized = () => {
+      clearSession();
+      window.location.href = '/login';
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, [clearSession]);
+
   useEffect(() => {
     if (IS_PLATFORM) {
       setUser({ username: 'platform-user' });

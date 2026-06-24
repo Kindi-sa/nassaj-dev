@@ -22,6 +22,13 @@ export const authenticatedFetch = (url, options = {}) => {
       ...options.headers,
     },
   }).then((response) => {
+    // Auto-logout on definitive auth rejection. Fires a custom event so
+    // AuthContext can clear the session without a circular import.
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      return response;
+    }
+
     const refreshedToken = response.headers.get('X-Refreshed-Token');
     if (refreshedToken) {
       localStorage.setItem('auth-token', refreshedToken);
