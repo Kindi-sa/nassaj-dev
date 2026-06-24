@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-23T10:03:37.000Z",
+  "updated": "2026-06-24T12:17:19.068Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2370,6 +2370,16 @@
       "priority": "medium",
       "description": "ثلاثة تعديلات UI: (1) زر في القائمة اليمنى يُخفي نصوص التبويبات ويُبقي الأيقونات مع tooltip، (2) نقل Wiki من الشريط العلوي لبجوار \"New Project\" يفتح في تبويب جديد، (3) صفّ المزوّدات في الإعدادات: شعارات-فقط+hover، حذف Gemini chip، إضافة DeepSeek/GLM5.2/Hermes/Sakana. DeepSeek+GLM موجودان على branch feat/multimodel-providers (غير مدموج) — يُضافان كـchips مع backend registration أولاً.\n\nمكتمل: 23 ملف، TypeScript passes clean، build:client+server ناجح. restartNeeded=true لأجل session-synchronizer.service.ts (يُشغِّله المستخدم).",
       "completedAt": "2026-06-23T10:03:37.000Z"
+    },
+    {
+      "id": "T-203",
+      "kind": "bug",
+      "title": "إصلاح Login لهرمز: الأمر `hermes setup --portal` + قراءة auth فعلية من ~/.hermes/auth.json",
+      "status": "done",
+      "phase": "P4",
+      "priority": "medium",
+      "description": "ProviderLoginModal.tsx: «hermes» ← «hermes setup --portal» (onboarding Nous Portal: OAuth+اختيار نموذج، الأقل تدميراً، وليس hermes login المهمَل). hermes-auth.provider.ts: stub ← فحص فعلي يقرأ ~/.hermes/auth.json (access_token أو credential_pool ⇒ authenticated:true method:oauth). provider.routes.ts: إخراج hermes من STUB_CLI_PROVIDERS. مؤكَّد بالتحقّق: المستخدم مصادَق على Nous (auth status=logged in)، النموذج الافتراضي stepfun/step-3.7-flash:free. تحقّق المسار: command يُنفَّذ عبر bash -c فأمر متعدد الكلمات يعمل. build:client+server ناجح. الواجهة حيّة بـbuild:client؛ auth-status يلزمه restart nassaj-dev (محجوب بحارس العميل — ينفّذه المالك). يعالج B-84.",
+      "completedAt": "2026-06-24T12:17:19.068Z"
     }
   ],
   "issues": [
@@ -3107,6 +3117,14 @@
       "severity": "high",
       "phase": "P7",
       "description": "نتيجة fleet-centralized-access-study.md §8 (qa-critic): تركيب 105/مجتنى والكندي مُعلَّق لأن الطوبولوجيا تحدّد ما يُركَّب. التتبّع: T-201. يُغلق عند صدور ADR + موافقة مالك."
+    },
+    {
+      "id": "B-84",
+      "title": "زرّ Login لوكيل Hermes يفتح جلسة chat تفاعلية بدل أمر المصادقة (يُسبَاون `hermes` العاري)",
+      "status": "resolved",
+      "severity": "medium",
+      "phase": "P4",
+      "description": "ProviderLoginModal كان يُرجِع الأمر `hermes` العاري لهرمز فيفتح وضع الـchat على النموذج المجاني بدل مصادقة. كاشف ثانوي: hermes-auth.provider stub ثابت (authenticated:false) وhermes ضمن STUB_CLI_PROVIDERS فاللوحة تعرض «Authentication not yet supported» رغم أن المستخدم مصادَق فعلاً على Nous (OAuth). التتبّع: T-203."
     }
   ],
   "decisions": [

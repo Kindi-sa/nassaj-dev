@@ -322,7 +322,7 @@ const parseChangeActiveModelPayload = (payload: unknown): ProviderChangeActiveMo
   };
 };
 
-const STUB_CLI_PROVIDERS = new Set<string>(['hermes']);
+const STUB_CLI_PROVIDERS = new Set<string>();
 const STUB_API_PROVIDERS = new Set<string>(['deepseek', 'glm', 'sakana']);
 
 router.get(

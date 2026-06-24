@@ -42,7 +42,12 @@ const getProviderCommand = ({
   }
 
   if (provider === 'hermes') {
-    return 'hermes';
+    // Bare `hermes` opens the interactive chat REPL, not an auth flow.
+    // `hermes setup --portal` runs the one-shot Nous Portal onboarding
+    // (OAuth login + pick a model + set Nous as provider) and skips the rest
+    // of the wizard, so it does not reconfigure existing terminal/tools setup.
+    // `hermes login` is deprecated and intentionally avoided.
+    return 'hermes setup --portal';
   }
 
   if (provider === 'antigravity') {
