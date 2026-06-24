@@ -390,19 +390,32 @@ export function useChatRealtimeHandlers({
         }
         accumulatedStreamRef.current = '';
 
+        // When Workflow tool calls were issued, the assistant turn ended but
+        // background work is still running. Keep the spinner alive until the
+        // next turn arrives (which will re-enter the loading state naturally).
+        const hasPendingWorkflows =
+          typeof msg.pendingWorkflows === 'number' && msg.pendingWorkflows > 0;
+
         // Session-list / global concerns: keyed by sid, safe for any session.
         onSessionInactive?.(sid);
-        onSessionNotProcessing?.(sid);
+        if (!hasPendingWorkflows) {
+          onSessionNotProcessing?.(sid);
+        }
 
         // View mutations: only when this event is for the session on screen.
         // A background session completing must not clear the active view's
         // spinner, status, or pending permission prompts.
         if (isActiveViewSession) {
-          setIsLoading(false);
-          setCanAbortSession(false);
-          setClaudeStatus(null);
-          setPendingPermissionRequests([]);
-          pendingViewSessionRef.current = null;
+          if (hasPendingWorkflows) {
+            // Keep isLoading true — background Workflow still running.
+            setClaudeStatus({ text: 'Workflow يعمل في الخلفية…', tokens: 0, can_interrupt: true });
+          } else {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+            setPendingPermissionRequests([]);
+            pendingViewSessionRef.current = null;
+          }
         }
 
         // Handle aborted case
@@ -412,6 +425,8 @@ export function useChatRealtimeHandlers({
           // The backend already sent any abort-related messages
           break;
         }
+
+        if (hasPendingWorkflows) break;
 
         showCompletionTitleIndicator();
         void playChatCompletionSound();

@@ -1466,6 +1466,9 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     let wsDiagOrphanLogged = false;
     let wsDiagMessageCount = 0;
+    // Count Workflow tool_use calls so the complete event can signal
+    // that background work is still in flight after the assistant turn ends.
+    let pendingWorkflows = 0;
     for await (const message of queryInstance) {
       // [WS-DIAG] One-time orphan detection: socket went away but the stream lives on.
       wsDiagMessageCount += 1;
@@ -1518,6 +1521,16 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         }
       } else {
         // session_id already captured
+      }
+
+      // Detect Workflow tool invocations so the complete event can signal
+      // that background work continues after the assistant turn ends.
+      if (message.type === 'assistant' && Array.isArray(message.message?.content)) {
+        for (const block of message.message.content) {
+          if (block && block.type === 'tool_use' && block.name === 'Workflow') {
+            pendingWorkflows += 1;
+          }
+        }
       }
 
       // Transform and normalize message via adapter
@@ -1617,7 +1630,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // critical path). The active flag is flipped to inactive immediately AFTER,
     // so the buffer survives for the retention window but the session is no
     // longer reported processing.
-    sendAndBuffer(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude' }));
+    sendAndBuffer(createNormalizedMessage({ kind: 'complete', exitCode: 0, isNewSession: !sessionId && !!command, sessionId: capturedSessionId, provider: 'claude', pendingWorkflows }));
     // ADR-041: terminal state — flip the single source of truth to inactive and
     // schedule a deferred buffer drop (post-close replay window, not an immediate
     // drop). No-op when SESSION_REGISTRY_claude is off.
