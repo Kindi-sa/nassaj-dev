@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-25T14:00:00.000Z",
+  "updated": "2026-06-26T07:00:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -80,6 +80,14 @@
     }
   ],
   "tasks": [
+    {
+      "id": "T-206",
+      "kind": "maintenance",
+      "phase": "P7",
+      "status": "pending",
+      "title": "فحص تضارب JWT_SECRET على الرخيمي (104، nassaj.alrukhaimi.com): التحقق من وجود JWT_SECRET في /opt/nassaj/.env ومطابقة app_config.jwt_secret معه وقائياً (نفس إصلاح T-184 على nassaj.alkindy.tech). يتطلب SSH للرخيمي.",
+      "owner": "devops"
+    },
     {
       "id": "T-200",
       "kind": "maintenance",
@@ -2221,10 +2229,10 @@
       "kind": "bug",
       "issue": "B-70",
       "title": "تشخيص «تسجيل خروج عشوائي» للمستخدم نورس (Nawras): خروج متكرر عشوائي أثناء الاستخدام (لا مرتبط بتحديث الصفحة) + خروج بعد restart جهازه. السبب المرجّح جهة عميل/متصفح Helium يفقد localStorage — لا عيب في المنتج: السيرفر مُبرَّأ نهائياً (صفر 401/403، JWT_SECRET ثابت).",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null,
-      "note": "ثلاث موجات تشخيص backend-dev. مُبرَّأ: الخادم (200 لتوكن نورس + صفر 401/403، التقاط حيّ بتوكن مسكوك)، بيانات حساب نورس (password_changed_at في الماضي لا يرفض)، ومسار passkey (يحفظ auth-token بنفس آلية كلمة المرور setSession→persistToken، والخادم يُصدر توكناً متطابقاً). المرحلة 1 (فحص الوضع الراهن، architect+backend-dev، 2026-06-19): كل الزوايا الكودية نُفيت قطعياً (clearSession مشروط بـ401/403 أو جسم بلا user فقط، لا storage-event يمسّ auth-token، لا منطق owner في الإقلاع، لا كتابة توكن فارغ عبر X-Refreshed-Token، لا redirect بين origins). الحل المعماري httpOnly cookie: (أ) عالي المخاطر — CSWSH على WS (لا Origin-check حالياً) + تحويل WS/SSE من ?token= + نافذة ترحيل مزدوجة لتجنّب طرد الجميع؛ (ب) قد لا يعالج نورس لأن إخلاء «بيانات الموقع» في Helium/Ungoogled-Chromium يطال الكوكيز كاللocalStorage. البوابة قبل أي حل (لا fix-before-diagnosis): فحص probe على جهاز نورس — localStorage.setItem('probe',Date.now()) ثم F5 ثم قراءته + location.origin + طول auth-token — يفصل «إخلاء متصفح» (الحل: إعداد Helium بلا كود) عن «منطق عميل/خادم» (حل كودي مستهدف). httpOnly يبقى تحسين XSS مستقلاً لا علاجاً لنورس؛ وWS Origin-check تحسين أمني مفيد بذاته. البحث العميق (backend-dev، 2026-06-19، بطلب المالك «هل فيه لوق»): استُخرج audit_log لـuser_id=1 — 14 حدث login، **صفر logout**، فجوات بالساعات بل 14 دقيقة (≪ TTL 7 أيام = التوكن يُفقد لا ينتهي)، توقيتات عشوائية لا دورية (= بيئة عميل لا cron خادمي)، وتكثُّف الطرد منذ 2026-06-15 (يوم passkey جديد + إضافة .env + هجرة الدومين B-65). JWT_SECRET ثابت في .env (96 محرف، الأولوية على app_config) — restart الخادم لا يُبطل التوكنات (أكّدته restartات 06-19 ونجاة توكنات نورس). معطى «restart الجهاز ← خروج» = clear-on-close لـHelium (إغلاق المتصفح يمسح التخزين). القيد: السجل أعمى عن لحظة الفقد (لا user_agent، لا logout، لا سبب رفض 401، لا token_refresh عبر الهيدر) فلا يُحسم السبب الدقيق من جهتنا. سيناريو جديد محتمل: سباق كتابة X-Refreshed-Token بين تبويبات/مرايا متعددة (نورس owner الوحيدة المعرَّضة). توصية: (1) اختبار حاسم بسيط — نورس يجرّب Chrome/Firefox؛ (2) تحسين السجل (T-183): إضافة user_agent + تسجيل logout + auth_rejected{reason} + token_refresh → يجعل النظام يكشف السبب بنفسه."
+      "closed": "2026-06-20",
+      "note": "ثلاث موجات تشخيص backend-dev. مُبرَّأ: الخادم (200 لتوكن نورس + صفر 401/403، التقاط حيّ بتوكن مسكوك)، بيانات حساب نورس (password_changed_at في الماضي لا يرفض)، ومسار passkey (يحفظ auth-token بنفس آلية كلمة المرور setSession→persistToken، والخادم يُصدر توكناً متطابقاً). المرحلة 1 (فحص الوضع الراهن، architect+backend-dev، 2026-06-19): كل الزوايا الكودية نُفيت قطعياً (clearSession مشروط بـ401/403 أو جسم بلا user فقط، لا storage-event يمسّ auth-token، لا منطق owner في الإقلاع، لا كتابة توكن فارغ عبر X-Refreshed-Token، لا redirect بين origins). الحل المعماري httpOnly cookie: (أ) عالي المخاطر — CSWSH على WS (لا Origin-check حالياً) + تحويل WS/SSE من ?token= + نافذة ترحيل مزدوجة لتجنّب طرد الجميع؛ (ب) قد لا يعالج نورس لأن إخلاء «بيانات الموقع» في Helium/Ungoogled-Chromium يطال الكوكيز كاللocalStorage. البوابة قبل أي حل (لا fix-before-diagnosis): فحص probe على جهاز نورس — localStorage.setItem('probe',Date.now()) ثم F5 ثم قراءته + location.origin + طول auth-token — يفصل «إخلاء متصفح» (الحل: إعداد Helium بلا كود) عن «منطق عميل/خادم» (حل كودي مستهدف). httpOnly يبقى تحسين XSS مستقلاً لا علاجاً لنورس؛ وWS Origin-check تحسين أمني مفيد بذاته. البحث العميق (backend-dev، 2026-06-19، بطلب المالك «هل فيه لوق»): استُخرج audit_log لـuser_id=1 — 14 حدث login، **صفر logout**، فجوات بالساعات بل 14 دقيقة (≪ TTL 7 أيام = التوكن يُفقد لا ينتهي)، توقيتات عشوائية لا دورية (= بيئة عميل لا cron خادمي)، وتكثُّف الطرد منذ 2026-06-15 (يوم passkey جديد + إضافة .env + هجرة الدومين B-65). JWT_SECRET ثابت في .env (96 محرف، الأولوية على app_config) — restart الخادم لا يُبطل التوكنات (أكّدته restartات 06-19 ونجاة توكنات نورس). معطى «restart الجهاز ← خروج» = clear-on-close لـHelium (إغلاق المتصفح يمسح التخزين). القيد: السجل أعمى عن لحظة الفقد (لا user_agent، لا logout، لا سبب رفض 401، لا token_refresh عبر الهيدر) فلا يُحسم السبب الدقيق من جهتنا. سيناريو جديد محتمل: سباق كتابة X-Refreshed-Token بين تبويبات/مرايا متعددة (نورس owner الوحيدة المعرَّضة). توصية: (1) اختبار حاسم بسيط — نورس يجرّب Chrome/Firefox؛ (2) تحسين السجل (T-183): إضافة user_agent + تسجيل logout + auth_rejected{reason} + token_refresh → يجعل النظام يكشف السبب بنفسه. || مُغلَق 2026-06-20: السبب الجذري الفعلي تضارب JWT_SECRET (لا متصفح) — كشفه T-183/audit_log؛ أُصلح بـT-184 (مواءمة app_config=.env). B-70 fixed."
     },
     {
       "id": "T-183",
