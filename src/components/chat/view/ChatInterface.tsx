@@ -334,6 +334,7 @@ function ChatInterface({
     geminiModel,
     antigravityModel,
     opencodeModel,
+    hermesModel,
     isLoading,
     canAbortSession,
     tokenBudget,

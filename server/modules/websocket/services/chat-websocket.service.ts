@@ -39,6 +39,7 @@ type ChatWebSocketDependencies = {
   spawnGemini: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnAntigravity: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnOpenCode: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnHermes: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   /**
    * Resolves the authoritative provider for an existing session from the
    * database. Returns null when the session is unknown (e.g. a brand-new
@@ -51,6 +52,7 @@ type ChatWebSocketDependencies = {
   abortGeminiSession: (sessionId: string) => boolean;
   abortAntigravitySession: (sessionId: string) => boolean;
   abortOpenCodeSession: (sessionId: string) => boolean;
+  abortHermesSession: (sessionId: string) => boolean;
   resolveToolApproval: (
     requestId: string,
     payload: {
@@ -66,6 +68,7 @@ type ChatWebSocketDependencies = {
   isGeminiSessionActive: (sessionId: string) => boolean;
   isAntigravitySessionActive: (sessionId: string) => boolean;
   isOpenCodeSessionActive: (sessionId: string) => boolean;
+  isHermesSessionActive: (sessionId: string) => boolean;
   reconnectSessionWriter: (sessionId: string, ws: WebSocket) => boolean;
   /**
    * B-N-ATTACH (PHASE-SR-0): read-only differential replay for agy. Re-emits the
@@ -100,6 +103,7 @@ type ChatWebSocketDependencies = {
   getActiveGeminiSessions: () => unknown;
   getActiveAntigravitySessions: () => unknown;
   getActiveOpenCodeSessions: () => unknown;
+  getActiveHermesSessions: () => unknown;
 };
 
 /**
@@ -113,6 +117,7 @@ function readProvider(value: unknown): LLMProvider {
     || value === 'gemini'
     || value === 'antigravity'
     || value === 'opencode'
+    || value === 'hermes'
   ) {
     return value;
   }
@@ -131,6 +136,7 @@ const COMMAND_TYPE_TO_PROVIDER: Record<string, LLMProvider> = {
   'codex-command': 'codex',
   'gemini-command': 'gemini',
   'antigravity-command': 'antigravity',
+  'hermes-command': 'hermes',
 };
 
 /**
@@ -251,6 +257,10 @@ async function dispatchProviderCommand(
   }
   if (targetProvider === 'antigravity') {
     await dependencies.spawnAntigravity(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'hermes') {
+    await dependencies.spawnHermes(command, data.options, writer);
     return;
   }
 
@@ -390,6 +400,8 @@ export function handleChatConnection(
           success = dependencies.abortAntigravitySession(sessionId);
         } else if (provider === 'opencode') {
           success = dependencies.abortOpenCodeSession(sessionId);
+        } else if (provider === 'hermes') {
+          success = dependencies.abortHermesSession(sessionId);
         } else {
           success = await dependencies.abortClaudeSDKSession(sessionId);
         }
@@ -473,6 +485,8 @@ export function handleChatConnection(
           });
         } else if (provider === 'opencode') {
           isActive = dependencies.isOpenCodeSessionActive(sessionId);
+        } else if (provider === 'hermes') {
+          isActive = dependencies.isHermesSessionActive(sessionId);
         } else {
           isActive = dependencies.isClaudeSDKSessionActive(sessionId);
           // [WS-DIAG] Re-subscribe decision for a reconnecting socket (point #4).
@@ -547,6 +561,7 @@ export function handleChatConnection(
             gemini: dependencies.getActiveGeminiSessions(),
             antigravity: dependencies.getActiveAntigravitySessions(),
             opencode: dependencies.getActiveOpenCodeSessions(),
+            hermes: dependencies.getActiveHermesSessions(),
           },
         });
       }

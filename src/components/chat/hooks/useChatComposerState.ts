@@ -50,6 +50,7 @@ interface UseChatComposerStateArgs {
   geminiModel: string;
   antigravityModel: string;
   opencodeModel: string;
+  hermesModel: string;
   isLoading: boolean;
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
@@ -182,6 +183,7 @@ export function useChatComposerState({
   geminiModel,
   antigravityModel,
   opencodeModel,
+  hermesModel,
   isLoading,
   canAbortSession,
   tokenBudget,
@@ -365,7 +367,9 @@ export function useChatComposerState({
                     ? antigravityModel
                     : provider === 'opencode'
                       ? opencodeModel
-                      : claudeModel,
+                      : provider === 'hermes'
+                        ? hermesModel
+                        : claudeModel,
           tokenUsage: tokenBudget,
         };
 
@@ -418,6 +422,7 @@ export function useChatComposerState({
       currentSessionId,
       cursorModel,
       geminiModel,
+      hermesModel,
       opencodeModel,
       handleBuiltInCommand,
       handleCustomCommand,
@@ -655,6 +660,16 @@ export function useChatComposerState({
             resume, model: opencodeModel, sessionSummary,
           },
         });
+      } else if (provider === 'hermes') {
+        result = sendMessage({
+          type: 'hermes-command',
+          command: messageContent,
+          sessionId: targetSessionId,
+          options: {
+            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+            resume, model: hermesModel, sessionSummary,
+          },
+        });
       } else {
         // Anthropic / Claude provider. Attach `effort` only when a non-empty value is chosen.
         const claudeOptions: Record<string, unknown> = {
@@ -675,7 +690,7 @@ export function useChatComposerState({
       return result == null ? true : result.ok;
     },
     [
-      antigravityModel, claudeModel, codexModel, cursorModel, geminiModel, opencodeModel,
+      antigravityModel, claudeModel, codexModel, cursorModel, geminiModel, hermesModel, opencodeModel,
       getToolsSettings, permissionMode, provider, selectedProject, selectedSession, sendMessage,
     ],
   );

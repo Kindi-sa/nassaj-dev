@@ -66,6 +66,12 @@ import {
     isOpenCodeSessionActive,
     getActiveOpenCodeSessions,
 } from './opencode-cli.js';
+import {
+    spawnHermes,
+    abortHermesSession,
+    isHermesSessionActive,
+    getActiveHermesSessions,
+} from './hermes-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -137,6 +143,7 @@ const wss = createWebSocketServer(server, {
         spawnGemini,
         spawnAntigravity,
         spawnOpenCode,
+        spawnHermes,
         // Authoritative provider lookup for resumed sessions. Routing must follow
         // the provider persisted in the DB, not the client-chosen message type,
         // so an antigravity session is never resumed through the Claude SDK.
@@ -158,6 +165,7 @@ const wss = createWebSocketServer(server, {
         abortGeminiSession,
         abortAntigravitySession,
         abortOpenCodeSession,
+        abortHermesSession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
@@ -165,6 +173,7 @@ const wss = createWebSocketServer(server, {
         isGeminiSessionActive,
         isAntigravitySessionActive,
         isOpenCodeSessionActive,
+        isHermesSessionActive,
         reconnectSessionWriter,
         attachAntigravitySession,
         attachClaudeSDKSession,
@@ -175,6 +184,7 @@ const wss = createWebSocketServer(server, {
         getActiveGeminiSessions,
         getActiveAntigravitySessions,
         getActiveOpenCodeSessions,
+        getActiveHermesSessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),
@@ -2056,6 +2066,7 @@ async function startServer() {
                 gemini: getActiveGeminiSessions().length,
                 antigravity: getActiveAntigravitySessions().length,
                 opencode: getActiveOpenCodeSessions().length,
+                hermes: getActiveHermesSessions().length,
             }),
             stopAllPlugins,
             exit: (code) => process.exit(code),
