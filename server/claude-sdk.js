@@ -1268,6 +1268,17 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     const processRunTag = crypto.randomUUID();
     sdkOptions.env[PROCESS_TAG_ENV_VAR] = processRunTag;
 
+    // B-86: when the control flag is enabled, pass CLAUDE_CODE_WORKFLOWS=1 to the
+    // CLI to activate the Workflow/multi-agent orchestration (ultrawork) tier of
+    // ultracode. Applied here, AFTER resolveProviderEnv rebuilds sdkOptions.env,
+    // so it survives onto the final env handed to query(). Disabled by default
+    // (flag '0'/'false'/unset) — no behaviour change for any existing run. This
+    // only adds one env var to the spawn; it never touches the SDK tool
+    // definitions, allowedTools/disallowedTools, or the prompt-keyword path.
+    Object.assign(sdkOptions.env, (process.env.ENABLE_ULTRACODE_WORKFLOWS === 'true' || process.env.ENABLE_ULTRACODE_WORKFLOWS === '1'
+      ? { CLAUDE_CODE_WORKFLOWS: '1' }
+      : {}));
+
     // Load MCP configuration
     const mcpServers = await loadMcpConfig(options.cwd);
     if (mcpServers) {
