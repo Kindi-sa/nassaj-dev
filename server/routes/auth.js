@@ -14,6 +14,7 @@ import { createInvite, acceptInvite, InviteError } from '../services/invite.serv
 import { clientIp } from '../utils/client-ip.js';
 
 import webauthnRouter from './webauthn.js';
+import oidcRouter from './oidc.js';
 
 const MIN_PASSWORD_LENGTH = 8;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
@@ -94,6 +95,10 @@ const router = express.Router();
 
 // Passkey (WebAuthn) registration, credential management, and login (B-PK).
 router.use('/webauthn', webauthnRouter);
+
+// OIDC Relying Party flow (P-IDP-3, ADR-046) — login/callback/exchange,
+// back-channel logout, and admin identity link/unlink. Self-gates on OIDC_ENABLED.
+router.use('/oidc', oidcRouter);
 
 // Brute-force protection on credential-checking endpoints (m-RATELIMIT):
 // 10 attempts / 15 min / IP on login and invite acceptance.

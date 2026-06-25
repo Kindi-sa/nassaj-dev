@@ -30,6 +30,8 @@ export type { StarredSessionRow } from '@/modules/database/repositories/starred-
 export { uiPreferencesDb } from '@/modules/database/repositories/ui-preferences.js';
 export type { UiPreferences } from '@/modules/database/repositories/ui-preferences.js';
 export { userDb } from '@/modules/database/repositories/users.js';
+export { userIdentitiesDb } from '@/modules/database/repositories/user-identities.js';
+export type { UserIdentityRow } from '@/modules/database/repositories/user-identities.js';
 export { vapidKeysDb } from '@/modules/database/repositories/vapid-keys.js';
 export { webauthnCredentialsDb } from '@/modules/database/repositories/webauthn-credentials.js';
 export type {

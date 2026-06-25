@@ -34,7 +34,12 @@ export type AuditAction =
   | 'avatar_updated'
   | 'admin_provider_sharing_update'
   | 'passkey_registered'
-  | 'passkey_removed';
+  | 'passkey_removed'
+  // OIDC Relying Party flow (P-IDP-3, ADR-046).
+  | 'oidc_login'
+  | 'oidc_backchannel_logout'
+  | 'oidc_identity_linked'
+  | 'oidc_identity_unlinked';
 
 /**
  * Hard cap on the stored User-Agent string (T-182). UA headers can be long and

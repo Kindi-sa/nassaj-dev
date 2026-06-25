@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-24T13:40:12.270Z",
+  "updated": "2026-06-25T09:57:42.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -53,6 +53,13 @@
       "title": "أسطول نسّاج للصيانة/الإدارة عبر السيرفرات (Tailscale): توحيد ذاكرة + توزيع النظام + النشر",
       "status": "pending",
       "progress": 80
+    },
+    {
+      "id": "P8",
+      "title": "الدخول الموحّد (SSO) عبر Zitadel — ADR-046",
+      "status": "current",
+      "progress": 10,
+      "note": "P-IDP-0 مُغلَق (حوكمة). P-IDP-3 كود نسّاج قيد التنفيذ. P-IDP-1 (VM على Proxmox) ينتظر إجراء المالك."
     }
   ],
   "sprints": [
@@ -2355,12 +2362,13 @@
     {
       "id": "T-201",
       "title": "قرار: طوبولوجيا الأسطول (0=قائم / B=فيدرالي-SSO / A=تنفيذ-مركزي) — يتطلب ADR + موافقة مالك",
-      "status": "open",
+      "status": "done",
       "phase": "P7",
       "priority": "high",
       "due": "2026-07-07",
       "description": "يحسم الطوبولوجيا قبل تركيب 105/مجتنى والكندي. الخيارات في fleet-centralized-access-study.md §3. الموصى به: B (instance لكل عقدة + SSO موحّد). شروط حاجبة: (1) تحليل امتثال فعلي (ToS + AGPL §13)، (2) ADR في alkindy/decisions/، (3) خطة JWT/SSO. السؤال الحاسم للمالك: هل الألم تكرار إنشاء المستخدمين (B) أم غياب لوحة مركزية (بوابة روابط ≈ ساعات)؟",
-      "blockedBy": []
+      "blockedBy": [],
+      "note": "محسوم: Zitadel org-wide على ibrahim-proxmox VM. انظر ADR-046."
     },
     {
       "id": "T-202",
@@ -2399,6 +2407,64 @@
       "phase": "P4",
       "priority": "high",
       "description": "بعد T-204 يظهر هرمز ويُختار، لكن الإرسال يُولّد claude-command: لا فرع hermes في useChatComposerState:638-673، لا معالج hermes-command بـchat-websocket.service، وhermesModel لا يُمرَّر للـcomposer بـChatInterface (سطور 327-340/678). يلزم: فرع hermes يبعث hermes-command + تمرير hermesModel + معالج خادمي يُسبَاون CLI هرمز headless + HermesSessions.fetchHistory/normalizeMessage (stubs 501 اليوم). تنبيه حرج: حتى الإنجاز، اختيار هرمز للمحادثة misroute صامت لـClaude."
+    },
+    {
+      "id": "T-206",
+      "title": "P-IDP-0 مُغلَق: توثيق الحوكمة + ADR-046 معتمَد",
+      "status": "done",
+      "kind": "decision",
+      "phase": "P8",
+      "note": "القرارات: Zitadel، org-wide design، ibrahim-proxmox VM، TLS Serve أولاً، public client PKCE. الحوكمة: المالك owner + أي Instance Admin، runbook back-channel logout."
+    },
+    {
+      "id": "T-207",
+      "title": "P-IDP-1: إنشاء VM idp على ibrahim-proxmox + تثبيت Zitadel",
+      "status": "todo",
+      "kind": "devops",
+      "phase": "P8",
+      "owner_action": "تأكيد سعة Proxmox → إنشاء VM (2vCPU/4GB/25GB، Debian 12) → tailscale up → إبلاغ الـIP في tailnet",
+      "blocker": "يتطلب إجراء المالك على Proxmox"
+    },
+    {
+      "id": "T-208",
+      "title": "P-IDP-1.5: إعداد TLS — Tailscale Serve (مرحلة أولى) + split-DNS لـid.alkindy.tech",
+      "status": "todo",
+      "kind": "devops",
+      "phase": "P8",
+      "note": "يبدأ بـTailscale Serve للسرعة ثم يُرقَّى لـCaddy+DNS-01. ExternalDomain يجب أن يطابق اسم الشهادة."
+    },
+    {
+      "id": "T-209",
+      "title": "P-IDP-2: نمذجة Zitadel — Org مجتنى-فريق + Project نسّاج + Application OIDC",
+      "status": "todo",
+      "kind": "devops",
+      "phase": "P8",
+      "note": "Instance Instance▸Org«مجتنى-فريق»▸Project«نسّاج»▸Application(PKCE،code+PKCE). redirect_uri=https://nassaj.alkindy.tech/api/auth/oidc/callback"
+    },
+    {
+      "id": "T-210",
+      "title": "P-IDP-3: كود نسّاج كـRP — قيد التنفيذ (workflow wf_bafa627f-d74)",
+      "status": "in_progress",
+      "kind": "feature",
+      "phase": "P8",
+      "note": "4 مراحل: DB Layer (user_identities) + OIDC routes (login/callback/exchange/backchannel/link) + wire-up + QA. OIDC_ENABLED=false افتراضياً."
+    },
+    {
+      "id": "T-211",
+      "title": "P-IDP-4: تفعيل OIDC_ENABLED + اختبار إنتاجي + fallback SPOF",
+      "status": "todo",
+      "kind": "feature",
+      "phase": "P8",
+      "note": "بعد اكتمال P-IDP-1/2/3. تشغيل سبرنت كامل بلا حادثة قبل التوسّع. اختبار فعلي: إيقاف VM idp والدخول محلياً."
+    },
+    {
+      "id": "T-212",
+      "title": "P-IDP-5 (مؤجَّل): ضمّ مشاريع مجتنى الأخرى org-wide",
+      "status": "deferred",
+      "kind": "feature",
+      "phase": "P8",
+      "due": "2026-09-01",
+      "note": "بوابة: (أ) نسّاج RP مثبَّت إنتاجياً سبرنتاً، (ب) حوكمة هوية معيَّنة، (ج) ألم تكرار موثَّق. لا ضمّ قبل الشروط الثلاثة."
     }
   ],
   "issues": [
@@ -3304,6 +3370,26 @@
       "status": "accepted",
       "title": "تبنّي فكرة cloudcli-claude-watch لا الـplugin — الـplugin غير قابل للتبني الآن (يلزمه نظام plugins رسمي + watchdog.log غير موجودَين في nassaj-dev). المعتمد: تطبيق الفكرة الجوهرية (قتل عمليات Claude المتجمدة من الواجهة عبر SIGTERM/SIGKILL) مباشرةً بجهد منخفض (endpoint + زر) تكمّل كشف «قد يكون متجمداً» القائم بلا اعتماد على نظام plugins. قرار المالك 2026-06-16. مهمة التتبّع T-159.",
       "_relTask": "T-159"
+    },
+    {
+      "id": "ADR-045",
+      "title": "اعتماد OIDC Authorization Code + PKCE لـSSO",
+      "status": "accepted",
+      "date": "2026-06-24",
+      "rationale": "معيار صناعي، يدعمه Zitadel وAuthentik. Public client بلا client_secret للـWeb Apps. يتكامل مع openid-client في نسّاج (RP). اعتُمد بعد workflow سابق (sso-plan-critical-review)."
+    },
+    {
+      "id": "ADR-046",
+      "title": "اختيار Zitadel كـIdP لهوية فريق مجتنى على ibrahim-proxmox VM",
+      "status": "accepted",
+      "date": "2026-06-25",
+      "rationale": "إجماع 3 وكلاء مستقلين (مقارنة + ناقدان + محكِّم): Organizations/Instances مجاناً تطابق فصل الفريق عن المستخدمين النهائيين؛ Authentik العزل مدفوع Enterprise. ثنائي Go + OIDC-certified + SIEM مجاناً + ترقيات أهدأ. الاستضافة: VM idp على ibrahim-proxmox (100.105.15.50) معزولة عن pm2؛ TLS بـTailscale Serve أولاً ثم Caddy+DNS-01. النطاق: org-wide في التصميم، نسّاج فقط تفعيلاً أولياً.",
+      "governance": {
+        "owner": "المالك (إبراهيم الرخيمي) + أي admin بصلاحية Instance",
+        "fallback": "أي Instance Admin",
+        "deprovision_runbook": "تعطيل/حذف في Zitadel → back-channel logout → password_changed_at → JWT يُبطل فوراً",
+        "secret_strategy": "public client PKCE (لا client_secret) — لا تدوير مطلوب لنسّاج"
+      }
     }
   ]
 }

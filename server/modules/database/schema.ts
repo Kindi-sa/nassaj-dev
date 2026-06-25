@@ -394,3 +394,31 @@ ${LAST_SCANNED_AT_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}
 `;
+
+/**
+ * user_identities — bridges an external IdP identity (issuer + subject) to a
+ * local user, backing the OIDC Relying Party login flow (P-IDP-3, ADR-046).
+ * The natural key is the (issuer, subject) pair: `issuer` is the IdP's `iss`
+ * claim and `subject` is the stable per-IdP `sub` claim, so the same human
+ * authenticating through two IdPs gets two rows pointing at one user_id. The
+ * UNIQUE(issuer, subject) constraint guarantees an external identity is linked
+ * to at most one local account; the link() write surfaces a violation as a
+ * throw the caller maps to a conflict.
+ *
+ * user_id keeps its FK with ON DELETE CASCADE so deleting a user clears all of
+ * their IdP links. No password is involved — this is an alternative to the
+ * password_hash login path, not a replacement for it.
+ *
+ * NOTE: created via migration (user_identities step in runMigrations), NOT in
+ * INIT_SCHEMA_SQL, and must run after `users` exists so the FK resolves.
+ */
+export const USER_IDENTITIES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS user_identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    issuer TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(issuer, subject)
+);`;

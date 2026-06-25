@@ -14,6 +14,7 @@ import {
   SESSION_PARTICIPANTS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   STARRED_SESSIONS_TABLE_SCHEMA_SQL,
+  USER_IDENTITIES_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
   WEBAUTHN_CREDENTIALS_TABLE_SCHEMA_SQL,
@@ -847,6 +848,14 @@ export const runMigrations = (db: Database) => {
 
     // Per-user session stars — after users exist so the FK resolves.
     migrateStarredSessions(db);
+
+    // OIDC identity linking (P-IDP-3, ADR-046) — after users exist so the
+    // user_id FK resolves. Idempotent (IF NOT EXISTS); no backfill (links are
+    // created explicitly when a user authenticates through or connects an IdP).
+    if (!tableExists(db, 'user_identities')) {
+      console.log('Running migration: Creating user_identities table');
+      db.exec(USER_IDENTITIES_TABLE_SCHEMA_SQL);
+    }
 
     // FK CASCADE on session_agents tables — must run after sessions exist so
     // the REFERENCES sessions(session_id) constraint is satisfiable. (B-38.)
