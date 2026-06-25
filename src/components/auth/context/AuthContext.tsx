@@ -177,7 +177,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const handleUnauthorized = () => {
       clearSession();
-      window.location.href = '/login';
+      // Defense-in-depth: never hard-redirect to /login if we are already on
+      // it. The session is already cleared above; a second `location.href`
+      // assignment would only force a redundant full-page reload (and could
+      // re-arm a reload loop if any pre-auth fetch still 401s on mount).
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);

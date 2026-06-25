@@ -24,7 +24,14 @@ export const authenticatedFetch = (url, options = {}) => {
   }).then((response) => {
     // Auto-logout on definitive auth rejection. Fires a custom event so
     // AuthContext can clear the session without a circular import.
-    if (response.status === 401) {
+    //
+    // Only treat a 401 as a *session expiry* when a token was actually sent.
+    // A 401 with no token is the expected response for an unauthenticated
+    // visitor (e.g. the login screen eagerly probing /api/plugins or
+    // /api/branding) — firing auth:unauthorized there would trigger a
+    // clearSession + hard redirect to /login on every mount, producing an
+    // infinite full-page reload loop.
+    if (response.status === 401 && token) {
       window.dispatchEvent(new CustomEvent('auth:unauthorized'));
       return response;
     }
