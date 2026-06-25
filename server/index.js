@@ -217,8 +217,19 @@ app.use(cors({
   origin: (origin, callback) => {
     // Allow non-browser tool calls (e.g. curl, server-to-server) that send no Origin.
     if (!origin) return callback(null, true);
-    if (_corsAllowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error(`CORS: origin '${origin}' not allowed`));
+    if (Array.isArray(_corsAllowedOrigins) && _corsAllowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Disallowed origin: deny CORS *gracefully* — never throw here.
+    // Passing an Error to this callback forwards it to the global error handler,
+    // turning EVERY request that carries an `Origin` header into a 500 — including
+    // the app loading its own same-origin assets (browsers send `Origin` on
+    // `<script crossorigin>` / `<link crossorigin>` fetches), which bricks boot and
+    // produces an infinite reload loop. The spec-correct behavior is to simply omit
+    // the `Access-Control-Allow-Origin` header and let the request proceed: the
+    // browser enforces the cross-origin read policy itself, while same-origin
+    // requests (which never need the header) keep working.
+    return callback(null, false);
   },
   exposedHeaders: ['X-Refreshed-Token'],
 }));
