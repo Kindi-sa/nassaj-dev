@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-27T08:00:00.000Z",
+  "updated": "2026-06-27T11:20:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2534,9 +2534,82 @@
       "title": "ultracode workflows: ENABLE_ULTRACODE_WORKFLOWS feature flag في .env + claude-sdk.js (fa893e9b)",
       "closed": "2026-06-25",
       "note": "مطفأ افتراضياً (false). تفعيله يُمرّر CLAUDE_CODE_WORKFLOWS=1 للـCLI عند ultracode. يلزم restart."
+    },
+    {
+      "id": "T-219",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "feature",
+      "title": "دراسة تحديثات upstream (siteboon/claudecodeui) من v1.32.0 إلى upstream/main: 116 كوميت تغطي v1.33.0–v1.34.0 + 6 فروع ميزات. تنسيق ثلاثي: researcher (جرد محايد) + architect (قرار تبنٍّ) + qa-critic (تحقّق بفيتو).",
+      "status": "done",
+      "owner": "coordinator",
+      "closed": "2026-06-27",
+      "note": "الناتج المُحقَّق بالكود: من 25 مرشَّحاً، عيبان حقيقيان (B-89 ترتيب الرسائل، B-90 مسار npm) + تحسين دفاعي (a12ca8ee حارس transcript بالمحتوى — الثغرة مسدودة أصلاً بفلتر /subagents/ في claude-session-synchronizer.provider.ts:41,74، فخُفّض من حرج لتحسين). qa-critic فيتو على بنود architect: code-fences 4712431b أُسقط (المرساة لا تطابق العيب؛ النمط الداخلي يحمي الالتقاط فالتعديل بلا أثر)، وصياغة 123ae310 صُحّحت. مُستبعَد مدموج/مكرَّر أصلاً (تحقّق 8/8 + heuristic): 14ddbc7c, ebb0e59e, ef2fd48b, bb8db581, dbc41dc9, f7c0024f, 33a4e72c, c235b05e, f6326c80, fa9eaf55, d9e9df18, 43c33d5c, 374e9de7, ed9cdf01. تعارض اتجاه مقصود: Fable 5 (ce327b6f، claude-models.provider.ts:33) + حذف thinking-mode (2149b877). استبعاد استراتيجي: electron+computer-use (127 ملفاً +15K، تجريبي). تأجيل: WS-unification T-222، ميزات كبيرة T-223."
+    },
+    {
+      "id": "T-220",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-89",
+      "title": "فرز دمج الرسائل في computeMerged: تطبيق .sort(compareMessagesByTimestamp) على [...server, ...extra] في src/stores/useSessionStore.ts (المقارِن موجود سطر 271، يُستدعى حالياً في مسار الهجرة فقط).",
+      "status": "todo",
+      "owner": "frontend-dev",
+      "note": "مُعاد صياغته بحكم qa-critic: العيب موقعه computeMerged لا «المقارِن مفقود». build:client + اختبار useSessionStore. ينتظر إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "T-221",
+      "phase": "P4",
+      "sprint": "S-2",
+      "kind": "bug",
+      "issue": "B-90",
+      "title": "تقديم npm المستخدم في PATH داخل shell PTY: port مُقلَّم لـ4a503b1d في shell-websocket.service.ts (إسقاط فروع Windows، احترام isolatedEnv per-user).",
+      "status": "todo",
+      "owner": "backend-dev",
+      "note": "خطر متوسط (يمسّ عزل PTY) → اختبار عزل per-user صريح. build:server + restart. ينتظر إذن المالك."
+    },
+    {
+      "id": "T-222",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "تقييم تبنّي توحيد WebSocket من upstream (f5eac2ec + دمج c03ddb25، 78 ملفاً) + ترحيل سكيمة provider_session_id (عمود+backfill+فهرسان، غائب يقيناً).",
+      "status": "deferred",
+      "due": "2026-08-01",
+      "note": "دَين معماري لا حاجة عاجلة (qa-critic: لا bug سلامة بيانات مرتبط). تصادم مع بنيتنا (websocket-writer + presence + المرايا اللحظية + open-sessions) = إعادة بناء لا cherry-pick. يُعاد النظر بعد استقرار multimodel أو إن لزم provider_session_id لتعدد المزوّدات أبكر. يستلزم ADR (scribe)."
+    },
+    {
+      "id": "T-223",
+      "phase": "P4",
+      "kind": "feature",
+      "title": "backlog upstream: تقييم ميزات كبيرة لملاءمة أداة داخلية RTL — voice STT/TTS (فرع voice، حارس SSRF) + browser-use كـMCP (e8853917) + واجهة skills للمزوّدات (ProviderSkills.tsx من c5fe1279، الخلفية موجودة) + تحسين a12ca8ee الدفاعي.",
+      "status": "deferred",
+      "due": "2026-09-01",
+      "note": "غير عاجلة. voice يمرّ على security-review (SSRF). browser-use-MCP ضخم → سبرنت مستقل بعد WS. skills: port الواجهة فقط. a12ca8ee: تحسين اختياري (الثغرة مسدودة). electron+computer-use مُستبعَد نهائياً لا backlog."
     }
   ],
   "issues": [
+    {
+      "id": "B-89",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-06-27",
+      "title": "دمج رسائل الخادم+اللحظي للعرض غير مرتَّب زمنياً: computeMerged في src/stores/useSessionStore.ts:200-219 يُعيد [...server, ...extra] بلا فرز؛ compareMessagesByTimestamp مُستدعى فقط في مسار هجرة المعرّف (سطر 271). وصول لحظي خارج الترتيب قد يخلط ترتيب الردود. مكافئ upstream 123ae310.",
+      "triage": "low → T-220 (backlog). مُكتشَف ضمن دراسة upstream T-219؛ qa-critic أكّد العيب وصحّح موقعه.",
+      "resolved": null
+    },
+    {
+      "id": "B-90",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-06-27",
+      "title": "shell PTY لا يُقدّم ثنائيات npm الخاصة بالمستخدم في PATH: shell-websocket.service.ts:394-411 يمرّر isolatedEnv فقط بلا حقن PATH لـnode_modules/.bin أو npm المستخدم. مكافئ upstream 4a503b1d (مثقل بمسارات Windows ميتة على سيرفرنا Linux).",
+      "triage": "low → T-221 (backlog). port يدوي مُقلَّم يحترم isolatedEnv per-user.",
+      "resolved": null
+    },
     {
       "id": "B-88",
       "kind": "bug",
