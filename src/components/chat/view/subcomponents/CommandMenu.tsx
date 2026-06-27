@@ -29,6 +29,8 @@ type CommandMenuProps = {
   position?: { top: number; left: number; bottom?: number };
   isOpen?: boolean;
   frequentCommands?: CommandMenuCommand[];
+  /** Override document direction detection; defaults to auto-detect from document.dir. */
+  dir?: 'ltr' | 'rtl';
 };
 
 type CommandMenuRow = {
@@ -88,35 +90,64 @@ const getNamespaceIcon = (namespace: string) => namespaceIcons[namespace] || nam
 const getNamespaceAccentClass = (namespace: string) =>
   namespaceAccentClasses[namespace] || namespaceAccentClasses.other;
 
-const getMenuPosition = (position: { top: number; left: number; bottom?: number }): CSSProperties => {
+const getMenuPosition = (
+  position: { top: number; left: number; bottom?: number },
+  isRTL: boolean,
+): CSSProperties => {
   if (typeof window === 'undefined') {
     return { position: 'fixed', top: '16px', left: '16px' };
   }
+  const anchorBottom = Math.max(MENU_EDGE_GAP, position.bottom ?? 90);
+  const maxH = `min(${MENU_MAX_HEIGHT}px, calc(100vh - ${anchorBottom}px - ${MENU_EDGE_GAP}px))`;
+
+  // Mobile: span the full width with fixed edge gaps — same for both directions.
   if (window.innerWidth < 640) {
-    const anchorBottom = Math.max(MENU_EDGE_GAP, position.bottom ?? 90);
     return {
       position: 'fixed',
       bottom: `${anchorBottom}px`,
-      left: '16px',
-      right: '16px',
+      left: `${MENU_EDGE_GAP}px`,
+      right: `${MENU_EDGE_GAP}px`,
       width: 'auto',
-      maxWidth: 'calc(100vw - 32px)',
+      maxWidth: `calc(100vw - ${MENU_EDGE_GAP * 2}px)`,
       maxHeight: `min(54vh, calc(100vh - ${anchorBottom}px - ${MENU_EDGE_GAP}px))`,
     };
   }
-  const anchorBottom = Math.max(MENU_EDGE_GAP, position.bottom ?? 90);
+
+  const menuW = 440;
+
+  if (isRTL) {
+    // In RTL the menu's inline-start (visual right) should align with the textarea's right edge.
+    // position.left is textareaRect.left (left edge in LTR viewport coords).
+    // We don't have textareaRect.right, so we clamp from the right side of the screen
+    // using position.left as a fallback reference (works for full-width or centred composers).
+    // The result: menu starts from the end of the form and expands leftward (RTL natural flow).
+    const distanceFromRight = Math.max(0, window.innerWidth - position.left - menuW);
+    const clampedRight = Math.max(
+      MENU_EDGE_GAP,
+      Math.min(distanceFromRight, window.innerWidth - menuW - MENU_EDGE_GAP),
+    );
+    return {
+      position: 'fixed',
+      bottom: `${anchorBottom}px`,
+      right: `${clampedRight}px`,
+      width: `min(${menuW}px, calc(100vw - ${MENU_EDGE_GAP * 2}px))`,
+      maxWidth: `calc(100vw - ${MENU_EDGE_GAP * 2}px)`,
+      maxHeight: maxH,
+    };
+  }
+
+  // LTR: anchor to the left edge of the textarea.
   const clampedLeft = Math.max(
     MENU_EDGE_GAP,
-    Math.min(position.left, window.innerWidth - 440 - MENU_EDGE_GAP),
+    Math.min(position.left, window.innerWidth - menuW - MENU_EDGE_GAP),
   );
-
   return {
     position: 'fixed',
     bottom: `${anchorBottom}px`,
     left: `${clampedLeft}px`,
-    width: 'min(440px, calc(100vw - 32px))',
-    maxWidth: 'calc(100vw - 32px)',
-    maxHeight: `min(${MENU_MAX_HEIGHT}px, calc(100vh - ${anchorBottom}px - ${MENU_EDGE_GAP}px))`,
+    width: `min(${menuW}px, calc(100vw - ${MENU_EDGE_GAP * 2}px))`,
+    maxWidth: `calc(100vw - ${MENU_EDGE_GAP * 2}px)`,
+    maxHeight: maxH,
   };
 };
 
@@ -128,10 +159,22 @@ export default function CommandMenu({
   position = { top: 0, left: 0 },
   isOpen = false,
   frequentCommands = [],
+  dir,
 }: CommandMenuProps) {
   const menuRef = useRef<HTMLDivElement | null>(null);
   const selectedItemRef = useRef<HTMLDivElement | null>(null);
-  const menuPosition = getMenuPosition(position);
+
+  // Detect RTL from prop override, then nearest [dir] ancestor, then document.
+  const isRTL =
+    dir !== undefined
+      ? dir === 'rtl'
+      : typeof document !== 'undefined'
+        ? document.documentElement.dir === 'rtl' ||
+          document.documentElement.getAttribute('dir') === 'rtl' ||
+          document.body.dir === 'rtl'
+        : false;
+
+  const menuPosition = getMenuPosition(position, isRTL);
 
   useEffect(() => {
     if (!isOpen) {
@@ -221,6 +264,7 @@ export default function CommandMenu({
     return (
       <div
         ref={menuRef}
+        dir="ltr"
         className="command-menu command-menu-empty border border-gray-200 bg-white/95 text-sm text-gray-500 dark:border-gray-700/80 dark:bg-gray-900/95 dark:text-gray-400"
         style={{
           ...menuBaseStyle,
@@ -242,6 +286,7 @@ export default function CommandMenu({
       ref={menuRef}
       role="listbox"
       aria-label="Available commands"
+      dir="ltr"
       className="command-menu border border-gray-200/90 bg-white/95 text-gray-900 dark:border-slate-700/80 dark:bg-slate-950/95 dark:text-slate-100"
       style={{ ...menuBaseStyle, ...menuPosition, opacity: 1, transform: 'translateY(0)' }}
     >

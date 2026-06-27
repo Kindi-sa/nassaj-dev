@@ -127,7 +127,7 @@ export const PromptInputTools = React.forwardRef<
   <div
     ref={ref}
     data-slot="prompt-input-tools"
-    className={cn('flex items-center gap-1', className)}
+    className={cn('flex min-w-0 flex-1 flex-wrap items-center gap-1', className)}
     {...props}
   />
 ));

@@ -11,7 +11,7 @@ import type {
   SetStateAction,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
+import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, UsersIcon, ChevronUpIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
 import type { RunProgress } from '../../hooks/useRunProgress';
@@ -116,6 +116,10 @@ interface ChatComposerProps {
   isWsConnected?: boolean;
   /** Non-null error message to display when the last send failed (e.g. WS disconnected). */
   sendError?: string | null;
+  /** Whether the participants / agents bar is currently visible. */
+  showParticipants?: boolean;
+  /** Callback to toggle the participants bar visibility. Only rendered when defined. */
+  onToggleParticipants?: () => void;
 }
 
 export default function ChatComposer({
@@ -177,13 +181,18 @@ export default function ChatComposer({
   sendByCtrlEnter,
   isWsConnected = true,
   sendError = null,
+  showParticipants = true,
+  onToggleParticipants,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
+  // bottom-anchored position: distance from bottom of viewport to top of textarea + gap.
+  // left = textarea left edge (for LTR anchoring in getMenuPosition).
+  // getMenuPosition derives RTL right-edge from window.innerWidth - left when isRTL.
   const commandMenuPosition = {
     top: textareaRect ? Math.max(16, textareaRect.top - 316) : 0,
     left: textareaRect ? textareaRect.left : 16,
-    bottom: textareaRect ? window.innerHeight - textareaRect.top + 8 : 90,
+    bottom: textareaRect ? Math.max(16, window.innerHeight - textareaRect.top + 8) : 90,
   };
 
   // Detect if the AskUserQuestion interactive panel is active
@@ -459,9 +468,30 @@ export default function ChatComposer({
               </PromptInputButton>
             )}
 
+            {onToggleParticipants && (
+              <PromptInputButton
+                tooltip={{
+                  content: showParticipants
+                    ? t('participants.toggleHide', { defaultValue: 'Hide agents panel' })
+                    : t('participants.toggleShow', { defaultValue: 'Show agents panel' }),
+                  side: 'top',
+                }}
+                onClick={onToggleParticipants}
+                aria-pressed={showParticipants}
+                aria-label={
+                  showParticipants
+                    ? t('participants.toggleHide', { defaultValue: 'Hide agents panel' })
+                    : t('participants.toggleShow', { defaultValue: 'Show agents panel' })
+                }
+                className={showParticipants ? 'text-primary' : ''}
+              >
+                {showParticipants ? <ChevronUpIcon /> : <UsersIcon />}
+              </PromptInputButton>
+            )}
+
           </PromptInputTools>
 
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {/* min-w-0 + truncate: in a squeezed composer column the hint
               * ellipsizes on one line instead of wrapping over the toolbar
               * (lg: sees viewport width, not pane width). */}

@@ -363,7 +363,10 @@
     "calls": "{{calls}}",
     "callsTooltip": "{{calls}} tool calls",
     "rowAria": "{{type}} — {{status}}",
-    "detailsPlaceholder": "Tool history coming soon."
+    "detailsPlaceholder": "Tool history coming soon.",
+    "noTools": "No tool calls recorded yet.",
+    "toolSuccess": "Done",
+    "toolRunning": "Running"
   },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
@@ -399,7 +402,9 @@
     "totalInvocations_one": "{{count}} call",
     "totalInvocations_other": "{{count}} calls",
     "agentSummaryAria": "{{agents}} distinct agents · {{calls}} total calls",
-    "unknownAuthor": "Unknown author"
+    "unknownAuthor": "Unknown author",
+    "toggleShow": "Show agents panel",
+    "toggleHide": "Hide agents panel"
   },
   "ws": {
     "statusConnected": "Connected",

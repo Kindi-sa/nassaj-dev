@@ -366,7 +366,10 @@
     "calls": "{{calls}}",
     "callsTooltip": "{{calls}} استدعاء أداة",
     "rowAria": "{{type}} — {{status}}",
-    "detailsPlaceholder": "سجلّ الأدوات قريباً."
+    "detailsPlaceholder": "سجلّ الأدوات قريباً.",
+    "noTools": "لا استدعاءات أدوات مسجّلة بعد.",
+    "toolSuccess": "اكتمل",
+    "toolRunning": "يعمل"
   },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
@@ -417,7 +420,9 @@
     "totalInvocations_many": "{{count}} استدعاءً",
     "totalInvocations_other": "{{count}} استدعاء",
     "agentSummaryAria": "{{agents}} وكيل متمايز · {{calls}} استدعاء إجمالي",
-    "unknownAuthor": "مؤلف غير معروف"
+    "unknownAuthor": "مؤلف غير معروف",
+    "toggleShow": "إظهار لوحة الوكلاء",
+    "toggleHide": "إخفاء لوحة الوكلاء"
   },
   "ws": {
     "statusConnected": "متصل",

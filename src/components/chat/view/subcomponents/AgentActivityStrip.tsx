@@ -128,12 +128,55 @@ function AgentRow({ agent, frozen }: { agent: RunAgent; frozen: boolean }) {
         </svg>
       </CollapsibleTrigger>
 
-      {/* Reserved details slot (collapsed by default). A future iteration renders
-          this agent's per-tool history here; today it stays a minimal hint so the
-          expand affordance exists without committing to the full UI. */}
+      {/* Tool history panel — expanded on click. Lists every child tool call with
+          its name and success/running status. Scrollable when the list is long. */}
       <CollapsibleContent id={contentId}>
-        <div className="ms-3 mt-0.5 border-s border-border ps-3 text-[11px] text-muted-foreground/70">
-          {t('agentActivity.detailsPlaceholder', { defaultValue: 'Tool history coming soon.' })}
+        <div className="ms-3 mt-0.5 border-s border-border ps-3">
+          {!agent.childTools || agent.childTools.length === 0 ? (
+            <p className="py-1 text-[11px] text-muted-foreground/70">
+              {t('agentActivity.noTools', { defaultValue: 'No tool calls recorded yet.' })}
+            </p>
+          ) : (
+            <ul
+              className="max-h-48 overflow-y-auto py-0.5"
+              aria-label={t('agentActivity.rowAria', {
+                type: agent.type,
+                status: running
+                  ? t('agentActivity.running', { defaultValue: 'Running' })
+                  : t('agentActivity.done', { defaultValue: 'Done' }),
+                defaultValue: '{{type}} — {{status}}',
+              })}
+            >
+              {agent.childTools.map((tool, idx) => {
+                const succeeded = tool.toolResult != null;
+                return (
+                  <li
+                    key={tool.toolId || idx}
+                    className="flex items-center gap-1.5 py-0.5 text-[11px]"
+                  >
+                    {succeeded ? (
+                      <svg
+                        className="h-2.5 w-2.5 shrink-0 text-green-600 dark:text-green-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-label={t('agentActivity.toolSuccess', { defaultValue: 'Done' })}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <span
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400"
+                        aria-label={t('agentActivity.toolRunning', { defaultValue: 'Running' })}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span className="truncate font-mono text-foreground/80">{tool.toolName}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

@@ -722,6 +722,8 @@ function ChatInterface({
           sendByCtrlEnter={sendByCtrlEnter}
           isWsConnected={isConnected}
           sendError={sendError ?? serverError}
+          showParticipants={showParticipantsBar}
+          onToggleParticipants={(currentSessionId ?? selectedSession?.id) ? () => setShowParticipantsBar(!showParticipantsBar) : undefined}
         />
       </div>
 

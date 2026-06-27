@@ -63,7 +63,7 @@
 
 import { useMemo } from 'react';
 
-import type { ChatMessage } from '../types/types';
+import type { ChatMessage, SubagentChildTool } from '../types/types';
 
 /**
  * One delegated sub-agent (a `Task`/`Agent` container row), surfaced for the
@@ -89,6 +89,8 @@ export interface RunAgent {
   callCount: number;
   /** epoch ms of the container row, for stable ordering / future elapsed display. */
   startedAt: number;
+  /** all child tool calls this sub-agent has issued, for the tool-history panel. */
+  childTools?: SubagentChildTool[];
 }
 
 export interface RunProgress {
@@ -326,6 +328,7 @@ export function useRunProgress(
             currentTool: complete ? undefined : lastChild?.toolName || undefined,
             callCount,
             startedAt: tsMs(msg.timestamp),
+            childTools: childTools && childTools.length > 0 ? childTools : undefined,
           });
         }
         continue;
