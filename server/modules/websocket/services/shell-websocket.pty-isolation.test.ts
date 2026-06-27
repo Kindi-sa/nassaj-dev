@@ -22,6 +22,9 @@
  */
 
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test, { mock } from 'node:test';
 
 // --- Module mocks (must be registered before importing the service) ----------
@@ -54,13 +57,21 @@ mock.module('node-pty', {
 // Stub the isolation seam: echo back the userId + provider so the test can prove
 // the handler forwarded the JWT userId and payload provider, and that the
 // resolver's output (not raw process.env) reached pty.spawn.
+//
+// `isolatedHomeByUser` lets the PATH-priority tests (B-90) make the seam scope a
+// per-user HOME, mirroring how an isolated provider (e.g. agy) places HOME inside
+// the user's tree. The default resolver behavior leaves HOME untouched, so the
+// pre-existing B-MU-PTY-ENV/KEY tests are unaffected.
 const resolveCalls: { userId: unknown; provider: string }[] = [];
+const isolatedHomeByUser = new Map<string, string>();
 mock.module('@/services/isolation/resolve-provider-env.js', {
   namedExports: {
     resolveProviderEnv: (userId: unknown, provider: string, baseEnv: Record<string, string>) => {
       resolveCalls.push({ userId, provider });
+      const isolatedHome = isolatedHomeByUser.get(String(userId));
       return {
         ...baseEnv,
+        ...(isolatedHome ? { HOME: isolatedHome } : {}),
         CLAUDE_CONFIG_DIR: `/isolated/${String(userId)}/.claude`,
         __ISOLATED_FOR__: String(userId),
         __ISOLATION_PROVIDER__: provider,
@@ -232,4 +243,119 @@ test('B-MU-PTY-KEY (fail-closed): two no-user connections never collide on a sha
       && (m as { data: string }).data.includes('Reconnected')
   );
   assert.equal(reconnected, false, 'no anonymous reconnection/hijack occurred');
+});
+
+// --- B-90: user npm-global binaries are surfaced in the PTY PATH --------------
+
+/**
+ * Builds a throwaway project dir + a per-user isolated HOME whose
+ * `.npm-global/bin` exists on disk, and registers that HOME with the mocked
+ * isolation seam. Returns the paths and a single-use cleanup.
+ */
+function makeIsolatedUserFixture(userId: string) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `pty-b90-${userId}-`));
+  const projectDir = path.join(root, 'project');
+  const isolatedHome = path.join(root, 'home');
+  const npmGlobalBin = path.join(isolatedHome, '.npm-global', 'bin');
+  fs.mkdirSync(projectDir, { recursive: true });
+  fs.mkdirSync(npmGlobalBin, { recursive: true });
+  isolatedHomeByUser.set(userId, isolatedHome);
+  return {
+    projectDir,
+    isolatedHome,
+    npmGlobalBin,
+    cleanup() {
+      isolatedHomeByUser.delete(userId);
+      fs.rmSync(root, { recursive: true, force: true });
+    },
+  };
+}
+
+function initForProject(projectPath: string) {
+  return JSON.stringify({
+    type: 'init',
+    projectPath,
+    provider: 'claude',
+    isPlainShell: true,
+    initialCommand: 'true',
+    cols: 80,
+    rows: 24,
+  });
+}
+
+function pathEntriesOf(env: Record<string, string | undefined>): string[] {
+  return String(env.PATH ?? '').split(path.delimiter).filter(Boolean);
+}
+
+test("B-90: the user's npm-global bin is hoisted to the FRONT of the PTY PATH", () => {
+  spawnCalls.length = 0;
+  resolveCalls.length = 0;
+  const fx = makeIsolatedUserFixture('npmuser');
+  try {
+    const ws = makeFakeWs();
+    handleShellConnection(ws as never, { user: { id: 'npmuser' } } as never, deps);
+    ws.emit('message', initForProject(fx.projectDir));
+
+    assert.equal(spawnCalls.length, 1, 'one pty spawned');
+    const entries = pathEntriesOf(spawnCalls[0].env);
+
+    assert.equal(
+      entries[0],
+      fx.npmGlobalBin,
+      "the user's <isolatedHome>/.npm-global/bin is the very first PATH entry"
+    );
+    // The pre-existing system PATH (from process.env, carried through the seam)
+    // is preserved AFTER the hoisted user dir — never dropped, never ahead of it.
+    const systemEntry = String(process.env.PATH ?? '')
+      .split(path.delimiter)
+      .filter(Boolean)
+      .find((p) => p.startsWith('/usr') || p === '/bin' || p === '/sbin');
+    if (systemEntry) {
+      const userIdx = entries.indexOf(fx.npmGlobalBin);
+      const sysIdx = entries.indexOf(systemEntry);
+      assert.ok(sysIdx > userIdx, 'a system PATH dir sorts AFTER the user npm-global bin');
+      assert.ok(entries.includes(systemEntry), 'existing system PATH entries are preserved');
+    }
+  } finally {
+    fx.cleanup();
+  }
+});
+
+test('B-90 (isolation): user A npm-global path never leaks into user B PTY PATH', () => {
+  spawnCalls.length = 0;
+  resolveCalls.length = 0;
+  const fxA = makeIsolatedUserFixture('alice-npm');
+  const fxB = makeIsolatedUserFixture('bob-npm');
+  try {
+    const wsA = makeFakeWs();
+    handleShellConnection(wsA as never, { user: { id: 'alice-npm' } } as never, deps);
+    wsA.emit('message', initForProject(fxA.projectDir));
+
+    const wsB = makeFakeWs();
+    handleShellConnection(wsB as never, { user: { id: 'bob-npm' } } as never, deps);
+    wsB.emit('message', initForProject(fxB.projectDir));
+
+    assert.equal(spawnCalls.length, 2, 'both users spawned a pty');
+    const entriesA = pathEntriesOf(spawnCalls[0].env);
+    const entriesB = pathEntriesOf(spawnCalls[1].env);
+
+    // Each terminal leads with its OWN user's npm-global bin.
+    assert.equal(entriesA[0], fxA.npmGlobalBin, "A's PATH leads with A's npm-global bin");
+    assert.equal(entriesB[0], fxB.npmGlobalBin, "B's PATH leads with B's npm-global bin");
+
+    // And crucially, neither user's npm-global bin appears ANYWHERE in the
+    // other's PATH — isolation is preserved because the candidate is derived
+    // from each user's isolated HOME, not a shared/operator home.
+    assert.ok(
+      !entriesB.includes(fxA.npmGlobalBin),
+      "A's npm-global bin must NOT appear in B's PTY PATH"
+    );
+    assert.ok(
+      !entriesA.includes(fxB.npmGlobalBin),
+      "B's npm-global bin must NOT appear in A's PTY PATH"
+    );
+  } finally {
+    fxA.cleanup();
+    fxB.cleanup();
+  }
 });

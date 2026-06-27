@@ -197,6 +197,133 @@ function buildShellCommand(
  * credential knob (e.g. cursor, plain-shell) fall through to `claude`'s policy
  * gate, which returns the base env unchanged when that provider is shared.
  */
+/**
+ * Reads an env value by case-insensitive key. PATH is `PATH` on Linux but the
+ * isolated env we extend is ultimately derived from process.env, so we stay
+ * tolerant of casing rather than assuming a fixed key.
+ */
+function readEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
+  const resolvedKey = Object.keys(env).find(
+    (envKey) => envKey.toLowerCase() === key.toLowerCase()
+  );
+  return resolvedKey ? env[resolvedKey] : undefined;
+}
+
+/** Resolves the actual PATH key name present in the env (casing-tolerant). */
+function getPathEnvKey(env: NodeJS.ProcessEnv): string {
+  return Object.keys(env).find((key) => key.toLowerCase() === 'path') || 'PATH';
+}
+
+/**
+ * B-90: surface the *user's* npm-global binaries ahead of bundled/system CLIs in
+ * the PTY's PATH (ported, pruned, from upstream #913 `prioritizeUserNpmGlobalBin`).
+ *
+ * Two deliberate departures from upstream:
+ *   1. Linux-only — all Windows/AppData candidates are dropped.
+ *   2. Per-user isolation — every candidate is derived from the **isolated env**
+ *      (`isolatedEnv` = resolveProviderEnv output), NEVER `os.homedir()`/raw
+ *      process.env. So for an isolated provider (e.g. agy, whose HOME is the
+ *      per-user tree) the npm-global dir resolves inside *that* user's tree, and
+ *      for a shared/claude provider it resolves under the operator home exactly
+ *      as before. This makes it structurally impossible for one user's npm path
+ *      to leak into another user's terminal: the path can only ever be whatever
+ *      the isolation seam already scoped for this spawn.
+ *
+ * Two classes of candidate, in priority order:
+ *
+ *   A. User/project-specific dirs — prepended whenever they exist on disk as a
+ *      directory (even if absent from the inherited PATH; this is what actually
+ *      fixes B-90, since the user npm dir is frequently NOT on the PTY's PATH):
+ *        - <isolated HOME>/.npm-global/bin
+ *        - <cwd>/node_modules/.bin   (project-local, scoped to the project dir)
+ *
+ *   B. npm_config_prefix dirs — hoisted to the front ONLY when already present
+ *      in the inherited PATH (upstream's reorder-only semantics). They are
+ *      deliberately NOT blind-prepended: npm_config_prefix is commonly the
+ *      SYSTEM prefix (e.g. `/usr` when the server is launched under an npm
+ *      script, which injects npm_config_prefix), and promoting a system dir to
+ *      the front of PATH would be both wrong and pointless. A user who set a
+ *      personal prefix (e.g. `~/.npm-global`) already has it on PATH, so the
+ *      reorder still serves the intended case.
+ *        - npm_config_prefix
+ *        - npm_config_prefix/bin
+ *
+ * Existing PATH entries are preserved in order; matched candidates are de-duped
+ * and moved to the front. When nothing matches, PATH is returned unchanged.
+ */
+function prioritizeUserNpmGlobalBin(
+  env: NodeJS.ProcessEnv,
+  projectCwd: string
+): { key: string; value: string | undefined } {
+  const pathKey = getPathEnvKey(env);
+  const currentPath = env[pathKey];
+  if (!currentPath) {
+    return { key: pathKey, value: currentPath };
+  }
+
+  const delimiter = path.delimiter;
+  const pathEntries = currentPath.split(delimiter).filter(Boolean);
+  const pathEntrySet = new Set(pathEntries);
+
+  // HOME and npm_config_prefix come from the ISOLATED env so the resolved
+  // candidates honor whatever home the isolation seam scoped for this user.
+  const isolatedHome = readEnvValue(env, 'HOME');
+  const npmPrefix = readEnvValue(env, 'npm_config_prefix');
+
+  // Class A: user/project dirs — eligible when they exist on disk.
+  const diskCandidates = [
+    isolatedHome ? path.join(isolatedHome, '.npm-global', 'bin') : '',
+    projectCwd ? path.join(projectCwd, 'node_modules', '.bin') : '',
+  ].filter(Boolean);
+
+  // Class B: npm_config_prefix dirs — eligible only if already on PATH.
+  const pathOnlyCandidates = [
+    npmPrefix || '',
+    npmPrefix ? path.join(npmPrefix, 'bin') : '',
+  ].filter(Boolean);
+
+  const isEligible = (candidate: string, requireOnPath: boolean): boolean => {
+    if (requireOnPath) {
+      return pathEntrySet.has(candidate);
+    }
+    try {
+      return fs.statSync(candidate).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  // Priority order: user npm-global → project node_modules/.bin → npm prefix.
+  const ordered = [
+    ...diskCandidates.map((c) => ({ candidate: c, requireOnPath: false })),
+    ...pathOnlyCandidates.map((c) => ({ candidate: c, requireOnPath: true })),
+  ];
+
+  const seen = new Set<string>();
+  const preferredEntries: string[] = [];
+  for (const { candidate, requireOnPath } of ordered) {
+    if (seen.has(candidate)) {
+      continue;
+    }
+    seen.add(candidate);
+    if (isEligible(candidate, requireOnPath)) {
+      preferredEntries.push(candidate);
+    }
+  }
+
+  if (preferredEntries.length === 0) {
+    return { key: pathKey, value: currentPath };
+  }
+
+  const preferredSet = new Set(preferredEntries);
+  const value = [
+    ...preferredEntries,
+    ...pathEntries.filter((entry) => !preferredSet.has(entry)),
+  ].join(delimiter);
+
+  return { key: pathKey, value };
+}
+
 function readIsolationProvider(provider: string): IsolationProvider {
   // agy resolves its credentials via a HOME override in resolveProviderEnv, so a
   // terminal launched in agy context must map to the 'agy' isolation key (NOT
@@ -397,6 +524,12 @@ export function handleShellConnection(
           process.env
         );
 
+        // B-90: hoist the user's npm-global binaries to the front of PATH,
+        // deriving every candidate from the ISOLATED env (HOME/npm_config_prefix
+        // as scoped by resolveProviderEnv) so per-user isolation is preserved and
+        // no user's npm path can leak into another's terminal.
+        const prioritizedPath = prioritizeUserNpmGlobalBin(isolatedEnv, resolvedProjectPath);
+
         shellProcess = pty.spawn(shell, shellArgs, {
           name: 'xterm-256color',
           cols: termCols,
@@ -404,6 +537,7 @@ export function handleShellConnection(
           cwd: resolvedProjectPath,
           env: {
             ...isolatedEnv,
+            [prioritizedPath.key]: prioritizedPath.value,
             TERM: 'xterm-256color',
             COLORTERM: 'truecolor',
             FORCE_COLOR: '3',
