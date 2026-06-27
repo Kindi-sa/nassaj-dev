@@ -210,7 +210,10 @@ const _corsDefaultOrigins = [
   'http://localhost:5173',
 ];
 const _corsAllowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+  ? [...new Set([
+      ..._corsDefaultOrigins,
+      ...process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+    ])]
   : _corsDefaultOrigins;
 
 app.use(cors({
