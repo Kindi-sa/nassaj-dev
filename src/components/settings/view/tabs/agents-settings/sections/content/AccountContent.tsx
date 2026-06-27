@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
+import { isVendorProvider } from '../../../../../../provider-auth/vendorProviders';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
+import VendorApiKeySection from './VendorApiKeySection';
 
 /**
  * Per-user isolated credential link state (B-MU-ONBOARD / ADR-023), supplied
@@ -33,6 +35,8 @@ type AccountContentProps = {
   authStatus: AuthStatus;
   onLogin: () => void;
   userLink?: UserCredentialLink;
+  /** Re-probes `/auth/status` after a vendor key is set/removed. */
+  onRefreshAuthStatus?: () => void;
 };
 
 type AgentVisualConfig = {
@@ -97,26 +101,32 @@ const agentConfig: Record<AgentProvider, AgentVisualConfig> = {
     subtextClass: 'text-zinc-700 dark:text-zinc-300',
     buttonClass: 'bg-zinc-900 hover:bg-zinc-800 active:bg-zinc-950 dark:bg-zinc-700 dark:hover:bg-zinc-600',
   },
-  // Placeholder providers: present to satisfy the exhaustive
-  // `Record<AgentProvider, …>` type; visual styling reuses existing palettes
-  // until dedicated brand assets land.
+  kimi: {
+    name: 'Kimi',
+    description: 'Moonshot Kimi via API key',
+    bgClass: 'bg-rose-50 dark:bg-rose-900/20',
+    borderClass: 'border-rose-200 dark:border-rose-800',
+    textClass: 'text-rose-900 dark:text-rose-100',
+    subtextClass: 'text-rose-700 dark:text-rose-300',
+    buttonClass: 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800',
+  },
   deepseek: {
     name: 'DeepSeek',
-    description: 'DeepSeek assistant',
-    bgClass: 'bg-blue-50 dark:bg-blue-900/20',
-    borderClass: 'border-blue-200 dark:border-blue-800',
-    textClass: 'text-blue-900 dark:text-blue-100',
-    subtextClass: 'text-blue-700 dark:text-blue-300',
-    buttonClass: 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800',
+    description: 'DeepSeek via API key',
+    bgClass: 'bg-sky-50 dark:bg-sky-900/20',
+    borderClass: 'border-sky-200 dark:border-sky-800',
+    textClass: 'text-sky-900 dark:text-sky-100',
+    subtextClass: 'text-sky-700 dark:text-sky-300',
+    buttonClass: 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800',
   },
   glm: {
-    name: 'GLM 5.2',
-    description: 'GLM assistant',
-    bgClass: 'bg-cyan-50 dark:bg-cyan-900/20',
-    borderClass: 'border-cyan-200 dark:border-cyan-800',
-    textClass: 'text-cyan-900 dark:text-cyan-100',
-    subtextClass: 'text-cyan-700 dark:text-cyan-300',
-    buttonClass: 'bg-cyan-600 hover:bg-cyan-700 active:bg-cyan-800',
+    name: 'GLM',
+    description: 'Zhipu / Z.ai GLM via API key',
+    bgClass: 'bg-violet-50 dark:bg-violet-900/20',
+    borderClass: 'border-violet-200 dark:border-violet-800',
+    textClass: 'text-violet-900 dark:text-violet-100',
+    subtextClass: 'text-violet-700 dark:text-violet-300',
+    buttonClass: 'bg-violet-600 hover:bg-violet-700 active:bg-violet-800',
   },
   hermes: {
     name: 'Hermes',
@@ -160,7 +170,7 @@ const INSTALL_INFO: Partial<Record<AgentProvider, { label: string; command: stri
 };
 
 // Pure API providers (no CLI, no login modal — configure via Setup tab).
-const PURE_API_PROVIDERS: AgentProvider[] = ['deepseek', 'glm', 'sakana'];
+const PURE_API_PROVIDERS: AgentProvider[] = ['kimi', 'deepseek', 'glm', 'sakana'];
 
 /** Inline copy button: icon toggles to checkmark for 1 second after click. */
 function CopyButton({ text }: { text: string }) {
@@ -200,8 +210,12 @@ function CopyButton({ text }: { text: string }) {
  * The provider auth status endpoint already reports the *current user's*
  * resolved environment for isolating providers, so the badge and the per-user
  * link reflect the same credential and are rendered as one status.
+ *
+ * Hosted vendor providers (kimi / deepseek / glm) have no CLI login; their
+ * connection is driven by an API key in the encrypted per-user store, rendered
+ * via VendorApiKeySection (ADR-036 / ADR-030).
  */
-export default function AccountContent({ agent, authStatus, onLogin, userLink }: AccountContentProps) {
+export default function AccountContent({ agent, authStatus, onLogin, userLink, onRefreshAuthStatus }: AccountContentProps) {
   const { t } = useTranslation('settings');
   const config = agentConfig[agent];
   const isAntigravity = agent === 'antigravity';
@@ -306,8 +320,11 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
             </div>
           </div>
 
-          {/* Per-user subscription link (credential isolation, Phase-MU) */}
-          {userLink && (
+          {/* Hosted vendor providers: API-key-driven connection (ADR-036 / ADR-030) */}
+          {isVendorProvider(agent) ? (
+            <VendorApiKeySection provider={agent} onConfiguredChange={onRefreshAuthStatus} />
+          ) : userLink ? (
+            /* Per-user subscription link (credential isolation, Phase-MU) */
             <div className="space-y-3 border-t border-border/50 pt-4">
               <p className={`text-sm ${config.subtextClass}`}>
                 {t(`${userLink.i18nPrefix}.description`)}
@@ -349,7 +366,7 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink }:
                 </p>
               )}
             </div>
-          )}
+          ) : null}
 
           {showLoginRow && (
             <div className="border-t border-border/50 pt-4">

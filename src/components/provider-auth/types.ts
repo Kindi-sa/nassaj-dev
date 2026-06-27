@@ -22,9 +22,22 @@ export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 // Providers actively probed by the auth status refresher. Antigravity is
 // enabled again over the provider-models layer (live agy catalog with a
 // graceful fallback); its auth status endpoint reports the real agy auth state.
-// Hermes is a CLI agent with a real backend probe; API providers (deepseek/glm/sakana)
-// are excluded — they have no installable CLI and the Setup tab handles them.
-export const CLI_PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes'];
+// Hermes is a CLI agent with a real backend probe. The hosted vendor providers
+// (kimi/deepseek/glm) report authenticated=true via the same endpoint once their
+// API key is configured (ADR-036 / ADR-030), so they are probed too. Only
+// `sakana` stays excluded — a union-only placeholder with no real backend.
+export const CLI_PROVIDERS: LLMProvider[] = [
+  'claude',
+  'cursor',
+  'codex',
+  'gemini',
+  'antigravity',
+  'opencode',
+  'hermes',
+  'kimi',
+  'deepseek',
+  'glm',
+];
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   claude: '/api/providers/claude/auth/status',
@@ -33,27 +46,41 @@ export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   gemini: '/api/providers/gemini/auth/status',
   antigravity: '/api/providers/antigravity/auth/status',
   opencode: '/api/providers/opencode/auth/status',
-  // Placeholder providers: declared in the union but not probed (absent from
-  // CLI_PROVIDERS). Endpoints follow the same shape for when a backend lands.
+  kimi: '/api/providers/kimi/auth/status',
   deepseek: '/api/providers/deepseek/auth/status',
   glm: '/api/providers/glm/auth/status',
   hermes: '/api/providers/hermes/auth/status',
+  // sakana: union-only placeholder (absent from CLI_PROVIDERS). Endpoint kept on
+  // the same shape for when a real backend lands.
   sakana: '/api/providers/sakana/auth/status',
 };
 
 // fail-open: installed defaults to true so providers remain visible before the
 // first auth-status response arrives. Only an explicit installed===false hides them.
+const initialStatus = (loading: boolean): ProviderAuthStatus => ({
+  authenticated: false,
+  installed: true,
+  email: null,
+  method: null,
+  error: null,
+  loading,
+  checkFailed: false,
+});
+
 export const createInitialProviderAuthStatusMap = (loading = true): ProviderAuthStatusMap => ({
-  claude: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  cursor: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  codex: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  gemini: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  antigravity: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  opencode: { authenticated: false, installed: true, email: null, method: null, error: null, loading, checkFailed: false },
-  // API-only providers: never probed by CLI_PROVIDERS — start not-loading.
-  deepseek: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
-  glm: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
+  claude: initialStatus(loading),
+  cursor: initialStatus(loading),
+  codex: initialStatus(loading),
+  gemini: initialStatus(loading),
+  antigravity: initialStatus(loading),
+  opencode: initialStatus(loading),
+  // Hosted vendors (kimi/deepseek/glm) and Hermes are real probed providers
+  // (in CLI_PROVIDERS) — start in the loading state until their probe returns.
+  kimi: initialStatus(loading),
+  deepseek: initialStatus(loading),
+  glm: initialStatus(loading),
+  hermes: initialStatus(loading),
+  // sakana is a union-only placeholder, never probed by CLI_PROVIDERS — start
+  // not-loading and not-installed so its UI does not spin forever.
   sakana: { authenticated: false, installed: false, email: null, method: null, error: null, loading: false, checkFailed: false },
-  // Hermes is a real CLI agent — probed like other CLI providers.
-  hermes: { authenticated: false, installed: false, email: null, method: null, error: null, loading, checkFailed: false },
 });

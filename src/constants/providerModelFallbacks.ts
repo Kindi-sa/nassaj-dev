@@ -718,6 +718,33 @@ export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
   DEFAULT: 'anthropic/claude-sonnet-4-5',
 };
 
+/**
+ * Hosted vendor providers (Kimi / DeepSeek / GLM). The authoritative catalog is
+ * the live /v1/models probe; these single-entry fallbacks only seed the degraded
+ * picker with each vendor's default model (mirrors VENDOR_PROVIDER_META and the
+ * backend <ID>_FALLBACK_MODELS.DEFAULT in shared/vendor/vendor-config.ts).
+ */
+export const KIMI_FALLBACK_MODELS: ProviderModelsDefinition = {
+  OPTIONS: [
+    { value: 'kimi-k2.6', label: 'Kimi K2.6', description: 'Moonshot Kimi · kimi-k2.6' },
+  ],
+  DEFAULT: 'kimi-k2.6',
+};
+
+export const DEEPSEEK_FALLBACK_MODELS: ProviderModelsDefinition = {
+  OPTIONS: [
+    { value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', description: 'DeepSeek · deepseek-v4-pro' },
+  ],
+  DEFAULT: 'deepseek-v4-pro',
+};
+
+export const GLM_FALLBACK_MODELS: ProviderModelsDefinition = {
+  OPTIONS: [
+    { value: 'glm-5.2', label: 'GLM 5.2', description: 'Zhipu / Z.ai · glm-5.2' },
+  ],
+  DEFAULT: 'glm-5.2',
+};
+
 
 // Minimal placeholder catalog for providers declared in the LLMProvider union
 // that do not yet expose a live model list. `auto` keeps the picker valid until
@@ -753,8 +780,9 @@ export const PROVIDER_FALLBACK_MODELS: Record<LLMProvider, ProviderModelsDefinit
   gemini: GEMINI_FALLBACK_MODELS,
   antigravity: ANTIGRAVITY_FALLBACK_MODELS,
   opencode: OPENCODE_FALLBACK_MODELS,
-  deepseek: PLACEHOLDER_FALLBACK_MODELS,
-  glm: PLACEHOLDER_FALLBACK_MODELS,
+  kimi: KIMI_FALLBACK_MODELS,
+  deepseek: DEEPSEEK_FALLBACK_MODELS,
+  glm: GLM_FALLBACK_MODELS,
   hermes: HERMES_FALLBACK_MODELS,
   sakana: PLACEHOLDER_FALLBACK_MODELS,
 };
@@ -771,8 +799,9 @@ export const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
   gemini: GEMINI_FALLBACK_MODELS.DEFAULT,
   antigravity: ANTIGRAVITY_FALLBACK_MODELS.DEFAULT,
   opencode: OPENCODE_FALLBACK_MODELS.DEFAULT,
-  deepseek: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
-  glm: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
+  kimi: KIMI_FALLBACK_MODELS.DEFAULT,
+  deepseek: DEEPSEEK_FALLBACK_MODELS.DEFAULT,
+  glm: GLM_FALLBACK_MODELS.DEFAULT,
   hermes: HERMES_FALLBACK_MODELS.DEFAULT,
   sakana: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
 };

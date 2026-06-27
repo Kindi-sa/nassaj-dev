@@ -326,7 +326,10 @@
       "gemini": "Gemini",
       "codex": "Codex",
       "agy": "Antigravity (agy)",
-      "cursor": "Cursor"
+      "cursor": "Cursor",
+      "kimi": "Kimi",
+      "deepseek": "DeepSeek",
+      "glm": "GLM"
     },
     "modes": {
       "shared": "مشترك",
@@ -603,6 +606,15 @@
       },
       "opencode": {
         "description": "مساعد OpenCode عبر سطر الأوامر"
+      },
+      "kimi": {
+        "description": "Moonshot Kimi عبر مفتاح API"
+      },
+      "deepseek": {
+        "description": "DeepSeek عبر مفتاح API"
+      },
+      "glm": {
+        "description": "GLM من Zhipu / Z.ai عبر مفتاح API"
       }
     },
     "antigravity": {
@@ -617,7 +629,21 @@
       "button": "تسجيل الدخول",
       "reLoginButton": "إعادة تسجيل الدخول"
     },
-    "error": "خطأ: {{error}}"
+    "error": "خطأ: {{error}}",
+    "apiKey": {
+      "title": "إضافة مفتاح API",
+      "replaceTitle": "استبدال مفتاح API",
+      "description": "ألصق مفتاح {{provider}} API لتفعيل هذا المزوّد. يُخزَّن مشفّراً ولا يُعرض مجدداً.",
+      "getKey": "الحصول على مفتاح",
+      "inputLabel": "مفتاح {{provider}} API",
+      "placeholder": "ألصق مفتاح API",
+      "placeholderConfigured": "•••••••• (مُعدّ)",
+      "save": "حفظ",
+      "saved": "تم حفظ مفتاح API.",
+      "remove": "إزالة",
+      "removed": "تمت إزالة مفتاح API.",
+      "configuredNote": "يوجد مفتاح API مُعدّ."
+    }
   },
   "permissions": {
     "title": "إعدادات الأذونات",
@@ -625,6 +651,10 @@
       "label": "تخطّي طلبات الإذن (استخدم بحذر)",
       "claudeDescription": "مكافئ لخيار --dangerously-skip-permissions",
       "cursorDescription": "مكافئ لخيار -f في Cursor CLI"
+    },
+    "allowVendorDelegation": {
+      "label": "السماح بتفويض مهام للنماذج",
+      "description": "يتيح لكلود استدعاء نموذج مزوّد مستضاف (Kimi أو DeepSeek أو GLM) لمهمة فرعية واحدة أثناء التشغيل، باستخدام مفتاح API الخاص بك لذلك المزوّد. محرّك كلود نفسه لا يتغيّر. معطّل افتراضياً."
     },
     "allowedTools": {
       "title": "الأدوات المسموح بها",

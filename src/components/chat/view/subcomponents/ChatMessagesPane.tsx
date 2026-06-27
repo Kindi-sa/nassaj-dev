@@ -36,6 +36,12 @@ interface ChatMessagesPaneProps {
   provider: LLMProvider;
   displayProvider: LLMProvider;
   setProvider: (provider: LLMProvider) => void;
+  /** Active "Claude engine on a vendor endpoint" selection (ADR-037), or null. */
+  engineProvider: 'kimi' | 'deepseek' | 'glm' | null;
+  /** Sets/clears the engine provider (clearing on plain model selection). */
+  setEngineProvider: (next: 'kimi' | 'deepseek' | 'glm' | null) => void;
+  /** Selects the Claude engine routed through a vendor endpoint + a vendor model. */
+  onSelectClaudeEngineProvider: (vendor: 'kimi' | 'deepseek' | 'glm', model: string) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
@@ -51,6 +57,12 @@ interface ChatMessagesPaneProps {
   setOpenCodeModel: (model: string) => void;
   hermesModel: string;
   setHermesModel: (model: string) => void;
+  kimiModel: string;
+  setKimiModel: (model: string) => void;
+  deepseekModel: string;
+  setDeepSeekModel: (model: string) => void;
+  glmModel: string;
+  setGlmModel: (model: string) => void;
   providerModelCatalog: Partial<Record<LLMProvider, ProviderModelsDefinition>>;
   providerModelsLoading: boolean;
   providerModelsRefreshing: boolean;
@@ -96,6 +108,9 @@ export default function ChatMessagesPane({
   provider,
   displayProvider,
   setProvider,
+  engineProvider,
+  setEngineProvider,
+  onSelectClaudeEngineProvider,
   textareaRef,
   claudeModel,
   setClaudeModel,
@@ -111,6 +126,12 @@ export default function ChatMessagesPane({
   setOpenCodeModel,
   hermesModel,
   setHermesModel,
+  kimiModel,
+  setKimiModel,
+  deepseekModel,
+  setDeepSeekModel,
+  glmModel,
+  setGlmModel,
   providerModelCatalog,
   providerModelsLoading,
   providerModelsRefreshing,
@@ -207,6 +228,9 @@ export default function ChatMessagesPane({
           currentSessionId={currentSessionId}
           provider={provider}
           setProvider={setProvider}
+          engineProvider={engineProvider}
+          setEngineProvider={setEngineProvider}
+          onSelectClaudeEngineProvider={onSelectClaudeEngineProvider}
           textareaRef={textareaRef}
           claudeModel={claudeModel}
           setClaudeModel={setClaudeModel}
@@ -222,6 +246,12 @@ export default function ChatMessagesPane({
           setOpenCodeModel={setOpenCodeModel}
           hermesModel={hermesModel}
           setHermesModel={setHermesModel}
+          kimiModel={kimiModel}
+          setKimiModel={setKimiModel}
+          deepseekModel={deepseekModel}
+          setDeepSeekModel={setDeepSeekModel}
+          glmModel={glmModel}
+          setGlmModel={setGlmModel}
           providerModelCatalog={providerModelCatalog}
           providerModelsLoading={providerModelsLoading}
           providerModelsRefreshing={providerModelsRefreshing}
@@ -232,6 +262,7 @@ export default function ChatMessagesPane({
           isTaskMasterInstalled={isTaskMasterInstalled}
           onShowAllTasks={onShowAllTasks}
           setInput={setInput}
+          onShowSettings={onShowSettings}
         />
       ) : (
         <>

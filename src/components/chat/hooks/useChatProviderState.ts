@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { authenticatedFetch } from '../../../utils/api';
+import { VENDOR_PROVIDERS, type VendorProvider } from '../../provider-auth/vendorProviders';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type {
   ProjectSession,
@@ -15,6 +16,39 @@ import {
 } from '../../../constants/providerModelFallbacks';
 import { onApplyServerPreference } from '../../../preferences/preferencesSync';
 import { pickStoredOrCurrent } from './normalizeProviderModel';
+
+/**
+ * The active "Claude engine on a vendor endpoint" selection (ADR-037). A vendor
+ * id means the Claude engine runs against that vendor's Anthropic-compatible
+ * endpoint; null is the normal official-Anthropic path.
+ */
+export type EngineProvider = VendorProvider | null;
+
+const ENGINE_PROVIDER_STORAGE_KEY = 'claude-engine-provider';
+
+/** Reads the persisted engine provider, ignoring any stale/invalid value. */
+function readStoredEngineProvider(): EngineProvider {
+  const stored = localStorage.getItem(ENGINE_PROVIDER_STORAGE_KEY);
+  return stored && (VENDOR_PROVIDERS as readonly string[]).includes(stored)
+    ? (stored as VendorProvider)
+    : null;
+}
+
+const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
+  claude: 'opus',
+  cursor: 'gpt-5.3-codex',
+  codex: 'gpt-5.4',
+  gemini: 'gemini-3.1-pro-preview',
+  // Antigravity (agy) default preserved from the fork's former
+  // ANTIGRAVITY_MODELS.DEFAULT; see antigravity-models.provider.ts (backend).
+  antigravity: 'auto',
+  opencode: 'anthropic/claude-sonnet-4-5',
+  // Hosted vendor defaults mirror the backend <ID>_FALLBACK_MODELS.DEFAULT in
+  // shared/vendor/vendor-config.ts; the live /v1/models catalog overrides these.
+  kimi: 'kimi-k2.6',
+  deepseek: 'deepseek-v4-pro',
+  glm: 'glm-5.2',
+};
 
 const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
   if (provider === 'codex') {
@@ -59,6 +93,15 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   const [provider, setProvider] = useState<LLMProvider>(() => {
     return sanitizeStoredProvider(localStorage.getItem('selected-provider'));
   });
+  // "Claude engine on a vendor endpoint" (ADR-037, m-FE-9). When set to a vendor
+  // id (kimi/deepseek/glm) the Claude engine is driven through that vendor's
+  // Anthropic-compatible endpoint: the chat keeps provider='claude' but sends
+  // options.engineProvider=<p> + the vendor model id. null = the normal Claude
+  // path (official Anthropic). Persisted next to selected-provider; only ever
+  // meaningful while provider==='claude'.
+  const [engineProvider, setEngineProvider] = useState<EngineProvider>(() => {
+    return readStoredEngineProvider();
+  });
   const [cursorModel, setCursorModel] = useState<string>(() => {
     return sanitizeStoredModel('cursor', localStorage.getItem('cursor-model'));
   });
@@ -83,6 +126,17 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   const [antigravityModel, setAntigravityModel] = useState<string>(() => {
     return sanitizeStoredModel('antigravity', localStorage.getItem('antigravity-model'));
   });
+  // Hosted vendor providers (ADR-036). Selection persists in localStorage and is
+  // reconciled against the live catalog below, exactly like the CLI providers.
+  const [kimiModel, setKimiModel] = useState<string>(() => {
+    return localStorage.getItem('kimi-model') || FALLBACK_DEFAULT_MODEL.kimi;
+  });
+  const [deepseekModel, setDeepSeekModel] = useState<string>(() => {
+    return localStorage.getItem('deepseek-model') || FALLBACK_DEFAULT_MODEL.deepseek;
+  });
+  const [glmModel, setGlmModel] = useState<string>(() => {
+    return localStorage.getItem('glm-model') || FALLBACK_DEFAULT_MODEL.glm;
+  });
 
   const [providerModelCatalog, setProviderModelCatalog] = useState<
     Partial<Record<LLMProvider, ProviderModelsDefinition>>
@@ -100,6 +154,31 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
 
   const lastProviderRef = useRef(provider);
   const providerModelsRequestIdRef = useRef(0);
+
+  // Persisted setter for the engine provider so the choice survives reloads.
+  const persistEngineProvider = useCallback((next: EngineProvider) => {
+    setEngineProvider(next);
+    if (next) {
+      localStorage.setItem(ENGINE_PROVIDER_STORAGE_KEY, next);
+    } else {
+      localStorage.removeItem(ENGINE_PROVIDER_STORAGE_KEY);
+    }
+  }, []);
+
+  // Selects "Claude engine on <vendor>": keeps provider='claude' but routes the
+  // engine through the vendor endpoint and pins the chosen vendor model id as the
+  // Claude model (passed through unchanged server-side because an engine host is
+  // engaged — ADR-037). Reused by the picker.
+  const selectClaudeEngineProvider = useCallback(
+    (vendor: VendorProvider, model: string) => {
+      setProvider('claude');
+      localStorage.setItem('selected-provider', 'claude');
+      persistEngineProvider(vendor);
+      setClaudeModel(model);
+      localStorage.setItem('claude-model', model);
+    },
+    [persistEngineProvider],
+  );
 
   const setStoredProviderModel = useCallback((targetProvider: LLMProvider, model: string) => {
     if (targetProvider === 'claude') {
@@ -132,12 +211,30 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       return;
     }
 
+    if (targetProvider === 'kimi') {
+      setKimiModel(model);
+      localStorage.setItem('kimi-model', model);
+      return;
+    }
+
+    if (targetProvider === 'deepseek') {
+      setDeepSeekModel(model);
+      localStorage.setItem('deepseek-model', model);
+      return;
+    }
+
+    if (targetProvider === 'glm') {
+      setGlmModel(model);
+      localStorage.setItem('glm-model', model);
+      return;
+    }
+
     setOpenCodeModel(model);
     localStorage.setItem('opencode-model', model);
   }, []);
 
   const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
-    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes'];
+    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes', 'kimi', 'deepseek', 'glm'];
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
     const isHardRefresh = options.bypassCache === true;
@@ -315,6 +412,45 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   }, [providerModelCatalog.hermes, hermesModel, reconcileProviderModel]);
 
   useEffect(() => {
+    const kimi = providerModelCatalog.kimi;
+    if (kimi) {
+      const next = pickStoredOrCurrent('kimi-model', kimiModel, kimi);
+      if (next !== kimiModel) {
+        setKimiModel(next);
+      }
+      if (localStorage.getItem('kimi-model') !== next) {
+        localStorage.setItem('kimi-model', next);
+      }
+    }
+  }, [providerModelCatalog.kimi, kimiModel]);
+
+  useEffect(() => {
+    const deepseek = providerModelCatalog.deepseek;
+    if (deepseek) {
+      const next = pickStoredOrCurrent('deepseek-model', deepseekModel, deepseek);
+      if (next !== deepseekModel) {
+        setDeepSeekModel(next);
+      }
+      if (localStorage.getItem('deepseek-model') !== next) {
+        localStorage.setItem('deepseek-model', next);
+      }
+    }
+  }, [providerModelCatalog.deepseek, deepseekModel]);
+
+  useEffect(() => {
+    const glm = providerModelCatalog.glm;
+    if (glm) {
+      const next = pickStoredOrCurrent('glm-model', glmModel, glm);
+      if (next !== glmModel) {
+        setGlmModel(next);
+      }
+      if (localStorage.getItem('glm-model') !== next) {
+        localStorage.setItem('glm-model', next);
+      }
+    }
+  }, [providerModelCatalog.glm, glmModel]);
+
+  useEffect(() => {
     if (!selectedSession?.id) {
       return;
     }
@@ -333,8 +469,14 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       return;
     }
     setPendingPermissionRequests([]);
+    // Engine-on-vendor only applies to the Claude path; selecting any other
+    // provider clears it so we never send a stale engineProvider with, e.g.,
+    // a Gemini run. (Switching back to Claude does NOT auto-restore it.)
+    if (provider !== 'claude') {
+      persistEngineProvider(null);
+    }
     lastProviderRef.current = provider;
-  }, [provider]);
+  }, [provider, persistEngineProvider]);
 
   useEffect(() => {
     setPendingPermissionRequests((previous) =>
@@ -415,6 +557,9 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   return {
     provider,
     setProvider,
+    engineProvider,
+    setEngineProvider: persistEngineProvider,
+    selectClaudeEngineProvider,
     cursorModel,
     setCursorModel,
     claudeModel,
@@ -429,6 +574,12 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     setOpenCodeModel,
     hermesModel,
     setHermesModel,
+    kimiModel,
+    setKimiModel,
+    deepseekModel,
+    setDeepSeekModel,
+    glmModel,
+    setGlmModel,
     permissionMode,
     setPermissionMode,
     pendingPermissionRequests,

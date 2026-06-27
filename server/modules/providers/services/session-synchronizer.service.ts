@@ -24,9 +24,12 @@ export const sessionSynchronizerService = {
       gemini: 0,
       antigravity: 0,
       opencode: 0,
-      // Placeholder providers: declared in the union, no synchronizer yet.
+      // Hosted vendors have real synchronizers; seeded to 0 here and overwritten
+      // by the Promise.allSettled loop below with their actual processed counts.
+      kimi: 0,
       deepseek: 0,
       glm: 0,
+      // Placeholder providers: declared in the union, no synchronizer yet.
       hermes: 0,
       sakana: 0,
     };

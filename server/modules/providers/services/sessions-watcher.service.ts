@@ -6,6 +6,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 
 import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
+import { vendorProviderRoot } from '@/modules/providers/shared/vendor/vendor-transcript.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
 import { getProjectsWithSessions } from '@/modules/projects/index.js';
@@ -38,6 +39,20 @@ const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> =
   {
     provider: 'opencode',
     rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
+  },
+  // Hosted vendor providers write nassaj-owned JSONL transcripts; watch each
+  // provider's transcript root so new/updated sessions are indexed into the DB.
+  {
+    provider: 'kimi',
+    rootPath: vendorProviderRoot('kimi'),
+  },
+  {
+    provider: 'deepseek',
+    rootPath: vendorProviderRoot('deepseek'),
+  },
+  {
+    provider: 'glm',
+    rootPath: vendorProviderRoot('glm'),
   },
 ];
 

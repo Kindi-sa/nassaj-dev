@@ -60,6 +60,9 @@ const PROVIDER_LABEL_KEYS: Record<string, string> = {
   cursor: 'messageTypes.cursor',
   gemini: 'messageTypes.gemini',
   opencode: 'messageTypes.opencode',
+  kimi: 'messageTypes.kimi',
+  deepseek: 'messageTypes.deepseek',
+  glm: 'messageTypes.glm',
 };
 
 // --- Time-estimate tuning (see task spec §2) ----------------------------------------

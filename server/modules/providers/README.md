@@ -7,8 +7,9 @@ without guessing which files need to move.
 
 ## Current Provider Shape
 
-Every provider wrapper exposes five facets:
+Every provider wrapper exposes six facets:
 
+- `models`
 - `auth`
 - `mcp`
 - `skills`
@@ -17,11 +18,25 @@ Every provider wrapper exposes five facets:
 
 These correspond to the shared interfaces in `server/shared/interfaces.ts`:
 
+- `IProviderModels`
 - `IProviderAuth`
 - `IProviderMcp`
 - `IProviderSkills`
 - `IProviderSessions`
 - `IProviderSessionSynchronizer`
+
+All six are declared `abstract` on `AbstractProvider`
+(`shared/base/abstract.provider.ts`), so every concrete provider must supply all
+six. Two of them have shared abstract base classes a provider can extend instead
+of implementing the interface from scratch — `McpProvider`
+(`shared/mcp/mcp.provider.ts`) and `SkillsProvider`
+(`shared/skills/skills.provider.ts`). The Cursor provider is the reference for
+this pattern: `CursorMcpProvider extends McpProvider` and
+`CursorSkillsProvider extends SkillsProvider`, while `models`, `auth`,
+`sessions`, and `sessionSynchronizer` are implemented concretely because they
+depend on the provider's native SDK/CLI event and history formats. New providers
+(`kimi`, `deepseek`, `glm`) follow the same Cursor pattern: they inherit
+`McpProvider`/`SkillsProvider` and implement the remaining four facets directly.
 
 The services that consume them are:
 
@@ -37,10 +52,33 @@ Current provider ids in this repo are:
 - `codex`
 - `cursor`
 - `gemini`
+- `antigravity`
 - `opencode`
+- `kimi`
+- `deepseek`
+- `glm`
 
 Those ids are mirrored in backend unions and frontend provider constants. If
 adding a new provider, update every place that hardcodes this list.
+
+### Hosted vendor providers (kimi / deepseek / glm)
+
+`kimi`, `deepseek`, and `glm` are hosted third-party model providers (Moonshot,
+DeepSeek, Zhipu/Z.ai) reached over their own HTTP API, not local CLIs. They were
+added for **single internal user** use (one operator, their own data). Their
+hard guardrails — which every contributor must preserve — are:
+
+- **Iron rule:** their isolated env must never contain any `ANTHROPIC_*` /
+  `CLAUDE_*` key (no `ANTHROPIC_BASE_URL`, no `ANTHROPIC_AUTH_TOKEN`). Each uses a
+  provider-specific key (`KIMI_API_KEY` / `DEEPSEEK_API_KEY` / `GLM_API_KEY`) and
+  a base URL hard-coded in its own client. Their run seam uses an independent
+  HTTP client and must not import the `@anthropic-ai` SDK or `claude-sdk.js`.
+- **Isolated per-user secrets:** keys live in the encrypted
+  `provider-secrets-store` (AES-256-GCM at rest, server key outside the repo) and
+  are injected as an env value by `resolveProviderEnv`; they default to
+  `'isolated'` in the sharing policy.
+- **No Claude-output distillation:** the vendor seam is fully separate from the
+  Claude seam, so a Claude session can never become a training input to a vendor.
 
 ## Current File Layout
 
@@ -63,6 +101,7 @@ The existing provider folders are `claude`, `codex`, `cursor`, `gemini`, and
 
 | Facet | Responsibility | Base / Service |
 | --- | --- | --- |
+| `models` | Resolve the provider's model catalog and active/selected model | `IProviderModels` -> `providerModelsService` |
 | `auth` | Report install/auth state for the provider runtime | `IProviderAuth` -> `providerAuthService` |
 | `mcp` | Read, list, write, and remove provider-native MCP config | `McpProvider` -> `providerMcpService` |
 | `skills` | Discover provider-native skill markdown files | `SkillsProvider` -> `providerSkillsService` |
@@ -94,7 +133,7 @@ The existing provider folders are `claude`, `codex`, `cursor`, `gemini`, and
 
 - Add `server/modules/providers/list/<provider>/<provider>.provider.ts`.
 - Extend `AbstractProvider`.
-- Expose readonly `auth`, `mcp`, `skills`, `sessions`, and `sessionSynchronizer`.
+- Expose readonly `models`, `auth`, `mcp`, `skills`, `sessions`, and `sessionSynchronizer`.
 - Call `super('<provider>')`.
 
 3. Implement auth.

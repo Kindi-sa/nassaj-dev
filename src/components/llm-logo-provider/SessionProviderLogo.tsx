@@ -1,10 +1,12 @@
 import type { LLMProvider } from '../../types/app';
+import { VENDOR_PROVIDERS, type VendorProvider } from '../provider-auth/vendorProviders';
 import AntigravityLogo from './AntigravityLogo';
 import ClaudeLogo from './ClaudeLogo';
 import CodexLogo from './CodexLogo';
 import CursorLogo from './CursorLogo';
 import GeminiLogo from './GeminiLogo';
 import OpenCodeLogo from './OpenCodeLogo';
+import VendorLogo from './VendorLogo';
 
 type SessionProviderLogoProps = {
   provider?: LLMProvider | string | null;
@@ -36,8 +38,8 @@ const makeInitialLogo = (fill: string, initials: string) =>
     );
   };
 
-const DeepSeekLogo = makeInitialLogo('#2563EB', 'DS');
-const GlmLogo = makeInitialLogo('#0891B2', 'GLM');
+// deepseek/glm now render via the shared VendorLogo (ADR-036); only the
+// non-vendor placeholders (hermes/sakana) keep an inline initials mark here.
 const HermesLogo = makeInitialLogo('#7C3AED', 'H');
 const SakanaLogo = makeInitialLogo('#14B8A6', 'S');
 
@@ -65,12 +67,10 @@ export default function SessionProviderLogo({
     return <OpenCodeLogo className={className} />;
   }
 
-  if (provider === 'deepseek') {
-    return <DeepSeekLogo className={className} />;
-  }
-
-  if (provider === 'glm') {
-    return <GlmLogo className={className} />;
+  // Hosted vendor providers (kimi/deepseek/glm) share the purpose-built
+  // VendorLogo (ADR-036). hermes/sakana are not vendors and keep their own marks.
+  if (typeof provider === 'string' && (VENDOR_PROVIDERS as readonly string[]).includes(provider)) {
+    return <VendorLogo provider={provider as VendorProvider} className={className} />;
   }
 
   if (provider === 'hermes') {
