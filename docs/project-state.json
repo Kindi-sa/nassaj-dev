@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-26T07:00:00.000Z",
+  "updated": "2026-06-26T08:15:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -80,6 +80,28 @@
     }
   ],
   "tasks": [
+    {
+      "id": "T-207",
+      "kind": "bug",
+      "phase": "P4",
+      "sprint": "S-2",
+      "issue": "B-88",
+      "status": "done",
+      "owner": "frontend-dev",
+      "closed": "2026-06-26",
+      "title": "حلقة إعادة تحميل شاشة الدخول في Helium/Ungoogled-Chromium (تعمل في Brave): authenticatedFetch كان يطلق auth:unauthorized على كل 401 حتى بلا توكن؛ شاشة الدخول تستعلم /api/plugins+/api/branding فترجع 401 بلا توكن → clearSession + location.href='/login' → حلقة ~410ms. Helium يمسح localStorage فيهبط على الشاشة العارية؛ Brave يحتفظ بالتوكن فلا يصلها.",
+      "note": "commit 3023cd8b (راجعه qa-critic، تُحقّق على منفذ 3099): الجذر = api.js شرط `status===401 && token`؛ دفاع عميق AuthContext حارس pathname!=='/login'. نُشِر 2026-06-26 عبر build:client (dist/index-D1gCOo7U.js حيّ، يُخدَم static بلا restart). متحقَّق: الخادم يقدّم الحزمة المُصلَحة (status===401&&token). يلزم Ctrl+Shift+R في Helium لتجاوز كاش SW القديم (claude-ui-v5)."
+    },
+    {
+      "id": "T-208",
+      "kind": "bug",
+      "phase": "P4",
+      "sprint": "S-2",
+      "status": "done",
+      "owner": "devops",
+      "closed": "2026-06-26",
+      "title": "نشر إصلاح CORS 500 (commit 90908acd): middleware كان يرمي 500 على أي Origin غير مسموح فتدخل شاشة الدخول حلقة. الإصلاح callback(null,false). نُشِر عبر env -u PORT pm2 restart ecosystem.config.cjs (المالك بطرفيته، حارس العميل) + build:client. متحقَّق 2026-06-26: طلب مع Origin → 200 (كان 500)، nassaj-dev online."
+    },
     {
       "id": "T-206",
       "kind": "maintenance",
@@ -2486,6 +2508,15 @@
     }
   ],
   "issues": [
+    {
+      "id": "B-88",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "fixed",
+      "severity": "high",
+      "title": "حلقة إعادة تحميل لا تنتهي على شاشة الدخول في Helium (401 بلا توكن يُطلق auth:unauthorized→redirect). يعمل في Brave لأنه يحتفظ بالتوكن. أُصلح بـT-207 (commit 3023cd8b) ونُشِر 2026-06-26.",
+      "triage": "high → T-207. منفصل عن B-70 (JWT_SECRET)؛ هذا عيب عميل في معالجة 401 pre-auth."
+    },
     {
       "id": "B-81",
       "severity": "critical",
