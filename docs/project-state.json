@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-27T11:20:00.000Z",
+  "updated": "2026-06-27T12:55:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2553,9 +2553,10 @@
       "kind": "bug",
       "issue": "B-89",
       "title": "فرز دمج الرسائل في computeMerged: تطبيق .sort(compareMessagesByTimestamp) على [...server, ...extra] في src/stores/useSessionStore.ts (المقارِن موجود سطر 271، يُستدعى حالياً في مسار الهجرة فقط).",
-      "status": "todo",
+      "status": "done",
       "owner": "frontend-dev",
-      "note": "مُعاد صياغته بحكم qa-critic: العيب موقعه computeMerged لا «المقارِن مفقود». build:client + اختبار useSessionStore. ينتظر إذن المالك بالتنفيذ."
+      "closed": "2026-06-27",
+      "note": "نُفِّذ 2026-06-27 (frontend-dev، إذن المالك). sort في computeMerged بمساري الدمج؛ اختبار useSessionStore.test.ts 7/7 (تحقّقه المنسّق بـvitest)؛ build:client تمّ فالواجهة حيّة (قد يلزم Ctrl+Shift+R لتجاوز SW). commit e02dc23b."
     },
     {
       "id": "T-221",
@@ -2564,9 +2565,10 @@
       "kind": "bug",
       "issue": "B-90",
       "title": "تقديم npm المستخدم في PATH داخل shell PTY: port مُقلَّم لـ4a503b1d في shell-websocket.service.ts (إسقاط فروع Windows، احترام isolatedEnv per-user).",
-      "status": "todo",
+      "status": "done",
       "owner": "backend-dev",
-      "note": "خطر متوسط (يمسّ عزل PTY) → اختبار عزل per-user صريح. build:server + restart. ينتظر إذن المالك."
+      "closed": "2026-06-27",
+      "note": "نُفِّذ 2026-06-27 (backend-dev، إذن المالك). prioritizeUserNpmGlobalBin مشتقّ من isolatedEnv (لا process.env) فلا تسريب A↔B؛ port مُقلَّم من 4a503b1d بلا فروع Windows. اختبار pty-isolation 6/6 (تحقّقه المنسّق)؛ build:server تمّ. يسري بعد restart المالك. commit aa08c8cd."
     },
     {
       "id": "T-222",
@@ -2592,23 +2594,23 @@
       "id": "B-89",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "low",
       "found": "2026-06-27",
       "title": "دمج رسائل الخادم+اللحظي للعرض غير مرتَّب زمنياً: computeMerged في src/stores/useSessionStore.ts:200-219 يُعيد [...server, ...extra] بلا فرز؛ compareMessagesByTimestamp مُستدعى فقط في مسار هجرة المعرّف (سطر 271). وصول لحظي خارج الترتيب قد يخلط ترتيب الردود. مكافئ upstream 123ae310.",
-      "triage": "low → T-220 (backlog). مُكتشَف ضمن دراسة upstream T-219؛ qa-critic أكّد العيب وصحّح موقعه.",
-      "resolved": null
+      "triage": "low → T-220. أُصلح بـe02dc23b (sort في computeMerged، اختبار 7/7، build:client حيّ).",
+      "resolved": "2026-06-27"
     },
     {
       "id": "B-90",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "low",
       "found": "2026-06-27",
       "title": "shell PTY لا يُقدّم ثنائيات npm الخاصة بالمستخدم في PATH: shell-websocket.service.ts:394-411 يمرّر isolatedEnv فقط بلا حقن PATH لـnode_modules/.bin أو npm المستخدم. مكافئ upstream 4a503b1d (مثقل بمسارات Windows ميتة على سيرفرنا Linux).",
-      "triage": "low → T-221 (backlog). port يدوي مُقلَّم يحترم isolatedEnv per-user.",
-      "resolved": null
+      "triage": "low → T-221. أُصلح بـaa08c8cd (port مُقلَّم، اختبار 6/6، build:server تمّ، ينتظر restart).",
+      "resolved": "2026-06-27"
     },
     {
       "id": "B-88",
