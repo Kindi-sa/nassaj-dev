@@ -298,6 +298,30 @@ export function useChatRealtimeHandlers({
       return;
     }
 
+    // --- workflow_reconciled (B-94): synthetic reconcile card ----------------
+    // The server emits this when it discovers a workflow that completed after
+    // the parent session was already marked stopped. It is NOT a persisted
+    // NormalizedMessage kind; we synthesize a task_reconcile row and inject it
+    // via appendRealtime so useChatMessages can replace the stale stopped card.
+    if (msg.kind === 'workflow_reconciled') {
+      if (sid) {
+        const reconcileRow: NormalizedMessage = {
+          id: `reconcile-${msg.wfId || msg.workflowId || Date.now()}`,
+          sessionId: sid,
+          timestamp: msg.timestamp || new Date().toISOString(),
+          provider: msg.provider || provider,
+          kind: 'task_reconcile',
+          wfId: msg.wfId || msg.workflowId,
+          agentsDone: typeof msg.agentsDone === 'number' ? msg.agentsDone : undefined,
+          agentsTotal: typeof msg.agentsTotal === 'number' ? msg.agentsTotal : undefined,
+          summary: msg.summary,
+          status: 'completed',
+        };
+        sessionStore.appendRealtime(sid, reconcileRow);
+      }
+      return;
+    }
+
     // --- All other messages: route to store ---
     const shouldPersist =
       msg.kind !== 'session_created'

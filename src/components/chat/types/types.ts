@@ -79,6 +79,17 @@ export interface ChatMessage {
     currentToolIndex: number;
     isComplete: boolean;
   };
+  /** Task notification fields (B-94). */
+  isTaskNotification?: boolean;
+  taskStatus?: string;
+  /**
+   * Workflow id extracted from the task-id field of a task notification, or
+   * from a task_reconcile synthetic row. Used to match a reconcile card to its
+   * paired stopped card so the UI can replace it in-place.
+   */
+  wfId?: string;
+  /** True only on task_reconcile-derived cards; never on original notifications. */
+  isReconcile?: boolean;
   [key: string]: unknown;
 }
 

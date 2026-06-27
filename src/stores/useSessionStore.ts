@@ -28,7 +28,8 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'task_reconcile';
 
 export interface NormalizedMessage {
   id: string;
@@ -110,6 +111,16 @@ export interface NormalizedMessage {
   // Cursor-specific ordering
   sequence?: number;
   rowid?: number;
+  /**
+   * Workflow identifier for task_reconcile rows (B-94/B-95).
+   * Matches the wfId parsed from the stopped notification so the UI can
+   * replace or append to the stopped card for the same workflow.
+   */
+  wfId?: string;
+  /** Number of agents that finished (task_reconcile). */
+  agentsDone?: number;
+  /** Total agents in the workflow (task_reconcile). */
+  agentsTotal?: number;
 }
 
 // ─── Per-session slot ────────────────────────────────────────────────────────

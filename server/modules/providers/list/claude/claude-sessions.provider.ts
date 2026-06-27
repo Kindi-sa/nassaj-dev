@@ -7,6 +7,10 @@ import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
+import {
+  findLatestStoppedNotificationMs,
+  reconcileWorkflowMessages,
+} from '@/modules/providers/list/claude/workflow-reconcile.service.js';
 
 const PROVIDER = 'claude';
 
@@ -200,6 +204,24 @@ async function getSessionMessages(
       }
     }
 
+    // ADR-048: derive a background-workflow completion correction when this
+    // session carries a `run.stopped` notification that was emitted before the
+    // orphaned workflow finished writing its results on disk. Read-only,
+    // fail-safe, behind the WORKFLOW_RECONCILE flag (no-op when OFF). Reuses the
+    // already-parsed `messages` (to find the stopped row) and the `subagentsDir`
+    // computed above (its parent is the session dir holding `subagents/`), so no
+    // new disk walk or path coupling is introduced. Derived rows are appended,
+    // never written to the SDK-owned transcript.
+    const stoppedAtMs = findLatestStoppedNotificationMs(messages);
+    const reconcileMessages = await reconcileWorkflowMessages(
+      sessionId,
+      path.dirname(subagentsDir),
+      stoppedAtMs,
+    );
+    for (const reconcileMessage of reconcileMessages) {
+      messages.push(reconcileMessage as unknown as AnyRecord);
+    }
+
     const sortedMessages = messages.sort(
       (a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime(),
     );
@@ -323,6 +345,15 @@ export class ClaudeSessionsProvider implements IProviderSessions {
     const raw = readObjectRecord(rawMessage);
     if (!raw) {
       return [];
+    }
+
+    // ADR-048: the derived workflow-reconcile correction is injected into the
+    // raw history stream by getSessionMessages already in NormalizedMessage
+    // shape (it is not a raw JSONL transcript row). Pass it through untouched so
+    // fetchHistory's normalize loop preserves it instead of dropping it as an
+    // unrecognized entry.
+    if (raw.kind === 'task_reconcile' || raw.kind === 'workflow_reconciled') {
+      return [raw as unknown as NormalizedMessage];
     }
 
     if (raw.type === 'content_block_delta' && raw.delta?.text) {

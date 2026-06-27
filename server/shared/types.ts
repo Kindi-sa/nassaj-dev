@@ -200,7 +200,23 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  /**
+   * Derived background-workflow completion correction (ADR-048). Synthesized by
+   * the workflow-reconcile service — NOT persisted to any transcript — when a
+   * session's background `run.stopped` notification was emitted before the
+   * orphaned workflow actually finished writing its `result` rows on disk.
+   * Carries `isTaskNotification:true`/`taskStatus:'completed'` so it rides the
+   * existing task-notification card path on the frontend.
+   */
+  | 'task_reconcile'
+  /**
+   * Optional read-only WebSocket fan-out variant of `task_reconcile` (ADR-048,
+   * mirrors ADR-041 replay) telling live viewers a previously-stopped workflow
+   * has been reconciled as complete. Idempotent; absence of this event never
+   * changes correctness because the REST `task_reconcile` row is authoritative.
+   */
+  | 'workflow_reconciled';
 
 /**
  * Provider-neutral message envelope used in REST responses and realtime channels.
@@ -275,6 +291,21 @@ export type NormalizedMessage = {
   isLocalCommand?: boolean;
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
+  /**
+   * Background-task notification fields (ADR-048). Present on the derived
+   * kind:'task_reconcile' correction row (and any kind:'workflow_reconciled'
+   * event): `isTaskNotification` routes it through the frontend's existing
+   * task-notification card path, `taskStatus` carries the reconciled state
+   * ('completed'), `wfId` identifies the workflow so the card can replace/append
+   * the matching stopped card, and `agentsDone`/`agentsTotal` show progress
+   * (resultKeys vs startedKeys). The derived row intentionally has NO output
+   * file path — the journal does not record one.
+   */
+  isTaskNotification?: boolean;
+  taskStatus?: string;
+  wfId?: string;
+  agentsDone?: number;
+  agentsTotal?: number;
   images?: unknown;
   toolName?: string;
   toolInput?: unknown;
