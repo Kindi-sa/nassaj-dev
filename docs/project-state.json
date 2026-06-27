@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-26T09:30:00.000Z",
+  "updated": "2026-06-26T10:00:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -81,7 +81,35 @@
   ],
   "tasks": [
     {
-      "id": "T-207",
+      "id": "T-216",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "pending",
+      "owner": "backend-dev",
+      "title": "إدارة المستخدمين (الرخيمي + ربما هنا): لا خلل كودي — POST /api/settings/api-keys وPATCH /api/auth/me/username وPATCH /api/auth/me/password تعمل (اختُبرت مباشرة بتوكن صالح على 3004، جلسة 51db2a0a). السبب الأرجح توكن متصفح بائت→401 صامت (نفس عائلة Helium B-88).",
+      "note": "الحل التكتيكي: logout ثم login نظيف على nassaj.alrukhaimi.com وإعادة المحاولة. مُعزَّز بإصلاحات اليوم: حلقة Helium (T-214) + معترض 401 العام للتوكن البائت (6fa3f66c) + فحص pwd_iat في WebSocket (8c3c0c88) — الثلاثة في integration/publish ومنشورة. متبقٍّ: تحقّق أرضي على الرخيمي بعد دخول نظيف؛ إن استمر فافحص DevTools→Network لرمز الرفض. الحل الاستراتيجي طويل المدى = SSO Zitadel (P8/P-IDP)."
+    },
+    {
+      "id": "T-217",
+      "kind": "feature",
+      "phase": "P2",
+      "status": "in_progress",
+      "owner": "backend-dev",
+      "issue": null,
+      "title": "إعادة دمج multimodel في الخط الحيّ (تنفيذ توصية T-181): فرع merge/multimodel-reintegration-20260626 — دمج deploy/multimodel في integration/publish بحلّ ~20 تعارضاً مع حفظ الميزتين (هرمز+OIDC الجديدان + المحرك المتعدد). backend-dev في worktree معزول ثم مراجعة qa-critic بفيتو على سلامة حارس egress.",
+      "note": "أُطلق 2026-06-26 (backend-dev، خلفية، worktree معزول). الثابت الأمني: حارس iron-rule egress يبقى fail-closed. لا تفعيل حيّ بلا مفاتيح API المالك + build:server + restart. مرتبط T-181."
+    },
+    {
+      "id": "T-218",
+      "kind": "chore",
+      "phase": "P3",
+      "status": "pending",
+      "owner": "backend-dev",
+      "title": "تنظيف 16 مُعرّف T- مكرَّر في project-state.json (T-69,85,88,89,90,91,92,93,94,95,96,97,98,99,100,110) — تصادم مخططَي ترقيم متوازيين تاريخياً (جلسات/فروع متعددة). يلزم سكربت يحدّث المراجع المتقاطعة (issue/_relTask/dependsOn/روابط القرارات) ذرياً قبل إعادة الترقيم كي لا تنكسر.",
+      "note": "اكتُشف 2026-06-26 أثناء توثيق المهام المفتوحة. غير عاجل (اللوحة تعرض، لكن النقر/الربط قد يلتبس). مهامي الثلاث (JWT/Helium/CORS) رُقِّمت فوراً (T-213/214/215) فلم تَعُد ضمن المكرَّرات."
+    },
+    {
+      "id": "T-214",
       "kind": "bug",
       "phase": "P4",
       "sprint": "S-2",
@@ -90,24 +118,25 @@
       "owner": "frontend-dev",
       "closed": "2026-06-26",
       "title": "حلقة إعادة تحميل شاشة الدخول في Helium/Ungoogled-Chromium (تعمل في Brave): authenticatedFetch كان يطلق auth:unauthorized على كل 401 حتى بلا توكن؛ شاشة الدخول تستعلم /api/plugins+/api/branding فترجع 401 بلا توكن → clearSession + location.href='/login' → حلقة ~410ms. Helium يمسح localStorage فيهبط على الشاشة العارية؛ Brave يحتفظ بالتوكن فلا يصلها.",
-      "note": "commit 3023cd8b (راجعه qa-critic، تُحقّق على منفذ 3099): الجذر = api.js شرط `status===401 && token`؛ دفاع عميق AuthContext حارس pathname!=='/login'. نُشِر 2026-06-26 عبر build:client (dist/index-D1gCOo7U.js حيّ، يُخدَم static بلا restart). متحقَّق: الخادم يقدّم الحزمة المُصلَحة (status===401&&token). يلزم Ctrl+Shift+R في Helium لتجاوز كاش SW القديم (claude-ui-v5)."
+      "note": "commit 3023cd8b (راجعه qa-critic، تُحقّق على منفذ 3099): الجذر = api.js شرط `status===401 && token`؛ دفاع عميق AuthContext حارس pathname!=='/login'. نُشِر 2026-06-26 عبر build:client (dist/index-D1gCOo7U.js حيّ، يُخدَم static بلا restart). متحقَّق: الخادم يقدّم الحزمة المُصلَحة (status===401&&token). يلزم Ctrl+Shift+R في Helium لتجاوز كاش SW القديم (claude-ui-v5). [رُقِّم T-207→T-214 لحلّ تصادم مع P-IDP-1]."
     },
     {
-      "id": "T-208",
+      "id": "T-215",
       "kind": "bug",
       "phase": "P4",
       "sprint": "S-2",
       "status": "done",
       "owner": "devops",
       "closed": "2026-06-26",
-      "title": "نشر إصلاح CORS 500 (commit 90908acd): middleware كان يرمي 500 على أي Origin غير مسموح فتدخل شاشة الدخول حلقة. الإصلاح callback(null,false). نُشِر عبر env -u PORT pm2 restart ecosystem.config.cjs (المالك بطرفيته، حارس العميل) + build:client. متحقَّق 2026-06-26: طلب مع Origin → 200 (كان 500)، nassaj-dev online."
+      "title": "نشر إصلاح CORS 500 (commit 90908acd): middleware كان يرمي 500 على أي Origin غير مسموح فتدخل شاشة الدخول حلقة. الإصلاح callback(null,false). نُشِر عبر env -u PORT pm2 restart ecosystem.config.cjs (المالك بطرفيته، حارس العميل) + build:client. متحقَّق 2026-06-26: طلب مع Origin → 200 (كان 500)، nassaj-dev online.",
+      "note": " [رُقِّم T-208→T-215 لحلّ تصادم مع P-IDP-1.5]."
     },
     {
-      "id": "T-206",
+      "id": "T-213",
       "kind": "maintenance",
       "phase": "P7",
       "status": "pending",
-      "title": "فحص تضارب JWT_SECRET على الرخيمي (104، nassaj.alrukhaimi.com): التحقق من وجود JWT_SECRET في /opt/nassaj/.env ومطابقة app_config.jwt_secret معه وقائياً (نفس إصلاح T-184 على nassaj.alkindy.tech). يتطلب SSH للرخيمي.",
+      "title": "(كان T-206) فحص تضارب JWT_SECRET على الرخيمي (104، nassaj.alrukhaimi.com): التحقق من وجود JWT_SECRET في /opt/nassaj/.env ومطابقة app_config.jwt_secret معه وقائياً (نفس إصلاح T-184 على nassaj.alkindy.tech). يتطلب SSH للرخيمي.",
       "owner": "devops"
     },
     {
@@ -2515,7 +2544,7 @@
       "status": "fixed",
       "severity": "high",
       "title": "حلقة إعادة تحميل لا تنتهي على شاشة الدخول في Helium (401 بلا توكن يُطلق auth:unauthorized→redirect). يعمل في Brave لأنه يحتفظ بالتوكن. أُصلح بـT-207 (commit 3023cd8b) ونُشِر 2026-06-26.",
-      "triage": "high → T-207. منفصل عن B-70 (JWT_SECRET)؛ هذا عيب عميل في معالجة 401 pre-auth."
+      "triage": "high → T-214. منفصل عن B-70 (JWT_SECRET)؛ هذا عيب عميل في معالجة 401 pre-auth."
     },
     {
       "id": "B-81",
@@ -3440,5 +3469,6 @@
         "secret_strategy": "public client PKCE (لا client_secret) — لا تدوير مطلوب لنسّاج"
       }
     }
-  ]
+  ],
+  "_note_session_51db2a0a": "ملخص جلسة 51db2a0a (2026-06-25): ثلاث مخرجات. (1) مؤشّر «Workflow شغّال» بالواجهة — أُصلح df79c723 (claude-sdk يبثّ pendingWorkflows + useChatRealtimeHandlers يُبقي isLoading)، حيّ. (2) إدارة المستخدمين/مفتاح الوصول «المعطّلة» — لا خلل كودي (الـAPIs الثلاثة تعمل)؛ السبب توكن بائت→401 صامت؛ موثّق T-216. أُصلح في نفس الجلسة معترض 401 (6fa3f66c) وpwd_iat WS (8c3c0c88). (3) الدخول الموحّد — قرار الوكلاء النهائي Zitadel (تغيّر عن Pocket-ID→Authentik→Zitadel، ADR-045/046)؛ خطة P-IDP-0..5 = T-206..T-212؛ كود نسّاج RP منجَز 96c4af44 (T-210)؛ متبقٍّ للمالك: VM Zitadel على ibrahim-proxmox (T-207/P-IDP-1) + TLS Tailscale (T-208). كل إصلاحات الجلسة في integration/publish ومرفوعة."
 }
