@@ -121,6 +121,13 @@ export interface NormalizedMessage {
   agentsDone?: number;
   /** Total agents in the workflow (task_reconcile). */
   agentsTotal?: number;
+  /**
+   * Terminal outcome carried on a task_reconcile row (C5). The backend emits
+   * 'completed' (all agents finished) or 'settled' (workflow quiesced but some
+   * agents never completed); the UI renders distinct copy for each. Absent =
+   * legacy row, treated as 'completed'.
+   */
+  taskStatus?: 'completed' | 'settled' | string;
 }
 
 // ─── Per-session slot ────────────────────────────────────────────────────────

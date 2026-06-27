@@ -298,24 +298,34 @@ export function useChatRealtimeHandlers({
       return;
     }
 
-    // --- workflow_reconciled (B-94): synthetic reconcile card ----------------
-    // The server emits this when it discovers a workflow that completed after
-    // the parent session was already marked stopped. It is NOT a persisted
-    // NormalizedMessage kind; we synthesize a task_reconcile row and inject it
-    // via appendRealtime so useChatMessages can replace the stale stopped card.
+    // --- workflow_reconciled (B-94 / C4): synthetic reconcile card -----------
+    // TODO(ADR-048 phase-2): no server emitter yet — REST reconcile is the active
+    // path. This branch is dead today (nothing on the backend broadcasts a
+    // `workflow_reconciled` WS event); it is kept, hardened, and documented so a
+    // future server emitter can light it up without another client change. When
+    // revived, it would fire when the server discovers a workflow that completed
+    // after the parent session was already marked stopped, synthesizing a
+    // task_reconcile row injected via appendRealtime so useChatMessages can
+    // replace the stale stopped card.
     if (msg.kind === 'workflow_reconciled') {
-      if (sid) {
+      const wfId = msg.wfId || msg.workflowId;
+      // wfId is mandatory: the reconcile pass keys replacement off it, and a
+      // stable id (not Date.now()) is required so a re-delivered event dedupes by
+      // id instead of stacking a second card. Ignore the event without one.
+      if (sid && wfId) {
         const reconcileRow: NormalizedMessage = {
-          id: `reconcile-${msg.wfId || msg.workflowId || Date.now()}`,
+          id: `reconcile-${wfId}`,
           sessionId: sid,
           timestamp: msg.timestamp || new Date().toISOString(),
           provider: msg.provider || provider,
           kind: 'task_reconcile',
-          wfId: msg.wfId || msg.workflowId,
+          wfId,
           agentsDone: typeof msg.agentsDone === 'number' ? msg.agentsDone : undefined,
           agentsTotal: typeof msg.agentsTotal === 'number' ? msg.agentsTotal : undefined,
           summary: msg.summary,
-          status: 'completed',
+          // C5: carry the terminal outcome ('completed' | 'settled') so the card
+          // renders the right copy; default to 'completed' when absent.
+          taskStatus: msg.taskStatus === 'settled' ? 'settled' : 'completed',
         };
         sessionStore.appendRealtime(sid, reconcileRow);
       }

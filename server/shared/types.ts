@@ -292,17 +292,20 @@ export type NormalizedMessage = {
   isLocalCommandStdout?: boolean;
   isCompactSummary?: boolean;
   /**
-   * Background-task notification fields (ADR-048). Present on the derived
+   * Background-task notification fields (ADR-048, C5). Present on the derived
    * kind:'task_reconcile' correction row (and any kind:'workflow_reconciled'
    * event): `isTaskNotification` routes it through the frontend's existing
-   * task-notification card path, `taskStatus` carries the reconciled state
-   * ('completed'), `wfId` identifies the workflow so the card can replace/append
-   * the matching stopped card, and `agentsDone`/`agentsTotal` show progress
-   * (resultKeys vs startedKeys). The derived row intentionally has NO output
-   * file path — the journal does not record one.
+   * task-notification card path, `taskStatus` carries the reconciled state —
+   * 'completed' when every started work item produced a result
+   * (agentsDone == agentsTotal), or 'settled' when real output landed but a
+   * subagent stayed hanging (agentsDone < agentsTotal). `wfId` identifies the
+   * workflow so the card can replace/append the matching stopped card, and
+   * `agentsDone`/`agentsTotal` show progress (matched resultKeys vs startedKeys).
+   * The derived row intentionally has NO output file path — the journal does not
+   * record one.
    */
   isTaskNotification?: boolean;
-  taskStatus?: string;
+  taskStatus?: 'completed' | 'settled' | (string & {});
   wfId?: string;
   agentsDone?: number;
   agentsTotal?: number;

@@ -105,19 +105,34 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         if (!content.trim()) continue;
 
         if (msg.role === 'user') {
-          // Parse task notifications (B-94 fix).
-          // The original format carries <output-file>; the "stopped" notification
-          // emitted by the SDK carries <tool-use-id> instead (no output-file).
-          // Both variants are accepted; the inner block after <task-id> is made
-          // optional so that any future variants that omit it also parse cleanly.
+          // Parse task notifications (B-94 / C1-C2 fix, validated 184/184 on real
+          // SDK transcripts). Real notifications observed in the wild:
+          //   - "stopped": <task-id> + <tool-use-id> + <status> + <summary>.
+          //   - "completed": <task-id> + <tool-use-id> AND <output-file> together,
+          //     followed (after </summary>) by a <result>…</result> block (whose
+          //     body contains unbalanced "<") and a <usage>…</usage> block.
+          // The previous regex required exactly one optional inner block AND a
+          // closing </task-notification> anchor, so it failed every completed
+          // notification (only ~6.5% matched). This pattern allows any number of
+          // inner <tag>…</tag> blocks between <task-id> and <status> (lazily, so a
+          // bare notification with <status> immediately after <task-id> still
+          // matches) and drops the trailing anchor so the <result>/<usage> blocks
+          // never have to parse. Defined fresh per message (no /g flag → no
+          // lastIndex carry-over across rows). Capture groups: [1]=task-id,
+          // [2]=status, [3]=summary.
           const taskNotifRegex =
-            /<task-notification>\s*<task-id>([^<]*)<\/task-id>\s*(?:<output-file>[^<]*<\/output-file>|<tool-use-id>[^<]*<\/tool-use-id>)?\s*<status>([^<]*)<\/status>\s*<summary>([^<]*)<\/summary>\s*<\/task-notification>/g;
+            /<task-notification>\s*<task-id>([^<]*)<\/task-id>\s*(?:<[a-z-]+>[^<]*<\/[a-z-]+>\s*)*?<status>([^<]*)<\/status>\s*<summary>([^<]*)<\/summary>/;
           const taskNotifMatch = taskNotifRegex.exec(content);
           if (taskNotifMatch) {
-            // Extract wfId from task-id so reconcile cards can match (B-94).
-            // task-id format observed: "wf_<hex>" or arbitrary SDK string.
-            const rawTaskId = taskNotifMatch[1]?.trim() || '';
-            const wfId = rawTaskId.startsWith('wf_') ? rawTaskId : undefined;
+            // Extract wfId so reconcile cards can match (B-94 / C2). The real
+            // task-id is NOT the workflow id (it is the per-task SDK id, e.g.
+            // "wyb0qkwy5"); the workflow id lives in the summary as
+            // `resumeFromRunId: "wf_…"`. Read it from the full content: prefer the
+            // explicit resumeFromRunId, then fall back to any bare wf_<hex> token.
+            const wfMatch =
+              /resumeFromRunId:\s*"(wf_[^"]+)"/.exec(content)
+              || /\b(wf_[0-9a-f]+(?:-[0-9a-f]+)?)\b/.exec(content);
+            const wfId = wfMatch ? wfMatch[1] : undefined;
             converted.push({
               type: 'assistant',
               content: taskNotifMatch[3]?.trim() || 'Background task finished',
@@ -277,25 +292,42 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
         });
         break;
 
-      // Synthetic reconcile row injected by useChatRealtimeHandlers when the
-      // server emits a workflow_reconciled event (B-94). The row carries
-      // isTaskNotification:true so it flows through the existing card path in
-      // MessageComponent with no further changes needed there.
-      case 'task_reconcile':
+      // Synthetic reconcile row injected from a REST/WS reconcile result (B-94).
+      // The row carries isTaskNotification:true so it flows through the existing
+      // card path in MessageComponent with no further changes needed there.
+      //
+      // C5: the backend distinguishes two terminal outcomes via `taskStatus`:
+      //   'completed' — every agent in the workflow finished.
+      //   'settled'   — the workflow quiesced but some agents never completed.
+      // Reflect that in both the headline copy and the card's taskStatus (do NOT
+      // hardcode 'completed'); fall back to 'completed' for legacy rows that omit
+      // it. The (done/total) counts are appended when present.
+      case 'task_reconcile': {
+        const reconcileStatus =
+          (msg as NormalizedMessage & { taskStatus?: string }).taskStatus === 'settled'
+            ? 'settled'
+            : 'completed';
+        const hasCounts = msg.agentsDone != null && msg.agentsTotal != null;
+        const reconcileContent =
+          reconcileStatus === 'settled'
+            ? (hasCounts
+                ? `هدأ في الخلفية (${msg.agentsDone}/${msg.agentsTotal} — بعض الوكلاء لم يُكملوا)`
+                : (msg.summary || 'هدأ في الخلفية — بعض الوكلاء لم يُكملوا'))
+            : (hasCounts
+                ? `اكتمل في الخلفية (${msg.agentsDone}/${msg.agentsTotal})`
+                : (msg.summary || 'اكتمل في الخلفية'));
         converted.push({
           type: 'assistant',
-          content:
-            msg.agentsDone != null && msg.agentsTotal != null
-              ? `اكتمل في الخلفية (${msg.agentsDone}/${msg.agentsTotal})`
-              : (msg.summary || 'اكتمل في الخلفية'),
+          content: reconcileContent,
           timestamp: msg.timestamp,
           isTaskNotification: true,
-          taskStatus: 'completed',
+          taskStatus: reconcileStatus,
           wfId: msg.wfId,
           isReconcile: true,
           ...sharedMetadata,
         });
         break;
+      }
 
       case 'stream_delta':
         if (msg.content) {
@@ -358,56 +390,75 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
     }
   }
 
-  // ── Reconcile pass (B-94) ──────────────────────────────────────────────────
-  // For each task_reconcile card that has a wfId, find the matching stopped
-  // card (isTaskNotification + same wfId + taskStatus:'stopped') and replace
-  // it in-place with the reconcile card. If no matching stopped card exists,
-  // the reconcile card stays appended at the end (timestamp order is already
+  // ── Reconcile pass (B-94 / C3) ─────────────────────────────────────────────
+  // A task_reconcile card replaces the stopped notification for the same
+  // workflow (isTaskNotification + same wfId + taskStatus:'stopped'); the
+  // reconcile card lands at the stopped card's position and the standalone
+  // reconcile row is removed. If a workflow has a reconcile card but no stopped
+  // card, the reconcile card stays where it is (timestamp order is already
   // correct because computeMerged sorts the source rows chronologically).
   //
-  // Algorithm: collect indices of reconcile cards and their matching stopped
-  // cards in a single scan, then apply replacements back-to-front so earlier
-  // indices remain stable.
-  type ReconcileMatch = { recIdx: number; stoppedIdx: number };
-  const matches: ReconcileMatch[] = [];
-  const reconcileIndices: number[] = [];
-  for (let i = 0; i < converted.length; i++) {
-    const m = converted[i];
-    if ((m as any).isReconcile && (m as any).wfId) {
-      reconcileIndices.push(i);
+  // The previous implementation collected (recIdx, stoppedIdx) pairs and spliced
+  // them out back-to-front, but each pair was computed against the ORIGINAL
+  // indices: once one splice shifted the array, the remaining stale indices
+  // corrupted the order of two interleaved workflows (architect-verified failing
+  // case [recA, stopB, recB, stopA]). This is a single O(n) rebuild instead:
+  //   1. Map<wfId, reconcileCard> keeping the LAST reconcile per wfId (dedup).
+  //   2. The subset of those wfIds that actually have a stopped card.
+  //   3. One left-to-right pass over `converted`:
+  //        - a stopped card whose wfId is in that subset → emit the (last)
+  //          reconcile card in its place, once, and drop the stopped card;
+  //        - any reconcile card whose wfId is in that subset → drop (it has been
+  //          / will be emitted at the stopped slot);
+  //        - a superseded duplicate reconcile (same wfId, no stopped card) → drop
+  //          so only the last survives;
+  //        - everything else → keep verbatim.
+  // Handles: interleaved workflows, two reconcile cards for one wfId (collapse to
+  // one), and a reconcile with no stopped card (stays appended).
+  const reconcileByWf = new Map<string, ChatMessage>();
+  for (const m of converted) {
+    if (m.isReconcile && m.wfId) reconcileByWf.set(m.wfId, m);
+  }
+  if (reconcileByWf.size === 0) return converted;
+
+  const stoppedWfIds = new Set<string>();
+  for (const m of converted) {
+    if (
+      m.isTaskNotification
+      && !m.isReconcile
+      && m.wfId
+      && m.taskStatus === 'stopped'
+      && reconcileByWf.has(m.wfId)
+    ) {
+      stoppedWfIds.add(m.wfId);
     }
   }
 
-  for (const recIdx of reconcileIndices) {
-    const rec = converted[recIdx];
-    const wfId = (rec as any).wfId as string;
-    const stoppedIdx = converted.findIndex(
-      (m, idx) =>
-        idx !== recIdx &&
-        (m as any).isTaskNotification &&
-        !(m as any).isReconcile &&
-        (m as any).wfId === wfId &&
-        (m as any).taskStatus === 'stopped',
-    );
-    if (stoppedIdx !== -1) {
-      matches.push({ recIdx, stoppedIdx });
+  const rebuilt: ChatMessage[] = [];
+  const placed = new Set<string>();
+  for (const m of converted) {
+    if (
+      m.isTaskNotification
+      && !m.isReconcile
+      && m.wfId
+      && m.taskStatus === 'stopped'
+      && stoppedWfIds.has(m.wfId)
+    ) {
+      // Stopped card with a reconcile: emit the canonical reconcile card here once.
+      if (!placed.has(m.wfId)) {
+        rebuilt.push(reconcileByWf.get(m.wfId)!);
+        placed.add(m.wfId);
+      }
+      continue;
     }
+    if (m.isReconcile && m.wfId) {
+      // Reconcile card that belongs at a stopped slot → drop its standalone copy.
+      if (stoppedWfIds.has(m.wfId)) continue;
+      // Superseded duplicate reconcile (no stopped card) → keep only the last.
+      if (reconcileByWf.get(m.wfId) !== m) continue;
+    }
+    rebuilt.push(m);
   }
 
-  // Apply in descending index order so each splice does not shift later indices.
-  for (const { recIdx, stoppedIdx } of matches.sort(
-    (a, b) => Math.max(b.recIdx, b.stoppedIdx) - Math.max(a.recIdx, a.stoppedIdx),
-  )) {
-    const rec = converted[recIdx];
-    // Remove reconcile card first (higher or lower index), then replace stopped.
-    if (recIdx > stoppedIdx) {
-      converted.splice(recIdx, 1);
-      converted.splice(stoppedIdx, 1, rec);
-    } else {
-      converted.splice(stoppedIdx, 1, rec);
-      converted.splice(recIdx, 1);
-    }
-  }
-
-  return converted;
+  return rebuilt;
 }

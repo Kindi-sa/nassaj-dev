@@ -25,11 +25,28 @@ import { createNormalizedMessage } from '@/shared/utils.js';
  * tracking across restart). nassaj cannot patch the SDK; it reconciles in its
  * own layer by READING the on-disk trace the SDK leaves behind (journal.jsonl).
  *
+ * C5 — SETTLED STATE (incident wf_ef5ba242-b4b, 16 started / 15 result):
+ * the original completeness gate required `startedKeys ⊆ resultKeys` (every
+ * started work item produced a result). That mis-classified the COMMON orphan
+ * shape — a workflow that produced real output but left one subagent hanging at
+ * restart, so one `started` key never gained its `result` row — as "not
+ * complete", and the stopped notification was never corrected (the incident:
+ * 16/15 across that journal, 346/318 across all journals). The classifier now
+ * distinguishes two correctable terminal states from the un-correctable null:
+ *   - 'completed' — startedKeys⊆resultKeys (agentsDone == agentsTotal). [as before]
+ *   - 'settled'   — startedKeys⊄resultKeys but resultKeys.size≥1, the journal is
+ *                   quiet, and its mtime is past the stopped row: real work
+ *                   landed yet a subagent stayed hanging (agentsDone < agentsTotal).
+ *   - null        — resultKeys.size==0, or not quiet, or mtime≤stopped: no signal.
+ * The freshness gates (quiet window + mtime > stopped) still apply to BOTH
+ * correctable states, so a still-writing orphan is never prematurely declared
+ * settled mid-flight.
+ *
  * DESIGN CONSTRAINTS (ADR-048):
  * - Read-only. Never writes the SDK-owned transcript and never touches the
  *   drain / B-N-DRAIN / shutdown-drain path.
  * - Fail-safe: any anomaly (missing folder, malformed line, unknown shape, stat
- *   failure, empty started set) yields NO correction, never throws, logs only
+ *   failure, empty result set) yields NO correction, never throws, logs only
  *   via console.debug. The caller continues with its original payload as if this
  *   service did not exist (mirrors transcript-parser's "never throws on bad
  *   input" contract).
@@ -74,11 +91,24 @@ function resolveQuietMs(): number {
 }
 
 /**
- * One reconciled workflow: every started key has a matching result key and the
- * journal has been quiet since after the stopped notification.
+ * Terminal settlement state of a reconciled workflow (C5):
+ * - 'completed' — every started key has a matching result key
+ *   (agentsDone == agentsTotal).
+ * - 'settled'   — at least one result landed but some started key has no result
+ *   (agentsDone < agentsTotal): the orphan produced work yet left a subagent
+ *   hanging. Still a correction, but a partial one.
+ */
+export type WorkflowSettlementStatus = 'completed' | 'settled';
+
+/**
+ * One reconciled workflow whose journal has been quiet since after the stopped
+ * notification. `status` distinguishes a fully completed workflow from a settled
+ * (partial) one; `agentsDone`/`agentsTotal` are resultKeys vs startedKeys, so
+ * `agentsDone === agentsTotal` exactly when `status === 'completed'`.
  */
 export type WorkflowReconcileResult = {
   wfId: string;
+  status: WorkflowSettlementStatus;
   agentsDone: number;
   agentsTotal: number;
   /** journal.jsonl mtime as ISO — used as the derived correction timestamp. */
@@ -150,29 +180,58 @@ async function readJournalKeySets(
 }
 
 /**
- * Returns true when every started key has a matching result key and at least one
- * work item was started. An empty started set is never "complete" — that is the
- * absence of a workflow, not a finished one.
+ * Classifies a workflow's terminal settlement from its key sets (C5).
+ * Freshness (quiet window + mtime > stopped) is enforced by the caller; this is
+ * the pure key-set verdict:
+ *
+ *   - 'completed' — startedKeys.size ≥ 1 AND every started key has a result key
+ *                   (startedKeys ⊆ resultKeys); agentsDone == agentsTotal.
+ *   - 'settled'   — startedKeys ⊄ resultKeys BUT resultKeys.size ≥ 1: at least
+ *                   one work item produced output while ≥ 1 started key never
+ *                   gained a result (the orphan that left a subagent hanging);
+ *                   agentsDone < agentsTotal.
+ *   - null        — resultKeys.size == 0: no work was ever produced. That is the
+ *                   absence of a finished workflow (e.g. results-only or
+ *                   started-only noise), not a settlement — no correction.
+ *
+ * Pure and total: no I/O, never throws.
  */
-function isWorkflowComplete(startedKeys: Set<string>, resultKeys: Set<string>): boolean {
-  if (startedKeys.size === 0) {
-    return false;
+function classifyWorkflowSettlement(
+  startedKeys: Set<string>,
+  resultKeys: Set<string>,
+): WorkflowSettlementStatus | null {
+  // No result row at all => nothing landed => never correct (conservative).
+  if (resultKeys.size === 0) {
+    return null;
   }
-  for (const key of startedKeys) {
-    if (!resultKeys.has(key)) {
-      return false;
+
+  // 'completed' requires at least one started key, all matched by a result.
+  if (startedKeys.size >= 1) {
+    let allMatched = true;
+    for (const key of startedKeys) {
+      if (!resultKeys.has(key)) {
+        allMatched = false;
+        break;
+      }
+    }
+    if (allMatched) {
+      return 'completed';
     }
   }
-  return true;
+
+  // Otherwise there is real output (resultKeys.size ≥ 1) but at least one started
+  // key is unmatched (or there are no started keys at all to "complete"): the
+  // orphan produced work yet left a subagent hanging => 'settled'.
+  return 'settled';
 }
 
 /**
  * Scans the session's `subagents/workflows/` directory and returns one
- * {@link WorkflowReconcileResult} per workflow that is provably complete AND
- * fresh relative to the stopped notification.
+ * {@link WorkflowReconcileResult} per workflow that is provably settled
+ * ('completed' OR 'settled', C5) AND fresh relative to the stopped notification.
  *
  * Freshness (both mandatory, ADR-048):
- *   (a) mtime(journal) > stoppedAt      — completed AFTER the stopped notice
+ *   (a) mtime(journal) > stoppedAt      — last written AFTER the stopped notice
  *   (b) now - mtime(journal) >= QUIET_MS — no write is currently in flight
  *
  * @param sessionDir  `<projectDir>/<transcriptSessionId>` (same base
@@ -234,14 +293,19 @@ export async function findReconciledWorkflows(
     }
 
     const { startedKeys, resultKeys } = await readJournalKeySets(journalPath);
-    if (!isWorkflowComplete(startedKeys, resultKeys)) {
+    const status = classifyWorkflowSettlement(startedKeys, resultKeys);
+    if (status === null) {
       continue;
     }
 
     reconciled.push({
       wfId: entry,
+      status,
+      // agentsDone = matched result keys; agentsTotal = started keys. For a
+      // 'settled' workflow with no started rows at all (results-only orphan),
+      // total falls back to resultKeys.size so agentsDone never exceeds total.
       agentsDone: resultKeys.size,
-      agentsTotal: startedKeys.size,
+      agentsTotal: Math.max(startedKeys.size, resultKeys.size),
       completedAt: new Date(journalMtimeMs).toISOString(),
     });
   }
@@ -250,12 +314,22 @@ export async function findReconciledWorkflows(
 }
 
 /**
+ * Arabic correction copy per settlement status (C5). 'completed' = every agent
+ * finished; 'settled' = real work landed but some agents never completed.
+ */
+const RECONCILE_CONTENT: Record<WorkflowSettlementStatus, string> = {
+  completed: 'اكتملت المهمة الخلفية',
+  settled: 'هدأت المهمة الخلفية (بعض الوكلاء لم يُكملوا)',
+};
+
+/**
  * Builds the DERIVED `task_reconcile` correction row appended to the
- * getSessionMessages payload. It carries `isTaskNotification:true` /
- * `taskStatus:'completed'` so it travels the existing task-notification card
- * path on the frontend, and `originKind:'task-notification'` so it is never
- * attributed to the user. `timestamp` = journal mtime so it sorts AFTER the
- * stopped row it corrects. No `path` field — the journal has none.
+ * getSessionMessages payload. It carries `isTaskNotification:true` and a
+ * `taskStatus` of the reconciled state ('completed' | 'settled', C5) so it
+ * travels the existing task-notification card path on the frontend, and
+ * `originKind:'task-notification'` so it is never attributed to the user. The
+ * Arabic `content` matches the status. `timestamp` = journal mtime so it sorts
+ * AFTER the stopped row it corrects. No `path` field — the journal has none.
  */
 export function buildReconcileMessage(
   sessionId: string,
@@ -267,8 +341,8 @@ export function buildReconcileMessage(
     sessionId,
     timestamp: reconciled.completedAt,
     isTaskNotification: true,
-    taskStatus: 'completed',
-    content: 'اكتملت المهمة الخلفية',
+    taskStatus: reconciled.status,
+    content: RECONCILE_CONTENT[reconciled.status],
     wfId: reconciled.wfId,
     agentsDone: reconciled.agentsDone,
     agentsTotal: reconciled.agentsTotal,
