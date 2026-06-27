@@ -1,0 +1,10 @@
+{"type":"started","key":"workflow_section_1_hash_abc123","agentId":"plan_drafter_1","timestamp":1719482511000}
+{"type":"started","key":"workflow_section_2_hash_def456","agentId":"plan_drafter_1","timestamp":1719482515000}
+{"type":"started","key":"workflow_section_3_hash_ghi789","agentId":"plan_drafter_1","timestamp":1719482519000}
+{"type":"started","key":"workflow_intro_hash_jkl012","agentId":"plan_drafter_1","timestamp":1719482523000}
+{"type":"started","key":"workflow_summary_hash_mno345","agentId":"plan_drafter_1","timestamp":1719482527000}
+{"type":"result","key":"workflow_section_1_hash_abc123","agentId":"plan_drafter_1","result":{"sectionId":"section_1","title":"مقدمة الخطة","content":"# خطة المشروع\n## المرحلة الأولى"},"timestamp":1719482595000}
+{"type":"result","key":"workflow_section_2_hash_def456","agentId":"plan_drafter_1","result":{"sectionId":"section_2","title":"أهداف المشروع","content":"## الأهداف\n1. الهدف الأول\n2. الهدف الثاني"},"timestamp":1719482631000}
+{"type":"result","key":"workflow_section_3_hash_ghi789","agentId":"plan_drafter_1","result":{"sectionId":"section_3","title":"الموارد المطلوبة","content":"## الموارد\n- فريق\n- أدوات"},"timestamp":1719482667000}
+{"type":"result","key":"workflow_intro_hash_jkl012","agentId":"plan_drafter_1","result":{"sectionId":"intro","title":"المقدمة العامة","content":"# خطة المشروع v1\n\nهذه خطة عمل شاملة"},"timestamp":1719482703000}
+{"type":"result","key":"workflow_summary_hash_mno345","agentId":"plan_drafter_1","result":{"sectionId":"summary","title":"الملخص","content":"## الملخص\nخطة عمل متكاملة بـ 3 مراحل"},"timestamp":1719482829000}
