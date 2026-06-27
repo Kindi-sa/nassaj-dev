@@ -38,12 +38,20 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
       return;
     }
 
+    const isRTL =
+      typeof document !== 'undefined'
+        ? document.documentElement.dir === 'rtl' ||
+          document.documentElement.getAttribute('dir') === 'rtl' ||
+          document.body.dir === 'rtl'
+        : false;
+
     const triggerRect = trigger.getBoundingClientRect();
     const viewportPadding = window.innerWidth < 640 ? 12 : 16;
     const spacing = 8;
     const width = Math.min(window.innerWidth - viewportPadding * 2, window.innerWidth < 640 ? 300 : 312);
-    let left = triggerRect.left + triggerRect.width / 2 - width / 2;
-    left = Math.max(viewportPadding, Math.min(left, window.innerWidth - width - viewportPadding));
+
+    // Centre the panel on the trigger button, then clamp to viewport.
+    const centred = triggerRect.left + triggerRect.width / 2 - width / 2;
 
     const measuredHeight = dropdown.offsetHeight || 0;
     const spaceBelow = window.innerHeight - triggerRect.bottom - spacing - viewportPadding;
@@ -58,14 +66,30 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
       ? Math.min(triggerRect.bottom + spacing, window.innerHeight - viewportPadding - panelHeight)
       : Math.max(viewportPadding, triggerRect.top - spacing - panelHeight);
 
-    setDropdownStyle({
-      position: 'fixed',
-      top,
-      left,
-      width,
-      maxHeight: availableHeight,
-      zIndex: 80,
-    });
+    if (isRTL) {
+      // In RTL anchor with `right` so the panel expands leftward naturally and never overflows
+      // the inline-start (visual right) edge of the viewport.
+      const rightEdge = window.innerWidth - (centred + width);
+      const clampedRight = Math.max(viewportPadding, Math.min(rightEdge, window.innerWidth - width - viewportPadding));
+      setDropdownStyle({
+        position: 'fixed',
+        top,
+        right: clampedRight,
+        width,
+        maxHeight: availableHeight,
+        zIndex: 80,
+      });
+    } else {
+      const clampedLeft = Math.max(viewportPadding, Math.min(centred, window.innerWidth - width - viewportPadding));
+      setDropdownStyle({
+        position: 'fixed',
+        top,
+        left: clampedLeft,
+        width,
+        maxHeight: availableHeight,
+        zIndex: 80,
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -165,6 +189,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div
           ref={dropdownRef}
+          dir="ltr"
           style={dropdownStyle || { position: 'fixed', top: 0, left: 0, visibility: 'hidden' }}
           className="flex flex-col overflow-hidden rounded-xl border border-border bg-popover shadow-xl"
           role="listbox"
@@ -217,7 +242,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
                     </span>
 
                     {/* Name + description */}
-                    <div className="min-w-0 flex-1 text-start">
+                    <div className="min-w-0 flex-1 text-left">
                       <div className="flex items-center gap-1.5 leading-none">
                         <span className={cn(
                           'text-sm font-semibold',

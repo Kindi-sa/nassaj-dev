@@ -6,6 +6,8 @@
     "percentUsed": "{{percent}} of real window",
     "tooltipUsed": "Used of real window: {{used}} / {{total}}",
     "tooltipCacheRead": "Cache read: {{value}}",
+    "popoverTitle": "Context usage",
+    "close": "Close",
     "levels": {
       "safe": "Safe — context is healthy.",
       "attention": "Pay attention — context is filling up.",

@@ -6,6 +6,8 @@
     "percentUsed": "{{percent}} من النافذة الحقيقية",
     "tooltipUsed": "المستخدَم من النافذة الحقيقية: {{used}} / {{total}}",
     "tooltipCacheRead": "قراءة من الكاش: {{value}}",
+    "popoverTitle": "استهلاك السياق",
+    "close": "إغلاق",
     "levels": {
       "safe": "آمن — السياق سليم.",
       "attention": "ابدأ الانتباه — السياق يمتلئ.",

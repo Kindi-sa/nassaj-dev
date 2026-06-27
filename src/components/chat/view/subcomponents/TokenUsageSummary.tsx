@@ -1,5 +1,7 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ActivityIcon } from 'lucide-react';
+import { ActivityIcon, XIcon } from 'lucide-react';
 
 type TokenUsageSummaryProps = {
   usage: Record<string, unknown> | null;
@@ -41,6 +43,14 @@ const LEVEL_CHIP_CLASS: Record<RotLevel, string> = {
   critical: 'bg-red-500/10',
 };
 
+// Popover border accent per level.
+const LEVEL_POPOVER_BORDER: Record<RotLevel, string> = {
+  safe: 'border-emerald-500/30',
+  attention: 'border-amber-500/40',
+  warning: 'border-orange-500/40',
+  critical: 'border-red-500/50',
+};
+
 const formatTokenCount = (value: number) => {
   if (!Number.isFinite(value) || value <= 0) {
     return '0';
@@ -75,9 +85,127 @@ const levelFromRatio = (ratio: number): RotLevel => {
   return 'safe';
 };
 
+// ---------------------------------------------------------------------------
+// Popover — rendered into document.body via portal so it is never clipped
+// by overflow:hidden ancestors. Centred on-screen so it is always visible
+// on any viewport width including mobile.
+// ---------------------------------------------------------------------------
+type PopoverProps = {
+  lines: string[];
+  titleText: string;
+  closeLabel: string;
+  dir: 'rtl' | 'ltr';
+  level: RotLevel;
+  percentLabel: string;
+  onClose: () => void;
+};
+
+function UsagePopover({
+  lines,
+  titleText,
+  closeLabel,
+  dir,
+  level,
+  percentLabel,
+  onClose,
+}: PopoverProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape key.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
+  // Focus the dialog container on mount for keyboard users.
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
+  const handleOverlayPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      // Close only when the transparent overlay itself is clicked, not the card.
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    },
+    [onClose],
+  );
+
+  return createPortal(
+    // Transparent full-screen overlay to capture outside clicks.
+    <div
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      onPointerDown={handleOverlayPointerDown}
+      aria-hidden="false"
+    >
+      {/* Card */}
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={titleText}
+        dir={dir}
+        tabIndex={-1}
+        className={`w-full max-w-xs rounded-xl border bg-background shadow-xl outline-none focus-visible:ring-2 focus-visible:ring-primary sm:max-w-sm ${LEVEL_POPOVER_BORDER[level]}`}
+        // Stop pointer events from bubbling to overlay so the card itself doesn't close.
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border/60 px-4 py-3">
+          <span className={`text-sm font-semibold ${LEVEL_ACCENT_CLASS[level]}`}>
+            {titleText}
+          </span>
+          <button
+            type="button"
+            aria-label={closeLabel}
+            onClick={onClose}
+            className="grid h-6 w-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <XIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Body — one line per entry */}
+        <ul className="space-y-1.5 px-4 py-3 text-sm text-foreground" role="list">
+          {lines.map((line, i) => (
+            <li
+              key={i}
+              className={
+                i === 0
+                  ? `font-medium ${LEVEL_ACCENT_CLASS[level]}`
+                  : 'text-muted-foreground'
+              }
+            >
+              {line}
+            </li>
+          ))}
+        </ul>
+
+        {/* Footer percentage bar */}
+        <div className="border-t border-border/40 px-4 pb-4 pt-2">
+          <p className="mb-1.5 text-xs text-muted-foreground">{percentLabel}</p>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
   const { t, i18n } = useTranslation('chat');
   const locale = i18n.language;
+  const dir: 'rtl' | 'ltr' = locale === 'ar' ? 'rtl' : 'ltr';
+
+  const [open, setOpen] = useState(false);
 
   const breakdown =
     usage?.breakdown && typeof usage.breakdown === 'object'
@@ -91,19 +219,59 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
 
   const hasWindow = totalTokens > 0 && Number.isFinite(totalTokens);
 
-  // --- Neutral / empty state: no valid window, render a plain badge (as before) ----
+  const handleToggle = useCallback(() => setOpen((prev) => !prev), []);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        setOpen((prev) => !prev);
+      }
+    },
+    [],
+  );
+
+  const handleClose = useCallback(() => setOpen(false), []);
+
+  // --- Neutral / empty state: no valid window -----------------------------------
   if (!hasWindow) {
+    const emptyLines = [
+      usedTokens > 0
+        ? `${usedTokens.toLocaleString(locale)} ${t('contextRot.label')}`
+        : t('contextRot.empty'),
+    ];
+
     return (
-      <div
-        className="inline-flex h-9 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground sm:gap-2 sm:px-2.5"
-        title={usedTokens > 0 ? `${usedTokens.toLocaleString(locale)}` : t('contextRot.empty')}
-      >
-        <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
-          <ActivityIcon className="h-3.5 w-3.5" />
-        </span>
-        <span className="shrink-0 font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
-        <span className="hidden min-w-0 truncate text-muted-foreground/70 sm:inline">{t('contextRot.label')}</span>
-      </div>
+      <>
+        <div
+          className="inline-flex h-9 min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground sm:gap-2 sm:px-2.5"
+          title={usedTokens > 0 ? `${usedTokens.toLocaleString(locale)}` : t('contextRot.empty')}
+          role="button"
+          tabIndex={0}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={handleToggle}
+          onKeyDown={handleKeyDown}
+        >
+          <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+            <ActivityIcon className="h-3.5 w-3.5" />
+          </span>
+          <span className="shrink-0 font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
+          <span className="hidden min-w-0 truncate text-muted-foreground/70 sm:inline">{t('contextRot.label')}</span>
+        </div>
+
+        {open && (
+          <UsagePopover
+            lines={emptyLines}
+            titleText={t('contextRot.popoverTitle')}
+            closeLabel={t('contextRot.close')}
+            dir={dir}
+            level="safe"
+            percentLabel={t('contextRot.empty')}
+            onClose={handleClose}
+          />
+        )}
+      </>
     );
   }
 
@@ -119,7 +287,7 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
     maximumFractionDigits: 0,
   }).format(rawRatio);
 
-  // Multi-line native tooltip (RTL-friendly, dependency-free).
+  // Multi-line content — same data used in both native tooltip and popover.
   const tooltipLines = [
     t('contextRot.levels.' + level),
     t('contextRot.tooltipUsed', {
@@ -129,41 +297,60 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
     cacheRead > 0
       ? t('contextRot.tooltipCacheRead', { value: cacheRead.toLocaleString(locale) })
       : null,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
   return (
-    <div
-      // min-w-0 + overflow-hidden + nowrap: in a squeezed composer column the
-      // token-count span shrinks and ellipsizes instead of wrapping out of the
-      // fixed-height pill (viewport sm: breakpoints can't see pane width).
-      className={`inline-flex h-9 min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border bg-background/70 px-2 text-xs shadow-sm transition-colors sm:gap-2 sm:px-2.5 ${LEVEL_ACCENT_CLASS[level]}`}
-      title={tooltipLines.join('\n')}
-      role="img"
-      aria-label={t('contextRot.percentUsed', { percent: percentLabel })}
-    >
-      <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md ${LEVEL_CHIP_CLASS[level]}`}>
-        <ActivityIcon className="h-3.5 w-3.5" />
-      </span>
-
-      {/* Progress bar — flex fill mirrors automatically under RTL/LTR. */}
+    <>
       <div
-        className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60 sm:w-20"
-        role="progressbar"
-        aria-hidden="true"
-        aria-valuenow={Math.round(percentValue)}
-        aria-valuemin={0}
-        aria-valuemax={100}
+        // min-w-0 + overflow-hidden + nowrap: in a squeezed composer column the
+        // token-count span shrinks and ellipsizes instead of wrapping out of the
+        // fixed-height pill (viewport sm: breakpoints can't see pane width).
+        className={`inline-flex h-9 min-w-0 cursor-pointer items-center gap-1.5 overflow-hidden whitespace-nowrap rounded-lg border bg-background/70 px-2 text-xs shadow-sm transition-colors sm:gap-2 sm:px-2.5 ${LEVEL_ACCENT_CLASS[level]}`}
+        title={tooltipLines.join('\n')}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={t('contextRot.percentUsed', { percent: percentLabel })}
+        onClick={handleToggle}
+        onKeyDown={handleKeyDown}
       >
+        <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md ${LEVEL_CHIP_CLASS[level]}`}>
+          <ActivityIcon className="h-3.5 w-3.5" />
+        </span>
+
+        {/* Progress bar — flex fill mirrors automatically under RTL/LTR. */}
         <div
-          className={`h-full rounded-full transition-[width,background-color] duration-500 ease-out ${LEVEL_BAR_CLASS[level]}`}
-          style={{ width: `${percentValue}%` }}
-        />
+          className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60 sm:w-20"
+          role="progressbar"
+          aria-hidden="true"
+          aria-valuenow={Math.round(percentValue)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className={`h-full rounded-full transition-[width,background-color] duration-500 ease-out ${LEVEL_BAR_CLASS[level]}`}
+            style={{ width: `${percentValue}%` }}
+          />
+        </div>
+
+        <span className="shrink-0 font-medium tabular-nums text-foreground">{percentLabel}</span>
+        <span className="hidden min-w-0 truncate tabular-nums text-muted-foreground/70 sm:inline">
+          {formatTokenCount(usedTokens)}/{formatTokenCount(totalTokens)}
+        </span>
       </div>
 
-      <span className="shrink-0 font-medium tabular-nums text-foreground">{percentLabel}</span>
-      <span className="hidden min-w-0 truncate tabular-nums text-muted-foreground/70 sm:inline">
-        {formatTokenCount(usedTokens)}/{formatTokenCount(totalTokens)}
-      </span>
-    </div>
+      {open && (
+        <UsagePopover
+          lines={tooltipLines}
+          titleText={t('contextRot.popoverTitle')}
+          closeLabel={t('contextRot.close')}
+          dir={dir}
+          level={level}
+          percentLabel={t('contextRot.percentUsed', { percent: percentLabel })}
+          onClose={handleClose}
+        />
+      )}
+    </>
   );
 }
