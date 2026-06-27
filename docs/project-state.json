@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-26T10:00:00.000Z",
+  "updated": "2026-06-27T08:00:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -93,11 +93,11 @@
       "id": "T-217",
       "kind": "feature",
       "phase": "P2",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
       "issue": null,
-      "title": "إعادة دمج multimodel في الخط الحيّ (تنفيذ توصية T-181): فرع merge/multimodel-reintegration-20260626 — دمج deploy/multimodel في integration/publish بحلّ ~20 تعارضاً مع حفظ الميزتين (هرمز+OIDC الجديدان + المحرك المتعدد). backend-dev في worktree معزول ثم مراجعة qa-critic بفيتو على سلامة حارس egress.",
-      "note": "أُطلق 2026-06-26 (backend-dev، خلفية، worktree معزول). الثابت الأمني: حارس iron-rule egress يبقى fail-closed. لا تفعيل حيّ بلا مفاتيح API المالك + build:server + restart. مرتبط T-181."
+      "title": "إعادة دمج multimodel في الخط الحيّ (تنفيذ توصية T-181): فرع merge/multimodel-reintegration-20260626 — دمج deploy/multimodel في integration/publish بحلّ ~20 تعارضاً مع حفظ الميزتين (هرمز+OIDC الجديدان + المحرك المتعدد).",
+      "note": "مكتمل 2026-06-27: commit e0c33622 في integration/publish. qa-critic: PASS — حارس iron-rule egress محفوظ fail-closed. بُني client+server. يحتاج المالك: (1) npm run build:server ثم pm2 restart في الطرفية (2) مفاتيح API المزوّدين (KIMI_API_KEY/DEEPSEEK_API_KEY/GLM_API_KEY) في .env لتفعيل الـvendors. مرتبط T-181."
     },
     {
       "id": "T-218",
