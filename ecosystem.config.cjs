@@ -79,6 +79,13 @@ module.exports = {
         DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
         NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
 
+        // ADR-048 / B-93: تفعيل reconcile مهام الخلفية بعد restart — خدمة
+        // read-only fail-safe تشتقّ تصحيح stopped→completed عند إعادة فتح الجلسة.
+        // مُتحقَّق ميدانياً قبل التفعيل: wf_1ea9f41d (7/7 → بطاقة completed)،
+        // والحادثة الأصلية wf_ef5ba242 (17/15 → لا تصحيح، محافظة ضد false-positive).
+        // للإطفاء وإرجاع السلوك byte-for-byte: احذف السطر أو اجعله '0'.
+        WORKFLOW_RECONCILE: '1',
+
         // ── B-41 (self-hosting trap) — single-listener bind guard ────────────
         // T-95 (2026-06-13) diagnosed a 7.5h EADDRINUSE crash-loop (2026-06-12
         // 17:14 → 2026-06-13 03:13). The running build ALREADY had B-23 (port
