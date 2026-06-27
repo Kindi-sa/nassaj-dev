@@ -10,6 +10,7 @@ import AgentSelectorSection from './sections/AgentSelectorSection';
 export default function AgentsSettingsTab({
   providerAuthStatus,
   onProviderLogin,
+  onRefreshAuthStatus,
   claudePermissions,
   onClaudePermissionsChange,
   cursorPermissions,
@@ -24,7 +25,7 @@ export default function AgentsSettingsTab({
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'antigravity', 'opencode', 'deepseek', 'glm', 'hermes', 'sakana'];
+    return ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'kimi', 'deepseek', 'glm', 'hermes', 'sakana'];
   }, []);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({
@@ -55,9 +56,12 @@ export default function AgentsSettingsTab({
       authStatus: providerAuthStatus.opencode,
       onLogin: () => onProviderLogin('opencode'),
     },
-    // Placeholder providers: declared in the LLMProvider union with stub auth
-    // status (no live backend probe yet). The exhaustive `Record<AgentProvider, …>`
-    // type requires an entry for every union literal even before wiring login.
+    // Vendor providers (kimi/deepseek/glm) have no login flow; `onLogin` is a
+    // no-op and AccountContent renders the API-key panel instead.
+    kimi: {
+      authStatus: providerAuthStatus.kimi,
+      onLogin: () => onProviderLogin('kimi'),
+    },
     deepseek: {
       authStatus: providerAuthStatus.deepseek,
       onLogin: () => onProviderLogin('deepseek'),
@@ -82,6 +86,7 @@ export default function AgentsSettingsTab({
     providerAuthStatus.gemini,
     providerAuthStatus.antigravity,
     providerAuthStatus.opencode,
+    providerAuthStatus.kimi,
     providerAuthStatus.deepseek,
     providerAuthStatus.glm,
     providerAuthStatus.hermes,
@@ -108,6 +113,7 @@ export default function AgentsSettingsTab({
           selectedAgent={selectedAgent}
           selectedCategory={selectedCategory}
           agentContextById={agentContextById}
+          onRefreshAuthStatus={() => onRefreshAuthStatus(selectedAgent)}
           claudePermissions={claudePermissions}
           onClaudePermissionsChange={onClaudePermissionsChange}
           cursorPermissions={cursorPermissions}

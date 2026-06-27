@@ -34,7 +34,10 @@
     "codex": "Codex",
     "gemini": "Gemini",
     "antigravity": "Antigravity",
-    "opencode": "OpenCode"
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
   },
   "subagent": {
     "badge": "وكيل فرعي",
@@ -242,7 +245,11 @@
       "gemini": "جاهز لاستخدام Gemini مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
       "antigravity": "جاهز لاستخدام Antigravity (agy). يُختار النموذج من إعدادات agy نفسها.",
       "opencode": "جاهز لاستخدام OpenCode مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
-      "default": "اختر provider أعلاه للبدء"
+      "default": "اختر provider أعلاه للبدء",
+      "kimi": "جاهز لاستخدام Kimi مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "deepseek": "جاهز لاستخدام DeepSeek مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "glm": "جاهز لاستخدام GLM مع {{model}}. ابدأ بكتابة رسالتك أدناه.",
+      "claudeEngine": "جاهز: محرّك Claude يعمل على {{provider}} بنموذج {{model}}. ابدأ بكتابة رسالتك أدناه."
     },
     "antigravity": {
       "activeModel": "النموذج النشط",
@@ -256,7 +263,9 @@
       "refreshing": "جارٍ التحديث…"
     },
     "providerUnavailable": "المزوّد غير متاح",
-    "signIn": "تسجيل الدخول"
+    "signIn": "تسجيل الدخول",
+    "addApiKey": "أضف مفتاح {{provider}} API للتفعيل",
+    "engineOnVendor": "محرّك Claude على {{provider}}"
   },
   "session": {
     "continue": {

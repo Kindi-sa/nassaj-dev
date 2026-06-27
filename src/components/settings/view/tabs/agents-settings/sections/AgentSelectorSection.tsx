@@ -10,8 +10,9 @@ const AGENT_NAMES: Record<AgentProvider, string> = {
   gemini: 'Gemini',
   antigravity: 'Antigravity',
   opencode: 'OpenCode',
+  kimi: 'Kimi',
   deepseek: 'DeepSeek',
-  glm: 'GLM 5.2',
+  glm: 'GLM',
   hermes: 'Hermes',
   sakana: 'Sakana',
 };

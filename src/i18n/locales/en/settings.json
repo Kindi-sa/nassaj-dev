@@ -326,7 +326,10 @@
       "gemini": "Gemini",
       "codex": "Codex",
       "agy": "Antigravity (agy)",
-      "cursor": "Cursor"
+      "cursor": "Cursor",
+      "kimi": "Kimi",
+      "deepseek": "DeepSeek",
+      "glm": "GLM"
     },
     "modes": {
       "shared": "Shared",
@@ -603,6 +606,15 @@
       },
       "opencode": {
         "description": "OpenCode CLI assistant"
+      },
+      "kimi": {
+        "description": "Moonshot Kimi via API key"
+      },
+      "deepseek": {
+        "description": "DeepSeek via API key"
+      },
+      "glm": {
+        "description": "Zhipu / Z.ai GLM via API key"
       }
     },
     "antigravity": {
@@ -617,7 +629,21 @@
       "button": "Login",
       "reLoginButton": "Re-login"
     },
-    "error": "Error: {{error}}"
+    "error": "Error: {{error}}",
+    "apiKey": {
+      "title": "Add API key",
+      "replaceTitle": "Replace API key",
+      "description": "Paste a {{provider}} API key to enable this provider. It is stored encrypted and never shown again.",
+      "getKey": "Get a key",
+      "inputLabel": "{{provider}} API key",
+      "placeholder": "Paste API key",
+      "placeholderConfigured": "•••••••• (configured)",
+      "save": "Save",
+      "saved": "API key saved.",
+      "remove": "Remove",
+      "removed": "API key removed.",
+      "configuredNote": "An API key is configured."
+    }
   },
   "permissions": {
     "title": "Permission Settings",
@@ -625,6 +651,10 @@
       "label": "Skip permission prompts (use with caution)",
       "claudeDescription": "Equivalent to --dangerously-skip-permissions flag",
       "cursorDescription": "Equivalent to -f flag in Cursor CLI"
+    },
+    "allowVendorDelegation": {
+      "label": "Allow delegating subtasks to other models",
+      "description": "Lets Claude call a hosted vendor model (Kimi, DeepSeek, or GLM) for a single subtask during a run, using your own configured API key for that provider. The Claude engine itself is unchanged. Off by default."
     },
     "allowedTools": {
       "title": "Allowed Tools",

@@ -1,8 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../utils/api';
 
-/** Providers whose credentials can be shared or isolated per user. */
-export type SharingProvider = 'claude' | 'gemini' | 'codex' | 'agy' | 'cursor';
+/**
+ * Providers whose credentials can be shared or isolated per user. Mirrors the
+ * backend `KNOWN_PROVIDERS` in services/provider-sharing.js (note `agy`, not
+ * `antigravity`, is the sharing-policy key). The hosted vendor providers
+ * (kimi/deepseek/glm) hold a per-user API key and default to `isolated`.
+ */
+export type SharingProvider =
+  | 'claude'
+  | 'gemini'
+  | 'codex'
+  | 'agy'
+  | 'cursor'
+  | 'kimi'
+  | 'deepseek'
+  | 'glm';
 
 /** Sharing mode for a single provider. */
 export type SharingMode = 'shared' | 'isolated';
@@ -17,6 +30,9 @@ export const SHARING_PROVIDERS: SharingProvider[] = [
   'codex',
   'agy',
   'cursor',
+  'kimi',
+  'deepseek',
+  'glm',
 ];
 
 const DEFAULT_CONFIG: ProviderSharingConfig = {
@@ -25,6 +41,9 @@ const DEFAULT_CONFIG: ProviderSharingConfig = {
   codex: 'isolated',
   agy: 'shared',
   cursor: 'shared',
+  kimi: 'isolated',
+  deepseek: 'isolated',
+  glm: 'isolated',
 };
 
 async function readError(response: Response, fallback: string): Promise<string> {

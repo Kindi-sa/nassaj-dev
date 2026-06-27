@@ -5,6 +5,7 @@ import { claudeUsageService } from '@/modules/providers/services/claude-usage.se
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
+import { providerSecretsService } from '@/modules/providers/services/provider-secrets.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -36,6 +37,25 @@ const readPathParam = (value: unknown, name: string): string => {
 
 const normalizeProviderParam = (value: unknown): string =>
   readPathParam(value, 'provider').trim().toLowerCase();
+
+// Pulls the authenticated user id off the request. `req.user` is populated by the
+// authenticateToken middleware that guards this whole router (see index.js mount).
+// A null id maps the per-user secrets store to its single-operator shared file.
+const readAuthenticatedUserId = (req: Request): string | number | null =>
+  (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+
+// Reads the raw API key from a key-set body without ever logging or echoing it.
+// Presence/emptiness is enforced by the service so the 400 contract lives in one place.
+const readApiKeyFromBody = (payload: unknown): unknown => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  return (payload as Record<string, unknown>).apiKey;
+};
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9._-]{1,120}$/;
 
@@ -190,6 +210,7 @@ const parseProvider = (value: unknown): LLMProvider => {
     || normalized === 'antigravity'
     || normalized === 'opencode'
     || normalized === 'hermes'
+    || normalized === 'kimi'
     || normalized === 'deepseek'
     || normalized === 'glm'
     || normalized === 'sakana'
@@ -323,7 +344,12 @@ const parseChangeActiveModelPayload = (payload: unknown): ProviderChangeActiveMo
 };
 
 const STUB_CLI_PROVIDERS = new Set<string>();
-const STUB_API_PROVIDERS = new Set<string>(['deepseek', 'glm', 'sakana']);
+// Only providers with NO real backend registration belong here. kimi/deepseek/glm
+// are now fully-registered hosted vendor providers (VendorAuthProvider reads the
+// encrypted per-user secrets store), so they must fall through to the real
+// getProviderAuthStatus path below — never short-circuit as stubs. `sakana`
+// remains a union-only placeholder with no provider folder/registry entry.
+const STUB_API_PROVIDERS = new Set<string>(['sakana']);
 
 router.get(
   '/:provider/auth/status',
@@ -361,8 +387,52 @@ router.get(
     // Pass the authenticated user so credential-isolating providers report the
     // status of THIS user's resolved environment (CLAUDE_CONFIG_DIR), not the
     // operator's fixed home. `req.user` is set by authenticateToken middleware.
+    // `userId` is already resolved at the top of this handler.
     const status = await providerAuthService.getProviderAuthStatus(provider, userId);
     res.json(createApiSuccessResponse(status));
+  }),
+);
+
+// ----------------- Vendor API-key management routes -----------------
+// Per-user CRUD over the encrypted secrets store for hosted vendors
+// (kimi/deepseek/glm). The whole router sits behind authenticateToken, so the
+// userId is the authenticated caller's — keys are isolated per user. These
+// routes NEVER return the key value: only `{ provider, configured }`. Once a key
+// is set, GET /:provider/auth/status reports authenticated=true because
+// VendorAuthProvider reads the same store. A non-vendor provider id is rejected
+// with 400 by the service (only the three vendors accept a key).
+
+// POST and PUT are equivalent here: both upsert the key for the authenticated
+// user (set-or-replace), so a client may use either verb.
+const setProviderApiKey = asyncHandler(async (req: Request, res: Response) => {
+  const provider = parseProvider(req.params.provider);
+  const userId = readAuthenticatedUserId(req);
+  const apiKey = readApiKeyFromBody(req.body);
+  const result = providerSecretsService.setKey(userId, provider, apiKey);
+  res.json(createApiSuccessResponse(result));
+});
+
+router.post('/:provider/api-key', setProviderApiKey);
+router.put('/:provider/api-key', setProviderApiKey);
+
+router.delete(
+  '/:provider/api-key',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const userId = readAuthenticatedUserId(req);
+    const result = providerSecretsService.deleteKey(userId, provider);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+// GET reports existence only — `{ provider, configured }` — never the key.
+router.get(
+  '/:provider/api-key',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const userId = readAuthenticatedUserId(req);
+    const result = providerSecretsService.getStatus(userId, provider);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 

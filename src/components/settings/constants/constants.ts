@@ -44,7 +44,7 @@ export const SETTINGS_MAIN_TABS: SettingsMainTabMeta[] = ALL_SETTINGS_MAIN_TABS.
   (tab) => TASKMASTER_ENABLED || tab.id !== 'tasks',
 );
 
-export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode'];
+export const AGENT_PROVIDERS: AgentProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'kimi', 'deepseek', 'glm'];
 export const AGENT_CATEGORIES: AgentCategory[] = ['account', 'permissions', 'mcp'];
 
 export const DEFAULT_PROJECT_SORT_ORDER: ProjectSortOrder = 'name';

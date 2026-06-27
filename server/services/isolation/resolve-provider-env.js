@@ -12,6 +12,16 @@
  *   - agy:     HOME=~/.nassaj-users/<userId> so its brain store under
  *              ~/.gemini/antigravity-cli resolves into the isolated tree
  *   - cursor:  no env knob yet — shared
+ *   - kimi/deepseek/glm: hosted third-party HTTP APIs that read no nassaj config
+ *              tree. Their isolation is the OPPOSITE shape from the CLIs above:
+ *              instead of pointing a CONFIG_DIR at the user's tree, we fetch the
+ *              user's API key from the encrypted provider-secrets store and
+ *              inject it as an explicit env VALUE (KIMI_API_KEY / DEEPSEEK_API_KEY
+ *              / GLM_API_KEY) for the child process. IRON RULE: these cases must
+ *              NEVER set ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, or any key
+ *              under the ANTHROPIC or CLAUDE namespace — doing so would route a
+ *              Claude client to a competitor. The base URL is hard-coded in each
+ *              vendor's own HTTP client, not here.
  *
  * Whether a given provider is isolated at all is now an admin-configurable
  * policy (see services/provider-sharing.js). resolveProviderEnv consults
@@ -30,12 +40,25 @@
  * is applied and the base environment is returned unchanged — preserving the
  * single-user behavior the app had before multi-user.
  *
- * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'} ProviderName
+ * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'|'kimi'|'deepseek'|'glm'} ProviderName
  */
 
 import { isProviderIsolated } from '../provider-sharing.js';
 
+import { getProviderKey } from './provider-secrets-store.js';
 import { provisionUserDirs, userConfigDir } from './provision-user-dirs.js';
+
+/**
+ * Maps each hosted vendor provider to the single env var its independent HTTP
+ * client reads for the API key. These are deliberately provider-specific and
+ * outside the ANTHROPIC and CLAUDE namespaces (iron rule).
+ * @type {Record<string, string>}
+ */
+const VENDOR_KEY_ENV = Object.freeze({
+  kimi: 'KIMI_API_KEY',
+  deepseek: 'DEEPSEEK_API_KEY',
+  glm: 'GLM_API_KEY',
+});
 
 /**
  * Resolves the environment for spawning a provider CLI on behalf of a user.
@@ -87,6 +110,19 @@ export function resolveProviderEnv(userId, provider, baseEnv = process.env) {
       // its BRAIN_DIR from the same per-user home when isolated.
       provisionUserDirs(userId);
       env.HOME = userConfigDir(userId, '');
+      return env;
+    }
+    case 'kimi':
+    case 'deepseek':
+    case 'glm': {
+      // Hosted vendor: inject the user's decrypted API key as the provider's own
+      // env var. No CONFIG_DIR/HOME override — these APIs read no nassaj tree.
+      // IRON RULE: only the provider-specific KEY var is ever set here; nothing
+      // under the ANTHROPIC_*/CLAUDE_* namespace and no *_BASE_URL is touched.
+      const apiKey = getProviderKey(userId, provider);
+      if (apiKey) {
+        env[VENDOR_KEY_ENV[provider]] = apiKey;
+      }
       return env;
     }
     default:

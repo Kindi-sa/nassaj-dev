@@ -72,6 +72,24 @@ import {
     isHermesSessionActive,
     getActiveHermesSessions,
 } from './hermes-cli.js';
+import {
+    spawnKimi,
+    abortKimiSession,
+    isKimiSessionActive,
+    getActiveKimiSessions,
+} from './kimi-cli.js';
+import {
+    spawnDeepSeek,
+    abortDeepSeekSession,
+    isDeepSeekSessionActive,
+    getActiveDeepSeekSessions,
+} from './deepseek-cli.js';
+import {
+    spawnGlm,
+    abortGlmSession,
+    isGlmSessionActive,
+    getActiveGlmSessions,
+} from './glm-cli.js';
 import sessionManager from './sessionManager.js';
 import {
     stripAnsiSequences,
@@ -144,6 +162,9 @@ const wss = createWebSocketServer(server, {
         spawnAntigravity,
         spawnOpenCode,
         spawnHermes,
+        spawnKimi,
+        spawnDeepSeek,
+        spawnGlm,
         // Authoritative provider lookup for resumed sessions. Routing must follow
         // the provider persisted in the DB, not the client-chosen message type,
         // so an antigravity session is never resumed through the Claude SDK.
@@ -166,6 +187,9 @@ const wss = createWebSocketServer(server, {
         abortAntigravitySession,
         abortOpenCodeSession,
         abortHermesSession,
+        abortKimiSession,
+        abortDeepSeekSession,
+        abortGlmSession,
         resolveToolApproval,
         isClaudeSDKSessionActive,
         isCursorSessionActive,
@@ -174,6 +198,9 @@ const wss = createWebSocketServer(server, {
         isAntigravitySessionActive,
         isOpenCodeSessionActive,
         isHermesSessionActive,
+        isKimiSessionActive,
+        isDeepSeekSessionActive,
+        isGlmSessionActive,
         reconnectSessionWriter,
         attachAntigravitySession,
         attachClaudeSDKSession,
@@ -185,6 +212,9 @@ const wss = createWebSocketServer(server, {
         getActiveAntigravitySessions,
         getActiveOpenCodeSessions,
         getActiveHermesSessions,
+        getActiveKimiSessions,
+        getActiveDeepSeekSessions,
+        getActiveGlmSessions,
     },
     shell: {
         getSessionById: (sessionId) => sessionManager.getSession(sessionId),

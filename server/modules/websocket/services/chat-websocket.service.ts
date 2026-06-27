@@ -40,6 +40,9 @@ type ChatWebSocketDependencies = {
   spawnAntigravity: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnOpenCode: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnHermes: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnKimi: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnDeepSeek: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
+  spawnGlm: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   /**
    * Resolves the authoritative provider for an existing session from the
    * database. Returns null when the session is unknown (e.g. a brand-new
@@ -53,6 +56,9 @@ type ChatWebSocketDependencies = {
   abortAntigravitySession: (sessionId: string) => boolean;
   abortOpenCodeSession: (sessionId: string) => boolean;
   abortHermesSession: (sessionId: string) => boolean;
+  abortKimiSession: (sessionId: string) => boolean;
+  abortDeepSeekSession: (sessionId: string) => boolean;
+  abortGlmSession: (sessionId: string) => boolean;
   resolveToolApproval: (
     requestId: string,
     payload: {
@@ -69,6 +75,9 @@ type ChatWebSocketDependencies = {
   isAntigravitySessionActive: (sessionId: string) => boolean;
   isOpenCodeSessionActive: (sessionId: string) => boolean;
   isHermesSessionActive: (sessionId: string) => boolean;
+  isKimiSessionActive: (sessionId: string) => boolean;
+  isDeepSeekSessionActive: (sessionId: string) => boolean;
+  isGlmSessionActive: (sessionId: string) => boolean;
   reconnectSessionWriter: (sessionId: string, ws: WebSocket) => boolean;
   /**
    * B-N-ATTACH (PHASE-SR-0): read-only differential replay for agy. Re-emits the
@@ -104,6 +113,9 @@ type ChatWebSocketDependencies = {
   getActiveAntigravitySessions: () => unknown;
   getActiveOpenCodeSessions: () => unknown;
   getActiveHermesSessions: () => unknown;
+  getActiveKimiSessions: () => unknown;
+  getActiveDeepSeekSessions: () => unknown;
+  getActiveGlmSessions: () => unknown;
 };
 
 /**
@@ -118,6 +130,9 @@ function readProvider(value: unknown): LLMProvider {
     || value === 'antigravity'
     || value === 'opencode'
     || value === 'hermes'
+    || value === 'kimi'
+    || value === 'deepseek'
+    || value === 'glm'
   ) {
     return value;
   }
@@ -137,6 +152,9 @@ const COMMAND_TYPE_TO_PROVIDER: Record<string, LLMProvider> = {
   'gemini-command': 'gemini',
   'antigravity-command': 'antigravity',
   'hermes-command': 'hermes',
+  'kimi-command': 'kimi',
+  'deepseek-command': 'deepseek',
+  'glm-command': 'glm',
 };
 
 /**
@@ -261,6 +279,18 @@ async function dispatchProviderCommand(
   }
   if (targetProvider === 'hermes') {
     await dependencies.spawnHermes(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'kimi') {
+    await dependencies.spawnKimi(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'deepseek') {
+    await dependencies.spawnDeepSeek(command, data.options, writer);
+    return;
+  }
+  if (targetProvider === 'glm') {
+    await dependencies.spawnGlm(command, data.options, writer);
     return;
   }
 
@@ -402,6 +432,12 @@ export function handleChatConnection(
           success = dependencies.abortOpenCodeSession(sessionId);
         } else if (provider === 'hermes') {
           success = dependencies.abortHermesSession(sessionId);
+        } else if (provider === 'kimi') {
+          success = dependencies.abortKimiSession(sessionId);
+        } else if (provider === 'deepseek') {
+          success = dependencies.abortDeepSeekSession(sessionId);
+        } else if (provider === 'glm') {
+          success = dependencies.abortGlmSession(sessionId);
         } else {
           success = await dependencies.abortClaudeSDKSession(sessionId);
         }
