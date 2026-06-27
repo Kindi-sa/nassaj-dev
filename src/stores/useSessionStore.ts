@@ -197,9 +197,9 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
   return out;
 }
 
-function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
+export function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
   if (realtime.length === 0) return server;
-  if (server.length === 0) return dedupeAdjacentAssistantEchoes(realtime);
+  if (server.length === 0) return dedupeAdjacentAssistantEchoes([...realtime].sort(compareMessagesByTimestamp));
   const serverIds = new Set(server.map(m => m.id));
   const serverUserTexts = new Set(
     server.map(userTextFingerprint).filter((t): t is string => t !== null),
@@ -215,10 +215,11 @@ function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[
     return true;
   });
   if (extra.length === 0) return server;
-  return dedupeAdjacentAssistantEchoes([...server, ...extra]);
+  const merged = [...server, ...extra].sort(compareMessagesByTimestamp);
+  return dedupeAdjacentAssistantEchoes(merged);
 }
 
-function compareMessagesByTimestamp(left: NormalizedMessage, right: NormalizedMessage): number {
+export function compareMessagesByTimestamp(left: NormalizedMessage, right: NormalizedMessage): number {
   const leftTime = Date.parse(left.timestamp);
   const rightTime = Date.parse(right.timestamp);
 
