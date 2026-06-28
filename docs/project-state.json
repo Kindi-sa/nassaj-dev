@@ -2683,6 +2683,15 @@
       "owner": "frontend-dev",
       "title": "تفعيل تفاصيل عدّاد الاستهلاك باللمس (B-99): popover عبر createPortal + state",
       "note": "منجَز 2026-06-27. الملفات: TokenUsageSummary.tsx (trigger قابل للنقر + UsagePopover عبر portal + إغلاق Escape/خارجي/زر)، i18n: contextRot.popoverTitle/close (en+ar). تحقّق: tsc نظيف، eslint بلا أخطاء (أُزيل سطر ميت)، build:client نجح."
+    },
+    {
+      "id": "T-234",
+      "phase": "P4",
+      "kind": "bug",
+      "status": "todo",
+      "owner": "coordinator",
+      "title": "دَين مؤجَّل (فيتو qa-critic): لا تُفعّل مُنتِج WS workflow_reconciled قبل dedup-by-wfId في computeMerged. المسار الفعّال REST؛ المستهلك مُعلّم TODO.",
+      "note": "فيتو مشروط من مراجعة B-93 (2026-06-28): مسار WS كود ميّت اليوم (لا مُنتِج خادمي)؛ frontend handler جاهز بـid ثابت reconcile-{wfId}. إن أُضيف مُنتِج لاحقاً (ADR-048 phase-2) دون dedup → بطاقتا reconcile لنفس wfId (REST id عشوائي + WS id ثابت). بوابة قبل أي تفعيل."
     }
   ],
   "issues": [
@@ -3505,7 +3514,7 @@
       "severity": "medium",
       "phase": "P4",
       "kind": "bug",
-      "description": "workflow خلفي (local_workflow) يُطلق من جلسة Claude Code داخل نسّاج ينجو restart السيرفر (treekill:false → عمليات claude الأبناء تصير orphans وتكمل) لكن الجلسة الأمامية الجديدة تفقد تتبّعه (drain يعدّ جلسات المزوّدات بالذاكرة فقط عبر countActiveSessionsByProvider، لا يرى الـworkflow → total=0 → خروج فوري) فتُصدر طبقة Claude Code SDK إشعار stopped/'No completion record' — صادق لحظة إصداره (14:51:02، قبل بدء الوكيل الكاتب 14:51:51 واكتمال PLAN-v1.md 14:57:09). العلّة ليست إشعاراً كاذباً ولا نسّاج سلبية (الجلسة حاولت الاستئناف بـresumeFromRunId لكن عَلِمت بعد فوات الأوان) بل غياب آلية reconcile بعد اكتمال العمل + B-94 (regex لا يطابق صيغة stopped). الجذر في طبقة SDK؛ لا فقدان عمل (المخرج اكتمل على القرص). حادثة wf_ef5ba242-b4b؛ restart 14:49:41؛ نجاة بـtreekill:false. تشخيص+نقد devops+architect+qa-critic+منسّق (تحقق مباشر، ثقة qa-critic≈0.9). التتبّع: T-225."
+      "description": "workflow خلفي (local_workflow) يُطلق من جلسة Claude Code داخل نسّاج ينجو restart السيرفر (treekill:false → عمليات claude الأبناء تصير orphans وتكمل) لكن الجلسة الأمامية الجديدة تفقد تتبّعه (drain يعدّ جلسات المزوّدات بالذاكرة فقط عبر countActiveSessionsByProvider، لا يرى الـworkflow → total=0 → خروج فوري) فتُصدر طبقة Claude Code SDK إشعار stopped/'No completion record' — صادق لحظة إصداره (14:51:02، قبل بدء الوكيل الكاتب 14:51:51 واكتمال PLAN-v1.md 14:57:09). العلّة ليست إشعاراً كاذباً ولا نسّاج سلبية (الجلسة حاولت الاستئناف بـresumeFromRunId لكن عَلِمت بعد فوات الأوان) بل غياب آلية reconcile بعد اكتمال العمل + B-94 (regex لا يطابق صيغة stopped). الجذر في طبقة SDK؛ لا فقدان عمل (المخرج اكتمل على القرص). حادثة wf_ef5ba242-b4b؛ restart 14:49:41؛ نجاة بـtreekill:false. تشخيص+نقد devops+architect+qa-critic+منسّق (تحقق مباشر، ثقة qa-critic≈0.9). التتبّع: T-225. ✅ حُلّ 2026-06-28 (commits 5cdbef55+6fead536+f4596342): reconcile+regex+kill_timeout+safe-restart منفّذة. مراجعة نقدية ثانية (devops+architect على 184 إشعاراً) كشفت أن النسخة الأولى لا تعمل على بيانات SDK الحقيقية (fixtures مصطنعة — feedback_synthetic_fixtures_false_confidence)؛ صُلّبت: regex 184/184، wfId من summary، splice O(n)، حالة settled (الحادثة 16/15→settled 15/16). مُتحقَّق ميدانياً + 18/18+22/22 اختبار. غير منشور حتى restart المالك (العملية الحيّة kill_timeout=300000 قديم). دَين مؤجَّل: WS workflow_reconciled مُعلّم TODO (فيتو qa-critic قبل تفعيله) = T-234."
     },
     {
       "id": "B-94",
