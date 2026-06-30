@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T17:05:44.772Z",
+  "updated": "2026-06-30T17:30:43.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2817,6 +2817,17 @@
     }
   ],
   "issues": [
+    {
+      "id": "B-115",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-06-30",
+      "title": "حادثة سقوط nassaj.traventure.sa أثناء نشر B-110: runbook وجّه `pm2 start ecosystem.config.cjs` (القالب المحايد) على traventure، لكن لا .env هناك → SERVER_PORT undefined → المنفذ الافتراضي 3001 مشغول → EADDRINUSE → crash loop (26) → 502. ضاعفه: الـcommits لم تُدفع أولاً (pull=Already up-to-date) + pm2 delete قبل التأكد من البديل + refspec تاج-فقط. استُردّ بالتشغيل من ecosystem.nassaj.config.cjs (إعداد العقدة: منفذ 3004 + قاعدة /home/ibrahim/.local/share/nassaj-dev/db.sqlite + JWT ثابت) → 200/200.",
+      "triage": "high → كشف قصوراً في قرار B-110: الأسطول يشغّل من ecosystem.<node>.config.cjs (يولّده bootstrap) لا من .env؛ فالقالب المتعقَّب المحايد لغمٌ كامن لأي عقدة تنفّذ pm2 start عليه. الإصلاح: تحويله إلى .example (اقتراح devops الأصلي) + توسعة B-114 (انجراف ملفات العقد: kill_timeout 5د→24س، إضافة SESSION_REGISTRY_claude/WORKFLOW_RECONCILE). تفاصيل: memory incident_traventure_ecosystem_outage.",
+      "resolved": null
+    },
     {
       "id": "B-114",
       "kind": "bug",
