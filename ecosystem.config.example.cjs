@@ -1,9 +1,28 @@
 // PM2 ecosystem config for nassaj-dev (development sibling of nassaj/claudecodeui).
 //
-// لماذا هذا الملف:
-// - مَصدر الحقيقة الأسطولي لحزمة B-N-DRAIN: كل عقدة (alkindy/traventure/…) تشغّل
-//   **هذا الملف نفسه دون تعديل**، فلا ينجرف treekill/kill_timeout بين العقد.
-// - يَحفظ الإعداد في الـ repo كي يَنجو من pm2 save/resurrect/reboot.
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  ⚠️  قالب مرجعي فقط — لا تشغّل منه (REFERENCE TEMPLATE ONLY — DO NOT RUN) ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+// هذا الملف (`ecosystem.config.example.cjs`) قالبٌ مرجعيّ محايد-المضيف لمفاتيح
+// B-N-DRAIN البنيوية فقط؛ لا يحوي قيم المضيف (المنفذ/مسار DB/أصول WebAuthn/الأسرار).
+// تشغيله مباشرةً بـ`pm2 start ecosystem.config.example.cjs` على عقدة **يُسقطها**:
+// بلا `.env` يصير SERVER_PORT=undefined فيقع على المنفذ الافتراضي 3001 → EADDRINUSE
+// → crash-loop → 502 (حادثة traventure 2026-06-30، الدرس في
+// memory: incident_traventure_ecosystem_outage).
+//
+// ── النموذج الأسطولي الصحيح للتشغيل ──────────────────────────────────────────
+// كل عقدة تشغّل nassaj-dev من **ملف ecosystem خاص بها** `ecosystem.<node>.config.cjs`
+// (يولّده `bootstrap-node.sh` في nassaj-core بكل القيم inline: cwd/المنفذ/DB/الأسرار/
+// أصول WebAuthn)، **لا من هذا القالب ولا من ملف باسم `ecosystem.config.cjs`**. ملفات
+// العقد (`ecosystem.config.cjs` و`ecosystem.*.config.cjs`) غير متعقَّبة في Git (راجع
+// .gitignore) كي لا تنجرف القيم السرّية إلى المستودع. هذا القالب `.example` هو
+// المتعقَّب الوحيد، ودوره مرجعيّ بحت: يوضّح مفاتيح B-N-DRAIN الموحَّدة كي تُنسَخ منها
+// (لا تُشغَّل) عند توليد ملف عقدة جديد.
+//
+// لماذا يبقى هذا القالب متعقَّباً:
+// - مَرجع الحقيقة لمفاتيح B-N-DRAIN البنيوية الموحَّدة أسطولياً (treekill/kill_timeout/
+//   drain/bind-window)، كي لا تنجرف بين العقد عند توليد ملفاتها من bootstrap.
+// - يَحفظ الشكل المرجعي في الـ repo كي يَنجو ويُراجَع تاريخياً.
 // - يَتطابق مع نَمط /home/nassaj/Project/claudecodeui-official/ecosystem.config.cjs
 //   لتسهيل العمليات وتَوحيد سياسة الـ logs.
 //
@@ -34,7 +53,7 @@
 // 5) JWT_SECRET من `.env` حصراً (مصدر واحد ثابت) — لا يُمرَّر من هنا إطلاقاً كي
 //    لا يتعارض السرّان (حادثة B-70: env≠.env قلب السرّ وطرد التوكنات).
 // 6) script يَفترض وجود dist-server/ — يَجب تَنفيذ `npm run build` مَرّة واحدة
-//    قبل أوّل `pm2 start ecosystem.config.cjs`.
+//    قبل أوّل `pm2 start ecosystem.<node>.config.cjs` (ملف العقدة، لا هذا القالب).
 
 module.exports = {
   apps: [

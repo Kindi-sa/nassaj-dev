@@ -40,7 +40,7 @@
 
 **العربية**
 
-تُضبط داخل كتلة `env` في `ecosystem.config.cjs` (قيم `env` هنا تطغى على `.env` عند التشغيل عبر pm2). المضبوطة فعلياً اليوم:
+تُضبط داخل كتلة `env` في ملف العقدة `ecosystem.<node>.config.cjs` (قيم `env` هنا تطغى على `.env` عند التشغيل عبر pm2). القالب المتعقَّب `ecosystem.config.example.cjs` يحمل فقط مفاتيح B-N-DRAIN البنيوية المرجعية؛ القيم الخاصة بالمضيف أدناه تأتي من ملف العقدة أو `.env` (B-115). المضبوطة فعلياً اليوم:
 
 | المتغير | القيمة الافتراضية في الملف | الفاعل؟ | الغرض |
 |---|---|---|---|
@@ -70,7 +70,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 **English**
 
-Set inside the `env` block of `ecosystem.config.cjs` (these `env` values override `.env` under pm2). Actually wired today:
+Set inside the `env` block of the node file `ecosystem.<node>.config.cjs` (these `env` values override `.env` under pm2). The tracked `ecosystem.config.example.cjs` holds only the structural B-N-DRAIN reference keys; the host-specific values below come from the node file or `.env` (B-115). Actually wired today:
 
 | Variable | Default in file | Active? | Purpose |
 |---|---|---|---|
@@ -109,8 +109,11 @@ cd /home/nassaj/Project/nassaj-dev
 # بناء لمرة واحدة إن لم يكن dist-server/ موجوداً
 npm run build
 
-# تشغيل (يقرأ كل env من ecosystem.config.cjs)
-pm2 start ecosystem.config.cjs
+# تشغيل (B-115): من ملف العقدة الخاص بهذا المضيف، لا من القالب المتعقَّب.
+# استبدل <node> باسم عقدتك (مثل ecosystem.nassaj.config.cjs)؛ يولّده bootstrap-node.sh
+# بكل قيم المضيف inline. القالب المتعقَّب ecosystem.config.example.cjs مرجعي فقط ولا
+# يُشغَّل (بلا .env يسقط على المنفذ 3001 → EADDRINUSE؛ حادثة traventure 2026-06-30).
+env -u PORT pm2 start ecosystem.<node>.config.cjs
 
 # حفظ القائمة لتنجو من إعادة الإقلاع
 pm2 save
@@ -125,8 +128,12 @@ cd /home/nassaj/Project/nassaj-dev
 # One-time build if dist-server/ is missing
 npm run build
 
-# Start (reads all env from ecosystem.config.cjs)
-pm2 start ecosystem.config.cjs
+# Start (B-115): from THIS host's node file, not the tracked template. Replace
+# <node> with your node name (e.g. ecosystem.nassaj.config.cjs); bootstrap-node.sh
+# generates it with all host values inline. The tracked ecosystem.config.example.cjs
+# is reference-only and must NOT be run (with no .env it falls back to port 3001 →
+# EADDRINUSE; traventure outage 2026-06-30).
+env -u PORT pm2 start ecosystem.<node>.config.cjs
 
 # Persist the list so it survives reboots
 pm2 save

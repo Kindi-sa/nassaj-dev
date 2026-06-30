@@ -42,7 +42,11 @@
 #
 # متغيّرات البيئة / Env vars:
 #   PROC_NAME        اسم عملية PM2                 (افتراضي: nassaj-dev)
-#   ECOSYSTEM        مسار ecosystem.config.cjs     (افتراضي: <repo>/ecosystem.config.cjs)
+#   ECOSYSTEM        مسار ملف ecosystem العقدة (ecosystem.<node>.config.cjs) —
+#                    يُستعمل فقط في رسائل الاسترداد المطبوعة (host-side)، لا في
+#                    مسار restart الآمن. لا افتراض runnable: القيمة الافتراضية
+#                    placeholder صريح (ecosystem.<node>.config.cjs) يجب أن يستبدله
+#                    المالك باسم ملف عقدته الفعلي؛ مرّره صراحةً لرسالة دقيقة.
 #   WF_BASE          جذر جلسات المشروع (transcripts)
 #                    (افتراضي: المسار المحلول لـ
 #                     ~/nassaj-core/projects/-home-nassaj-Project-nassaj-dev)
@@ -65,7 +69,14 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd -P)"
 
 PROC_NAME="${PROC_NAME:-nassaj-dev}"
-ECOSYSTEM="${ECOSYSTEM:-$REPO_DIR/ecosystem.config.cjs}"
+# ECOSYSTEM: ملف ecosystem الخاص بالعقدة. لا يوجد `ecosystem.config.cjs` متعقَّب
+# قابل للتشغيل بعد B-115 (المتعقَّب صار `ecosystem.config.example.cjs` = قالب مرجعي
+# لا يُشغَّل؛ وأي `ecosystem.config.cjs`/`ecosystem.*.config.cjs` محلي = مُتجاهَل في
+# Git ويولّده bootstrap-node.sh لكل عقدة). لذا الافتراضي هنا **placeholder غير
+# قابل للتشغيل** يُذكِّر المالك باستبداله باسم ملف عقدته الفعلي (مثل
+# ecosystem.nassaj.config.cjs). يُستعمل في رسائل الاسترداد المطبوعة فقط، لا في
+# مسار restart الآمن (الذي يستهدف $PROC_NAME). مرّر ECOSYSTEM=... لرسالة دقيقة.
+ECOSYSTEM="${ECOSYSTEM:-$REPO_DIR/ecosystem.<node>.config.cjs}"
 FRESH_WINDOW_S="${FRESH_WINDOW_S:-180}"
 
 # جذر الـ workflows: نحلّ الـ symlink لأن المسار الفعلي عبر readlink هو
@@ -217,14 +228,17 @@ fi
 # ── حارس precondition (B-110) ────────────────────────────────────────────────
 # restart-بالاسم بلا معنى إن لم تكن العملية مُسجَّلة في PM2 أصلاً (لا توجد
 # pm2_env محفوظة لإعادة استخدامها). نتحقّق قبل بناء/طباعة RESTART_CMD:
-#   • العملية غير موجودة → ERROR + exit 4 (ابدأها من ecosystem أولاً).
+#   • العملية غير موجودة → ERROR + exit 4 (ابدأها من ملف عقدتها أولاً).
 #   • موجودة لكن treekill≠false أو kill_timeout<24h في الحالة الحيّة → تحذير
-#     (انجراف B-23/B-95): restart-بالاسم لن يُصلحه؛ أعد بناء الحالة من ecosystem.
+#     (انجراف B-23/B-95): restart-بالاسم لن يُصلحه؛ أعد بناء الحالة من ملف العقدة.
+# B-115: رسائل الاسترداد تشير إلى ملف العقدة ($ECOSYSTEM = ecosystem.<node>.config.cjs)
+# لا إلى ecosystem.config.cjs (لم يعد متعقَّباً قابلاً للتشغيل). استبدل <node> باسم
+# عقدتك (مثل ecosystem.nassaj.config.cjs) أو مرّر ECOSYSTEM=... للسكربت.
 # pm2 describe/jlist قراءة فقط (لا يحجبها حارس عميل Claude، بخلاف pm2 restart).
 if command -v pm2 >/dev/null 2>&1; then
   if ! pm2 describe "$PROC_NAME" --silent >/dev/null 2>&1; then
-    emit ERROR "العملية $PROC_NAME غير موجودة في PM2 — لا restart بالاسم؛ ابدأها من ecosystem أولاً."
-    emit INFO  "ابدأ نظيفاً: cd $REPO_DIR && env -u PORT pm2 start ecosystem.config.cjs && pm2 save"
+    emit ERROR "العملية $PROC_NAME غير موجودة في PM2 — لا restart بالاسم؛ ابدأها من ملف عقدتها أولاً."
+    emit INFO  "ابدأ نظيفاً: cd $REPO_DIR && env -u PORT pm2 start $ECOSYSTEM && pm2 save"
     [ "$JSON" -eq 1 ] && printf '{"ok":false,"error":"proc_not_in_pm2","proc":%s}\n' "\"$PROC_NAME\""
     exit 4
   fi
@@ -248,8 +262,8 @@ if command -v pm2 >/dev/null 2>&1; then
   )"
   if [ -n "$DRIFT" ]; then
     emit WARN "انجراف في حالة PM2 المحفوظة للعملية $PROC_NAME: $DRIFT"
-    emit WARN "restart-بالاسم لن يُصلح هذا الانجراف. أعد بناء الحالة من ecosystem سليم:"
-    emit WARN "  cd $REPO_DIR && env -u PORT pm2 delete $PROC_NAME && env -u PORT pm2 start ecosystem.config.cjs && pm2 save"
+    emit WARN "restart-بالاسم لن يُصلح هذا الانجراف. أعد بناء الحالة من ملف عقدة سليم:"
+    emit WARN "  cd $REPO_DIR && env -u PORT pm2 delete $PROC_NAME && env -u PORT pm2 start $ECOSYSTEM && pm2 save"
   fi
 else
   emit INFO "pm2 غير متوفّر — تخطّي حارس precondition (تعذّر التحقّق من تسجيل العملية)."

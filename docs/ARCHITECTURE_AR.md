@@ -209,16 +209,26 @@ spawn. المورّدون الثلاثة افتراضهم `'isolated'` في `pro
 ## النشر والإشراف على العملية (ADR-021/022/109/110)
 
 **إدارة العملية:** PM2 يشرف على nassaj-dev مع `treekill:false` فيسمح لعمّال الخلفية
-(Workflows) أن يكملوا عملهم حتى بعد إعادة التشغيل، متوازنة بمهلة صرف 30 ثانية
-لإيقاف النظام بلطف.
+(Workflows) أن يكملوا عملهم حتى بعد إعادة التشغيل، مع drain بلا سقف
+(`DRAIN_TIMEOUT_MS=0` و`kill_timeout=24h`) ليُمهِل الأدوار الحيّة حتى تكتمل قبل قتل
+العملية الأم.
 
-**ملف الإعدادات:** حيادي المضيف (بلا cwd أو أسرار)؛ البيئة والأعلام تأتي من `.env`
-وحده. ملف `ecosystem.config.cjs` مُتعقَّب في Git وموحَّد عبر الأسطول كله (B-N-DRAIN)،
-يضمن إعادة تشغيل قابلة للتكرار.
+**ملفات ecosystem لكل عقدة (B-115):** كل عقدة تشغّل من **ملفها الخاص**
+`ecosystem.<node>.config.cjs` (مثل `ecosystem.nassaj.config.cjs`) الذي يولّده
+`bootstrap-node.sh` بكل قيم المضيف inline (cwd، SERVER_PORT، DATABASE_PATH،
+JWT_SECRET، أصول WebAuthn). ملفات العقد هذه — وأي `ecosystem.config.cjs` محلي —
+**مُتجاهَلة في Git** كي لا تدخل الأسرار المستودع. المتعقَّب الوحيد هو
+`ecosystem.config.example.cjs`: **قالب مرجعي محايد-المضيف لا يُشغَّل مباشرةً** — بلا
+`.env`/قيم inline يصير SERVER_PORT غير معرَّف فيقع التطبيق على المنفذ 3001 →
+EADDRINUSE → crash-loop (حادثة traventure 2026-06-30). دوره فقط حفظ مفاتيح
+B-N-DRAIN البنيوية الموحَّدة (treekill/kill_timeout/drain/bind-window) قابلةً للتكرار
+عبر الأسطول عند توليد ملف عقدة.
 
 **إعادة تشغيل آمنة:** سكريبت `scripts/safe-restart.sh` يستهدف العملية باسمها
-ويُسقط علم `--update-env` (يمنع الانجراف إن تغيّر `.env` وسط الطريق). يحمي نفسه
-بفحص `pm2 describe` ويحذّر من تضارب `treekill`/`kill_timeout`.
+ويُسقط علم `--update-env` (يمنع الانجراف إن تغيّر `.env` وسط الطريق)، ولا يفترض وجود
+`ecosystem.config.cjs` قابل للتشغيل. يحمي نفسه بفحص `pm2 describe` ويحذّر من تضارب
+`treekill`/`kill_timeout`، ورسائل استرداده تشير إلى ملف العقدة (`$ECOSYSTEM`،
+الافتراضي placeholder ‏`ecosystem.<node>.config.cjs`).
 
 **شبكة أمان CORS:** الخادم يبدأ بقائمة أصل مسموح مُتعقَّبة في Git
 (`https://nassaj.alkindy.tech` و`https://nassaj.traventure.sa` و
