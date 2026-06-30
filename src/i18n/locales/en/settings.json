@@ -380,6 +380,14 @@
       "label": "Dark Mode",
       "description": "Toggle between light and dark themes"
     },
+    "themeMode": {
+      "sectionTitle": "Appearance",
+      "label": "Theme",
+      "description": "Choose light, dark, or follow your system setting automatically",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
     "themePresets": {
       "title": "Theme",
       "description": "Brand-tinted color presets applied on top of light and dark mode",

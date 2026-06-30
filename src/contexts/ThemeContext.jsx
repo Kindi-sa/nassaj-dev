@@ -5,6 +5,29 @@ import {
   applyThemePreset,
 } from '../lib/theme-presets';
 import { onApplyServerPreference } from '../preferences/preferencesSync';
+// resolveIsDark is the single source of truth — also used by theme-presets.ts
+// at boot time (applyStoredThemePreset) to prevent light/dark flash.
+import { resolveIsDark, THEME_MODES } from '../lib/theme-mode';
+
+// Re-export so existing consumers of ThemeContext.jsx keep working.
+export { THEME_MODES };
+
+/** Apply DOM changes (class + meta tags) for a computed dark/light state. */
+function applyDarkClass(isDark) {
+  if (isDark) {
+    document.documentElement.classList.add('dark');
+    const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (statusBarMeta) statusBarMeta.setAttribute('content', 'black-translucent');
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', '#0c1117');
+  } else {
+    document.documentElement.classList.remove('dark');
+    const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (statusBarMeta) statusBarMeta.setAttribute('content', 'default');
+    const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeColorMeta) themeColorMeta.setAttribute('content', '#ffffff');
+  }
+}
 
 const ThemeContext = createContext();
 
@@ -17,74 +40,55 @@ export const useTheme = () => {
 };
 
 export const ThemeProvider = ({ children }) => {
-  // Check for saved theme preference or default to system preference
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    // Check localStorage first
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme) {
-      return savedTheme === 'dark';
-    }
-    
-    // Check system preference
-    if (window.matchMedia) {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    
-    return false;
+  // themeMode: 'light' | 'dark' | 'system'
+  // Back-compat: existing 'light'/'dark' values in localStorage are preserved as-is.
+  // A missing key (new user / first load after upgrade) defaults to 'system'.
+  const [themeMode, setThemeMode] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+    // No saved value → default to system (new users and post-upgrade first load).
+    // We intentionally do NOT write 'system' to localStorage here so that the
+    // preferencesSync layer treats the key as unset (seeding behaviour intact).
+    return 'system';
   });
 
-  // Update document class and localStorage when theme changes
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      
-      // Update iOS status bar style and theme color for dark mode
-      const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (statusBarMeta) {
-        statusBarMeta.setAttribute('content', 'black-translucent');
-      }
-      
-      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#0c1117'); // Dark background color (hsl(222.2 84% 4.9%))
-      }
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      
-      // Update iOS status bar style and theme color for light mode
-      const statusBarMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-      if (statusBarMeta) {
-        statusBarMeta.setAttribute('content', 'default');
-      }
-      
-      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-      if (themeColorMeta) {
-        themeColorMeta.setAttribute('content', '#ffffff'); // Light background color
-      }
-    }
-  }, [isDarkMode]);
+  // Derived boolean — what the DOM actually shows right now.
+  const [isDarkMode, setIsDarkMode] = useState(() => resolveIsDark(themeMode));
 
-  // Listen for system theme changes
+  // Apply DOM class + persist to localStorage whenever themeMode changes.
   useEffect(() => {
-    if (!window.matchMedia) return;
+    const resolved = resolveIsDark(themeMode);
+    setIsDarkMode(resolved);
+    applyDarkClass(resolved);
+    // Persist themeMode — but only write 'system' when the user has explicitly
+    // chosen it (i.e. the key already exists in localStorage). A new user
+    // whose key is null stays null until they make a deliberate selection,
+    // so preferencesSync treats the account as having no preference yet
+    // (seeding behaviour stays correct).
+    if (themeMode !== 'system' || localStorage.getItem('theme') !== null) {
+      localStorage.setItem('theme', themeMode);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeMode]);
+
+  // When themeMode is 'system', listen for OS preference changes and update live.
+  useEffect(() => {
+    if (!window.matchMedia || themeMode !== 'system') return;
 
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e) => {
-      // Only update if user hasn't manually set a preference
-      const savedTheme = localStorage.getItem('theme');
-      if (!savedTheme) {
-        setIsDarkMode(e.matches);
-      }
+      const resolved = e.matches;
+      setIsDarkMode(resolved);
+      applyDarkClass(resolved);
     };
-
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, []);
+  }, [themeMode]);
 
+  // Legacy helper — still exported so existing callers keep working.
+  // Toggles between light and dark (drops 'system' if currently set).
   const toggleDarkMode = () => {
-    setIsDarkMode(prev => !prev);
+    setThemeMode(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
   // Brand-tinted theme presets (see src/lib/theme-presets.ts). The preset is
@@ -101,7 +105,16 @@ export const ThemeProvider = ({ children }) => {
   // has already happened; we only refresh React state so the UI updates.
   useEffect(() => {
     const offTheme = onApplyServerPreference('theme', (raw) => {
-      setIsDarkMode(raw === 'dark');
+      // raw may be 'light', 'dark', 'system', or (legacy) null/other
+      if (raw === 'light' || raw === 'dark' || raw === 'system') {
+        setThemeMode(raw);
+      } else if (raw === null) {
+        // Server cleared the preference → fall back to system
+        setThemeMode('system');
+      } else {
+        // Unexpected / unrecognised value → fall back to system default
+        setThemeMode('system');
+      }
     });
     const offPreset = onApplyServerPreference('nassaj-theme-preset', () => {
       setPresetState(loadThemePresetState());
@@ -122,6 +135,8 @@ export const ThemeProvider = ({ children }) => {
 
   const value = {
     isDarkMode,
+    themeMode,
+    setThemeMode,
     toggleDarkMode,
     themePreset: presetState.preset,
     customThemeColors: presetState.custom,

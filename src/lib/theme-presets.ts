@@ -11,6 +11,8 @@
  * definitions in `src/index.css` (:root / .dark) take over again.
  */
 
+import { resolveIsDark } from './theme-mode';
+
 export type ThemePresetId = 'default' | 'claude' | 'alkindy' | 'cursor' | 'codex' | 'gemini' | 'custom';
 
 export interface CustomColors {
@@ -399,18 +401,21 @@ export function applyThemePreset(state: ThemePresetState, isDark: boolean): void
 
 /**
  * Applies the stored preset as early as possible at boot (before React
- * renders) so the default theme never flashes. Mirrors ThemeContext's
- * dark-mode resolution: localStorage `theme` first, then system preference.
+ * renders) so the default theme never flashes.
+ *
+ * Uses resolveIsDark() from theme-mode.ts — the same function used by
+ * ThemeContext at runtime — so 'system', 'light', 'dark', and null all
+ * resolve identically at boot and at runtime (no flash on any stored value).
  */
-export function applyStoredThemePreset(): void {
+export function applyStoredThemePreset(): boolean {
   try {
     const savedTheme = localStorage.getItem('theme');
-    const isDark = savedTheme
-      ? savedTheme === 'dark'
-      : Boolean(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const isDark = resolveIsDark(savedTheme);
     applyThemePreset(loadThemePresetState(), isDark);
+    return isDark;
   } catch {
     // Never block boot on theming.
+    return false;
   }
 }
 
