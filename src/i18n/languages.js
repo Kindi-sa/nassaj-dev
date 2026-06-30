@@ -11,6 +11,10 @@
  *        Appearance settings — language selection does NOT change direction.
  */
 
+// Languages exposed in the UI picker. Restricted to Arabic + English by owner
+// decision (other locales caused UX issues). The other translation bundles stay
+// on disk and remain wired in i18n/config.js — they are simply not selectable.
+// Re-add an entry here to re-enable a language (fully reversible, no file moves).
 export const languages = [
   {
     value: 'en',
@@ -24,49 +28,14 @@ export const languages = [
     nativeName: 'العربية',
     dir: 'rtl',
   },
-  {
-    value: 'ko',
-    label: 'Korean',
-    nativeName: '한국어',
-    dir: 'ltr',
-  },
-  {
-    value: 'zh-CN',
-    label: 'Simplified Chinese',
-    nativeName: '简体中文',
-    dir: 'ltr',
-  },
-  {
-    value: 'ja',
-    label: 'Japanese',
-    nativeName: '日本語',
-    dir: 'ltr',
-  },
-  {
-    value: 'ru',
-    label: 'Russian',
-    nativeName: 'Русский',
-    dir: 'ltr',
-  },
-  {
-    value: 'de',
-    label: 'German',
-    nativeName: 'Deutsch',
-    dir: 'ltr',
-  },
-  {
-    value: 'tr',
-    label: 'Turkish',
-    nativeName: 'Türkçe',
-    dir: 'ltr',
-  },
-  {
-    value: 'it',
-    label: 'Italian',
-    nativeName: 'Italiano',
-    dir: 'ltr',
-  },
 ];
+
+/**
+ * Fallback UI language for users whose stored preference is no longer
+ * selectable (e.g. a previously chosen de/it/ko/ru/zh-CN/tr/ja). The app is
+ * Arabic-first, so such users land on Arabic rather than English.
+ */
+export const FALLBACK_UI_LANGUAGE = 'ar';
 
 /**
  * Get language object by value

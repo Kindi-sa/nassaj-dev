@@ -107,7 +107,6 @@ type SidebarContentProps = {
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
-  onCollapseSidebar: () => void;
   /** Select a project — forwarded to PresencePanel's active-conversations menu. */
   onProjectSelect: (project: Project) => void;
   updateAvailable: boolean;
@@ -143,7 +142,6 @@ export default function SidebarContent({
   onRefresh,
   isRefreshing,
   onCreateProject,
-  onCollapseSidebar,
   onProjectSelect,
   updateAvailable,
   releaseInfo,
@@ -178,7 +176,6 @@ export default function SidebarContent({
         onRefresh={onRefresh}
         isRefreshing={isRefreshing}
         onCreateProject={onCreateProject}
-        onCollapseSidebar={onCollapseSidebar}
         t={t}
       />
 

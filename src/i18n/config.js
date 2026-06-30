@@ -103,15 +103,25 @@ import itTasks from './locales/it/tasks.json';
 import itProjectBoard from './locales/it/projectBoard.json';
 
 // Import supported languages configuration
-import { languages } from './languages.js';
+import { languages, FALLBACK_UI_LANGUAGE } from './languages.js';
 
-// Get saved language preference from localStorage
+const isSupportedLanguage = (value) => languages.some((lang) => lang.value === value);
+
+// Resolve the language to start the UI in:
+// - stored value that is still selectable  → use it
+// - stored value no longer selectable (e.g. an old de/it/ko/ru/zh-CN/tr/ja)
+//   → fall back to Arabic (app is Arabic-first), not English
+// - no stored value at all (fresh visitor) → keep the historical English default
 const getSavedLanguage = () => {
   try {
     const saved = localStorage.getItem('userLanguage');
-    // Validate that the saved language is supported
-    if (saved && languages.some(lang => lang.value === saved)) {
+    if (saved && isSupportedLanguage(saved)) {
       return saved;
+    }
+    if (saved) {
+      // A previously selected, now-disabled language: drop the dead pref onto ar
+      // so the picker (which only lists ar/en) and the active UI agree.
+      return FALLBACK_UI_LANGUAGE;
     }
     return 'en';
   } catch {
@@ -284,8 +294,12 @@ if (typeof window !== 'undefined') {
     if (!detail || detail.storageKey !== 'userLanguage') {
       return;
     }
-    const next = detail.rawValue;
-    if (next && languages.some((lang) => lang.value === next) && i18n.language !== next) {
+    // A server-synced value that is no longer selectable (old de/it/ko/…) is
+    // coerced to Arabic so account-driven hydration matches the ar/en picker.
+    const next = detail.rawValue
+      ? (isSupportedLanguage(detail.rawValue) ? detail.rawValue : FALLBACK_UI_LANGUAGE)
+      : null;
+    if (next && i18n.language !== next) {
       i18n.changeLanguage(next);
     }
   });
