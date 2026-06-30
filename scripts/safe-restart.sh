@@ -56,6 +56,7 @@
 #   0 = آمن (لا workflow حيّ) — وإن طُلب --exec فالـ restart نجح/طُلب.
 #   3 = عمل حيّ موجود → أُجّل (أو، مع --force --exec، نُفّذ رغمه ثم 0).
 #   2 = خطأ قراءة/إعداد (مثلاً WF_BASE غير موجود).
+#   4 = العملية غير مُسجَّلة في PM2 (B-110) → لا restart بالاسم؛ ابدأ من ecosystem.
 # ============================================================================
 set -euo pipefail
 
@@ -199,8 +200,62 @@ if [ "$JSON" -eq 1 ]; then
   printf '%s\n' "$SCAN_JSON"
 fi
 
-# السطر الجاهز للّصق (يُعاد قراءة kill_timeout/treekill/env من ملف ecosystem).
-RESTART_CMD="cd $REPO_DIR && env -u PORT pm2 restart $ECOSYSTEM --update-env && pm2 save"
+# السطر الجاهز للّصق.
+# B-110/2 (حادثة الصفحة البيضاء): نستهدف العملية بالاسم ($PROC_NAME) لا ملف
+# ecosystem، ونُسقط --update-env. السبب: تمرير الملف مع --exec يُعيد PM2 تطبيق
+# كامل كتلة env (CORS/WEBAUTHN/JWT/...) من ملف قد يكون منجرفاً عن المضيف أو
+# معطوباً، وقد يطرد الجلسات. الاستهداف بالاسم يُعيد تشغيل البرنامج فقط بـ pm2_env
+# المحفوظة الحالية دون لمس البيئة.
+#
+# شرط السلامة (يدقّقه qa-critic/architect): kill_timeout=86400000 وtreekill:false
+# (B-23/B-95) يجب أن تكونا أصلاً في pm2_env المحفوظة. هما كذلك ما دامت حالة PM2
+# بُنيت مرّة من ecosystem سليم ثم pm2 save (دورة الإقلاع المعتادة). الاستهداف
+# بالاسم لا يُسقطهما — يبقيهما كما هما؛ إنما لا «يُصلح» انجرافاً سابقاً في الحالة
+# المحفوظة. إعادة بناء الحالة من ecosystem سليم (delete+start ثم save) إجراء
+# منفصل، يُنفَّذ يدوياً عند الحاجة (راجع أوامر host-side في المخرَج)، لا من هنا.
+#
+# ── حارس precondition (B-110) ────────────────────────────────────────────────
+# restart-بالاسم بلا معنى إن لم تكن العملية مُسجَّلة في PM2 أصلاً (لا توجد
+# pm2_env محفوظة لإعادة استخدامها). نتحقّق قبل بناء/طباعة RESTART_CMD:
+#   • العملية غير موجودة → ERROR + exit 4 (ابدأها من ecosystem أولاً).
+#   • موجودة لكن treekill≠false أو kill_timeout<24h في الحالة الحيّة → تحذير
+#     (انجراف B-23/B-95): restart-بالاسم لن يُصلحه؛ أعد بناء الحالة من ecosystem.
+# pm2 describe/jlist قراءة فقط (لا يحجبها حارس عميل Claude، بخلاف pm2 restart).
+if command -v pm2 >/dev/null 2>&1; then
+  if ! pm2 describe "$PROC_NAME" --silent >/dev/null 2>&1; then
+    emit ERROR "العملية $PROC_NAME غير موجودة في PM2 — لا restart بالاسم؛ ابدأها من ecosystem أولاً."
+    emit INFO  "ابدأ نظيفاً: cd $REPO_DIR && env -u PORT pm2 start ecosystem.config.cjs && pm2 save"
+    [ "$JSON" -eq 1 ] && printf '{"ok":false,"error":"proc_not_in_pm2","proc":%s}\n' "\"$PROC_NAME\""
+    exit 4
+  fi
+  # فحص انجراف الحالة الحيّة (تحذيري فقط — لا يقطع). نقرأ pm2_env عبر jlist.
+  DRIFT="$(
+    PROC_NAME="$PROC_NAME" pm2 jlist 2>/dev/null | node -e '
+      let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+        const want=process.env.PROC_NAME;
+        let arr;try{arr=JSON.parse(s)}catch(_){process.exit(0)}
+        const p=(arr||[]).find(x=>x && x.name===want);
+        if(!p){process.exit(0)}
+        const e=p.pm2_env||{};
+        // treekill الافتراضي في PM2 = true؛ نعتبره منجرفاً ما لم يكن false صراحةً.
+        const tk=e.treekill;
+        const kt=Number(e.kill_timeout);
+        const probs=[];
+        if(tk!==false) probs.push("treekill="+JSON.stringify(tk)+" (المطلوب false — B-23/ADR-021)");
+        if(!(kt>=86400000)) probs.push("kill_timeout="+JSON.stringify(e.kill_timeout)+" (المطلوب ≥86400000 — B-95)");
+        if(probs.length) process.stdout.write(probs.join(" | "));
+      })' 2>/dev/null
+  )"
+  if [ -n "$DRIFT" ]; then
+    emit WARN "انجراف في حالة PM2 المحفوظة للعملية $PROC_NAME: $DRIFT"
+    emit WARN "restart-بالاسم لن يُصلح هذا الانجراف. أعد بناء الحالة من ecosystem سليم:"
+    emit WARN "  cd $REPO_DIR && env -u PORT pm2 delete $PROC_NAME && env -u PORT pm2 start ecosystem.config.cjs && pm2 save"
+  fi
+else
+  emit INFO "pm2 غير متوفّر — تخطّي حارس precondition (تعذّر التحقّق من تسجيل العملية)."
+fi
+
+RESTART_CMD="cd $REPO_DIR && env -u PORT pm2 restart $PROC_NAME && pm2 save"
 
 if [ "$LIVE_COUNT" -gt 0 ]; then
   emit WARN "عُثر على $LIVE_COUNT workflow حيّ (started>result + نشاط خلال ${FRESH_WINDOW_S}s)."

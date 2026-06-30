@@ -241,6 +241,8 @@ app.locals.wss = wss;
 // This middleware must remain before all route mounts.
 const _corsDefaultOrigins = [
   'https://nassaj.alkindy.tech',
+  'https://nassaj.traventure.sa',
+  'https://nassaj.alrukhaimi.com',
   'http://localhost:3004',
   'http://localhost:3001',
   'http://localhost:5173',

@@ -1,29 +1,47 @@
 // PM2 ecosystem config for nassaj-dev (development sibling of nassaj/claudecodeui).
 //
 // لماذا هذا الملف:
-// - يَضمن عَزل nassaj-dev تَماماً عن الإنتاج: منفذ مستقل (3004) و DB مستقل.
+// - مَصدر الحقيقة الأسطولي لحزمة B-N-DRAIN: كل عقدة (alkindy/traventure/…) تشغّل
+//   **هذا الملف نفسه دون تعديل**، فلا ينجرف treekill/kill_timeout بين العقد.
 // - يَحفظ الإعداد في الـ repo كي يَنجو من pm2 save/resurrect/reboot.
 // - يَتطابق مع نَمط /home/nassaj/Project/claudecodeui-official/ecosystem.config.cjs
 //   لتسهيل العمليات وتَوحيد سياسة الـ logs.
 //
+// ── مبدأ التصميم: محايد-المضيف (host-neutral) — B-110 ────────────────────────
+// تَراجَعنا عن إلغاء تَعقُّب هذا الملف (الذي كان سيفتّت مصدر الحقيقة الأسطولي).
+// البديل: يبقى الملف **متعقَّباً وموحَّداً**، لكنه لا يحوي أي قيمة خاصة بمضيف
+// (cwd/منفذ/أصول WebAuthn/مسار DB/أسرار). تلك القيم يقرأها التطبيق من `.env`
+// المحلي لكل مضيف (غير متعقَّب). والملف هنا يحمل فقط مفاتيح B-N-DRAIN البنيوية
+// (غير السرّية، الموحَّدة أسطولياً).
+//
+// كيف يعمل الإسقاط إلى .env بأمان: load-env.js يضبط كل مفتاح بشرط
+// `if (!process.env[key])` — أي لا يَدُوس على متغيّر موجود مسبقاً. وPM2 يضع كتلة
+// env هذه في process.env **قبل** تحميل التطبيق، فلو وُجد المفتاح هنا لطغى على
+// .env. لذا: حَذْفُ المفتاح من هنا هو ما يُفعِّل قراءته من .env (السلوك المقصود).
+//
 // ملاحظات تَصميم حَرِجة (لا تَحذف):
 // 1) الامتداد .cjs مَقصود: package.json يَحوي "type": "module"، لذا ملف بِامتداد .js
 //    سَيُفسَّر كـ ESM ويَفشل PM2 في تَحميل module.exports.
-// 2) المتَغيِّر الذي يَقرأه التَطبيق فعلاً هو DATABASE_PATH (راجع
-//    server/load-env.js و server/modules/database/connection.ts). نَمرر
-//    NASSAJ_DB_PATH أيضاً لِتَوافُق وَثيقة B-04 لكنه غير مُستهلَك من الكود؛
-//    DATABASE_PATH هو الفاعل الذي يَمنع الكِتابة على ~/.cloudcli/auth.db
-//    الخاص بالإنتاج.
-// 3) المتَغيِّر الفعلي للمنفذ هو SERVER_PORT (راجع .env.example). نَمرر PORT
-//    أيضاً تَحوُّطاً، والوسيط --port 3004 هو المسار الموثَّق في الإنتاج.
-// 4) script يَفترض وجود dist-server/ — يَجب تَنفيذ `npm run build` مَرّة واحدة
-//    قبل أوّل `pm2 start ecosystem.config.cjs` (مَهمَّة منفصلة عن B-04).
+// 2) لا cwd هنا: PM2 يجعل cwd افتراضاً = مجلد ملف الإعداد (= جذر مستودع كل
+//    مضيف)، فيصير host-correct تلقائياً. تثبيت cwd كان يربط الملف بمضيف واحد.
+// 3) المنفذ ومسار DB وأصول WebAuthn تأتي من `.env` المحلي. الوسيط `--port` يُمرَّر
+//    من args هنا (المسار الموثَّق للربط) ويبقى موحَّداً؛ إن لزم منفذٌ مختلف لمضيف
+//    فعدّله في .env (SERVER_PORT) — الكود يقرأ SERVER_PORT لا PORT (راجع
+//    server/index.js: `const SERVER_PORT = process.env.SERVER_PORT || 3001`).
+// 4) المتَغيِّر الذي يَقرأه التَطبيق لمسار DB هو DATABASE_PATH (راجع
+//    server/load-env.js). يأتي الآن من .env؛ غيابه عن .env يُسقِط الكود إلى
+//    ~/.cloudcli/auth.db الخاص بالإنتاج — فتأكّد أن .env يضبطه على كل مضيف.
+// 5) JWT_SECRET من `.env` حصراً (مصدر واحد ثابت) — لا يُمرَّر من هنا إطلاقاً كي
+//    لا يتعارض السرّان (حادثة B-70: env≠.env قلب السرّ وطرد التوكنات).
+// 6) script يَفترض وجود dist-server/ — يَجب تَنفيذ `npm run build` مَرّة واحدة
+//    قبل أوّل `pm2 start ecosystem.config.cjs`.
 
 module.exports = {
   apps: [
     {
       name: 'nassaj-dev',
-      cwd: '/home/nassaj/Project/nassaj-dev',
+      // لا cwd (B-110): PM2 يجعل cwd = مجلد ملف الإعداد = جذر مستودع كل مضيف،
+      // فيصير host-correct تلقائياً ويبقى الملف محايد-المضيف.
       script: 'dist-server/server/index.js',
       args: '--port 3004',
       interpreter: 'node',
@@ -64,20 +82,20 @@ module.exports = {
       watch: false,
       merge_logs: true,
       log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
-      out_file: '/home/nassaj/.pm2/logs/nassaj-dev-out.log',
-      error_file: '/home/nassaj/.pm2/logs/nassaj-dev-error.log',
+      // لا out_file/error_file مطلقَين (B-110): تثبيت /home/nassaj يربط الملف
+      // بمضيف. حذفهما يجعل PM2 يكتب افتراضاً إلى $HOME/.pm2/logs/nassaj-dev-out.log
+      // و -error.log — وهو نفس المسار حرفياً على alkindy (لا تغيير سلوك) لكنه
+      // host-correct على بقية العقد.
       env: {
+        // ── مفاتيح B-N-DRAIN/الأسطول البنيوية فقط (غير سرّية، موحَّدة لكل مضيف) ──
+        // الخاص-بالمضيف (SERVER_PORT/PORT/HOST/DATABASE_PATH/WEBAUTHN_*/JWT_SECRET)
+        // أُزيل من هنا عمداً (B-110) ويأتي من `.env` المحلي — راجع رأس الملف.
         NODE_ENV: 'production',
         // ADR-041 (B-80): يُفعّل سجل الإعادة (replay) القرائي لجلسات claude،
         // المعزول في SessionRegistry خاص خلف هذا العلم (server/session-registry.js:
         // flagEnabled يقبل 1/true/yes/on). إطفاؤه (حذف السطر) no-op كامل يعيد المسار
         // الحيّ إلى ما قبل الشريحة بلا فقد بيانات. يُقرأ من process.env عبر getter حيّ.
         SESSION_REGISTRY_claude: '1',
-        SERVER_PORT: '3004',
-        PORT: '3004',
-        HOST: '127.0.0.1',
-        DATABASE_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
-        NASSAJ_DB_PATH: '/home/nassaj/.local/share/nassaj-dev/db.sqlite',
 
         // ADR-048 / B-93: تفعيل reconcile مهام الخلفية بعد restart — خدمة
         // read-only fail-safe تشتقّ تصحيح stopped→completed عند إعادة فتح الجلسة.
@@ -109,29 +127,17 @@ module.exports = {
         //   binds in <1s; 10s absorbs slow ones. THIS is what breaks the loop.
         LISTEN_BIND_WINDOW_MS: '10000',
 
-        // ── Phase-MU multi-user auth (B-AUTH) ──────────────────────────────
-        // قيم placeholder. هذه الأسماء هي التي يقرأها الكود فعلاً (راجع
-        // server/middleware/auth.js و server/services/bootstrap-owner.service.js).
-        // لا تُعِد تسميتها. عند التشغيل عبر pm2 ecosystem، قيم env هنا تطغى على .env.
-        //
-        // JWT_SECRET: سرّ توقيع JWT (>= 32 محرفاً). إن تُرك فارغاً يُولَّد سرّ
-        //   per-install ويُحفظ في app_config (يعمل لكن env مُفضَّل للإنتاج).
-        //   توليد: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
-        // JWT_SECRET: 'CHANGE_ME_min_32_chars_random_hex',
-        //
-        // bootstrap owner — يُنشأ تلقائياً عند أول تشغيل على DB بلا owner؛
-        // لا يُكرَّر لاحقاً. إن تُرك BOOTSTRAP_OWNER_PASSWORD فارغاً تُولَّد كلمة
-        // مرور قوية وتُطبع مرة واحدة في سجل الخادم.
-        // BOOTSTRAP_OWNER_USERNAME: 'owner',
-        // BOOTSTRAP_OWNER_PASSWORD: 'CHANGE_ME_min_12_chars',
-
-        // ── Passkeys / WebAuthn (B-PK) ──────────────────────────────────────
-        // هوية الـ relying party لمفاتيح المرور. RP_ID نطاق فقط بلا scheme؛
-        // ORIGIN أصل كامل (يدعم قائمة بفواصل). بدونها يسقط الخادم إلى إعداد
-        // localhost التطويري ولن تعمل passkeys على النطاق المنشور.
-        WEBAUTHN_RP_ID: 'nassaj.alkindy.tech',
-        WEBAUTHN_ORIGIN: 'https://nassaj.alkindy.tech,http://localhost:5173',
-        WEBAUTHN_RP_NAME: 'Nassaj Dev',
+        // ── الخاص-بالمضيف يأتي من .env المحلي (B-110)، لا من هنا ─────────────
+        // أُزيلت من هذا الملف عمداً ليبقى محايد-المضيف؛ كل مضيف يضبطها في `.env`:
+        //   • SERVER_PORT (المنفذ — الكود يقرأه؛ PORT مهمَل) — مثال alkindy: 3004
+        //   • HOST (مثال: 127.0.0.1)
+        //   • DATABASE_PATH (مسار SQLite؛ غيابه يسقط إلى ~/.cloudcli/auth.db الإنتاجي)
+        //   • WEBAUTHN_RP_ID / WEBAUTHN_ORIGIN / WEBAUTHN_RP_NAME (هوية passkeys
+        //     للنطاق المنشور؛ غيابها يسقط إلى localhost التطويري)
+        //   • JWT_SECRET (سرّ التوقيع — .env حصراً، مصدر واحد، B-70)
+        //   • ALLOWED_ORIGINS (اختياري؛ يضيف أصولاً لقائمة CORS — غيابه يبقي
+        //     القائمة الافتراضية المُضمّنة، راجع server/index.js)
+        // ملاحظة B-04: NASSAJ_DB_PATH كان توافقياً وغير مُستهلَك من الكود — أُسقط.
       },
     },
   ],
