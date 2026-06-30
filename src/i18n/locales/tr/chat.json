@@ -1,4 +1,20 @@
 {
+  "contextRot": {
+    "label": "Bağlam",
+    "barAria": "Bağlam kullanımı",
+    "empty": "Henüz token kullanımı yok",
+    "percentUsed": "Gerçek pencerenin %{{percent}}'i",
+    "tooltipUsed": "Gerçek pencereden kullanılan: {{used}} / {{total}}",
+    "tooltipCacheRead": "Önbellek okuması: {{value}}",
+    "popoverTitle": "Bağlam kullanımı",
+    "close": "Kapat",
+    "levels": {
+      "safe": "Güvenli — bağlam sağlıklı.",
+      "attention": "Dikkat et — bağlam dolmaya başlıyor.",
+      "warning": "Olası bozulma — /compact veya bir alt ajan kullanmayı dene.",
+      "critical": "Ciddi bozulma — yeni bir oturum başlatmayı dene."
+    }
+  },
   "codeBlock": {
     "copy": "Kopyala",
     "copied": "Kopyalandı",
@@ -18,10 +34,39 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
+  },
+  "subagent": {
+    "badge": "Alt ajan",
+    "shortBadge": "Alt ajan",
+    "badgeLabel": "Alt ajan görevi"
+  },
+  "coordinator": {
+    "label": "Koordinatör",
+    "withName": "Koordinatör: {{username}}"
+  },
+  "userAuthor": {
+    "withName": "Kullanıcı: {{username}}"
   },
   "externalOrigin": {
     "label": "Arayüz dışında oluşturuldu"
+  },
+  "coordinatorPrompt": {
+    "label": "Koordinatör → Alt ajan",
+    "ariaLabel": "Koordinatörün alt ajana yönlendirmesi"
+  },
+  "systemMessage": {
+    "label": "Sistem mesajı",
+    "ariaLabel": "Otomatik sistem mesajı"
+  },
+  "sessionNotResumable": {
+    "message": "Bu oturum sürdürülemedi — sağlayıcıda artık mevcut değil.",
+    "startNew": "Yeni bir oturum başlat"
   },
   "tools": {
     "settings": "Araç Ayarları",
@@ -92,14 +137,14 @@
     "permissionMode": "İzin Modu",
     "modes": {
       "default": "Varsayılan Mod",
-      "auto": "Auto Mode",
+      "auto": "Otomatik Mod",
       "acceptEdits": "Düzenlemeleri Kabul Et",
       "bypassPermissions": "İzinleri Atla",
       "plan": "Plan Modu"
     },
     "descriptions": {
       "default": "Sadece güvenilir komutlar (ls, cat, grep, git status, vb.) otomatik çalışır. Diğer komutlar atlanır. Çalışma alanına yazabilir.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
+      "auto": "Model sınıflandırıcı, her araç çağrısı için onaylayıp onaylamamaya karar verir. Elleri serbest, ancak Atla'dan daha güvenli — reddetmeler yine de gerçekleşir.",
       "acceptEdits": "Tüm komutlar çalışma alanı içinde otomatik çalışır. Sandbox'lu çalıştırma ile tam otomatik mod.",
       "bypassPermissions": "Kısıtlama olmadan tam sistem erişimi. Tüm komutlar tam disk ve ağ erişimiyle otomatik çalışır. Dikkatli kullan.",
       "plan": "Planlama modu — hiçbir komut çalıştırılmaz"
@@ -129,6 +174,7 @@
     "placeholderDefault": "Mesajını yaz...",
     "disabled": "Girdi devre dışı",
     "attachFiles": "Dosya ekle",
+    "attachFilesAndImages": "Dosya veya resim ekle",
     "attachImages": "Resim ekle",
     "send": "Gönder",
     "stop": "Durdur",
@@ -139,7 +185,16 @@
     "clickToChangeMode": "İzin modunu değiştirmek için tıkla (veya girdide Tab tuşuna bas)",
     "showAllCommands": "Tüm komutları göster",
     "clearInput": "Girdiyi temizle",
-    "scrollToBottom": "En alta git"
+    "scrollToBottom": "En alta git",
+    "dropFilesHere": "Dosyaları buraya bırak",
+    "nonClaudeAttachmentHint": "Ekler yalnızca Claude ile kullanılır"
+  },
+  "fileAttachment": {
+    "removeFile": "Dosyayı kaldır",
+    "uploading": "Yükleniyor…",
+    "errorType": "Dosya türüne izin verilmiyor",
+    "errorSize": "Dosya çok büyük (maks. 50 MB)",
+    "errorCount": "Çok fazla dosya eklendi (maks. {{max}})"
   },
   "effortMode": {
     "selector": {
@@ -154,27 +209,27 @@
         "description": "effort parametresi yok — varsayılan Claude davranışı"
       },
       "auto": {
-        "name": "auto",
+        "name": "otomatik",
         "description": "Model, istek karmaşıklığına göre çabayı otomatik seçer"
       },
       "low": {
-        "name": "low",
+        "name": "düşük",
         "description": "Hızlı, hafif yanıtlar — basit sorular için ideal"
       },
       "medium": {
-        "name": "medium",
+        "name": "orta",
         "description": "Derinlik ve hız arasında denge"
       },
       "high": {
-        "name": "high",
+        "name": "yüksek",
         "description": "Karmaşık görevler için daha derin akıl yürütme"
       },
       "xhigh": {
-        "name": "xhigh",
+        "name": "çok yüksek",
         "description": "Zorlu problemler için çok yüksek çaba"
       },
       "max": {
-        "name": "max",
+        "name": "maksimum",
         "description": "Maksimum çaba — tam hesaplama bütçesi"
       },
       "ultracode": {
@@ -200,9 +255,29 @@
       "cursor": "Cursor'ı {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
       "codex": "Codex'i {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
       "gemini": "Gemini'yi {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
-      "default": "Başlamak için yukarıdan bir sağlayıcı seç"
+      "antigravity": "Antigravity (agy) kullanmaya hazır. Model, agy'nin kendi ayarlarından seçilir.",
+      "opencode": "OpenCode'u {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
+      "default": "Başlamak için yukarıdan bir sağlayıcı seç",
+      "kimi": "Kimi'yi {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
+      "deepseek": "DeepSeek'i {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
+      "glm": "GLM'i {{model}} ile kullanmaya hazır. Mesajını aşağıya yazmaya başla.",
+      "claudeEngine": "Hazır: Claude motoru {{provider}} üzerinde {{model}} ile çalışıyor. Mesajını aşağıya yazmaya başla."
     },
-    "pressToSearch": "Oturumlarda, dosyalarda ve commit'lerde arama yapmak için <kbd>{{shortcut}}</kbd> tuşlarına bas"
+    "antigravity": {
+      "activeModel": "Etkin model",
+      "activeModelLabel": "Etkin model",
+      "loading": "Yükleniyor…",
+      "unknown": "Bilinmiyor"
+    },
+    "pressToSearch": "Oturumlarda, dosyalarda ve commit'lerde arama yapmak için <kbd>{{shortcut}}</kbd> tuşlarına bas",
+    "refresh": {
+      "button": "Modelleri ve kimlik doğrulama durumunu yenile",
+      "refreshing": "Yenileniyor…"
+    },
+    "providerUnavailable": "Sağlayıcı mevcut değil",
+    "signIn": "Giriş yap",
+    "addApiKey": "Etkinleştirmek için {{provider}} API anahtarı ekle",
+    "engineOnVendor": "{{provider}} üzerinde Claude motoru"
   },
   "session": {
     "continue": {
@@ -276,7 +351,34 @@
     "providers": {
       "assistant": "Asistan"
     },
-    "frozen": "Paused (process frozen)"
+    "frozen": "Duraklatıldı (süreç donduruldu)"
+  },
+  "runProgress": {
+    "tasksLabel": "Görevler",
+    "barAria": "Görev ilerlemesi",
+    "tasksTooltip": "Görevler: {{total}} içinde {{done}} tamamlandı",
+    "inProgressTooltip_one": "{{count}} devam ediyor",
+    "inProgressTooltip_other": "{{count}} devam ediyor",
+    "agentsTooltip": "Alt ajanlar: {{done}}/{{total}}",
+    "agentWorking": "Ajan · {{calls}}",
+    "agentWorkingTooltip": "Alt ajan çalışıyor: {{calls}} çağrı",
+    "estimateRemaining": "≈ {{time}} kaldı",
+    "estimating": "tahmin ediliyor…",
+    "estimateTooltip": "Kaba tahmin — şimdiye kadar tamamlanan görevlere göre."
+  },
+  "agentActivity": {
+    "title": "Ajan etkinliği",
+    "summary": "{{total}} içinde {{running}} çalışıyor",
+    "running": "Çalışıyor",
+    "done": "Bitti",
+    "currently": "şu an",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} araç çağrısı",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "Araç geçmişi yakında.",
+    "noTools": "Henüz araç çağrısı kaydedilmedi.",
+    "toolSuccess": "Bitti",
+    "toolRunning": "Çalışıyor"
   },
   "projectSelection": {
     "startChatWithProvider": "{{provider}} ile sohbet etmeye başlamak için bir proje seç"
@@ -286,7 +388,52 @@
   },
   "participants": {
     "hide": "Katılımcı çubuğunu gizle",
-    "show": "Katılımcı çubuğunu göster"
+    "show": "Katılımcı çubuğunu göster",
+    "lastSeen": "Son görülme",
+    "invocations_one": "{{count}} çağrı",
+    "invocations_other": "{{count}} çağrı",
+    "usersAria_one": "{{count}} katılımcı",
+    "usersAria_other": "{{count}} katılımcı",
+    "barAria": "Konuşma katılımcıları",
+    "openSessionsNow": "Aktif konuşmalar",
+    "openSessionsNowCount": "{{count}} aktif konuşma",
+    "andMore_one": "ve {{count}} daha",
+    "andMore_other": "ve {{count}} daha",
+    "projectSummary": "{{users}} kullanıcı · {{agents}} ajan",
+    "roles": {
+      "owner": "Sahip",
+      "admin": "Yönetici",
+      "user": "Üye"
+    },
+    "agentKinds": {
+      "model": "Temel model",
+      "subagent": "Alt ajan"
+    },
+    "agentSummary_one": "{{count}} ajan",
+    "agentSummary_other": "{{count}} ajan",
+    "totalInvocations_one": "{{count}} çağrı",
+    "totalInvocations_other": "{{count}} çağrı",
+    "agentSummaryAria": "{{agents}} farklı ajan · {{calls}} toplam çağrı",
+    "unknownAuthor": "Bilinmeyen yazar",
+    "toggleShow": "Ajanlar panelini göster",
+    "toggleHide": "Ajanlar panelini gizle"
+  },
+  "ws": {
+    "statusConnected": "Bağlı",
+    "statusReconnecting": "Yeniden bağlanıyor…",
+    "statusDisconnected": "Bağlantı kesildi",
+    "ariaConnected": "WebSocket bağlı",
+    "ariaReconnecting": "WebSocket yeniden bağlanıyor",
+    "ariaDisconnected": "WebSocket bağlantısı kesildi",
+    "sendFailed": "Mesaj gönderilmedi — bağlantı kesildi",
+    "sendDisabledTitle": "Gönderilemez — bağlantı kesildi"
+  },
+  "serverError": {
+    "project_dir_missing": "Proje klasörü diskte bulunamadı",
+    "cli_not_installed": "CLI yüklü değil — lütfen gerekli CLI aracını yükle",
+    "spawn_failed": "Süreç başlatılamadı — ayrıntılar için sunucu günlüklerini kontrol et",
+    "session_create_failed": "Yeni oturum başlatılamadı — lütfen tekrar dene",
+    "unknown": "Beklenmeyen bir sunucu hatası oluştu"
   },
   "refreshChat": {
     "button": "Sohbeti yenile",

@@ -8,8 +8,13 @@
     "loadingProjects": "Projeler yükleniyor...",
     "searchPlaceholder": "Projelerde ara...",
     "projectNamePlaceholder": "Proje adı",
+    "privateProject": "Özel proje",
+    "makePrivate": "Özel yap",
+    "makePublic": "Herkese açık yap",
     "starred": "Yıldızlı",
     "all": "Tümü",
+    "myProjects": "Benim projelerim",
+    "teamProjects": "Ekip",
     "untitledSession": "Adsız Oturum",
     "newSession": "Yeni Oturum",
     "codexSession": "Codex Oturumu",
@@ -43,6 +48,8 @@
     "deleteProject": "Projeyi kenar çubuğundan kaldır (Delete)",
     "addToFavorites": "Favorilere ekle",
     "removeFromFavorites": "Favorilerden çıkar",
+    "starSession": "Bu konuşmayı yıldızla",
+    "unstarSession": "Bu konuşmanın yıldızını kaldır",
     "editSessionName": "Oturum adını elle düzenle",
     "deleteSession": "Bu oturumu kalıcı olarak sil",
     "activeSessionIndicator": "Yakın zamanda etkin oturum (son 10 dakika)",
@@ -50,8 +57,8 @@
     "cancel": "İptal",
     "clearSearch": "Aramayı temizle",
     "openCommandPalette": "Komut paletini aç",
-    "openWiki": "Open Nassaj Wiki",
-    "goHome": "Home"
+    "openWiki": "Nassaj Wiki'yi aç",
+    "goHome": "Ana sayfaya git"
   },
   "navigation": {
     "chat": "Sohbet",
@@ -74,8 +81,8 @@
     "starOnGithub": "GitHub'da Yıldızla"
   },
   "systemStats": {
-    "cpuUsage": "CPU usage",
-    "memoryUsage": "Memory usage"
+    "cpuUsage": "CPU kullanımı",
+    "memoryUsage": "Bellek kullanımı"
   },
   "branding": {
     "openSource": "Açık Kaynak"
@@ -112,7 +119,13 @@
     "deleteProjectFailed": "Proje kaldırılamadı. Lütfen tekrar dene.",
     "deleteProjectError": "Proje kaldırılırken hata oluştu. Lütfen tekrar dene.",
     "createProjectFailed": "Proje oluşturulamadı. Lütfen tekrar dene.",
-    "createProjectError": "Proje oluşturulurken hata oluştu. Lütfen tekrar dene."
+    "createProjectError": "Proje oluşturulurken hata oluştu. Lütfen tekrar dene.",
+    "updateProjectError": "Proje güncellenirken hata oluştu. Lütfen tekrar dene.",
+    "refreshError": "Yenileme başarısız. Lütfen tekrar dene.",
+    "restoreProjectFailed": "Proje geri yüklenemedi. Lütfen tekrar dene.",
+    "restoreProjectError": "Proje geri yüklenirken hata oluştu. Lütfen tekrar dene.",
+    "restoreSessionFailed": "Oturum geri yüklenemedi. Lütfen tekrar dene.",
+    "restoreSessionError": "Oturum geri yüklenirken hata oluştu. Lütfen tekrar dene."
   },
   "version": {
     "updateAvailable": "Güncelleme mevcut"
@@ -128,9 +141,28 @@
     "allConversationsDeleted": "Proje kenar çubuğundan kaldırılacak. Dosyaların, bellek verilerin ve oturum verilerin korunacak.",
     "cannotUndo": "Projeyi sonra tekrar ekleyebilirsin."
   },
+  "participants": {
+    "lastSeen": "Son görülme",
+    "invocations_one": "{{count}} çağrı",
+    "invocations_other": "{{count}} çağrı",
+    "usersAria_one": "{{count}} katılımcı",
+    "usersAria_other": "{{count}} katılımcı",
+    "andMore_one": "ve {{count}} daha",
+    "andMore_other": "ve {{count}} daha",
+    "projectSummary": "{{users}} kullanıcı · {{agents}} ajan",
+    "roles": {
+      "owner": "Sahip",
+      "admin": "Yönetici",
+      "user": "Üye"
+    },
+    "agentKinds": {
+      "model": "Temel model",
+      "subagent": "Alt ajan"
+    }
+  },
   "upstream": {
-    "newRelease": "Upstream v{{version}} released",
-    "openRelease": "Open the upstream v{{version}} release page",
-    "acknowledge": "Acknowledge"
+    "newRelease": "Upstream v{{version}} yayınlandı",
+    "openRelease": "Upstream v{{version}} sürüm sayfasını aç",
+    "acknowledge": "Tamam"
   }
 }

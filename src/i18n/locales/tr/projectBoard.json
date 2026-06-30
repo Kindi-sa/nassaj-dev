@@ -1,149 +1,235 @@
 {
   "sections": {
-    "overview": "Overview",
-    "schedule": "Timeline",
-    "objectives": "Objectives",
-    "visual": "Visual Checks",
-    "architecture": "Architecture"
+    "overview": "Genel Bakış",
+    "schedule": "Zaman Çizelgesi",
+    "objectives": "Hedefler",
+    "visual": "Görsel Kontroller",
+    "architecture": "Mimari"
   },
-  "updated": "Updated {{date}}",
-  "overallProgress": "Overall progress",
-  "error": "Failed to load the project board.",
-  "stateError": "project-state.json is invalid — showing the last valid version.",
+  "updated": "{{date}} tarihinde güncellendi",
+  "overallProgress": "Genel ilerleme",
+  "error": "Proje panosu yüklenemedi.",
+  "stateError": "project-state.json geçersiz — son geçerli sürüm gösteriliyor.",
   "empty": {
-    "title": "No project board yet",
-    "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
-    "hint": "The board updates automatically whenever the file changes — no refresh needed.",
-    "copyTemplate": "Copy starter template",
-    "copied": "Copied — paste it into the file"
+    "title": "Henüz proje panosu yok",
+    "description": "Bu projenin proje durumu dosyası yok. Aşamalar, görevler ve sorunların canlı panosunu görmek için oluştur.",
+    "hint": "Pano, dosya değiştiğinde otomatik güncellenir — yenilemeye gerek yok.",
+    "copyTemplate": "Başlangıç şablonunu kopyala",
+    "copied": "Kopyalandı — dosyaya yapıştır"
   },
   "phases": {
-    "title": "Phases",
-    "current": "Current"
+    "title": "Aşamalar",
+    "current": "Mevcut",
+    "planned": "Planlandı",
+    "runnerHere": "el-Minval burada",
+    "progressCount": "%{{progress}} ({{done}}/{{total}})"
   },
   "sprint": {
-    "current": "Current sprint",
-    "started": "Started {{date}}",
-    "ended": "Ended {{date}}",
-    "taskCount": "Tasks {{done}}/{{total}}",
-    "others": "Other sprints ({{count}})",
+    "current": "Mevcut sprint",
+    "started": "{{date}} tarihinde başladı",
+    "ended": "{{date}} tarihinde bitti",
+    "taskCount": "Görevler {{done}}/{{total}}",
+    "others": "Diğer sprintler ({{count}})",
     "status": {
-      "planned": "Planned",
-      "current": "Current",
-      "done": "Done"
+      "planned": "Planlandı",
+      "current": "Mevcut",
+      "done": "Bitti"
     }
   },
   "tasksSection": {
-    "title": "Tasks",
-    "open": "Open",
-    "in_progress": "In progress",
-    "done": "Done",
-    "empty": "No tasks",
+    "title": "Görevler",
+    "open": "Açık",
+    "in_progress": "Devam ediyor",
+    "done": "Bitti",
+    "empty": "Görev yok",
     "kind": {
-      "feature": "Feature",
-      "bug": "Bug",
-      "chore": "Chore",
-      "spike": "Spike"
+      "feature": "Özellik",
+      "bug": "Hata",
+      "chore": "Bakım",
+      "spike": "Araştırma"
     },
-    "issueLink": "View issue {{id}}"
+    "issueLink": "{{id}} sorununu görüntüle"
   },
   "issues": {
-    "title": "Issues",
+    "title": "Sorunlar",
     "severity": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
+      "low": "Düşük",
+      "medium": "Orta",
+      "high": "Yüksek",
+      "critical": "Kritik"
     },
     "status": {
-      "open": "Open",
-      "fixed": "Fixed",
-      "wontfix": "Won't fix"
+      "open": "Açık",
+      "fixed": "Düzeltildi",
+      "wontfix": "Düzeltilmeyecek"
     }
   },
   "decisions": {
-    "title": "Decisions",
-    "empty": "No decisions yet",
-    "openLink": "Open decision document {{id}}"
+    "title": "Kararlar",
+    "empty": "Henüz karar yok",
+    "openLink": "{{id}} karar belgesini aç"
   },
   "schedule": {
-    "title": "Timeline (Gantt)",
-    "critical": "Critical",
-    "legendScheduled": "Scheduled",
-    "legendCritical": "Critical path",
-    "legendMilestone": "Milestone",
+    "title": "Zaman Çizelgesi (Gantt)",
+    "critical": "Kritik",
+    "legendScheduled": "Planlandı",
+    "legendCritical": "Kritik yol",
+    "legendMilestone": "Dönüm noktası",
     "cpm": {
-      "cycle": "Critical path skipped: dependency cycle detected.",
-      "missingDeps": "Some dependencies reference missing items and were ignored in the critical path."
+      "cycle": "Kritik yol atlandı: bağımlılık döngüsü tespit edildi.",
+      "missingDeps": "Bazı bağımlılıklar eksik öğelere referans veriyor ve kritik yolda yok sayıldı."
     },
-    "noDates": "No valid dates to draw the timeline.",
-    "progress": "Progress {{value}}%",
-    "durationDays": "Duration: {{days}} days",
-    "owner": "Owner: {{name}}",
-    "deliverable": "Deliverable: {{id}}",
-    "deliverableLink": "View deliverable {{id}}",
-    "dependsOn": "Depends on: {{ids}}"
+    "noDates": "Zaman çizelgesini çizmek için geçerli tarih yok.",
+    "progress": "İlerleme %{{value}}",
+    "durationDays": "Süre: {{days}} gün",
+    "owner": "Sorumlu: {{name}}",
+    "deliverable": "Teslimat: {{id}}",
+    "deliverableLink": "{{id}} teslimatını görüntüle",
+    "dependsOn": "Bağımlı olduğu: {{ids}}"
   },
   "deliverables": {
-    "title": "Deliverables",
-    "due": "Due {{date}}",
-    "overdue": "Overdue",
-    "acceptance": "Acceptance criterion",
-    "deliveredBy": "Delivered by: {{ids}}",
+    "title": "Teslimatlar",
+    "due": "{{date}} tarihine kadar",
+    "overdue": "Gecikmiş",
+    "acceptance": "Kabul kriteri",
+    "deliveredBy": "Teslim eden: {{ids}}",
     "statuses": {
-      "pending": "Pending",
-      "in_progress": "In progress",
-      "delivered": "Delivered",
-      "accepted": "Accepted",
-      "rejected": "Rejected"
+      "pending": "Beklemede",
+      "in_progress": "Devam ediyor",
+      "delivered": "Teslim edildi",
+      "accepted": "Kabul edildi",
+      "rejected": "Reddedildi"
     }
   },
   "objectives": {
-    "title": "Objectives (OKR)",
-    "baseline": "Baseline: {{value}}",
+    "title": "Hedefler (OKR)",
+    "baseline": "Temel: {{value}}",
     "statuses": {
-      "on_track": "On track",
-      "at_risk": "At risk",
-      "off_track": "Off track",
-      "done": "Done"
+      "on_track": "Yolunda",
+      "at_risk": "Riskli",
+      "off_track": "Yoldan çıktı",
+      "done": "Bitti"
     }
   },
   "kpis": {
-    "title": "KPIs",
-    "target": "Target: {{value}}"
+    "title": "KPI'lar",
+    "target": "Hedef: {{value}}"
   },
   "visualChecks": {
-    "title": "Visual Checks",
-    "empty": "No visual checks yet.",
-    "step": "Step",
-    "expect": "Expected",
-    "result": "Owner note",
-    "counter": "Verified {{verified}} / {{total}}",
+    "title": "Görsel Kontroller",
+    "empty": "Henüz görsel kontrol yok.",
+    "step": "Adım",
+    "expect": "Beklenen",
+    "result": "Sahip notu",
+    "counter": "Doğrulandı {{verified}} / {{total}}",
     "status": {
-      "pending": "Awaiting check",
-      "verified": "Verified",
-      "failed": "Failed"
-    }
-  },
-  "approvals": {
-    "title": "Pending approvals",
-    "awaitingReview": "Awaiting your review",
-    "approve": "Approve",
-    "reject": "Reject",
-    "pending": "Submitting…",
-    "error": "Action failed. Try again.",
-    "kind": {
-      "prod-migration": "Production migration",
-      "secret": "Secret",
-      "restart": "Restart",
-      "push": "Push",
-      "sensitive": "Sensitive action"
+      "pending": "Kontrol bekleniyor",
+      "verified": "Doğrulandı",
+      "failed": "Başarısız"
     }
   },
   "architecture": {
-    "technical": "Technical",
-    "simplified": "Simplified",
-    "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
-    "variantMissing": "This version of the architecture document does not exist."
+    "technical": "Teknik",
+    "simplified": "Basitleştirilmiş",
+    "missing": "Mimari belge bulunamadı (docs/ARCHITECTURE.md veya docs/ARCHITECTURE_AR.md).",
+    "variantMissing": "Bu mimari belgenin bu sürümü mevcut değil."
+  },
+  "approvals": {
+    "title": "Bekleyen onaylar",
+    "awaitingReview": "İncelemeniz bekleniyor",
+    "approve": "Onayla",
+    "reject": "Reddet",
+    "pending": "Gönderiliyor…",
+    "error": "İşlem başarısız. Tekrar dene.",
+    "kind": {
+      "prod-migration": "Üretim geçişi",
+      "secret": "Gizli",
+      "restart": "Yeniden başlatma",
+      "push": "Push",
+      "sensitive": "Hassas işlem"
+    }
+  },
+  "runner": {
+    "label": "el-Minval",
+    "description": "Özerk Koşucu",
+    "fullName": "el-Minval (Özerk Koşucu)",
+    "cycle": "Döngü {{n}}",
+    "stage": "Aşama",
+    "model": "Model",
+    "quota": "Kota",
+    "task": "Görev",
+    "phase": "Evre",
+    "verdict": "Son karar",
+    "clean": "temiz",
+    "unclean": "temiz değil",
+    "pendingTick": "Sonraki tik bekleniyor…",
+    "status": {
+      "idle": "Boşta",
+      "running": "Çalışıyor",
+      "building": "İnşa ediyor",
+      "verifying": "Doğruluyor",
+      "interrupted": "Kesildi (kota)",
+      "failed": "Başarısız",
+      "blocked": "Engellendi",
+      "paused": "Duraklatıldı",
+      "awaiting_approval": "Onay bekleniyor",
+      "disabled": "Devre dışı"
+    },
+    "statusLine": {
+      "running": "🟢 el-Minval çalışıyor",
+      "awaiting": "🔵 el-Minval onay bekliyor",
+      "interrupted": "🟡 el-Minval duraklatıldı",
+      "failed": "🔴 el-Minval başarısız",
+      "idle": "⚪ el-Minval boşta"
+    },
+    "stages": {
+      "review": "İnceleme",
+      "fix": "Düzeltme",
+      "critique": "Eleştiri",
+      "phase": "İnşa evresi",
+      "awaiting_approval": "Onay bekleniyor"
+    },
+    "actions": {
+      "start": "Başlat",
+      "stop": "Durdur",
+      "pause": "Duraklat",
+      "resume": "Devam et",
+      "approve": "Evreyi onayla",
+      "enable": "Etkinleştir",
+      "enableHint": "Bu proje için el-Minval'ı yeniden etkinleştir",
+      "disable": "Devre dışı bırak",
+      "disableHint": "Projeyi el-Minval'ın kayıt defterinde devre dışı bırak (etkinleştirilene kadar yeni döngü yok) — çalışan döngüyü bitirmez",
+      "forceStop": "Zorla durdur",
+      "forceStopHint": "Çalışan döngüyü oturumunu sonlandırarak hemen bitir, ardından yeniden başlatmayı engelle",
+      "forceStopConfirm": "Bu, çalışan döngüyü oturumunu sonlandırarak hemen bitirecek. Devam edilsin mi?",
+      "forceStopConfirmYes": "Evet, şimdi durdur",
+      "forceStopCancel": "İptal"
+    },
+    "errors": {
+      "notAwaiting": "Koşucu şu an evre onayı beklemiyor.",
+      "forceStopFailed": "Anlık durdurma başarısız oldu (birim durdurulamadı). Döngü hâlâ çalışıyor olabilir — tekrar dene.",
+      "generic": "İşlem gerçekleştirilemedi."
+    },
+    "journey": {
+      "title": "Koşucu Yolculuğu",
+      "here": "Koşucu burada",
+      "cyclesCount": "Döngüler ({{n}})",
+      "noCycles": "Koşucu henüz hiçbir döngü başlatmadı",
+      "cycleN": "Döngü {{n}}",
+      "showAll": "Tümünü göster ({{n}})",
+      "stale": "Dondurulmuş olabilir",
+      "phasesLabel": "Döngü aşamaları",
+      "stage": {
+        "build": "İnşa",
+        "verify": "Doğrula",
+        "verdict": "Karar",
+        "gate": "Kapı"
+      },
+      "cycleStatus": {
+        "succeeded": "Başarılı",
+        "failed": "Başarısız",
+        "interrupted": "Kesildi"
+      }
+    }
   }
 }

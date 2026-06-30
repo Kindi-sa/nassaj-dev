@@ -63,6 +63,7 @@
     "showThinking": "Düşünmeyi göster",
     "hideToolCalls": "Araç çağrılarını gizle",
     "autoScrollToBottom": "Otomatik en alta kaydır",
+    "tabsIconOnly": "Kompakt sekmeler (yalnızca simgeler)",
     "sendByCtrlEnter": "Ctrl+Enter ile gönder",
     "sendByCtrlEnterDescription": "Etkinleştirildiğinde, Ctrl+Enter'a basmak yalnız Enter yerine mesajı gönderir. IME (girdi metot düzenleyici) kullananlar için yanlışlıkla göndermeyi önler.",
     "dragHandle": {
@@ -71,6 +72,22 @@
       "openPanel": "Ayarlar panelini aç",
       "draggingStatus": "Sürükleniyor...",
       "toggleAndMove": "Açıp kapamak için tıkla, taşımak için sürükle"
+    }
+  },
+  "claudeUsage": {
+    "title": "Claude Kullanımı",
+    "loading": "Kullanım yükleniyor…",
+    "error": "Kullanım durumu yüklenemedi.",
+    "stale": "Önbellekteki veri",
+    "percentUsed": "%{{percent}} kullanıldı",
+    "resetsIn": "{{time}} sonra sıfırlanıyor",
+    "extraUsageDetail": "{{limit}} içinde {{used}} kullanıldı",
+    "windows": {
+      "session": "Mevcut oturum",
+      "weeklyAllModels": "Tüm modeller (haftalık)",
+      "weeklySonnet": "Yalnızca Sonnet",
+      "weeklyOpus": "Yalnızca Opus",
+      "extraUsage": "Ekstra kullanım"
     }
   },
   "terminalShortcuts": {
@@ -90,6 +107,7 @@
   },
   "mainTabs": {
     "label": "Ayarlar",
+    "profile": "Profil",
     "agents": "Ajanlar",
     "appearance": "Görünüm",
     "git": "Git",
@@ -97,7 +115,240 @@
     "tasks": "Görevler",
     "notifications": "Bildirimler",
     "plugins": "Eklentiler",
+    "users": "Kullanıcılar",
     "about": "Hakkında"
+  },
+  "profile": {
+    "title": "Profil",
+    "subtitle": "Hesap kullanıcı adını, şifreni ve geçiş anahtarlarını yönet",
+    "tabs": {
+      "identity": "Kimlik",
+      "security": "Güvenlik"
+    },
+    "saving": "Kaydediliyor...",
+    "avatar": {
+      "title": "Profil resmi",
+      "description": "Ekip arkadaşlarının seni tanıması için bir fotoğraf ekle.",
+      "change": "Resmi değiştir",
+      "uploading": "Yükleniyor...",
+      "hint": "Kare görseller en iyi sonucu verir. PNG veya JPG.",
+      "currentAlt": "Profil resmin",
+      "placeholderAlt": "Profil resmi ayarlanmamış",
+      "success": "Profil resmi başarıyla güncellendi",
+      "errors": {
+        "uploadFailed": "Resim yüklenemedi. Lütfen tekrar dene.",
+        "network": "Ağ hatası. Lütfen bağlantını kontrol et ve tekrar dene."
+      }
+    },
+    "username": {
+      "title": "Kullanıcı adını değiştir",
+      "description": "Giriş yapmak için kullandığın kullanıcı adını güncelle.",
+      "currentLabel": "Mevcut kullanıcı adı",
+      "newLabel": "Yeni kullanıcı adı",
+      "placeholder": "Yeni bir kullanıcı adı seç",
+      "hint": "3-32 karakter: harf, rakam veya alt çizgi.",
+      "save": "Kullanıcı adını kaydet",
+      "success": "Kullanıcı adı başarıyla güncellendi",
+      "errors": {
+        "required": "Lütfen yeni bir kullanıcı adı gir",
+        "unchanged": "Yeni kullanıcı adı mevcut kullanıcı adıyla aynı"
+      }
+    },
+    "password": {
+      "title": "Şifreyi değiştir",
+      "description": "Başka yerde kullanmadığın güçlü bir şifre kullan.",
+      "currentLabel": "Mevcut şifre",
+      "currentPlaceholder": "Mevcut şifreni gir",
+      "newLabel": "Yeni şifre",
+      "newPlaceholder": "Yeni bir şifre gir",
+      "confirmLabel": "Yeni şifreyi onayla",
+      "confirmPlaceholder": "Yeni şifreyi tekrar gir",
+      "hint": "En az {{min}} karakter.",
+      "save": "Şifreyi kaydet",
+      "success": "Şifre başarıyla değiştirildi",
+      "errors": {
+        "required": "Lütfen tüm şifre alanlarını doldur",
+        "short": "Şifre en az {{min}} karakter olmalı",
+        "mismatch": "Yeni şifreler eşleşmiyor"
+      }
+    },
+    "passkeys": {
+      "title": "Geçiş Anahtarları",
+      "description": "Parmak izi, yüz tanıma, cihaz PIN'i veya güvenlik anahtarı kullanarak şifresiz giriş yap.",
+      "add": "Geçiş anahtarı ekle",
+      "nameLabel": "Geçiş anahtarı adı (isteğe bağlı)",
+      "namePlaceholder": "ör. Dizüstü parmak izi",
+      "create": "Geçiş anahtarı oluştur",
+      "creating": "Cihazın bekleniyor...",
+      "cancel": "İptal",
+      "loading": "Geçiş anahtarları yükleniyor...",
+      "empty": "Henüz geçiş anahtarı yok. Bu çalışma alanına hızlı ve güvenli giriş yapmak için bir tane ekle — şifre gerekmiyor.",
+      "notSupported": "Bu tarayıcı geçiş anahtarlarını desteklemiyor, bu yüzden yeni anahtarlar buraya eklenemiyor.",
+      "unnamed": "Adsız geçiş anahtarı",
+      "createdAt": "{{date}} tarihinde eklendi",
+      "lastUsedAt": "Son kullanım {{date}}",
+      "neverUsed": "Hiç kullanılmadı",
+      "badges": {
+        "synced": "Eşitlenmiş",
+        "device": "Cihaza bağlı"
+      },
+      "rename": "Geçiş anahtarını yeniden adlandır",
+      "renamePlaceholder": "Yeni ad",
+      "renameSave": "Adı kaydet",
+      "delete": "Geçiş anahtarını sil",
+      "deleteConfirm": "Bu geçiş anahtarı silinsin mi?",
+      "deleteConfirmYes": "Sil",
+      "success": {
+        "added": "Geçiş anahtarı başarıyla eklendi",
+        "renamed": "Geçiş anahtarı yeniden adlandırıldı",
+        "deleted": "Geçiş anahtarı silindi"
+      },
+      "errors": {
+        "loadFailed": "Geçiş anahtarları yüklenemedi. Lütfen tekrar dene.",
+        "registerFailed": "Geçiş anahtarı oluşturulamadı. Lütfen tekrar dene.",
+        "duplicate": "Bu cihaz veya güvenlik anahtarı zaten geçiş anahtarı olarak kayıtlı.",
+        "renameFailed": "Geçiş anahtarı yeniden adlandırılamadı.",
+        "deleteFailed": "Geçiş anahtarı silinemedi.",
+        "network": "Ağ hatası. Lütfen bağlantını kontrol et ve tekrar dene."
+      }
+    },
+    "identity": {
+      "title": "Avatar stili",
+      "description": "Fotoğraf yüklemek yerine hazır bir avatar veya renk seç.",
+      "tabs": {
+        "upload": "Yükle",
+        "gallery": "Galeri",
+        "color": "Renk"
+      },
+      "gallery": {
+        "heading": "Bir avatar seç",
+        "selected": "Seçilen avatar"
+      },
+      "color": {
+        "heading": "Bir renk seç",
+        "hint": "Renk, baş harfinin arkasında kullanılır.",
+        "selected": "Seçilen renk"
+      },
+      "saving": "Kaydediliyor...",
+      "success": "Avatar başarıyla güncellendi",
+      "errors": {
+        "saveFailed": "Seçimin kaydedilemedi. Lütfen tekrar dene.",
+        "network": "Ağ hatası. Lütfen bağlantını kontrol et ve tekrar dene."
+      }
+    }
+  },
+  "claudeConnection": {
+    "description": "Oturumlarında kullanmak için kendi Claude aboneliğini bağla. Her kullanıcının kendi izole kimlik bilgileri vardır.",
+    "recheck": "Tekrar kontrol et",
+    "loadError": "Abonelik durumu kontrol edilemedi. Lütfen tekrar dene.",
+    "banner": "Claude aboneliğin henüz bağlanmamış. Oturumlarında Claude'u kullanmadan önce bağlaman gerekiyor.",
+    "bannerHint": "Terminali açmak ve şunu kullanarak giriş akışını tamamlamak için aşağıdaki düğmeye tıkla",
+    "linkButton": "Claude hesabını bağla",
+    "ownerNote": "Kimlik bilgileriniz sahip olarak otomatik bağlanır — herhangi bir işlem gerekmez."
+  },
+  "agyConnection": {
+    "description": "Oturumlarında kullanmak için kendi Antigravity aboneliğini bağla. Her kullanıcının kendi izole kimlik bilgileri vardır.",
+    "recheck": "Tekrar kontrol et",
+    "loadError": "Abonelik durumu kontrol edilemedi. Lütfen tekrar dene.",
+    "banner": "Antigravity aboneliğin henüz bağlanmamış. Oturumlarında agy'yi kullanmadan önce bağlaman gerekiyor.",
+    "bannerHint": "Terminali açmak ve şunu çalıştırmak için aşağıdaki düğmeye tıkla",
+    "linkButton": "Antigravity hesabını bağla",
+    "ownerNote": "Kimlik bilgileriniz sahip olarak otomatik bağlanır — herhangi bir işlem gerekmez.",
+    "modal": {
+      "title": "Antigravity hesabını bağla",
+      "close": "Bağlantı iletişim kutusunu kapat",
+      "instructions": "Aşağıdaki terminalde şunu çalıştır",
+      "afterComplete": "OAuth giriş akışını tamamla, ardından bu iletişim kutusunu kapat ve durumu yenilemek için \"Tekrar kontrol et\"e tıkla."
+    }
+  },
+  "users": {
+    "title": "Kullanıcılar",
+    "subtitle": "Çalışma alanı üyelerini ve davetleri yönet",
+    "inviteButton": "Kullanıcı Davet Et",
+    "listHeading": "Üyeler",
+    "loading": "Kullanıcılar yükleniyor...",
+    "empty": "Kullanıcı bulunamadı",
+    "you": "sen",
+    "changeRole": "Rolü değiştir",
+    "suspend": "Askıya al",
+    "activate": "Etkinleştir",
+    "resetPassword": "Şifreyi sıfırla",
+    "deleteUser": "Kullanıcıyı sil",
+    "deleteUserConfirm": "{{username}} kalıcı olarak silinsin mi? Bu işlem geri alınamaz.",
+    "reset": {
+      "title": "Şifreyi sıfırla",
+      "confirm": "{{username}} için şifre sıfırlansın mı?",
+      "warning": "Geçici bir şifre oluşturulacak ve yalnızca bir kez gösterilecek. Kullanıcı bir sonraki girişinde değiştirmek zorunda kalacak ve mevcut tüm oturumları sonlandırılacak.",
+      "submit": "Şifreyi sıfırla",
+      "resetting": "Sıfırlanıyor...",
+      "cancel": "İptal",
+      "close": "Kapat",
+      "done": "Bitti",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "successHint": "Bu geçici şifreyi güvenli şekilde paylaş. Yalnızca bir kez gösterilir.",
+      "tempPasswordLabel": "Geçici şifre"
+    },
+    "pendingInvites": "Bekleyen davetler",
+    "noPendingInvites": "Bekleyen davet yok",
+    "revoke": "İptal et",
+    "expiresAt": "{{date}} tarihinde sona eriyor",
+    "roles": {
+      "owner": "Sahip",
+      "admin": "Yönetici",
+      "user": "Kullanıcı"
+    },
+    "statuses": {
+      "active": "Aktif",
+      "disabled": "Askıya alındı"
+    },
+    "invite": {
+      "title": "Kullanıcı davet et",
+      "roleLabel": "Rol",
+      "roleHint": "Davet edilen kullanıcı bu rolle oluşturulacak.",
+      "submit": "Davet oluştur",
+      "creating": "Oluşturuluyor...",
+      "cancel": "İptal",
+      "close": "Kapat",
+      "done": "Bitti",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "successHint": "Bu tek kullanımlık bağlantıyı paylaş. Yalnızca bir kez gösterilir."
+    }
+  },
+  "providerSharing": {
+    "heading": "Sağlayıcı kimlik bilgisi paylaşımı",
+    "subtitle": "Her sağlayıcı için kimlik bilgilerinin tüm kullanıcılarda paylaşılıp paylaşılmayacağını veya kullanıcı başına izole edileceğini seç.",
+    "loading": "Paylaşım ayarları yükleniyor...",
+    "modeLabel": "{{provider}} için paylaşım modu",
+    "providers": {
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "codex": "Codex",
+      "agy": "Antigravity (agy)",
+      "cursor": "Cursor",
+      "kimi": "Kimi",
+      "deepseek": "DeepSeek",
+      "glm": "GLM"
+    },
+    "modes": {
+      "shared": "Paylaşımlı",
+      "isolated": "İzole"
+    },
+    "modeDescription": {
+      "shared": "Tüm kullanıcılar için aynı kimlik bilgileri",
+      "isolated": "Her kullanıcının kendi kimlik bilgileri var"
+    },
+    "agyWarning": {
+      "title": "Deneysel izolasyon",
+      "description": "Antigravity kimlik bilgilerini izole etmek deneyseldir ve etkili olması için etkin oturumların yeniden başlatılması gerekir."
+    },
+    "save": "Kaydet",
+    "saving": "Kaydediliyor...",
+    "saveStatus": {
+      "success": "Paylaşım ayarları başarıyla kaydedildi",
+      "error": "Paylaşım ayarları kaydedilemedi"
+    }
   },
   "notifications": {
     "title": "Bildirimler",
@@ -129,6 +380,26 @@
       "label": "Koyu Mod",
       "description": "Açık ve koyu temalar arasında geçiş yap"
     },
+    "themePresets": {
+      "title": "Tema",
+      "description": "Açık ve koyu mod üzerine uygulanan marka renkli hazır şemalar",
+      "groupLabel": "Tema şeması",
+      "presets": {
+        "default": "Varsayılan",
+        "claude": "Claude",
+        "alkindy": "El-Kindi",
+        "cursor": "Cursor",
+        "codex": "Codex",
+        "gemini": "Gemini",
+        "custom": "Özel"
+      },
+      "custom": {
+        "title": "Özel renkler",
+        "accent": "Vurgu",
+        "background": "Arka plan",
+        "foreground": "Metin"
+      }
+    },
     "projectSorting": {
       "label": "Proje Sıralama",
       "description": "Projelerin kenar çubuğunda nasıl sıralanacağı",
@@ -156,26 +427,6 @@
       "fontSize": {
         "label": "Yazı Tipi Boyutu",
         "description": "Editör yazı tipi boyutu (piksel)"
-      }
-    },
-    "themePresets": {
-      "title": "Theme",
-      "description": "Brand-tinted color presets applied on top of light and dark mode",
-      "groupLabel": "Theme preset",
-      "presets": {
-        "default": "Default",
-        "claude": "Claude",
-        "alkindy": "Al-Kindy",
-        "cursor": "Cursor",
-        "codex": "Codex",
-        "gemini": "Gemini",
-        "custom": "Custom"
-      },
-      "custom": {
-        "title": "Custom colors",
-        "accent": "Accent",
-        "background": "Background",
-        "foreground": "Text"
       }
     }
   },
@@ -349,7 +600,25 @@
       },
       "gemini": {
         "description": "Google Gemini AI asistanı"
+      },
+      "antigravity": {
+        "description": "agy CLI üzerinden Google AI Pro"
+      },
+      "opencode": {
+        "description": "OpenCode CLI asistanı"
+      },
+      "kimi": {
+        "description": "API anahtarı üzerinden Moonshot Kimi"
+      },
+      "deepseek": {
+        "description": "API anahtarı üzerinden DeepSeek"
+      },
+      "glm": {
+        "description": "API anahtarı üzerinden Zhipu / Z.ai GLM"
       }
+    },
+    "antigravity": {
+      "modelNote": "agy CLI (v1.x) üzerinden Google AI Pro kullanır. Etkin model bu arayüzden değil, agy ayarlarından seçilir."
     },
     "connectionStatus": "Bağlantı Durumu",
     "login": {
@@ -360,7 +629,21 @@
       "button": "Giriş Yap",
       "reLoginButton": "Tekrar Giriş Yap"
     },
-    "error": "Hata: {{error}}"
+    "error": "Hata: {{error}}",
+    "apiKey": {
+      "title": "API anahtarı ekle",
+      "replaceTitle": "API anahtarını değiştir",
+      "description": "Bu sağlayıcıyı etkinleştirmek için {{provider}} API anahtarını yapıştır. Şifreli olarak saklanır ve bir daha gösterilmez.",
+      "getKey": "Anahtar al",
+      "inputLabel": "{{provider}} API anahtarı",
+      "placeholder": "API anahtarını yapıştır",
+      "placeholderConfigured": "•••••••• (yapılandırıldı)",
+      "save": "Kaydet",
+      "saved": "API anahtarı kaydedildi.",
+      "remove": "Kaldır",
+      "removed": "API anahtarı kaldırıldı.",
+      "configuredNote": "Bir API anahtarı yapılandırıldı."
+    }
   },
   "permissions": {
     "title": "İzin Ayarları",
@@ -368,6 +651,10 @@
       "label": "İzin istemlerini atla (dikkatli kullan)",
       "claudeDescription": "--dangerously-skip-permissions bayrağının eşdeğeri",
       "cursorDescription": "Cursor CLI'daki -f bayrağının eşdeğeri"
+    },
+    "allowVendorDelegation": {
+      "label": "Alt görevleri diğer modellere devretmeye izin ver",
+      "description": "Claude'un bir çalışma sırasında tek bir alt görev için barındırılan bir satıcı modeline (Kimi, DeepSeek veya GLM) çağrı yapmasına izin verir; bu sağlayıcı için yapılandırılmış kendi API anahtarını kullanır. Claude motorunun kendisi değişmez. Varsayılan olarak kapalı."
     },
     "allowedTools": {
       "title": "İzin Verilen Araçlar",
@@ -434,6 +721,18 @@
         "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."
       }
     },
+    "antigravity": {
+      "title": "İzin Ayarları",
+      "description": "agy CLI kendi izin davranışını yönetir. Bu arayüzden yapılandırılacak izin verme veya engelleme listesi yoktur.",
+      "skipPermissions": {
+        "label": "İzin istemleri atlanıyor",
+        "description": "agy --dangerously-skip-permissions ile çalışır, bu nedenle oturum sırasında araç ve komut onayları istenmez."
+      },
+      "cliNote": {
+        "title": "İzinleri agy'de yapılandır",
+        "description": "İzin ve özerklik seçenekleri bu arayüzde değil, agy CLI ayarlarında bulunur."
+      }
+    },
     "actions": {
       "add": "Ekle"
     }
@@ -443,7 +742,8 @@
     "description": {
       "claude": "Model Context Protocol sunucuları Claude'a ek araçlar ve veri kaynakları sağlar",
       "cursor": "Model Context Protocol sunucuları Cursor'a ek araçlar ve veri kaynakları sağlar",
-      "codex": "Model Context Protocol sunucuları Codex'e ek araçlar ve veri kaynakları sağlar"
+      "codex": "Model Context Protocol sunucuları Codex'e ek araçlar ve veri kaynakları sağlar",
+      "opencode": "Model Context Protocol sunucuları OpenCode'a ek araçlar ve veri kaynakları sağlar"
     },
     "addButton": "MCP Sunucusu Ekle",
     "empty": "Yapılandırılmış MCP sunucusu yok",
@@ -495,6 +795,12 @@
     "starterPluginLabel": "Başlangıç Eklentisi",
     "starter": "Başlangıç",
     "docs": "Dokümanlar",
+    "sections": {
+      "officialTitle": "Resmi Eklentiler",
+      "officialDescription": "CloudCLI ekibi tarafından bakımı yapılır ve doğrudan kuruluma hazırdır.",
+      "unofficialTitle": "Diğer Eklentiler",
+      "unofficialDescription": "Diğer kullanıcılardan resmi olmayan eklentiler ve entegrasyonlar. Kurmadan önce kaynağı incele."
+    },
     "starterPlugin": {
       "name": "Proje İstatistikleri",
       "badge": "başlangıç",
@@ -507,57 +813,23 @@
       "description": "Arayüzün içinde tam shell erişimiyle entegre terminal.",
       "install": "Yükle"
     },
+    "scheduledPromptPlugin": {
+      "name": "Zamanlanmış Komut İstemleri",
+      "badge": "resmi olmayan",
+      "description": "Çalışma alanı komut istemlerini zamanla, çalıştırma geçmişini incele ve tekrarlanan yerel görevleri yönet.",
+      "install": "Yükle"
+    },
+    "claudeWatchPlugin": {
+      "name": "Claude Watch",
+      "badge": "resmi olmayan",
+      "description": "Uzun süre çalışan Claude Code oturumlarını takılmalar için izle ve süreç kontrolleri sun.",
+      "install": "Yükle"
+    },
     "morePlugins": "Daha Fazla",
     "enable": "Etkinleştir",
     "disable": "Devre Dışı Bırak",
     "installAriaLabel": "Eklenti git deposu URL'si",
     "tab": "sekme",
     "runningStatus": "çalışıyor"
-  },
-  "profile": {
-    "passkeys": {
-      "title": "Passkeys",
-      "description": "Sign in without a password using your fingerprint, face, device PIN, or a security key.",
-      "add": "Add passkey",
-      "nameLabel": "Passkey name (optional)",
-      "namePlaceholder": "e.g. Laptop fingerprint",
-      "create": "Create passkey",
-      "creating": "Waiting for your device...",
-      "cancel": "Cancel",
-      "loading": "Loading passkeys...",
-      "empty": "No passkeys yet. Add one to sign in to this workspace quickly and securely — no password needed.",
-      "notSupported": "This browser does not support passkeys, so new ones cannot be added here.",
-      "unnamed": "Unnamed passkey",
-      "createdAt": "Added {{date}}",
-      "lastUsedAt": "Last used {{date}}",
-      "neverUsed": "Never used",
-      "badges": {
-        "synced": "Synced",
-        "device": "Device-bound"
-      },
-      "rename": "Rename passkey",
-      "renamePlaceholder": "New name",
-      "renameSave": "Save name",
-      "delete": "Delete passkey",
-      "deleteConfirm": "Delete this passkey?",
-      "deleteConfirmYes": "Delete",
-      "success": {
-        "added": "Passkey added successfully",
-        "renamed": "Passkey renamed",
-        "deleted": "Passkey deleted"
-      },
-      "errors": {
-        "loadFailed": "Could not load your passkeys. Please try again.",
-        "registerFailed": "Could not create the passkey. Please try again.",
-        "duplicate": "This device or security key is already registered as a passkey.",
-        "renameFailed": "Could not rename the passkey.",
-        "deleteFailed": "Could not delete the passkey.",
-        "network": "Network error. Please check your connection and try again."
-      }
-    },
-    "tabs": {
-      "identity": "Kimlik",
-      "security": "Güvenlik"
-    }
   }
 }

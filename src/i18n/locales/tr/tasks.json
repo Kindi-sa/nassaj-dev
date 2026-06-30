@@ -81,7 +81,7 @@
     "clearFilters": "Filtreleri Temizle"
   },
   "sort": {
-    "id": "ID",
+    "id": "Kimlik",
     "status": "Durum",
     "priority": "Öncelik",
     "idAsc": "ID (Artan)",

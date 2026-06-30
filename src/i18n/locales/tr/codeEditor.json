@@ -22,7 +22,13 @@
     "fullscreen": "Tam ekran",
     "close": "Kapat",
     "previewMarkdown": "Markdown önizle",
-    "editMarkdown": "Markdown düzenle"
+    "editMarkdown": "Markdown düzenle",
+    "previewHtml": "HTML önizlemesini yeni sekmede aç"
+  },
+  "filePreview": {
+    "loading": "Önizleme yükleniyor...",
+    "error": "Bu dosya görüntülenemiyor.",
+    "openInNewTab": "Yeni sekmede aç"
   },
   "footer": {
     "lines": "Satır:",

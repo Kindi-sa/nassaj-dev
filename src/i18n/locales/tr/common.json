@@ -19,11 +19,11 @@
   },
   "tabs": {
     "chat": "Sohbet",
-    "shell": "Shell",
+    "shell": "Kabuk",
     "files": "Dosyalar",
     "git": "Kaynak Kontrolü",
     "tasks": "Görevler",
-    "board": "Project Board",
+    "board": "Proje Panosu",
     "wiki": "Wiki"
   },
   "wiki": {
@@ -82,7 +82,9 @@
     "version": "Sürüm",
     "select": "Seç",
     "selectAll": "Tümünü Seç",
-    "deselectAll": "Tümünün Seçimini Kaldır"
+    "deselectAll": "Tümünün Seçimini Kaldır",
+    "done": "Bitti",
+    "failed": "Başarısız"
   },
   "time": {
     "justNow": "Az önce",
@@ -109,7 +111,9 @@
     "createProjectDesktop": "Kenar çubuğundaki klasör simgesine tıklayarak yeni bir proje oluştur",
     "newSession": "Yeni Oturum",
     "untitledSession": "Adsız Oturum",
-    "projectFiles": "Proje Dosyaları"
+    "projectFiles": "Proje Dosyaları",
+    "sessionIdTooltip": "Oturum Kimliği: {{id}} — kopyalamak için tıkla",
+    "sessionIdCopy": "{{id}} oturum kimliğini kopyala"
   },
   "fileTree": {
     "loading": "Dosyalar yükleniyor...",
@@ -135,6 +139,11 @@
     "newFolder": "Yeni Klasör (Cmd+Shift+N)",
     "refresh": "Yenile",
     "collapseAll": "Tümünü Daralt",
+    "uploadFiles": "Dosya yükle (her biri maks. {{size}})",
+    "uploadingFiles": "Dosyalar yükleniyor",
+    "uploadComplete": "Yükleme tamamlandı",
+    "uploadFailed": "Yükleme başarısız",
+    "uploadedCount": "{{total}} {{label}} içinde {{uploaded}} yüklendi",
     "context": {
       "rename": "Yeniden Adlandır",
       "delete": "Sil",
@@ -301,13 +310,19 @@
     }
   },
   "sessionProcessState": {
-    "running": "Running",
-    "frozen": "Paused (frozen)",
-    "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "running": "Çalışıyor",
+    "frozen": "Duraklatıldı (dondurulmuş)",
+    "runningHint": "Oturum süreci çalışıyor",
+    "frozenHint": "Oturum süreci geçici olarak donduruldu (kill -STOP)",
     "projectBusyHint": "Bu projedeki bir oturum şu anda işleniyor",
     "done": "Bitti",
     "doneHint": "Oturum bitti ve henüz açılmadı",
     "projectDoneHint": "Bu projedeki bir oturum bitti ve henüz açılmadı"
+  },
+  "buildUpdate": {
+    "available": "Yeni bir yapı mevcut",
+    "reload": "Yeniden Yükle",
+    "ariaLabel": "Yeni yapı güncelleme bildirimi",
+    "dismiss": "Kapat"
   }
 }
