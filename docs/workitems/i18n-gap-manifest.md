@@ -6,90 +6,71 @@
 
 | lang | missing | orphan | untranslated | missing files |
 |---|---|---|---|---|
-| de | 483 | 1 | 217 | presence.json |
-| it | 470 | 0 | 206 | presence.json |
-| ja | 499 | 2 | 214 | presence.json |
-| ko | 580 | 1 | 213 | presence.json, tasks.json |
-| ru | 483 | 1 | 194 | presence.json |
-| tr | 470 | 0 | 199 | presence.json |
-| zh-CN | 579 | 1 | 208 | presence.json, tasks.json |
+| de | 0 | 0 | 86 | — |
+| it | 0 | 0 | 70 | — |
+| ja | 0 | 0 | 47 | — |
+| ko | 0 | 0 | 51 | — |
+| ru | 0 | 0 | 44 | — |
+| tr | 0 | 0 | 50 | — |
+| zh-CN | 0 | 0 | 48 | — |
 
 ## Per-namespace (only non-clean)
 
-### de (missing 483, orphan 1, untranslated 217)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 113, orphan 0, untranslated 19
-- `codeEditor.json`: missing 4, orphan 0, untranslated 0
-- `common.json`: missing 21, orphan 0, untranslated 15
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 195, orphan 1 [pluginSettings.buildYourOwn], untranslated 63
-- `sidebar.json`: missing 26, orphan 0, untranslated 11
-- `tasks.json`: missing 0, orphan 0, untranslated 4
+### de (missing 0, orphan 0, untranslated 86)
+- `chat.json`: missing 0, orphan 0, untranslated 20
+- `common.json`: missing 0, orphan 0, untranslated 8
+- `presence.json`: missing 0, orphan 0, untranslated 4
+- `projectBoard.json`: missing 0, orphan 0, untranslated 9
+- `settings.json`: missing 0, orphan 0, untranslated 35
+- `sidebar.json`: missing 0, orphan 0, untranslated 7
+- `tasks.json`: missing 0, orphan 0, untranslated 3
 
-### it (missing 470, orphan 0, untranslated 206)
-- `auth.json`: missing 32, orphan 0, untranslated 6
-- `chat.json`: missing 113, orphan 0, untranslated 19
-- `codeEditor.json`: missing 4, orphan 0, untranslated 0
-- `common.json`: missing 13, orphan 0, untranslated 10
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 190, orphan 0, untranslated 59
-- `sidebar.json`: missing 26, orphan 0, untranslated 10
+### it (missing 0, orphan 0, untranslated 70)
+- `auth.json`: missing 0, orphan 0, untranslated 3
+- `chat.json`: missing 0, orphan 0, untranslated 23
+- `common.json`: missing 0, orphan 0, untranslated 5
+- `presence.json`: missing 0, orphan 0, untranslated 4
+- `projectBoard.json`: missing 0, orphan 0, untranslated 9
+- `settings.json`: missing 0, orphan 0, untranslated 23
+- `sidebar.json`: missing 0, orphan 0, untranslated 3
+
+### ja (missing 0, orphan 0, untranslated 47)
+- `chat.json`: missing 0, orphan 0, untranslated 12
+- `common.json`: missing 0, orphan 0, untranslated 8
+- `projectBoard.json`: missing 0, orphan 0, untranslated 1
+- `settings.json`: missing 0, orphan 0, untranslated 24
+- `sidebar.json`: missing 0, orphan 0, untranslated 2
+
+### ko (missing 0, orphan 0, untranslated 51)
+- `chat.json`: missing 0, orphan 0, untranslated 13
+- `common.json`: missing 0, orphan 0, untranslated 5
+- `presence.json`: missing 0, orphan 0, untranslated 2
+- `projectBoard.json`: missing 0, orphan 0, untranslated 2
+- `settings.json`: missing 0, orphan 0, untranslated 27
+- `sidebar.json`: missing 0, orphan 0, untranslated 1
 - `tasks.json`: missing 0, orphan 0, untranslated 1
 
-### ja (missing 499, orphan 2, untranslated 214)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 132, orphan 0, untranslated 30
-- `codeEditor.json`: missing 6, orphan 0, untranslated 0
-- `common.json`: missing 13, orphan 0, untranslated 13
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 195, orphan 1 [pluginSettings.buildYourOwn], untranslated 57
-- `sidebar.json`: missing 29, orphan 1 [deleteConfirmation.sessionCount], untranslated 8
-- `tasks.json`: missing 0, orphan 0, untranslated 1
+### ru (missing 0, orphan 0, untranslated 44)
+- `chat.json`: missing 0, orphan 0, untranslated 12
+- `common.json`: missing 0, orphan 0, untranslated 3
+- `presence.json`: missing 0, orphan 0, untranslated 2
+- `projectBoard.json`: missing 0, orphan 0, untranslated 2
+- `settings.json`: missing 0, orphan 0, untranslated 24
+- `sidebar.json`: missing 0, orphan 0, untranslated 1
 
-### ko (missing 580, orphan 1, untranslated 213)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 121, orphan 0, untranslated 30
-- `codeEditor.json`: missing 6, orphan 0, untranslated 0
-- `common.json`: missing 13, orphan 0, untranslated 11
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 195, orphan 1 [pluginSettings.buildYourOwn], untranslated 59
-- `sidebar.json`: missing 27, orphan 0, untranslated 8
-- `tasks.json`: missing 94 **(FILE MISSING)**, orphan 0, untranslated 0
+### tr (missing 0, orphan 0, untranslated 50)
+- `chat.json`: missing 0, orphan 0, untranslated 14
+- `common.json`: missing 0, orphan 0, untranslated 5
+- `presence.json`: missing 0, orphan 0, untranslated 2
+- `projectBoard.json`: missing 0, orphan 0, untranslated 2
+- `settings.json`: missing 0, orphan 0, untranslated 24
+- `sidebar.json`: missing 0, orphan 0, untranslated 3
 
-### ru (missing 483, orphan 1, untranslated 194)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 113, orphan 0, untranslated 14
-- `codeEditor.json`: missing 4, orphan 0, untranslated 0
-- `common.json`: missing 21, orphan 0, untranslated 8
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 195, orphan 1 [pluginSettings.buildYourOwn], untranslated 58
-- `sidebar.json`: missing 26, orphan 0, untranslated 8
-- `tasks.json`: missing 0, orphan 0, untranslated 1
-
-### tr (missing 470, orphan 0, untranslated 199)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 113, orphan 0, untranslated 16
-- `codeEditor.json`: missing 4, orphan 0, untranslated 0
-- `common.json`: missing 13, orphan 0, untranslated 11
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 190, orphan 0, untranslated 57
-- `sidebar.json`: missing 26, orphan 0, untranslated 9
-- `tasks.json`: missing 0, orphan 0, untranslated 1
-
-### zh-CN (missing 579, orphan 1, untranslated 208)
-- `auth.json`: missing 32, orphan 0, untranslated 4
-- `chat.json`: missing 121, orphan 0, untranslated 29
-- `codeEditor.json`: missing 6, orphan 0, untranslated 0
-- `common.json`: missing 13, orphan 0, untranslated 10
-- `presence.json`: missing 24 **(FILE MISSING)**, orphan 0, untranslated 0
-- `projectBoard.json`: missing 68, orphan 0, untranslated 101
-- `settings.json`: missing 195, orphan 1 [pluginSettings.buildYourOwn], untranslated 56
-- `sidebar.json`: missing 26, orphan 0, untranslated 8
-- `tasks.json`: missing 94 **(FILE MISSING)**, orphan 0, untranslated 0
+### zh-CN (missing 0, orphan 0, untranslated 48)
+- `chat.json`: missing 0, orphan 0, untranslated 18
+- `common.json`: missing 0, orphan 0, untranslated 5
+- `presence.json`: missing 0, orphan 0, untranslated 2
+- `projectBoard.json`: missing 0, orphan 0, untranslated 1
+- `settings.json`: missing 0, orphan 0, untranslated 20
+- `sidebar.json`: missing 0, orphan 0, untranslated 2
 
