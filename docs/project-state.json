@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T16:55:00.000Z",
+  "updated": "2026-06-30T17:05:44.772Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2758,41 +2758,41 @@
       "id": "T-237",
       "kind": "bug",
       "phase": "P2",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend-dev",
       "issue": "B-100",
       "title": "أخذ تحصين QuestionAnswerContent من upstream #920 (ed4ae311): حارس Array.isArray + تصفية options غير الكائنية + typeof answer قبل split، على src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx.",
-      "note": "حالة 2026-06-30: الحارس مُطبَّق على القرص (Array.isArray×3 في QuestionAnswerContent.tsx) + اختبار 110 سطر (untracked)، لكن توقّفت ورشة wf_a816420d (B-103) قبل تحقّقي منه وقبل build:client. يلزم: إعادة تشغيل الاختبار + بناء + تحقّق قبل الإغلاق."
+      "note": "WS-A: مُلتزَم 786ad9e3 + متحقَّق (QuestionAnswerContent 7/7، typecheck 0) + مبنيّ منشور حيّاً 2026-06-30."
     },
     {
       "id": "T-238",
       "kind": "bug",
       "phase": "P2",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend-dev",
       "issue": "B-101",
       "title": "أخذ إصلاح regex من upstream #903 (4712431b): قصر نمط مطابقة المسافات في normalizeInlineCodeFences (chatFormatting.ts:14) على مسافة/تبويب فقط بدل أي مسافة بيضاء عبر الأسطر — موضعان داخل regex واحد.",
-      "note": "حالة 2026-06-30: مُطبَّق على القرص (chatFormatting.ts: النمط الفضفاض للمسافات → مسافة/تبويب). غير مبنيّ وغير متحقَّق بعد (B-103)."
+      "note": "WS-A: مُلتزَم 786ad9e3 (regex مسافة/تبويب) + typecheck 0 + مبنيّ حيّاً 2026-06-30."
     },
     {
       "id": "T-239",
       "kind": "bug",
       "phase": "P2",
-      "status": "pending",
+      "status": "in_progress",
       "owner": "frontend-dev",
       "issue": "B-102",
       "title": "أخذ مفاتيح sidebar.messages الناقصة من upstream #896 (7ca35565): 6 مفاتيح (updateProjectError/refreshError + 4 restore) لكل لغاتنا التسع، مع صياغة ar يدوية وإسقاط شرائح fr/zh-TW (غير موجودة لدينا).",
-      "note": "حالة 2026-06-30: ناقص — ar+en فقط من 9 لغات؛ de/it/ja/ko/ru/tr/zh-CN بلا المفاتيح الستة. توقّفت الورشة في منتصف الموجة (B-103). يلزم إكمال السبع المتبقّية بوكيل واحد + تحقّق JSON."
+      "note": "WS-A: ar+en مُلتزَمان 786ad9e3؛ de/it/ja/ko/ru/tr/zh-CN ضمن WS-D — إغلاق WS-D يُغلقه."
     },
     {
       "id": "T-240",
       "kind": "feature",
       "phase": "P2",
-      "status": "pending",
+      "status": "done",
       "owner": "frontend-dev",
       "issue": null,
       "title": "أخذ معاينة الوسائط/الفيديو + معاينة HTML داخل محرّر الكود من upstream #933 (2ebe64f2): ملفان جديدان (CodeEditorMediaPreview.tsx + utils/previewableFile.ts) + تعديلات صغيرة على CodeEditor/Header/useCodeEditorDocument + مفاتيح ar.",
-      "note": "موجة 3 (اختيارية، UX). الخادم جاهز: /api/projects/:id/files/content قائم ومحصّن بـisProjectVisible (آمن multi-user). سطوح XSS مغلقة سلفاً من المؤلّف (magic-bytes للـPDF، حجب فتح SVG، iframe.sandbox بلا allow-same-origin، revokeObjectURL). أضف مفاتيح ar (filePreview.*, actions.previewHtml) بوكيل واحد. build:client."
+      "note": "WS-C: منقول مُلتزَم 27902767 + تحصين SVG/PDF متحقَّق + مبنيّ حيّاً 2026-06-30."
     },
     {
       "id": "T-241",
@@ -3762,35 +3762,38 @@
     {
       "id": "B-100",
       "title": "QuestionAnswerContent ينهار على حمولة AskUserQuestion مشوّهة (قيمة questions صادقة لكن غير-مصفوفة) → ErrorBoundary يُسقط كامل واجهة المحادثة",
-      "status": "open",
+      "status": "done",
       "severity": "medium",
       "phase": "P2",
       "kind": "bug",
       "found": "2026-06-30",
       "triage": "medium → backlog؛ يُصلَح بأخذ إصلاح upstream #920 عبر T-237. مُكتشَف أثناء تحليل فجوة v1.35.0 (T-236).",
-      "description": "ملفنا src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx هو النسخة ما-قبل-الإصلاح حرفياً: السطر 18 فحص truthiness فقط (!questions || length===0)، والأسطر 77/113/151 تستدعي q.options.some/.map بلا حارس Array.isArray. toolConfigs.ts:479 defaultOpen:true يرسمه فور تحميل الجلسة؛ حارسا || [] (toolConfigs.ts:482 + ToolRenderer.tsx:241) يحميان من falsy فقط، فقيمة صادقة غير-مصفوفة (نص/كائن من transcript مشوّه أو مزوّد بديل agy/Hermes) تمرّ إلى .map → e.map is not a function. مؤكَّد بالكود (git+grep)."
+      "description": "ملفنا src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx هو النسخة ما-قبل-الإصلاح حرفياً: السطر 18 فحص truthiness فقط (!questions || length===0)، والأسطر 77/113/151 تستدعي q.options.some/.map بلا حارس Array.isArray. toolConfigs.ts:479 defaultOpen:true يرسمه فور تحميل الجلسة؛ حارسا || [] (toolConfigs.ts:482 + ToolRenderer.tsx:241) يحميان من falsy فقط، فقيمة صادقة غير-مصفوفة (نص/كائن من transcript مشوّه أو مزوّد بديل agy/Hermes) تمرّ إلى .map → e.map is not a function. مؤكَّد بالكود (git+grep).",
+      "note": "WS-A: مُلتزَم 786ad9e3 + متحقَّق (QuestionAnswerContent 7/7، typecheck 0) + مبنيّ منشور حيّاً 2026-06-30."
     },
     {
       "id": "B-101",
       "title": "regex normalizeInlineCodeFences يبتلع/يحطّم كتل code-fence المتجاورة إلى inline spans في كل رسالة مساعد",
-      "status": "open",
+      "status": "done",
       "severity": "low",
       "phase": "P2",
       "kind": "bug",
       "found": "2026-06-30",
       "triage": "low → backlog؛ يُصلَح بأخذ #903 عبر T-238. مُكتشَف في T-236.",
-      "description": "src/components/chat/utils/chatFormatting.ts:14 يطابق المسافات البيضاء بفضفاضة تعبر الأسطر، مطابق بايتياً لنسخة upstream قبل الإصلاح. الدالة تُستدعى بلا شرط على كل جسم رسالة مساعد (Markdown.tsx:152). كتلتا code-fence متجاورتان تُحطَّمان إلى inline spans. إصلاح upstream #903 (4712431b) يقصر المطابقة على مسافة/تبويب فقط. مؤكَّد تجريبياً (node)."
+      "description": "src/components/chat/utils/chatFormatting.ts:14 يطابق المسافات البيضاء بفضفاضة تعبر الأسطر، مطابق بايتياً لنسخة upstream قبل الإصلاح. الدالة تُستدعى بلا شرط على كل جسم رسالة مساعد (Markdown.tsx:152). كتلتا code-fence متجاورتان تُحطَّمان إلى inline spans. إصلاح upstream #903 (4712431b) يقصر المطابقة على مسافة/تبويب فقط. مؤكَّد تجريبياً (node).",
+      "note": "WS-A: مُلتزَم 786ad9e3 (regex مسافة/تبويب) + typecheck 0 + مبنيّ حيّاً 2026-06-30."
     },
     {
       "id": "B-102",
       "title": "مفاتيح sidebar.messages ناقصة (updateProjectError/refreshError + 4 restore) → سلسلة مفتاح خام أو إنجليزية في الشريط الجانبي RTL عند فشل rename/star/visibility/refresh/restore",
-      "status": "open",
+      "status": "in_progress",
       "severity": "low",
       "phase": "P2",
       "kind": "bug",
       "found": "2026-06-30",
       "triage": "low → backlog؛ يُصلَح بأخذ #896 عبر T-239. مُكتشَف في T-236.",
-      "description": "مواقع الاستدعاء في src/components/sidebar/hooks/useSidebarController.ts (updateProjectError L452/479/609/627، refreshError L700) بلا default inline، والمفاتيح غائبة من ar/sidebar.json وen/sidebar.json. عند الفشل يرى مستخدم ar وen السلسلة الخام messages.updateProjectError؛ ومفاتيح restore تتدهور إلى إنجليزية مثبّتة في واجهة ar. الإصلاح #896 (7ca35565) مع مراعاة أن لدينا 9 لغات لا 10 (de موجودة، fr/zh-TW غير موجودتين)."
+      "description": "مواقع الاستدعاء في src/components/sidebar/hooks/useSidebarController.ts (updateProjectError L452/479/609/627، refreshError L700) بلا default inline، والمفاتيح غائبة من ar/sidebar.json وen/sidebar.json. عند الفشل يرى مستخدم ar وen السلسلة الخام messages.updateProjectError؛ ومفاتيح restore تتدهور إلى إنجليزية مثبّتة في واجهة ar. الإصلاح #896 (7ca35565) مع مراعاة أن لدينا 9 لغات لا 10 (de موجودة، fr/zh-TW غير موجودتين).",
+      "note": "WS-A: ar+en مُلتزَمان 786ad9e3؛ de/it/ja/ko/ru/tr/zh-CN ضمن WS-D — إغلاق WS-D يُغلقه."
     },
     {
       "id": "B-103",
@@ -3845,13 +3848,14 @@
     {
       "id": "B-107",
       "title": "typecheck العميل أحمر (سابق على الفرع): LLMProvider يشمل hermes/sakana لكن خريطتَي Record<LLMProvider,string> ناقصتان + اختبار يستخدم 'anthropic'",
-      "status": "open",
+      "status": "done",
       "severity": "medium",
       "phase": "P7",
       "kind": "bug",
       "found": "2026-06-30",
       "triage": "medium → معزول في src/ فقط، لا يحجب أي بناء (build:server=tsc خادم فقط؛ build:client=vite/esbuild لا يفحص الأنواع) فلم يمنع نشر B-105/B-106. عيب نوعي حقيقي (hermes/sakana بلا تغطية → undefined وقت التشغيل في مسارات اختيار المزوّد). يُصلَح ضمن v1.35 قبل build:client.",
-      "description": "كشفه devops كبوّابة فحص قبل بناء B-105. npm run typecheck أحمر بـ3 أخطاء كلها في العميل: useChatProviderState.ts:37 (Record<LLMProvider> ناقص hermes+sakana)، ProviderSelectionEmptyState.tsx:275 (ناقص sakana)، useSessionStore.test.ts:27 ('anthropic' ليس LLMProvider صالحاً). الملفات متعقَّبة ومُلتزَمة (ليست من تعديلات v1.35 غير المُلتزَمة). الإصلاح: إضافة hermes/sakana للخريطتين + تصحيح قيمة الاختبار."
+      "description": "كشفه devops كبوّابة فحص قبل بناء B-105. npm run typecheck أحمر بـ3 أخطاء كلها في العميل: useChatProviderState.ts:37 (Record<LLMProvider> ناقص hermes+sakana)، ProviderSelectionEmptyState.tsx:275 (ناقص sakana)، useSessionStore.test.ts:27 ('anthropic' ليس LLMProvider صالحاً). الملفات متعقَّبة ومُلتزَمة (ليست من تعديلات v1.35 غير المُلتزَمة). الإصلاح: إضافة hermes/sakana للخريطتين + تصحيح قيمة الاختبار.",
+      "note": "WS-B: مُصلَح edc57727 (FALLBACK_DEFAULT_MODEL من المصدر الواحد + أصلح claude:opus)؛ typecheck 0."
     },
     {
       "id": "B-108",
