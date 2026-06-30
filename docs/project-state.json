@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T17:30:43.000Z",
+  "updated": "2026-06-30T17:37:31.226Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2778,11 +2778,11 @@
       "id": "T-239",
       "kind": "bug",
       "phase": "P2",
-      "status": "in_progress",
+      "status": "done",
       "owner": "frontend-dev",
       "issue": "B-102",
       "title": "أخذ مفاتيح sidebar.messages الناقصة من upstream #896 (7ca35565): 6 مفاتيح (updateProjectError/refreshError + 4 restore) لكل لغاتنا التسع، مع صياغة ar يدوية وإسقاط شرائح fr/zh-TW (غير موجودة لدينا).",
-      "note": "WS-A: ar+en مُلتزَمان 786ad9e3؛ de/it/ja/ko/ru/tr/zh-CN ضمن WS-D — إغلاق WS-D يُغلقه."
+      "note": "WS-D اكتمل 2026-06-30: السبع لغات missing=0 orphan=0 (GATE CLEAN)، البوابة مُرقّاة للجمع، #933 مُترجَم، مبنيّ حيّاً."
     },
     {
       "id": "T-240",
@@ -3797,14 +3797,14 @@
     {
       "id": "B-102",
       "title": "مفاتيح sidebar.messages ناقصة (updateProjectError/refreshError + 4 restore) → سلسلة مفتاح خام أو إنجليزية في الشريط الجانبي RTL عند فشل rename/star/visibility/refresh/restore",
-      "status": "in_progress",
+      "status": "done",
       "severity": "low",
       "phase": "P2",
       "kind": "bug",
       "found": "2026-06-30",
       "triage": "low → backlog؛ يُصلَح بأخذ #896 عبر T-239. مُكتشَف في T-236.",
       "description": "مواقع الاستدعاء في src/components/sidebar/hooks/useSidebarController.ts (updateProjectError L452/479/609/627، refreshError L700) بلا default inline، والمفاتيح غائبة من ar/sidebar.json وen/sidebar.json. عند الفشل يرى مستخدم ar وen السلسلة الخام messages.updateProjectError؛ ومفاتيح restore تتدهور إلى إنجليزية مثبّتة في واجهة ar. الإصلاح #896 (7ca35565) مع مراعاة أن لدينا 9 لغات لا 10 (de موجودة، fr/zh-TW غير موجودتين).",
-      "note": "WS-A: ar+en مُلتزَمان 786ad9e3؛ de/it/ja/ko/ru/tr/zh-CN ضمن WS-D — إغلاق WS-D يُغلقه."
+      "note": "WS-D اكتمل 2026-06-30: السبع لغات missing=0 orphan=0 (GATE CLEAN)، البوابة مُرقّاة للجمع، #933 مُترجَم، مبنيّ حيّاً."
     },
     {
       "id": "B-103",
