@@ -81,7 +81,7 @@
     "clearFilters": "フィルターをクリア"
   },
   "sort": {
-    "id": "ID",
+    "id": "番号",
     "status": "ステータス",
     "priority": "優先度",
     "idAsc": "ID（昇順）",

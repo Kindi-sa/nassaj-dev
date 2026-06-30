@@ -23,7 +23,7 @@
     "files": "ファイル",
     "git": "ソース管理",
     "tasks": "タスク",
-    "board": "Project Board",
+    "board": "プロジェクトボード",
     "wiki": "Wiki"
   },
   "wiki": {
@@ -82,7 +82,9 @@
     "version": "バージョン",
     "select": "選択",
     "selectAll": "すべて選択",
-    "deselectAll": "すべて解除"
+    "deselectAll": "すべて解除",
+    "done": "完了",
+    "failed": "失敗"
   },
   "time": {
     "justNow": "たった今",
@@ -109,7 +111,9 @@
     "createProjectDesktop": "サイドバーのフォルダアイコンをクリックして新しいプロジェクトを作成できます",
     "newSession": "新しいセッション",
     "untitledSession": "無題のセッション",
-    "projectFiles": "プロジェクトファイル"
+    "projectFiles": "プロジェクトファイル",
+    "sessionIdTooltip": "セッションID: {{id}} — クリックしてコピー",
+    "sessionIdCopy": "セッションID {{id}} をコピー"
   },
   "fileTree": {
     "loading": "ファイルを読み込んでいます...",
@@ -135,6 +139,11 @@
     "newFolder": "新規フォルダ (Cmd+Shift+N)",
     "refresh": "更新",
     "collapseAll": "すべて折りたたむ",
+    "uploadFiles": "ファイルをアップロード（各最大{{size}}）",
+    "uploadingFiles": "ファイルをアップロード中",
+    "uploadComplete": "アップロード完了",
+    "uploadFailed": "アップロードに失敗しました",
+    "uploadedCount": "{{total}}件中{{uploaded}}件をアップロードしました（{{label}}）",
     "context": {
       "rename": "名前を変更",
       "delete": "削除",
@@ -301,13 +310,19 @@
     }
   },
   "sessionProcessState": {
-    "running": "Running",
-    "frozen": "Paused (frozen)",
-    "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "running": "実行中",
+    "frozen": "一時停止中（フリーズ）",
+    "runningHint": "セッションプロセスが実行中です",
+    "frozenHint": "セッションプロセスが一時的に停止しています（kill -STOP）",
     "projectBusyHint": "このプロジェクトのセッションが処理中です",
     "done": "完了",
     "doneHint": "セッションが完了しました（未読）",
     "projectDoneHint": "このプロジェクトのセッションが完了しました（未読）"
+  },
+  "buildUpdate": {
+    "available": "新しいビルドが利用可能です",
+    "reload": "再読み込み",
+    "ariaLabel": "新しいビルド更新通知",
+    "dismiss": "閉じる"
   }
 }

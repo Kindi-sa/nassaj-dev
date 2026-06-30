@@ -1,4 +1,20 @@
 {
+  "contextRot": {
+    "label": "コンテキスト",
+    "barAria": "コンテキスト使用量",
+    "empty": "トークン使用量はまだありません",
+    "percentUsed": "実際のウィンドウの{{percent}}",
+    "tooltipUsed": "実際のウィンドウの使用量: {{used}} / {{total}}",
+    "tooltipCacheRead": "キャッシュ読み取り: {{value}}",
+    "popoverTitle": "コンテキスト使用量",
+    "close": "閉じる",
+    "levels": {
+      "safe": "安全 — コンテキストは健全です。",
+      "attention": "注意 — コンテキストが増えています。",
+      "warning": "劣化の可能性 — /compact またはサブエージェントを検討してください。",
+      "critical": "深刻な劣化 — 新しいセッションを開始してください。"
+    }
+  },
   "codeBlock": {
     "copy": "コピー",
     "copied": "コピーしました",
@@ -17,10 +33,40 @@
     "tool": "ツール",
     "claude": "Claude",
     "cursor": "Cursor",
-    "codex": "Codex"
+    "codex": "Codex",
+    "gemini": "Gemini",
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
+  },
+  "subagent": {
+    "badge": "サブエージェント",
+    "shortBadge": "サブエージェント",
+    "badgeLabel": "サブエージェントタスク"
+  },
+  "coordinator": {
+    "label": "コーディネーター",
+    "withName": "コーディネーター: {{username}}"
+  },
+  "userAuthor": {
+    "withName": "ユーザー: {{username}}"
   },
   "externalOrigin": {
     "label": "UIの外部で作成されました"
+  },
+  "coordinatorPrompt": {
+    "label": "コーディネーター → サブエージェント",
+    "ariaLabel": "コーディネーターからサブエージェントへのプロンプト"
+  },
+  "systemMessage": {
+    "label": "システムメッセージ",
+    "ariaLabel": "自動システムメッセージ"
+  },
+  "sessionNotResumable": {
+    "message": "このセッションは再開できません — プロバイダーに存在しなくなりました。",
+    "startNew": "新しいセッションを開始"
   },
   "tools": {
     "settings": "ツール設定",
@@ -91,25 +137,44 @@
     "permissionMode": "権限モード",
     "modes": {
       "default": "デフォルトモード",
-      "auto": "Auto Mode",
+      "auto": "自動モード",
       "acceptEdits": "編集を許可",
       "bypassPermissions": "権限をバイパス",
       "plan": "プランモード"
     },
     "descriptions": {
       "default": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
+      "auto": "モデル分類器がツール呼び出しごとに承認または拒否を判断します。ハンズオフですがバイパスより安全 — 拒否は発生します。",
       "acceptEdits": "ワークスペース内ですべてのコマンドを自動実行。サンドボックス環境での完全自動モード。",
       "bypassPermissions": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。",
       "plan": "プランニングモード - コマンドは実行されません"
     },
     "technicalDetails": "技術的な詳細"
   },
+  "gemini": {
+    "permissionMode": "Geminiの権限モード",
+    "description": "Gemini CLIが操作の承認をどのように処理するかを制御します。",
+    "modes": {
+      "default": {
+        "title": "標準（承認を要求）",
+        "description": "Geminiはコマンドの実行、ファイルの書き込み、Webリソースの取得前に承認を求めます。"
+      },
+      "autoEdit": {
+        "title": "自動編集（ファイル承認をスキップ）",
+        "description": "Geminiはファイル編集とWebの取得を自動承認しますが、シェルコマンドは引き続き確認します。"
+      },
+      "yolo": {
+        "title": "YOLO（すべての権限をバイパス）",
+        "description": "Geminiは承認なしにすべての操作を実行します。注意して使用してください。"
+      }
+    }
+  },
   "input": {
     "placeholder": "/ でコマンド、@ でファイル指定、または {{provider}} に何でも聞いてください...",
     "placeholderDefault": "メッセージを入力...",
     "disabled": "入力無効",
     "attachFiles": "ファイルを添付",
+    "attachFilesAndImages": "ファイルまたは画像を添付",
     "attachImages": "画像を添付",
     "send": "送信",
     "stop": "停止",
@@ -118,7 +183,18 @@
       "enter": "Enterで送信 • Shift+Enterで改行"
     },
     "clickToChangeMode": "クリックで権限モードを変更（または入力欄でTab）",
-    "showAllCommands": "すべてのコマンドを表示"
+    "showAllCommands": "すべてのコマンドを表示",
+    "clearInput": "入力をクリア",
+    "scrollToBottom": "一番下へスクロール",
+    "dropFilesHere": "ここにファイルをドロップ",
+    "nonClaudeAttachmentHint": "添付ファイルはClaudeでのみ使用されます"
+  },
+  "fileAttachment": {
+    "removeFile": "ファイルを削除",
+    "uploading": "アップロード中…",
+    "errorType": "このファイル形式は許可されていません",
+    "errorSize": "ファイルが大きすぎます（最大50 MB）",
+    "errorCount": "添付ファイルが多すぎます（最大{{max}}件）"
   },
   "effortMode": {
     "selector": {
@@ -133,27 +209,27 @@
         "description": "effortパラメータなし — Claudeのデフォルト動作"
       },
       "auto": {
-        "name": "auto",
-        "description": "モデルが複雑さに基づいて自動的に努力を選択"
+        "name": "自動",
+        "description": "モデルがリクエストの複雑さに基づいて努力を選択"
       },
       "low": {
-        "name": "low",
+        "name": "低",
         "description": "高速で軽量な応答 — 簡単な質問に最適"
       },
       "medium": {
-        "name": "medium",
+        "name": "中",
         "description": "深さと速度のバランス"
       },
       "high": {
-        "name": "high",
+        "name": "高",
         "description": "複雑なタスクのより深い推論"
       },
       "xhigh": {
-        "name": "xhigh",
+        "name": "最高",
         "description": "要求の高い問題への非常に高い努力"
       },
       "max": {
-        "name": "max",
+        "name": "最大",
         "description": "最大努力 — フル計算バジェット"
       },
       "ultracode": {
@@ -169,17 +245,39 @@
     "description": "新しい会話を始めるプロバイダーを選択してください",
     "selectModel": "モデルを選択",
     "providerInfo": {
-      "anthropic": "by Anthropic",
-      "openai": "by OpenAI",
-      "cursorEditor": "AIコードエディタ"
+      "anthropic": "Anthropic製",
+      "openai": "OpenAI製",
+      "cursorEditor": "AIコードエディタ",
+      "google": "Google製"
     },
     "readyPrompt": {
       "claude": "{{model}}でClaudeを使用する準備ができました。下にメッセージを入力してください。",
       "cursor": "{{model}}でCursorを使用する準備ができました。下にメッセージを入力してください。",
       "codex": "{{model}}でCodexを使用する準備ができました。下にメッセージを入力してください。",
-      "default": "上からプロバイダーを選択して開始してください"
+      "gemini": "{{model}}でGeminiを使用する準備ができました。下にメッセージを入力してください。",
+      "antigravity": "Antigravity（agy）を使用する準備ができました。モデルはagyの設定で選択されます。",
+      "opencode": "{{model}}でOpenCodeを使用する準備ができました。下にメッセージを入力してください。",
+      "default": "上からプロバイダーを選択して開始してください",
+      "kimi": "{{model}}でKimiを使用する準備ができました。下にメッセージを入力してください。",
+      "deepseek": "{{model}}でDeepSeekを使用する準備ができました。下にメッセージを入力してください。",
+      "glm": "{{model}}でGLMを使用する準備ができました。下にメッセージを入力してください。",
+      "claudeEngine": "準備完了: Claudeエンジンが{{provider}}上で{{model}}を使用して実行中です。下にメッセージを入力してください。"
     },
-    "pressToSearch": "<kbd>{{shortcut}}</kbd> を押してセッション、ファイル、コミットを検索"
+    "antigravity": {
+      "activeModel": "アクティブモデル",
+      "activeModelLabel": "アクティブモデル",
+      "loading": "読み込み中…",
+      "unknown": "不明"
+    },
+    "pressToSearch": "<kbd>{{shortcut}}</kbd> を押してセッション、ファイル、コミットを検索",
+    "refresh": {
+      "button": "モデルと認証状態を更新",
+      "refreshing": "更新中…"
+    },
+    "providerUnavailable": "プロバイダーは利用できません",
+    "signIn": "サインイン",
+    "addApiKey": "{{provider}} APIキーを追加して有効化",
+    "engineOnVendor": "{{provider}}上のClaudeエンジン"
   },
   "session": {
     "continue": {
@@ -194,7 +292,11 @@
       "showingOf": "{{total}}件中{{shown}}件を表示",
       "scrollToLoad": "上にスクロールしてさらに読み込む",
       "showingLast": "最新{{count}}件を表示（全{{total}}件）",
-      "loadEarlier": "過去のメッセージを読み込む"
+      "loadEarlier": "過去のメッセージを読み込む",
+      "loadAll": "すべてのメッセージを読み込む",
+      "loadingAll": "すべてのメッセージを読み込んでいます...",
+      "allLoaded": "すべてのメッセージを読み込みました",
+      "perfWarning": "すべてのメッセージを読み込みました — スクロールが遅くなる場合があります。「一番下へスクロール」をクリックするとパフォーマンスが回復します。"
     }
   },
   "shell": {
@@ -211,7 +313,7 @@
       "disconnect": "切断",
       "disconnectTitle": "シェルから切断",
       "restart": "再起動",
-      "restartTitle": "シェルを再起動（先に切断してください）",
+      "restartTitle": "シェルを再起動",
       "connect": "シェルで続行",
       "connectTitle": "シェルに接続"
     },
@@ -225,35 +327,113 @@
   },
   "claudeStatus": {
     "actions": {
-      "thinking": "Thinking",
-      "processing": "Processing",
-      "analyzing": "Analyzing",
-      "working": "Working",
-      "computing": "Computing",
-      "reasoning": "Reasoning"
+      "thinking": "思考中",
+      "processing": "処理中",
+      "analyzing": "分析中",
+      "working": "作業中",
+      "computing": "計算中",
+      "reasoning": "推論中"
     },
     "state": {
-      "live": "Live",
-      "paused": "Paused"
+      "live": "ライブ",
+      "paused": "一時停止"
     },
     "elapsed": {
-      "seconds": "{{count}}s",
-      "minutesSeconds": "{{minutes}}m {{seconds}}s",
-      "label": "{{time}} elapsed",
-      "startingNow": "Starting now"
+      "seconds": "{{count}}秒",
+      "minutesSeconds": "{{minutes}}分{{seconds}}秒",
+      "label": "{{time}}経過",
+      "startingNow": "開始中"
     },
     "controls": {
-      "stopGeneration": "Stop Generation",
-      "pressEscToStop": "Press Esc anytime to stop"
+      "stopGeneration": "生成を停止",
+      "pressEscToStop": "Escキーでいつでも停止"
     },
     "providers": {
-      "assistant": "Assistant"
+      "assistant": "アシスタント"
     },
-    "frozen": "Paused (process frozen)"
+    "frozen": "一時停止中（プロセスフリーズ）"
+  },
+  "runProgress": {
+    "tasksLabel": "タスク",
+    "barAria": "タスクの進捗",
+    "tasksTooltip": "タスク: {{total}}件中{{done}}件完了",
+    "inProgressTooltip_one": "{{count}}件が進行中",
+    "inProgressTooltip_other": "{{count}}件が進行中",
+    "agentsTooltip": "サブエージェント: {{done}}/{{total}}",
+    "agentWorking": "エージェント · {{calls}}",
+    "agentWorkingTooltip": "サブエージェント作業中: {{calls}}回の呼び出し",
+    "estimateRemaining": "≈ 残り{{time}}",
+    "estimating": "見積もり中…",
+    "estimateTooltip": "概算 — これまでの完了タスクに基づいています。"
+  },
+  "agentActivity": {
+    "title": "エージェントの活動",
+    "summary": "{{total}}件中{{running}}件が実行中",
+    "running": "実行中",
+    "done": "完了",
+    "currently": "現在",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}}回のツール呼び出し",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "ツール履歴は近日公開予定です。",
+    "noTools": "ツール呼び出しはまだ記録されていません。",
+    "toolSuccess": "完了",
+    "toolRunning": "実行中"
+  },
+  "projectSelection": {
+    "startChatWithProvider": "{{provider}}でチャットを開始するプロジェクトを選択してください"
+  },
+  "tasks": {
+    "nextTaskPrompt": "次のタスクを開始"
   },
   "participants": {
     "hide": "参加者バーを非表示",
-    "show": "参加者バーを表示"
+    "show": "参加者バーを表示",
+    "lastSeen": "最終確認",
+    "invocations_one": "{{count}}回の呼び出し",
+    "invocations_other": "{{count}}回の呼び出し",
+    "usersAria_one": "{{count}}名の参加者",
+    "usersAria_other": "{{count}}名の参加者",
+    "barAria": "会話の参加者",
+    "openSessionsNow": "アクティブな会話",
+    "openSessionsNowCount": "{{count}}件のアクティブな会話",
+    "andMore_one": "他{{count}}名",
+    "andMore_other": "他{{count}}名",
+    "projectSummary": "{{users}}名のユーザー · {{agents}}件のエージェント",
+    "roles": {
+      "owner": "オーナー",
+      "admin": "管理者",
+      "user": "メンバー"
+    },
+    "agentKinds": {
+      "model": "ベースモデル",
+      "subagent": "サブエージェント"
+    },
+    "agentSummary_one": "{{count}}件のエージェント",
+    "agentSummary_other": "{{count}}件のエージェント",
+    "totalInvocations_one": "{{count}}回の呼び出し",
+    "totalInvocations_other": "{{count}}回の呼び出し",
+    "agentSummaryAria": "{{agents}}種類のエージェント · 合計{{calls}}回の呼び出し",
+    "unknownAuthor": "不明な作者",
+    "toggleShow": "エージェントパネルを表示",
+    "toggleHide": "エージェントパネルを非表示"
+  },
+  "ws": {
+    "statusConnected": "接続済み",
+    "statusReconnecting": "再接続中…",
+    "statusDisconnected": "切断済み",
+    "ariaConnected": "WebSocket接続済み",
+    "ariaReconnecting": "WebSocket再接続中",
+    "ariaDisconnected": "WebSocket切断済み",
+    "sendFailed": "メッセージを送信できませんでした — 接続が失われました",
+    "sendDisabledTitle": "送信不可 — 接続が失われました"
+  },
+  "serverError": {
+    "project_dir_missing": "プロジェクトフォルダがディスク上に見つかりません",
+    "cli_not_installed": "CLIがインストールされていません — 必要なCLIツールをインストールしてください",
+    "spawn_failed": "プロセスの起動に失敗しました — サーバーログを確認してください",
+    "session_create_failed": "新しいセッションを開始できませんでした — もう一度お試しください",
+    "unknown": "予期しないサーバーエラーが発生しました"
   },
   "refreshChat": {
     "button": "チャットを更新",

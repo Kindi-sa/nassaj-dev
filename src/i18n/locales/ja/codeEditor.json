@@ -20,7 +20,15 @@
     "saved": "保存しました！",
     "exitFullscreen": "全画面を終了",
     "fullscreen": "全画面",
-    "close": "閉じる"
+    "close": "閉じる",
+    "previewMarkdown": "マークダウンをプレビュー",
+    "editMarkdown": "マークダウンを編集",
+    "previewHtml": "新しいタブでHTMLプレビューを開く"
+  },
+  "filePreview": {
+    "loading": "プレビューを読み込んでいます...",
+    "error": "このファイルを表示できません。",
+    "openInNewTab": "新しいタブで開く"
   },
   "footer": {
     "lines": "行数:",
