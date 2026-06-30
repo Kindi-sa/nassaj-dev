@@ -23,12 +23,12 @@
     "files": "Dateien",
     "git": "Quellcodeverwaltung",
     "tasks": "Aufgaben",
-    "board": "Project Board",
+    "board": "Projektboard",
     "wiki": "Wiki"
   },
   "wiki": {
-    "title": "Nassaj Wiki",
-    "panelAriaLabel": "Nassaj Wiki",
+    "title": "Nassaj-Wiki",
+    "panelAriaLabel": "Nassaj-Wiki",
     "sidebarAriaLabel": "Wiki-Index",
     "closeSidebar": "Index ausblenden",
     "openSidebar": "Index anzeigen",
@@ -82,7 +82,9 @@
     "version": "Version",
     "select": "Auswählen",
     "selectAll": "Alle auswählen",
-    "deselectAll": "Alle abwählen"
+    "deselectAll": "Alle abwählen",
+    "done": "Fertig",
+    "failed": "Fehlgeschlagen"
   },
   "time": {
     "justNow": "Gerade eben",
@@ -109,7 +111,9 @@
     "createProjectDesktop": "Erstell ein neues Projekt, indem du auf das Ordnersymbol in der Seitenleiste klickst",
     "newSession": "Neue Sitzung",
     "untitledSession": "Unbenannte Sitzung",
-    "projectFiles": "Projektdateien"
+    "projectFiles": "Projektdateien",
+    "sessionIdTooltip": "Sitzungs-ID: {{id}} — zum Kopieren klicken",
+    "sessionIdCopy": "Sitzungs-ID {{id}} kopieren"
   },
   "fileTree": {
     "loading": "Dateien werden geladen...",
@@ -135,6 +139,11 @@
     "newFolder": "Neuer Ordner (Cmd+Shift+N)",
     "refresh": "Aktualisieren",
     "collapseAll": "Alle einklappen",
+    "uploadFiles": "Dateien hochladen (max. {{size}} pro Datei)",
+    "uploadingFiles": "Dateien werden hochgeladen",
+    "uploadComplete": "Upload abgeschlossen",
+    "uploadFailed": "Upload fehlgeschlagen",
+    "uploadedCount": "{{uploaded}} von {{total}} {{label}} hochgeladen",
     "context": {
       "rename": "Umbenennen",
       "delete": "Löschen",
@@ -241,6 +250,36 @@
       "failedToCreateFolder": "Ordner konnte nicht erstellt werden"
     }
   },
+  "notifications": {
+    "genericTool": "ein Werkzeug",
+    "codes": {
+      "generic": {
+        "info": {
+          "title": "Benachrichtigung"
+        }
+      },
+      "permission": {
+        "required": {
+          "title": "Aktion erforderlich",
+          "body": "{{toolName}} wartet auf deine Entscheidung."
+        }
+      },
+      "run": {
+        "stopped": {
+          "title": "Lauf gestoppt",
+          "body": "Grund: {{reason}}"
+        },
+        "failed": {
+          "title": "Lauf fehlgeschlagen"
+        }
+      },
+      "agent": {
+        "notification": {
+          "title": "Agenten-Benachrichtigung"
+        }
+      }
+    }
+  },
   "versionUpdate": {
     "title": "Update verfügbar",
     "newVersionReady": "Eine neue Version ist verfügbar",
@@ -271,13 +310,19 @@
     }
   },
   "sessionProcessState": {
-    "running": "Running",
-    "frozen": "Paused (frozen)",
-    "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "running": "Läuft",
+    "frozen": "Pausiert (eingefroren)",
+    "runningHint": "Sitzungsprozess läuft",
+    "frozenHint": "Sitzungsprozess ist vorübergehend eingefroren (kill -STOP)",
     "projectBusyHint": "Eine Sitzung in diesem Projekt wird gerade verarbeitet",
     "done": "Fertig",
     "doneHint": "Sitzung beendet und noch nicht geöffnet",
     "projectDoneHint": "Eine Sitzung in diesem Projekt ist beendet und wurde noch nicht geöffnet"
+  },
+  "buildUpdate": {
+    "available": "Ein neuer Build ist verfügbar",
+    "reload": "Neu laden",
+    "ariaLabel": "Benachrichtigung über neuen Build",
+    "dismiss": "Schließen"
   }
 }

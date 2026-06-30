@@ -22,7 +22,13 @@
     "fullscreen": "Vollbild",
     "close": "Schließen",
     "previewMarkdown": "Markdown-Vorschau",
-    "editMarkdown": "Markdown bearbeiten"
+    "editMarkdown": "Markdown bearbeiten",
+    "previewHtml": "HTML-Vorschau in neuem Tab öffnen"
+  },
+  "filePreview": {
+    "loading": "Vorschau wird geladen...",
+    "error": "Diese Datei kann nicht angezeigt werden.",
+    "openInNewTab": "In neuem Tab öffnen"
   },
   "footer": {
     "lines": "Zeilen:",

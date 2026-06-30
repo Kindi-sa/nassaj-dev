@@ -63,6 +63,7 @@
     "showThinking": "Denken anzeigen",
     "hideToolCalls": "Tool-Aufrufe ausblenden",
     "autoScrollToBottom": "Automatisch nach unten scrollen",
+    "tabsIconOnly": "Kompakte Tabs (nur Symbole)",
     "sendByCtrlEnter": "Mit Strg+Enter senden",
     "sendByCtrlEnterDescription": "Wenn aktiviert, sendet Strg+Enter die Nachricht anstelle von Enter. Dies ist nützlich für IME-Benutzer:innen, um versehentliches Senden zu vermeiden.",
     "dragHandle": {
@@ -71,6 +72,22 @@
       "openPanel": "Einstellungspanel öffnen",
       "draggingStatus": "Wird gezogen...",
       "toggleAndMove": "Klicken zum Umschalten, ziehen zum Verschieben"
+    }
+  },
+  "claudeUsage": {
+    "title": "Claude-Nutzung",
+    "loading": "Nutzung wird geladen…",
+    "error": "Nutzungsstatus konnte nicht geladen werden.",
+    "stale": "Gecachte Daten",
+    "percentUsed": "{{percent}} verwendet",
+    "resetsIn": "Zurückgesetzt {{time}}",
+    "extraUsageDetail": "{{used}} von {{limit}} verwendet",
+    "windows": {
+      "session": "Aktuelle Sitzung",
+      "weeklyAllModels": "Alle Modelle (wöchentlich)",
+      "weeklySonnet": "Nur Sonnet",
+      "weeklyOpus": "Nur Opus",
+      "extraUsage": "Zusätzliche Nutzung"
     }
   },
   "terminalShortcuts": {
@@ -90,6 +107,7 @@
   },
   "mainTabs": {
     "label": "Einstellungen",
+    "profile": "Profil",
     "agents": "Agenten",
     "appearance": "Darstellung",
     "git": "Git",
@@ -97,7 +115,240 @@
     "tasks": "Aufgaben",
     "notifications": "Benachrichtigungen",
     "plugins": "Plugins",
+    "users": "Benutzer:innen",
     "about": "Info"
+  },
+  "profile": {
+    "title": "Profil",
+    "subtitle": "Benutzername, Passwort und Passkeys deines Kontos verwalten",
+    "tabs": {
+      "identity": "Identität",
+      "security": "Sicherheit"
+    },
+    "saving": "Wird gespeichert...",
+    "avatar": {
+      "title": "Profilbild",
+      "description": "Füge ein Foto hinzu, damit Teammitglieder dich erkennen.",
+      "change": "Bild ändern",
+      "uploading": "Wird hochgeladen...",
+      "hint": "Quadratische Bilder eignen sich am besten. PNG oder JPG.",
+      "currentAlt": "Dein Profilbild",
+      "placeholderAlt": "Kein Profilbild festgelegt",
+      "success": "Profilbild erfolgreich aktualisiert",
+      "errors": {
+        "uploadFailed": "Bild konnte nicht hochgeladen werden. Bitte erneut versuchen.",
+        "network": "Netzwerkfehler. Bitte Verbindung prüfen und erneut versuchen."
+      }
+    },
+    "username": {
+      "title": "Benutzername ändern",
+      "description": "Benutzernamen aktualisieren, den du zum Anmelden verwendest.",
+      "currentLabel": "Aktueller Benutzername",
+      "newLabel": "Neuer Benutzername",
+      "placeholder": "Neuen Benutzernamen wählen",
+      "hint": "3–32 Zeichen: Buchstaben, Zahlen oder Unterstrich.",
+      "save": "Benutzername speichern",
+      "success": "Benutzername erfolgreich aktualisiert",
+      "errors": {
+        "required": "Bitte gib einen neuen Benutzernamen ein",
+        "unchanged": "Der neue Benutzername ist derselbe wie der aktuelle"
+      }
+    },
+    "password": {
+      "title": "Passwort ändern",
+      "description": "Verwende ein starkes Passwort, das du nirgendwo sonst verwendest.",
+      "currentLabel": "Aktuelles Passwort",
+      "currentPlaceholder": "Aktuelles Passwort eingeben",
+      "newLabel": "Neues Passwort",
+      "newPlaceholder": "Neues Passwort eingeben",
+      "confirmLabel": "Neues Passwort bestätigen",
+      "confirmPlaceholder": "Neues Passwort erneut eingeben",
+      "hint": "Mindestens {{min}} Zeichen.",
+      "save": "Passwort speichern",
+      "success": "Passwort erfolgreich geändert",
+      "errors": {
+        "required": "Bitte alle Passwortfelder ausfüllen",
+        "short": "Passwort muss mindestens {{min}} Zeichen haben",
+        "mismatch": "Neue Passwörter stimmen nicht überein"
+      }
+    },
+    "passkeys": {
+      "title": "Passkeys",
+      "description": "Meld dich ohne Passwort an — mit Fingerabdruck, Gesichtserkennung, Geräte-PIN oder einem Sicherheitsschlüssel.",
+      "add": "Passkey hinzufügen",
+      "nameLabel": "Passkey-Name (optional)",
+      "namePlaceholder": "z. B. Laptop-Fingerabdruck",
+      "create": "Passkey erstellen",
+      "creating": "Warte auf dein Gerät...",
+      "cancel": "Abbrechen",
+      "loading": "Passkeys werden geladen...",
+      "empty": "Noch keine Passkeys. Füge einen hinzu, um dich schnell und sicher anzumelden — ohne Passwort.",
+      "notSupported": "Dieser Browser unterstützt keine Passkeys, daher können hier keine neuen hinzugefügt werden.",
+      "unnamed": "Unbenannter Passkey",
+      "createdAt": "Hinzugefügt {{date}}",
+      "lastUsedAt": "Zuletzt verwendet {{date}}",
+      "neverUsed": "Nie verwendet",
+      "badges": {
+        "synced": "Synchronisiert",
+        "device": "Gerätegebunden"
+      },
+      "rename": "Passkey umbenennen",
+      "renamePlaceholder": "Neuer Name",
+      "renameSave": "Namen speichern",
+      "delete": "Passkey löschen",
+      "deleteConfirm": "Diesen Passkey löschen?",
+      "deleteConfirmYes": "Löschen",
+      "success": {
+        "added": "Passkey erfolgreich hinzugefügt",
+        "renamed": "Passkey umbenannt",
+        "deleted": "Passkey gelöscht"
+      },
+      "errors": {
+        "loadFailed": "Passkeys konnten nicht geladen werden. Bitte erneut versuchen.",
+        "registerFailed": "Passkey konnte nicht erstellt werden. Bitte erneut versuchen.",
+        "duplicate": "Dieses Gerät oder dieser Sicherheitsschlüssel ist bereits als Passkey registriert.",
+        "renameFailed": "Passkey konnte nicht umbenannt werden.",
+        "deleteFailed": "Passkey konnte nicht gelöscht werden.",
+        "network": "Netzwerkfehler. Bitte Verbindung prüfen und erneut versuchen."
+      }
+    },
+    "identity": {
+      "title": "Avatar-Stil",
+      "description": "Wähl einen fertigen Avatar oder eine Farbe, anstatt ein Foto hochzuladen.",
+      "tabs": {
+        "upload": "Hochladen",
+        "gallery": "Galerie",
+        "color": "Farbe"
+      },
+      "gallery": {
+        "heading": "Avatar wählen",
+        "selected": "Ausgewählter Avatar"
+      },
+      "color": {
+        "heading": "Farbe wählen",
+        "hint": "Die Farbe wird hinter deinem Initial verwendet.",
+        "selected": "Ausgewählte Farbe"
+      },
+      "saving": "Wird gespeichert...",
+      "success": "Avatar erfolgreich aktualisiert",
+      "errors": {
+        "saveFailed": "Auswahl konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        "network": "Netzwerkfehler. Bitte Verbindung prüfen und erneut versuchen."
+      }
+    }
+  },
+  "claudeConnection": {
+    "description": "Verknüpfe dein eigenes Claude-Abonnement zur Nutzung in deinen Sitzungen. Jeder Benutzer hat sein eigenes isoliertes Anmeldedaten.",
+    "recheck": "Erneut prüfen",
+    "loadError": "Abonnementstatus konnte nicht geprüft werden. Bitte erneut versuchen.",
+    "banner": "Dein Claude-Abonnement ist noch nicht verknüpft. Du musst es verknüpfen, bevor du Claude in deinen Sitzungen verwenden kannst.",
+    "bannerHint": "Klick auf die Schaltfläche unten, um das Terminal zu öffnen und den Anmeldevorgang abzuschließen.",
+    "linkButton": "Claude-Konto verknüpfen",
+    "ownerNote": "Deine Anmeldedaten werden als Eigentümer:in automatisch verknüpft — keine Aktion erforderlich."
+  },
+  "agyConnection": {
+    "description": "Verknüpfe dein eigenes Antigravity-Abonnement zur Nutzung in deinen Sitzungen. Jeder Benutzer hat sein eigenes isoliertes Anmeldedaten.",
+    "recheck": "Erneut prüfen",
+    "loadError": "Abonnementstatus konnte nicht geprüft werden. Bitte erneut versuchen.",
+    "banner": "Dein Antigravity-Abonnement ist noch nicht verknüpft. Du musst es verknüpfen, bevor du agy in deinen Sitzungen verwenden kannst.",
+    "bannerHint": "Klick auf die Schaltfläche unten, um das Terminal zu öffnen und folgenden Befehl auszuführen:",
+    "linkButton": "Antigravity-Konto verknüpfen",
+    "ownerNote": "Deine Anmeldedaten werden als Eigentümer:in automatisch verknüpft — keine Aktion erforderlich.",
+    "modal": {
+      "title": "Antigravity-Konto verknüpfen",
+      "close": "Verknüpfungsdialog schließen",
+      "instructions": "Führe im Terminal unten folgenden Befehl aus:",
+      "afterComplete": "Schließe den OAuth-Anmeldevorgang ab, dann schließe diesen Dialog und klick auf \"Erneut prüfen\", um den Status zu aktualisieren."
+    }
+  },
+  "users": {
+    "title": "Benutzer:innen",
+    "subtitle": "Workspace-Mitglieder und Einladungen verwalten",
+    "inviteButton": "Benutzer:in einladen",
+    "listHeading": "Mitglieder",
+    "loading": "Benutzer:innen werden geladen...",
+    "empty": "Keine Benutzer:innen gefunden",
+    "you": "du",
+    "changeRole": "Rolle ändern",
+    "suspend": "Sperren",
+    "activate": "Aktivieren",
+    "resetPassword": "Passwort zurücksetzen",
+    "deleteUser": "Benutzer:in löschen",
+    "deleteUserConfirm": "{{username}} dauerhaft löschen? Das kann nicht rückgängig gemacht werden.",
+    "reset": {
+      "title": "Passwort zurücksetzen",
+      "confirm": "Passwort für {{username}} zurücksetzen?",
+      "warning": "Ein temporäres Passwort wird generiert und einmal angezeigt. Die Benutzer:in muss es bei der nächsten Anmeldung ändern, und alle bestehenden Sitzungen werden abgemeldet.",
+      "submit": "Passwort zurücksetzen",
+      "resetting": "Wird zurückgesetzt...",
+      "cancel": "Abbrechen",
+      "close": "Schließen",
+      "done": "Fertig",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "successHint": "Teile dieses temporäre Passwort sicher. Es wird nur einmal angezeigt.",
+      "tempPasswordLabel": "Temporäres Passwort"
+    },
+    "pendingInvites": "Ausstehende Einladungen",
+    "noPendingInvites": "Keine ausstehenden Einladungen",
+    "revoke": "Widerrufen",
+    "expiresAt": "Läuft ab {{date}}",
+    "roles": {
+      "owner": "Eigentümer:in",
+      "admin": "Admin",
+      "user": "Benutzer:in"
+    },
+    "statuses": {
+      "active": "Aktiv",
+      "disabled": "Gesperrt"
+    },
+    "invite": {
+      "title": "Benutzer:in einladen",
+      "roleLabel": "Rolle",
+      "roleHint": "Die eingeladene Person wird mit dieser Rolle erstellt.",
+      "submit": "Einladung erstellen",
+      "creating": "Wird erstellt...",
+      "cancel": "Abbrechen",
+      "close": "Schließen",
+      "done": "Fertig",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "successHint": "Teile diesen Einmallink. Er wird nur einmal angezeigt."
+    }
+  },
+  "providerSharing": {
+    "heading": "Anbieter-Anmeldedaten-Freigabe",
+    "subtitle": "Wähle pro Anbieter, ob Anmeldedaten für alle Benutzer:innen geteilt oder pro Benutzer:in isoliert werden.",
+    "loading": "Freigabeeinstellungen werden geladen...",
+    "modeLabel": "Freigabemodus für {{provider}}",
+    "providers": {
+      "claude": "Claude",
+      "gemini": "Gemini",
+      "codex": "Codex",
+      "agy": "Antigravity (agy)",
+      "cursor": "Cursor",
+      "kimi": "Kimi",
+      "deepseek": "DeepSeek",
+      "glm": "GLM"
+    },
+    "modes": {
+      "shared": "Geteilt",
+      "isolated": "Isoliert"
+    },
+    "modeDescription": {
+      "shared": "Gleiche Anmeldedaten für alle Benutzer:innen",
+      "isolated": "Jede Person hat eigene Anmeldedaten"
+    },
+    "agyWarning": {
+      "title": "Experimentelle Isolation",
+      "description": "Die Isolation von Antigravity-Anmeldedaten ist experimentell und erfordert einen Neustart aktiver Sitzungen."
+    },
+    "save": "Speichern",
+    "saving": "Wird gespeichert...",
+    "saveStatus": {
+      "success": "Freigabeeinstellungen erfolgreich gespeichert",
+      "error": "Freigabeeinstellungen konnten nicht gespeichert werden"
+    }
   },
   "notifications": {
     "title": "Benachrichtigungen",
@@ -129,6 +380,26 @@
       "label": "Darkmode",
       "description": "Zwischen hellem und dunklem Design wechseln"
     },
+    "themePresets": {
+      "title": "Design",
+      "description": "Markenfarbige Farbschemata, die auf Hell- und Dunkeldesign aufgesetzt werden",
+      "groupLabel": "Design-Voreinstellung",
+      "presets": {
+        "default": "Standard",
+        "claude": "Claude",
+        "alkindy": "Al-Kindy",
+        "cursor": "Cursor",
+        "codex": "Codex",
+        "gemini": "Gemini",
+        "custom": "Benutzerdefiniert"
+      },
+      "custom": {
+        "title": "Benutzerdefinierte Farben",
+        "accent": "Akzentfarbe",
+        "background": "Hintergrund",
+        "foreground": "Text"
+      }
+    },
     "projectSorting": {
       "label": "Projektsortierung",
       "description": "Wie Projekte in der Seitenleiste angeordnet werden",
@@ -156,26 +427,6 @@
       "fontSize": {
         "label": "Schriftgröße",
         "description": "Editor-Schriftgröße in Pixeln"
-      }
-    },
-    "themePresets": {
-      "title": "Theme",
-      "description": "Brand-tinted color presets applied on top of light and dark mode",
-      "groupLabel": "Theme preset",
-      "presets": {
-        "default": "Default",
-        "claude": "Claude",
-        "alkindy": "Al-Kindy",
-        "cursor": "Cursor",
-        "codex": "Codex",
-        "gemini": "Gemini",
-        "custom": "Custom"
-      },
-      "custom": {
-        "title": "Custom colors",
-        "accent": "Accent",
-        "background": "Background",
-        "foreground": "Text"
       }
     }
   },
@@ -349,7 +600,25 @@
       },
       "gemini": {
         "description": "Google Gemini KI-Assistent"
+      },
+      "antigravity": {
+        "description": "Google AI Pro über das agy-CLI"
+      },
+      "opencode": {
+        "description": "OpenCode-CLI-Assistent"
+      },
+      "kimi": {
+        "description": "Moonshot Kimi über API-Schlüssel"
+      },
+      "deepseek": {
+        "description": "DeepSeek über API-Schlüssel"
+      },
+      "glm": {
+        "description": "Zhipu / Z.ai GLM über API-Schlüssel"
       }
+    },
+    "antigravity": {
+      "modelNote": "Verwendet Google AI Pro über das agy-CLI (v1.x). Das aktive Modell wird in den agy-Einstellungen ausgewählt, nicht über diese Oberfläche."
     },
     "connectionStatus": "Verbindungsstatus",
     "login": {
@@ -360,7 +629,21 @@
       "button": "Anmelden",
       "reLoginButton": "Erneut anmelden"
     },
-    "error": "Fehler: {{error}}"
+    "error": "Fehler: {{error}}",
+    "apiKey": {
+      "title": "API-Schlüssel hinzufügen",
+      "replaceTitle": "API-Schlüssel ersetzen",
+      "description": "Füge einen {{provider}}-API-Schlüssel ein, um diesen Anbieter zu aktivieren. Er wird verschlüsselt gespeichert und nie wieder angezeigt.",
+      "getKey": "Schlüssel erhalten",
+      "inputLabel": "{{provider}}-API-Schlüssel",
+      "placeholder": "API-Schlüssel einfügen",
+      "placeholderConfigured": "•••••••• (konfiguriert)",
+      "save": "Speichern",
+      "saved": "API-Schlüssel gespeichert.",
+      "remove": "Entfernen",
+      "removed": "API-Schlüssel entfernt.",
+      "configuredNote": "Ein API-Schlüssel ist konfiguriert."
+    }
   },
   "permissions": {
     "title": "Berechtigungseinstellungen",
@@ -368,6 +651,10 @@
       "label": "Berechtigungsaufforderungen überspringen (mit Vorsicht verwenden)",
       "claudeDescription": "Entspricht dem Flag --dangerously-skip-permissions",
       "cursorDescription": "Entspricht dem Flag -f in der Cursor CLI"
+    },
+    "allowVendorDelegation": {
+      "label": "Delegierung von Unteraufgaben an andere Modelle erlauben",
+      "description": "Ermöglicht Claude, ein gehostetes Anbietermodell (Kimi, DeepSeek oder GLM) für eine einzelne Unteraufgabe während eines Laufs aufzurufen — mit deinem eigenen konfigurierten API-Schlüssel für diesen Anbieter. Das Claude-Modell selbst bleibt unverändert. Standardmäßig deaktiviert."
     },
     "allowedTools": {
       "title": "Erlaubte Werkzeuge",
@@ -434,6 +721,18 @@
         "overrideNote": "Du kannst dies pro Sitzung über die Modusschaltfläche in der Chat-Oberfläche überschreiben."
       }
     },
+    "antigravity": {
+      "title": "Berechtigungseinstellungen",
+      "description": "Das agy-CLI verwaltet sein eigenes Berechtigungsverhalten. Über diese Oberfläche gibt es keine Erlaubnis- oder Sperrlisten zu konfigurieren.",
+      "skipPermissions": {
+        "label": "Berechtigungsaufforderungen werden übersprungen",
+        "description": "agy läuft mit --dangerously-skip-permissions, daher werden keine Werkzeug- und Befehlsgenehmigungen während einer Sitzung angefordert."
+      },
+      "cliNote": {
+        "title": "Berechtigungen in agy konfigurieren",
+        "description": "Berechtigungs- und Autonomieoptionen befinden sich in den agy-CLI-Einstellungen, nicht in dieser Oberfläche."
+      }
+    },
     "actions": {
       "add": "Hinzufügen"
     }
@@ -443,7 +742,8 @@
     "description": {
       "claude": "Model Context Protocol-Server stellen Claude zusätzliche Werkzeuge und Datenquellen zur Verfügung",
       "cursor": "Model Context Protocol-Server stellen Cursor zusätzliche Werkzeuge und Datenquellen zur Verfügung",
-      "codex": "Model Context Protocol-Server stellen Codex zusätzliche Werkzeuge und Datenquellen zur Verfügung"
+      "codex": "Model Context Protocol-Server stellen Codex zusätzliche Werkzeuge und Datenquellen zur Verfügung",
+      "opencode": "Model Context Protocol-Server stellen OpenCode zusätzliche Werkzeuge und Datenquellen zur Verfügung"
     },
     "addButton": "MCP-Server hinzufügen",
     "empty": "Keine MCP-Server konfiguriert",
@@ -492,13 +792,37 @@
     "installFailed": "Installation fehlgeschlagen",
     "uninstallFailed": "Deinstallation fehlgeschlagen",
     "toggleFailed": "Umschalten fehlgeschlagen",
-    "buildYourOwn": "Eigenes Plugin erstellen",
+    "starterPluginLabel": "Starter-Plugin",
     "starter": "Starter",
     "docs": "Dokumentation",
+    "sections": {
+      "officialTitle": "Offizielle Plugins",
+      "officialDescription": "Vom CloudCLI-Team gepflegt und zur direkten Installation bereit.",
+      "unofficialTitle": "Weitere Plugins",
+      "unofficialDescription": "Inoffizielle Plugins und Integrationen von anderen Benutzer:innen. Quellcode vor der Installation prüfen."
+    },
     "starterPlugin": {
       "name": "Projektstatistiken",
       "badge": "starter",
       "description": "Dateianzahl, Codezeilen, Dateityp-Aufschlüsselung und aktuelle Aktivitäten für dein Projekt.",
+      "install": "Installieren"
+    },
+    "terminalPlugin": {
+      "name": "Terminal",
+      "badge": "offiziell",
+      "description": "Integriertes Terminal mit vollständigem Shell-Zugriff direkt in der Oberfläche.",
+      "install": "Installieren"
+    },
+    "scheduledPromptPlugin": {
+      "name": "Geplante Prompts",
+      "badge": "inoffiziell",
+      "description": "Workspace-Prompts planen, Ausführungsverlauf einsehen und wiederkehrende lokale Aufgaben verwalten.",
+      "install": "Installieren"
+    },
+    "claudeWatchPlugin": {
+      "name": "Claude Watch",
+      "badge": "inoffiziell",
+      "description": "Langwierige Claude Code-Sitzungen auf Hänger überwachen und Prozesskontrollen bereitstellen.",
       "install": "Installieren"
     },
     "morePlugins": "Mehr",
@@ -507,51 +831,5 @@
     "installAriaLabel": "Git-Repository-URL des Plugins",
     "tab": "Tab",
     "runningStatus": "läuft"
-  },
-  "profile": {
-    "passkeys": {
-      "title": "Passkeys",
-      "description": "Sign in without a password using your fingerprint, face, device PIN, or a security key.",
-      "add": "Add passkey",
-      "nameLabel": "Passkey name (optional)",
-      "namePlaceholder": "e.g. Laptop fingerprint",
-      "create": "Create passkey",
-      "creating": "Waiting for your device...",
-      "cancel": "Cancel",
-      "loading": "Loading passkeys...",
-      "empty": "No passkeys yet. Add one to sign in to this workspace quickly and securely — no password needed.",
-      "notSupported": "This browser does not support passkeys, so new ones cannot be added here.",
-      "unnamed": "Unnamed passkey",
-      "createdAt": "Added {{date}}",
-      "lastUsedAt": "Last used {{date}}",
-      "neverUsed": "Never used",
-      "badges": {
-        "synced": "Synced",
-        "device": "Device-bound"
-      },
-      "rename": "Rename passkey",
-      "renamePlaceholder": "New name",
-      "renameSave": "Save name",
-      "delete": "Delete passkey",
-      "deleteConfirm": "Delete this passkey?",
-      "deleteConfirmYes": "Delete",
-      "success": {
-        "added": "Passkey added successfully",
-        "renamed": "Passkey renamed",
-        "deleted": "Passkey deleted"
-      },
-      "errors": {
-        "loadFailed": "Could not load your passkeys. Please try again.",
-        "registerFailed": "Could not create the passkey. Please try again.",
-        "duplicate": "This device or security key is already registered as a passkey.",
-        "renameFailed": "Could not rename the passkey.",
-        "deleteFailed": "Could not delete the passkey.",
-        "network": "Network error. Please check your connection and try again."
-      }
-    },
-    "tabs": {
-      "identity": "Identität",
-      "security": "Sicherheit"
-    }
   }
 }

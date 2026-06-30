@@ -6,10 +6,15 @@
     "renameProject": "Projekt umbenennen",
     "noProjects": "Keine Projekte gefunden",
     "loadingProjects": "Projekte werden geladen...",
-    "searchPlaceholder": "Projekte durchsuchen...",
+    "searchPlaceholder": "Projekte und Sitzungen durchsuchen...",
     "projectNamePlaceholder": "Projektname",
+    "privateProject": "Privates Projekt",
+    "makePrivate": "Privat machen",
+    "makePublic": "Öffentlich machen",
     "starred": "Favoriten",
     "all": "Alle",
+    "myProjects": "Meine Projekte",
+    "teamProjects": "Team",
     "untitledSession": "Unbenannte Sitzung",
     "newSession": "Neue Sitzung",
     "codexSession": "Codex-Sitzung",
@@ -43,6 +48,8 @@
     "deleteProject": "Projekt aus Seitenleiste entfernen (Entf)",
     "addToFavorites": "Zu Favoriten hinzufügen",
     "removeFromFavorites": "Aus Favoriten entfernen",
+    "starSession": "Diese Unterhaltung markieren",
+    "unstarSession": "Markierung dieser Unterhaltung aufheben",
     "editSessionName": "Sitzungsname manuell bearbeiten",
     "deleteSession": "Diese Sitzung dauerhaft löschen",
     "activeSessionIndicator": "Kürzlich aktive Sitzung (letzte 10 Minuten)",
@@ -50,8 +57,8 @@
     "cancel": "Abbrechen",
     "clearSearch": "Suche leeren",
     "openCommandPalette": "Befehlspalette öffnen",
-    "openWiki": "Open Nassaj Wiki",
-    "goHome": "Home"
+    "openWiki": "Nassaj-Wiki öffnen",
+    "goHome": "Zur Startseite"
   },
   "navigation": {
     "chat": "Chat",
@@ -63,19 +70,19 @@
   "actions": {
     "refresh": "Aktualisieren",
     "settings": "Einstellungen",
+    "logout": "Abmelden",
+    "logoutConfirm": "Von deinem Konto abmelden?",
     "collapseAll": "Alle einklappen",
     "expandAll": "Alle ausklappen",
     "cancel": "Abbrechen",
     "save": "Speichern",
-    "logout": "Abmelden",
-    "logoutConfirm": "Von Ihrem Konto abmelden?",
     "delete": "Löschen",
     "rename": "Umbenennen",
     "starOnGithub": "Stern auf GitHub"
   },
   "systemStats": {
-    "cpuUsage": "CPU usage",
-    "memoryUsage": "Memory usage"
+    "cpuUsage": "CPU-Auslastung",
+    "memoryUsage": "Speicherauslastung"
   },
   "branding": {
     "openSource": "Open Source"
@@ -112,7 +119,13 @@
     "deleteProjectFailed": "Projekt konnte nicht entfernt werden. Bitte erneut versuchen.",
     "deleteProjectError": "Fehler beim Entfernen des Projekts. Bitte erneut versuchen.",
     "createProjectFailed": "Projekt konnte nicht erstellt werden. Bitte erneut versuchen.",
-    "createProjectError": "Fehler beim Erstellen des Projekts. Bitte erneut versuchen."
+    "createProjectError": "Fehler beim Erstellen des Projekts. Bitte erneut versuchen.",
+    "updateProjectError": "Fehler beim Aktualisieren des Projekts. Bitte erneut versuchen.",
+    "refreshError": "Aktualisierung fehlgeschlagen. Bitte erneut versuchen.",
+    "restoreProjectFailed": "Projekt konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+    "restoreProjectError": "Fehler beim Wiederherstellen des Projekts. Bitte erneut versuchen.",
+    "restoreSessionFailed": "Sitzung konnte nicht wiederhergestellt werden. Bitte erneut versuchen.",
+    "restoreSessionError": "Fehler beim Wiederherstellen der Sitzung. Bitte erneut versuchen."
   },
   "version": {
     "updateAvailable": "Update verfügbar"
@@ -128,9 +141,28 @@
     "allConversationsDeleted": "Das Projekt wird aus der Seitenleiste entfernt. Deine Dateien, Erinnerungen und Sitzungsdaten bleiben erhalten.",
     "cannotUndo": "Du kannst das Projekt später erneut hinzufügen."
   },
+  "participants": {
+    "lastSeen": "Zuletzt gesehen",
+    "invocations_one": "{{count}} Aufruf",
+    "invocations_other": "{{count}} Aufrufe",
+    "usersAria_one": "{{count}} Teilnehmende:r",
+    "usersAria_other": "{{count}} Teilnehmende",
+    "andMore_one": "und {{count}} weitere:r",
+    "andMore_other": "und {{count}} weitere",
+    "projectSummary": "{{users}} Benutzer:innen · {{agents}} Agenten",
+    "roles": {
+      "owner": "Eigentümer:in",
+      "admin": "Admin",
+      "user": "Mitglied"
+    },
+    "agentKinds": {
+      "model": "Basismodell",
+      "subagent": "Unteragent"
+    }
+  },
   "upstream": {
-    "newRelease": "Upstream v{{version}} released",
-    "openRelease": "Open the upstream v{{version}} release page",
-    "acknowledge": "Acknowledge"
+    "newRelease": "Upstream v{{version}} veröffentlicht",
+    "openRelease": "Upstream-Release-Seite v{{version}} öffnen",
+    "acknowledge": "Bestätigen"
   }
 }

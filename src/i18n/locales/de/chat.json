@@ -1,4 +1,20 @@
 {
+  "contextRot": {
+    "label": "Kontext",
+    "barAria": "Kontextauslastung",
+    "empty": "Noch keine Token-Nutzung",
+    "percentUsed": "{{percent}} des realen Fensters",
+    "tooltipUsed": "Genutzt vom realen Fenster: {{used}} / {{total}}",
+    "tooltipCacheRead": "Cache gelesen: {{value}}",
+    "popoverTitle": "Kontextauslastung",
+    "close": "Schließen",
+    "levels": {
+      "safe": "Sicher — Kontext ist gesund.",
+      "attention": "Aufmerksamkeit — Kontext füllt sich.",
+      "warning": "Mögliche Verschlechterung — /compact oder Unteragent erwägen.",
+      "critical": "Schwerwiegende Verschlechterung — neue Sitzung starten empfohlen."
+    }
+  },
   "codeBlock": {
     "copy": "Kopieren",
     "copied": "Kopiert",
@@ -18,10 +34,39 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
+  },
+  "subagent": {
+    "badge": "Unteragent",
+    "shortBadge": "Unteragent",
+    "badgeLabel": "Unteragent-Aufgabe"
+  },
+  "coordinator": {
+    "label": "Koordinator",
+    "withName": "Koordinator: {{username}}"
+  },
+  "userAuthor": {
+    "withName": "Benutzer:in: {{username}}"
   },
   "externalOrigin": {
     "label": "Außerhalb der Benutzeroberfläche erstellt"
+  },
+  "coordinatorPrompt": {
+    "label": "Koordinator → Unteragent",
+    "ariaLabel": "Koordinator-Prompt an Unteragent"
+  },
+  "systemMessage": {
+    "label": "Systemnachricht",
+    "ariaLabel": "Automatisierte Systemnachricht"
+  },
+  "sessionNotResumable": {
+    "message": "Diese Sitzung konnte nicht fortgesetzt werden — sie existiert beim Anbieter nicht mehr.",
+    "startNew": "Neue Sitzung starten"
   },
   "tools": {
     "settings": "Werkzeugeinstellungen",
@@ -92,14 +137,14 @@
     "permissionMode": "Berechtigungsmodus",
     "modes": {
       "default": "Standardmodus",
-      "auto": "Auto Mode",
+      "auto": "Auto-Modus",
       "acceptEdits": "Bearbeitungen akzeptieren",
       "bypassPermissions": "Berechtigungen umgehen",
       "plan": "Planungsmodus"
     },
     "descriptions": {
       "default": "Nur vertrauenswürdige Befehle (ls, cat, grep, git status usw.) werden automatisch ausgeführt. Andere Befehle werden übersprungen. Kann in den Arbeitsbereich schreiben.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
+      "auto": "Ein Modell-Klassifizierer entscheidet pro Werkzeugaufruf, ob er genehmigt oder abgelehnt wird. Freihändig, aber sicherer als Bypass — Ablehnungen kommen trotzdem vor.",
       "acceptEdits": "Alle Befehle werden automatisch innerhalb des Arbeitsbereichs ausgeführt. Vollautomatischer Modus mit isolierter Ausführung.",
       "bypassPermissions": "Vollständiger Systemzugriff ohne Einschränkungen. Alle Befehle werden automatisch mit vollem Festplatten- und Netzwerkzugriff ausgeführt. Mit Vorsicht verwenden.",
       "plan": "Planungsmodus – keine Befehle werden ausgeführt"
@@ -129,6 +174,7 @@
     "placeholderDefault": "Nachricht eingeben...",
     "disabled": "Eingabe deaktiviert",
     "attachFiles": "Dateien anhängen",
+    "attachFilesAndImages": "Dateien oder Bilder anhängen",
     "attachImages": "Bilder anhängen",
     "send": "Senden",
     "stop": "Stoppen",
@@ -139,14 +185,23 @@
     "clickToChangeMode": "Klicken, um den Berechtigungsmodus zu ändern (oder Tab in der Eingabe drücken)",
     "showAllCommands": "Alle Befehle anzeigen",
     "clearInput": "Eingabe leeren",
-    "scrollToBottom": "Nach unten scrollen"
+    "scrollToBottom": "Nach unten scrollen",
+    "dropFilesHere": "Dateien hier ablegen",
+    "nonClaudeAttachmentHint": "Anhänge werden nur mit Claude verwendet"
+  },
+  "fileAttachment": {
+    "removeFile": "Datei entfernen",
+    "uploading": "Wird hochgeladen…",
+    "errorType": "Dateityp nicht erlaubt",
+    "errorSize": "Datei zu groß (max. 50 MB)",
+    "errorCount": "Zu viele Dateien angehängt (max. {{max}})"
   },
   "effortMode": {
     "selector": {
       "title": "Aufwandsstufe",
       "description": "Steuert, wie viel Rechenleistung Claude für Ihre Anfrage einsetzt",
       "active": "Aktiv",
-      "tip": "ultracode aktiviert maximale Tiefe mit Multi-Agenten-Formatierung"
+      "tip": "ultracode aktiviert maximale Tiefe mit Multi-Agenten-Formatierung — ultracode und max fügen Farbhinweise hinzu"
     },
     "modes": {
       "none": {
@@ -158,28 +213,28 @@
         "description": "Das Modell wählt den Aufwand automatisch basierend auf der Komplexität"
       },
       "low": {
-        "name": "low",
+        "name": "niedrig",
         "description": "Schnelle, leichte Antworten — am besten für einfache Fragen"
       },
       "medium": {
-        "name": "medium",
+        "name": "mittel",
         "description": "Ausgewogenes Verhältnis von Tiefe und Geschwindigkeit"
       },
       "high": {
-        "name": "high",
+        "name": "hoch",
         "description": "Tieferes Nachdenken für komplexe Aufgaben"
       },
       "xhigh": {
-        "name": "xhigh",
+        "name": "sehr hoch",
         "description": "Sehr hoher Aufwand für anspruchsvolle Probleme"
       },
       "max": {
-        "name": "max",
+        "name": "maximal",
         "description": "Maximaler Aufwand — volles Rechenbudget"
       },
       "ultracode": {
         "name": "ultracode",
-        "description": "Maximale Tiefe mit Multi-Agenten-Formatierung — für große Codebasen"
+        "description": "Maximale Tiefe mit Multi-Agenten-Formatierung"
       }
     },
     "buttonTitle": "Aufwand: {{mode}}",
@@ -200,9 +255,29 @@
       "cursor": "Bereit, Cursor mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
       "codex": "Bereit, Codex mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
       "gemini": "Bereit, Gemini mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
-      "default": "Wähl oben einen Anbieter, um zu beginnen"
+      "antigravity": "Bereit, Antigravity (agy) zu verwenden. Das Modell wird in den agy-Einstellungen ausgewählt.",
+      "opencode": "Bereit, OpenCode mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
+      "default": "Wähl oben einen Anbieter, um zu beginnen",
+      "kimi": "Bereit, Kimi mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
+      "deepseek": "Bereit, DeepSeek mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
+      "glm": "Bereit, GLM mit {{model}} zu verwenden. Gib unten deine Nachricht ein.",
+      "claudeEngine": "Bereit: die Claude-Engine läuft auf {{provider}} mit {{model}}. Gib unten deine Nachricht ein."
     },
-    "pressToSearch": "Drücke <kbd>{{shortcut}}</kbd>, um Sitzungen, Dateien und Commits zu durchsuchen"
+    "antigravity": {
+      "activeModel": "Aktives Modell",
+      "activeModelLabel": "Aktives Modell",
+      "loading": "Lädt…",
+      "unknown": "Unbekannt"
+    },
+    "pressToSearch": "Drücke <kbd>{{shortcut}}</kbd>, um Sitzungen, Dateien und Commits zu durchsuchen",
+    "refresh": {
+      "button": "Modelle und Authentifizierungsstatus aktualisieren",
+      "refreshing": "Wird aktualisiert…"
+    },
+    "providerUnavailable": "Anbieter nicht verfügbar",
+    "signIn": "Anmelden",
+    "addApiKey": "{{provider}}-API-Schlüssel hinzufügen, um zu aktivieren",
+    "engineOnVendor": "Claude-Engine auf {{provider}}"
   },
   "session": {
     "continue": {
@@ -238,7 +313,7 @@
       "disconnect": "Trennen",
       "disconnectTitle": "Vom Terminal trennen",
       "restart": "Neu starten",
-      "restartTitle": "Terminal neu starten (zuerst trennen)",
+      "restartTitle": "Terminal neu starten",
       "connect": "Im Terminal fortfahren",
       "connectTitle": "Mit Terminal verbinden"
     },
@@ -276,7 +351,34 @@
     "providers": {
       "assistant": "Assistent"
     },
-    "frozen": "Paused (process frozen)"
+    "frozen": "Pausiert (Prozess eingefroren)"
+  },
+  "runProgress": {
+    "tasksLabel": "Aufgaben",
+    "barAria": "Aufgabenfortschritt",
+    "tasksTooltip": "Aufgaben: {{done}} von {{total}} erledigt",
+    "inProgressTooltip_one": "{{count}} in Bearbeitung",
+    "inProgressTooltip_other": "{{count}} in Bearbeitung",
+    "agentsTooltip": "Unteragenten: {{done}}/{{total}}",
+    "agentWorking": "Agent · {{calls}}",
+    "agentWorkingTooltip": "Unteragent arbeitet: {{calls}} Aufrufe",
+    "estimateRemaining": "≈ {{time}} verbleibend",
+    "estimating": "wird geschätzt…",
+    "estimateTooltip": "Grobe Schätzung — basierend auf bisher abgeschlossenen Aufgaben."
+  },
+  "agentActivity": {
+    "title": "Agenten-Aktivität",
+    "summary": "{{running}}/{{total}} laufen",
+    "running": "Läuft",
+    "done": "Erledigt",
+    "currently": "jetzt",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} Werkzeugaufrufe",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "Werkzeugverlauf kommt bald.",
+    "noTools": "Noch keine Werkzeugaufrufe aufgezeichnet.",
+    "toolSuccess": "Erledigt",
+    "toolRunning": "Läuft"
   },
   "projectSelection": {
     "startChatWithProvider": "Wähl ein Projekt, um mit {{provider}} zu chatten"
@@ -286,7 +388,52 @@
   },
   "participants": {
     "hide": "Teilnehmerleiste ausblenden",
-    "show": "Teilnehmerleiste anzeigen"
+    "show": "Teilnehmerleiste anzeigen",
+    "lastSeen": "Zuletzt gesehen",
+    "invocations_one": "{{count}} Aufruf",
+    "invocations_other": "{{count}} Aufrufe",
+    "usersAria_one": "{{count}} Teilnehmende:r",
+    "usersAria_other": "{{count}} Teilnehmende",
+    "barAria": "Unterhaltungsteilnehmende",
+    "openSessionsNow": "Aktive Unterhaltungen",
+    "openSessionsNowCount": "{{count}} aktive Unterhaltungen",
+    "andMore_one": "und {{count}} weiterer",
+    "andMore_other": "und {{count}} weitere",
+    "projectSummary": "{{users}} Benutzer:innen · {{agents}} Agenten",
+    "roles": {
+      "owner": "Eigentümer:in",
+      "admin": "Admin",
+      "user": "Mitglied"
+    },
+    "agentKinds": {
+      "model": "Basismodell",
+      "subagent": "Unteragent"
+    },
+    "agentSummary_one": "{{count}} Agent",
+    "agentSummary_other": "{{count}} Agenten",
+    "totalInvocations_one": "{{count}} Aufruf",
+    "totalInvocations_other": "{{count}} Aufrufe",
+    "agentSummaryAria": "{{agents}} verschiedene Agenten · {{calls}} Aufrufe insgesamt",
+    "unknownAuthor": "Unbekannte:r Autor:in",
+    "toggleShow": "Agenten-Panel anzeigen",
+    "toggleHide": "Agenten-Panel ausblenden"
+  },
+  "ws": {
+    "statusConnected": "Verbunden",
+    "statusReconnecting": "Verbindung wird wiederhergestellt…",
+    "statusDisconnected": "Getrennt",
+    "ariaConnected": "WebSocket verbunden",
+    "ariaReconnecting": "WebSocket verbindet erneut",
+    "ariaDisconnected": "WebSocket getrennt",
+    "sendFailed": "Nachricht nicht gesendet — Verbindung unterbrochen",
+    "sendDisabledTitle": "Senden nicht möglich — Verbindung unterbrochen"
+  },
+  "serverError": {
+    "project_dir_missing": "Projektordner nicht auf Festplatte gefunden",
+    "cli_not_installed": "CLI nicht installiert — bitte das erforderliche CLI-Werkzeug installieren",
+    "spawn_failed": "Prozess konnte nicht gestartet werden — Serverprotokoll auf Details prüfen",
+    "session_create_failed": "Neue Sitzung konnte nicht gestartet werden — bitte erneut versuchen",
+    "unknown": "Ein unerwarteter Serverfehler ist aufgetreten"
   },
   "refreshChat": {
     "button": "Chat aktualisieren",

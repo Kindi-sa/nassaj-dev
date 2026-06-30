@@ -81,7 +81,7 @@
     "clearFilters": "Filter zurücksetzen"
   },
   "sort": {
-    "id": "ID",
+    "id": "Kennung",
     "status": "Status",
     "priority": "Priorität",
     "idAsc": "ID (aufsteigend)",
