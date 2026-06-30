@@ -1,4 +1,20 @@
 {
+  "contextRot": {
+    "label": "Contesto",
+    "barAria": "Utilizzo del contesto",
+    "empty": "Nessun utilizzo di token ancora",
+    "percentUsed": "{{percent}} della finestra reale",
+    "tooltipUsed": "Usato della finestra reale: {{used}} / {{total}}",
+    "tooltipCacheRead": "Lettura cache: {{value}}",
+    "popoverTitle": "Utilizzo del contesto",
+    "close": "Chiudi",
+    "levels": {
+      "safe": "Sicuro — il contesto è in buona salute.",
+      "attention": "Attenzione — il contesto si sta riempiendo.",
+      "warning": "Possibile degrado — considera /compact o un sottoagente.",
+      "critical": "Degrado severo — considera di avviare una nuova sessione."
+    }
+  },
   "codeBlock": {
     "copy": "Copia",
     "copied": "Copiato",
@@ -18,10 +34,39 @@
     "claude": "Claude",
     "cursor": "Cursor",
     "codex": "Codex",
-    "gemini": "Gemini"
+    "gemini": "Gemini",
+    "antigravity": "Antigravity",
+    "opencode": "OpenCode",
+    "kimi": "Kimi",
+    "deepseek": "DeepSeek",
+    "glm": "GLM"
+  },
+  "subagent": {
+    "badge": "Sottoagente",
+    "shortBadge": "Sottoagente",
+    "badgeLabel": "Attività sottoagente"
+  },
+  "coordinator": {
+    "label": "Coordinatore",
+    "withName": "Coordinatore: {{username}}"
+  },
+  "userAuthor": {
+    "withName": "Utente: {{username}}"
   },
   "externalOrigin": {
     "label": "Creato al di fuori dell'interfaccia"
+  },
+  "coordinatorPrompt": {
+    "label": "Coordinatore → Sottoagente",
+    "ariaLabel": "Prompt del coordinatore al sottoagente"
+  },
+  "systemMessage": {
+    "label": "Messaggio di sistema",
+    "ariaLabel": "Messaggio di sistema automatico"
+  },
+  "sessionNotResumable": {
+    "message": "Questa sessione non può essere ripresa — non esiste più presso il provider.",
+    "startNew": "Avvia una nuova sessione"
   },
   "tools": {
     "settings": "Impostazioni strumento",
@@ -92,14 +137,14 @@
     "permissionMode": "Modalità permessi",
     "modes": {
       "default": "Modalità predefinita",
-      "auto": "Auto Mode",
+      "auto": "Modalità automatica",
       "acceptEdits": "Accetta modifiche",
       "bypassPermissions": "Ignora permessi",
       "plan": "Modalità piano"
     },
     "descriptions": {
       "default": "Solo i comandi attendibili (ls, cat, grep, git status, ecc.) vengono eseguiti automaticamente. Gli altri comandi vengono saltati. Può scrivere nell'area di lavoro.",
-      "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
+      "auto": "Un classificatore del modello decide per ogni chiamata strumento se approvare o rifiutare. Non richiede intervento, ma è più sicuro di Bypass — i rifiuti avvengono comunque.",
       "acceptEdits": "Tutti i comandi vengono eseguiti automaticamente nell'area di lavoro. Modalità completamente automatica con esecuzione sandboxed.",
       "bypassPermissions": "Accesso completo al sistema senza restrizioni. Tutti i comandi vengono eseguiti automaticamente con accesso completo a disco e rete. Usa con cautela.",
       "plan": "Modalità pianificazione - nessun comando viene eseguito"
@@ -129,6 +174,7 @@
     "placeholderDefault": "Scrivi il tuo messaggio...",
     "disabled": "Input disabilitato",
     "attachFiles": "Allega file",
+    "attachFilesAndImages": "Allega file o immagini",
     "attachImages": "Allega immagini",
     "send": "Invia",
     "stop": "Ferma",
@@ -139,14 +185,23 @@
     "clickToChangeMode": "Clicca per cambiare modalità permessi (o premi Tab nell'input)",
     "showAllCommands": "Mostra tutti i comandi",
     "clearInput": "Cancella input",
-    "scrollToBottom": "Scorri in basso"
+    "scrollToBottom": "Scorri in basso",
+    "dropFilesHere": "Trascina i file qui",
+    "nonClaudeAttachmentHint": "Gli allegati vengono utilizzati solo con Claude"
+  },
+  "fileAttachment": {
+    "removeFile": "Rimuovi file",
+    "uploading": "Caricamento…",
+    "errorType": "Tipo di file non consentito",
+    "errorSize": "File troppo grande (max 50 MB)",
+    "errorCount": "Troppi file allegati (max {{max}})"
   },
   "effortMode": {
     "selector": {
       "title": "Livello di impegno",
       "description": "Controlla quante risorse Claude dedica alla tua richiesta",
       "active": "Attivo",
-      "tip": "ultracode attiva la massima profondità con formattazione multi-agente"
+      "tip": "ultracode attiva la massima profondità con formattazione multi-agente — ultracode e max aggiungono indicatori cromatici"
     },
     "modes": {
       "none": {
@@ -200,9 +255,29 @@
       "cursor": "Pronto a usare Cursor con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
       "codex": "Pronto a usare Codex con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
       "gemini": "Pronto a usare Gemini con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
-      "default": "Seleziona un provider sopra per iniziare"
+      "antigravity": "Pronto a usare Antigravity (agy). Il modello viene scelto dalle impostazioni di agy.",
+      "opencode": "Pronto a usare OpenCode con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
+      "default": "Seleziona un provider sopra per iniziare",
+      "kimi": "Pronto a usare Kimi con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
+      "deepseek": "Pronto a usare DeepSeek con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
+      "glm": "Pronto a usare GLM con {{model}}. Inizia a digitare il tuo messaggio qui sotto.",
+      "claudeEngine": "Pronto: il motore Claude gira su {{provider}} con {{model}}. Inizia a digitare il tuo messaggio qui sotto."
     },
-    "pressToSearch": "Premi <kbd>{{shortcut}}</kbd> per cercare sessioni, file e commit"
+    "antigravity": {
+      "activeModel": "Modello attivo",
+      "activeModelLabel": "Modello attivo",
+      "loading": "Caricamento…",
+      "unknown": "Sconosciuto"
+    },
+    "pressToSearch": "Premi <kbd>{{shortcut}}</kbd> per cercare sessioni, file e commit",
+    "refresh": {
+      "button": "Aggiorna modelli e stato autenticazione",
+      "refreshing": "Aggiornamento…"
+    },
+    "providerUnavailable": "Provider non disponibile",
+    "signIn": "Accedi",
+    "addApiKey": "Aggiungi la chiave API {{provider}} per abilitarlo",
+    "engineOnVendor": "Motore Claude su {{provider}}"
   },
   "session": {
     "continue": {
@@ -276,7 +351,34 @@
     "providers": {
       "assistant": "Assistente"
     },
-    "frozen": "Paused (process frozen)"
+    "frozen": "In pausa (processo bloccato)"
+  },
+  "runProgress": {
+    "tasksLabel": "Attività",
+    "barAria": "Avanzamento attività",
+    "tasksTooltip": "Attività: {{done}} di {{total}} completate",
+    "inProgressTooltip_one": "{{count}} in corso",
+    "inProgressTooltip_other": "{{count}} in corso",
+    "agentsTooltip": "Sottoagenti: {{done}}/{{total}}",
+    "agentWorking": "Agente · {{calls}}",
+    "agentWorkingTooltip": "Sottoagente in lavorazione: {{calls}} chiamate",
+    "estimateRemaining": "≈ {{time}} rimasti",
+    "estimating": "stima in corso…",
+    "estimateTooltip": "Stima approssimativa — basata sulle attività completate finora."
+  },
+  "agentActivity": {
+    "title": "Attività agente",
+    "summary": "{{running}}/{{total}} in esecuzione",
+    "running": "In esecuzione",
+    "done": "Completato",
+    "currently": "ora",
+    "calls": "{{calls}}",
+    "callsTooltip": "{{calls}} chiamate strumento",
+    "rowAria": "{{type}} — {{status}}",
+    "detailsPlaceholder": "Cronologia strumenti in arrivo.",
+    "noTools": "Nessuna chiamata strumento registrata.",
+    "toolSuccess": "Completato",
+    "toolRunning": "In esecuzione"
   },
   "projectSelection": {
     "startChatWithProvider": "Seleziona un progetto per iniziare a chattare con {{provider}}"
@@ -286,7 +388,52 @@
   },
   "participants": {
     "hide": "Nascondi barra partecipanti",
-    "show": "Mostra barra partecipanti"
+    "show": "Mostra barra partecipanti",
+    "lastSeen": "Visto l'ultima volta",
+    "invocations_one": "{{count}} invocazione",
+    "invocations_other": "{{count}} invocazioni",
+    "usersAria_one": "{{count}} partecipante",
+    "usersAria_other": "{{count}} partecipanti",
+    "barAria": "Partecipanti alla conversazione",
+    "openSessionsNow": "Conversazioni attive",
+    "openSessionsNowCount": "{{count}} conversazioni attive",
+    "andMore_one": "e {{count}} altro",
+    "andMore_other": "e {{count}} altri",
+    "projectSummary": "{{users}} utenti · {{agents}} agenti",
+    "roles": {
+      "owner": "Proprietario",
+      "admin": "Amministratore",
+      "user": "Membro"
+    },
+    "agentKinds": {
+      "model": "Modello base",
+      "subagent": "Sottoagente"
+    },
+    "agentSummary_one": "{{count}} agente",
+    "agentSummary_other": "{{count}} agenti",
+    "totalInvocations_one": "{{count}} chiamata",
+    "totalInvocations_other": "{{count}} chiamate",
+    "agentSummaryAria": "{{agents}} agenti distinti · {{calls}} chiamate totali",
+    "unknownAuthor": "Autore sconosciuto",
+    "toggleShow": "Mostra pannello agenti",
+    "toggleHide": "Nascondi pannello agenti"
+  },
+  "ws": {
+    "statusConnected": "Connesso",
+    "statusReconnecting": "Riconnessione…",
+    "statusDisconnected": "Disconnesso",
+    "ariaConnected": "WebSocket connesso",
+    "ariaReconnecting": "WebSocket in riconnessione",
+    "ariaDisconnected": "WebSocket disconnesso",
+    "sendFailed": "Messaggio non inviato — connessione persa",
+    "sendDisabledTitle": "Impossibile inviare — connessione persa"
+  },
+  "serverError": {
+    "project_dir_missing": "Cartella del progetto non trovata sul disco",
+    "cli_not_installed": "CLI non installata — installa lo strumento CLI richiesto",
+    "spawn_failed": "Impossibile avviare il processo — controlla i log del server per i dettagli",
+    "session_create_failed": "Impossibile avviare una nuova sessione — riprova",
+    "unknown": "Si è verificato un errore imprevisto del server"
   },
   "refreshChat": {
     "button": "Aggiorna chat",

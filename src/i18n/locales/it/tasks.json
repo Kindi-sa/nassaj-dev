@@ -81,7 +81,7 @@
     "clearFilters": "Cancella filtri"
   },
   "sort": {
-    "id": "ID",
+    "id": "ID sessione",
     "status": "Stato",
     "priority": "Priorità",
     "idAsc": "ID (crescente)",

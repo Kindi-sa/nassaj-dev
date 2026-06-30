@@ -22,7 +22,13 @@
     "fullscreen": "Schermo intero",
     "close": "Chiudi",
     "previewMarkdown": "Anteprima markdown",
-    "editMarkdown": "Modifica markdown"
+    "editMarkdown": "Modifica markdown",
+    "previewHtml": "Apri anteprima HTML in una nuova scheda"
+  },
+  "filePreview": {
+    "loading": "Caricamento anteprima...",
+    "error": "Impossibile visualizzare questo file.",
+    "openInNewTab": "Apri in una nuova scheda"
   },
   "footer": {
     "lines": "Righe:",

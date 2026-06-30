@@ -1,149 +1,235 @@
 {
   "sections": {
-    "overview": "Overview",
+    "overview": "Panoramica",
     "schedule": "Timeline",
-    "objectives": "Objectives",
-    "visual": "Visual Checks",
-    "architecture": "Architecture"
+    "objectives": "Obiettivi",
+    "visual": "Verifiche visive",
+    "architecture": "Architettura"
   },
-  "updated": "Updated {{date}}",
-  "overallProgress": "Overall progress",
-  "error": "Failed to load the project board.",
-  "stateError": "project-state.json is invalid — showing the last valid version.",
+  "updated": "Aggiornato {{date}}",
+  "overallProgress": "Avanzamento generale",
+  "error": "Impossibile caricare la bacheca di progetto.",
+  "stateError": "project-state.json non è valido — viene mostrata l'ultima versione valida.",
   "empty": {
-    "title": "No project board yet",
-    "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
-    "hint": "The board updates automatically whenever the file changes — no refresh needed.",
-    "copyTemplate": "Copy starter template",
-    "copied": "Copied — paste it into the file"
+    "title": "Nessuna bacheca di progetto",
+    "description": "Questo progetto non ha un file di stato. Crealo per ottenere una bacheca in tempo reale di fasi, attività e problemi.",
+    "hint": "La bacheca si aggiorna automaticamente a ogni modifica del file — nessun aggiornamento manuale necessario.",
+    "copyTemplate": "Copia il template iniziale",
+    "copied": "Copiato — incollalo nel file"
   },
   "phases": {
-    "title": "Phases",
-    "current": "Current"
+    "title": "Fasi",
+    "current": "Attuale",
+    "planned": "Pianificata",
+    "runnerHere": "al-Minwāl qui",
+    "progressCount": "{{progress}}% ({{done}}/{{total}})"
   },
   "sprint": {
-    "current": "Current sprint",
-    "started": "Started {{date}}",
-    "ended": "Ended {{date}}",
-    "taskCount": "Tasks {{done}}/{{total}}",
-    "others": "Other sprints ({{count}})",
+    "current": "Sprint corrente",
+    "started": "Iniziato {{date}}",
+    "ended": "Terminato {{date}}",
+    "taskCount": "Attività {{done}}/{{total}}",
+    "others": "Altri sprint ({{count}})",
     "status": {
-      "planned": "Planned",
-      "current": "Current",
-      "done": "Done"
+      "planned": "Pianificato",
+      "current": "Corrente",
+      "done": "Completato"
     }
   },
   "tasksSection": {
-    "title": "Tasks",
-    "open": "Open",
-    "in_progress": "In progress",
-    "done": "Done",
-    "empty": "No tasks",
+    "title": "Attività",
+    "open": "Aperta",
+    "in_progress": "In corso",
+    "done": "Completata",
+    "empty": "Nessuna attività",
     "kind": {
-      "feature": "Feature",
+      "feature": "Funzionalità",
       "bug": "Bug",
-      "chore": "Chore",
+      "chore": "Manutenzione",
       "spike": "Spike"
     },
-    "issueLink": "View issue {{id}}"
+    "issueLink": "Vedi problema {{id}}"
   },
   "issues": {
-    "title": "Issues",
+    "title": "Problemi",
     "severity": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
+      "low": "Bassa",
+      "medium": "Media",
+      "high": "Alta",
+      "critical": "Critica"
     },
     "status": {
-      "open": "Open",
-      "fixed": "Fixed",
-      "wontfix": "Won't fix"
+      "open": "Aperto",
+      "fixed": "Risolto",
+      "wontfix": "Non verrà corretto"
     }
   },
   "decisions": {
-    "title": "Decisions",
-    "empty": "No decisions yet",
-    "openLink": "Open decision document {{id}}"
+    "title": "Decisioni",
+    "empty": "Nessuna decisione ancora",
+    "openLink": "Apri documento di decisione {{id}}"
   },
   "schedule": {
     "title": "Timeline (Gantt)",
-    "critical": "Critical",
-    "legendScheduled": "Scheduled",
-    "legendCritical": "Critical path",
+    "critical": "Critico",
+    "legendScheduled": "Pianificato",
+    "legendCritical": "Percorso critico",
     "legendMilestone": "Milestone",
     "cpm": {
-      "cycle": "Critical path skipped: dependency cycle detected.",
-      "missingDeps": "Some dependencies reference missing items and were ignored in the critical path."
+      "cycle": "Percorso critico ignorato: rilevato ciclo di dipendenze.",
+      "missingDeps": "Alcune dipendenze fanno riferimento ad elementi mancanti e sono state ignorate nel percorso critico."
     },
-    "noDates": "No valid dates to draw the timeline.",
-    "progress": "Progress {{value}}%",
-    "durationDays": "Duration: {{days}} days",
-    "owner": "Owner: {{name}}",
-    "deliverable": "Deliverable: {{id}}",
-    "deliverableLink": "View deliverable {{id}}",
-    "dependsOn": "Depends on: {{ids}}"
+    "noDates": "Nessuna data valida per disegnare la timeline.",
+    "progress": "Avanzamento {{value}}%",
+    "durationDays": "Durata: {{days}} giorni",
+    "owner": "Responsabile: {{name}}",
+    "deliverable": "Consegnable: {{id}}",
+    "deliverableLink": "Vedi consegnable {{id}}",
+    "dependsOn": "Dipende da: {{ids}}"
   },
   "deliverables": {
-    "title": "Deliverables",
-    "due": "Due {{date}}",
-    "overdue": "Overdue",
-    "acceptance": "Acceptance criterion",
-    "deliveredBy": "Delivered by: {{ids}}",
+    "title": "Consegnabili",
+    "due": "Scadenza {{date}}",
+    "overdue": "In ritardo",
+    "acceptance": "Criterio di accettazione",
+    "deliveredBy": "Consegnato da: {{ids}}",
     "statuses": {
-      "pending": "Pending",
-      "in_progress": "In progress",
-      "delivered": "Delivered",
-      "accepted": "Accepted",
-      "rejected": "Rejected"
+      "pending": "In attesa",
+      "in_progress": "In corso",
+      "delivered": "Consegnato",
+      "accepted": "Accettato",
+      "rejected": "Rifiutato"
     }
   },
   "objectives": {
-    "title": "Objectives (OKR)",
-    "baseline": "Baseline: {{value}}",
+    "title": "Obiettivi (OKR)",
+    "baseline": "Base: {{value}}",
     "statuses": {
-      "on_track": "On track",
-      "at_risk": "At risk",
-      "off_track": "Off track",
-      "done": "Done"
+      "on_track": "In linea",
+      "at_risk": "A rischio",
+      "off_track": "Fuori rotta",
+      "done": "Completato"
     }
   },
   "kpis": {
-    "title": "KPIs",
-    "target": "Target: {{value}}"
+    "title": "KPI",
+    "target": "Obiettivo: {{value}}"
   },
   "visualChecks": {
-    "title": "Visual Checks",
-    "empty": "No visual checks yet.",
-    "step": "Step",
-    "expect": "Expected",
-    "result": "Owner note",
-    "counter": "Verified {{verified}} / {{total}}",
+    "title": "Verifiche visive",
+    "empty": "Nessuna verifica visiva ancora.",
+    "step": "Passo",
+    "expect": "Risultato atteso",
+    "result": "Nota del responsabile",
+    "counter": "Verificati {{verified}} / {{total}}",
     "status": {
-      "pending": "Awaiting check",
-      "verified": "Verified",
-      "failed": "Failed"
-    }
-  },
-  "approvals": {
-    "title": "Pending approvals",
-    "awaitingReview": "Awaiting your review",
-    "approve": "Approve",
-    "reject": "Reject",
-    "pending": "Submitting…",
-    "error": "Action failed. Try again.",
-    "kind": {
-      "prod-migration": "Production migration",
-      "secret": "Secret",
-      "restart": "Restart",
-      "push": "Push",
-      "sensitive": "Sensitive action"
+      "pending": "In attesa di verifica",
+      "verified": "Verificato",
+      "failed": "Non superato"
     }
   },
   "architecture": {
-    "technical": "Technical",
-    "simplified": "Simplified",
-    "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
-    "variantMissing": "This version of the architecture document does not exist."
+    "technical": "Tecnica",
+    "simplified": "Semplificata",
+    "missing": "Nessun documento di architettura trovato (docs/ARCHITECTURE.md o docs/ARCHITECTURE_AR.md).",
+    "variantMissing": "Questa versione del documento di architettura non esiste."
+  },
+  "approvals": {
+    "title": "Approvazioni in sospeso",
+    "awaitingReview": "In attesa della tua revisione",
+    "approve": "Approva",
+    "reject": "Rifiuta",
+    "pending": "Invio in corso…",
+    "error": "Azione non riuscita. Riprova.",
+    "kind": {
+      "prod-migration": "Migrazione in produzione",
+      "secret": "Segreto",
+      "restart": "Riavvio",
+      "push": "Push",
+      "sensitive": "Azione sensibile"
+    }
+  },
+  "runner": {
+    "label": "al-Minwāl",
+    "description": "Esecutore autonomo",
+    "fullName": "al-Minwāl (Esecutore autonomo)",
+    "cycle": "Ciclo {{n}}",
+    "stage": "Fase",
+    "model": "Modello",
+    "quota": "Quota",
+    "task": "Attività",
+    "phase": "Fase",
+    "verdict": "Ultimo verdetto",
+    "clean": "pulito",
+    "unclean": "non pulito",
+    "pendingTick": "In attesa del prossimo tick…",
+    "status": {
+      "idle": "Inattivo",
+      "running": "In esecuzione",
+      "building": "In costruzione",
+      "verifying": "In verifica",
+      "interrupted": "Interrotto (quota)",
+      "failed": "Non riuscito",
+      "blocked": "Bloccato",
+      "paused": "In pausa",
+      "awaiting_approval": "In attesa di approvazione",
+      "disabled": "Disabilitato"
+    },
+    "statusLine": {
+      "running": "🟢 al-Minwāl in lavorazione",
+      "awaiting": "🔵 al-Minwāl in attesa di approvazione",
+      "interrupted": "🟡 al-Minwāl in pausa",
+      "failed": "🔴 al-Minwāl non riuscito",
+      "idle": "⚪ al-Minwāl inattivo"
+    },
+    "stages": {
+      "review": "Revisione",
+      "fix": "Correzione",
+      "critique": "Critica",
+      "phase": "Fase di costruzione",
+      "awaiting_approval": "In attesa di approvazione"
+    },
+    "actions": {
+      "start": "Avvia",
+      "stop": "Ferma",
+      "pause": "Pausa",
+      "resume": "Riprendi",
+      "approve": "Approva fase",
+      "enable": "Abilita",
+      "enableHint": "Riabilita al-Minwāl per questo progetto",
+      "disable": "Disabilita",
+      "disableHint": "Disabilita il progetto nel registro di al-Minwāl (nessun nuovo ciclo fino all'abilitazione) — non termina un ciclo in corso",
+      "forceStop": "Forza arresto",
+      "forceStopHint": "Termina immediatamente il ciclo in corso interrompendone la sessione, poi blocca il riavvio",
+      "forceStopConfirm": "Questo terminerà immediatamente il ciclo in corso interrompendone la sessione. Continuare?",
+      "forceStopConfirmYes": "Sì, ferma ora",
+      "forceStopCancel": "Annulla"
+    },
+    "errors": {
+      "notAwaiting": "L'esecutore non è in attesa di approvazione di fase al momento.",
+      "forceStopFailed": "Arresto immediato non riuscito (impossibile fermare l'unità). Il ciclo potrebbe essere ancora in esecuzione — riprova.",
+      "generic": "Impossibile eseguire l'azione."
+    },
+    "journey": {
+      "title": "Percorso esecutore",
+      "here": "Esecutore qui",
+      "cyclesCount": "Cicli ({{n}})",
+      "noCycles": "L'esecutore non ha ancora avviato alcun ciclo",
+      "cycleN": "Ciclo {{n}}",
+      "showAll": "Mostra tutti ({{n}})",
+      "stale": "Potrebbe essere bloccato",
+      "phasesLabel": "Fasi del ciclo",
+      "stage": {
+        "build": "Costruzione",
+        "verify": "Verifica",
+        "verdict": "Verdetto",
+        "gate": "Porta"
+      },
+      "cycleStatus": {
+        "succeeded": "Riuscito",
+        "failed": "Non riuscito",
+        "interrupted": "Interrotto"
+      }
+    }
   }
 }

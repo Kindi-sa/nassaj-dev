@@ -6,10 +6,15 @@
     "renameProject": "Rinomina progetto",
     "noProjects": "Nessun progetto trovato",
     "loadingProjects": "Caricamento progetti...",
-    "searchPlaceholder": "Cerca progetti...",
+    "searchPlaceholder": "Cerca progetti e sessioni...",
     "projectNamePlaceholder": "Nome progetto",
+    "privateProject": "Progetto privato",
+    "makePrivate": "Rendi privato",
+    "makePublic": "Rendi pubblico",
     "starred": "Preferiti",
     "all": "Tutti",
+    "myProjects": "I miei progetti",
+    "teamProjects": "Team",
     "untitledSession": "Sessione senza titolo",
     "newSession": "Nuova sessione",
     "codexSession": "Sessione Codex",
@@ -20,7 +25,7 @@
     "runClaudeCli": "Esegui Claude CLI in una directory di progetto per iniziare"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Nassaj",
     "subtitle": "Interfaccia assistente di programmazione AI"
   },
   "sessions": {
@@ -43,6 +48,8 @@
     "deleteProject": "Rimuovi progetto dalla barra laterale (Canc)",
     "addToFavorites": "Aggiungi ai preferiti",
     "removeFromFavorites": "Rimuovi dai preferiti",
+    "starSession": "Aggiungi ai preferiti questa conversazione",
+    "unstarSession": "Rimuovi dai preferiti questa conversazione",
     "editSessionName": "Modifica manualmente il nome della sessione",
     "deleteSession": "Elimina questa sessione permanentemente",
     "activeSessionIndicator": "Sessione attiva di recente (ultimi 10 minuti)",
@@ -50,13 +57,13 @@
     "cancel": "Annulla",
     "clearSearch": "Cancella ricerca",
     "openCommandPalette": "Apri tavolozza comandi",
-    "openWiki": "Open Nassaj Wiki",
+    "openWiki": "Apri il Wiki di Nassaj",
     "goHome": "Home"
   },
   "navigation": {
     "chat": "Chat",
     "files": "File",
-    "git": "Git",
+    "git": "Controllo versione",
     "terminal": "Terminale",
     "tasks": "Attività"
   },
@@ -74,8 +81,8 @@
     "starOnGithub": "Metti stella su GitHub"
   },
   "systemStats": {
-    "cpuUsage": "CPU usage",
-    "memoryUsage": "Memory usage"
+    "cpuUsage": "Utilizzo CPU",
+    "memoryUsage": "Utilizzo memoria"
   },
   "branding": {
     "openSource": "Open Source"
@@ -112,7 +119,13 @@
     "deleteProjectFailed": "Impossibile rimuovere il progetto. Riprova.",
     "deleteProjectError": "Errore durante la rimozione del progetto. Riprova.",
     "createProjectFailed": "Impossibile creare il progetto. Riprova.",
-    "createProjectError": "Errore durante la creazione del progetto. Riprova."
+    "createProjectError": "Errore durante la creazione del progetto. Riprova.",
+    "updateProjectError": "Errore durante l'aggiornamento del progetto. Riprova.",
+    "refreshError": "Aggiornamento non riuscito. Riprova.",
+    "restoreProjectFailed": "Impossibile ripristinare il progetto. Riprova.",
+    "restoreProjectError": "Errore durante il ripristino del progetto. Riprova.",
+    "restoreSessionFailed": "Impossibile ripristinare la sessione. Riprova.",
+    "restoreSessionError": "Errore durante il ripristino della sessione. Riprova."
   },
   "version": {
     "updateAvailable": "Aggiornamento disponibile"
@@ -128,9 +141,28 @@
     "allConversationsDeleted": "Il progetto verrà rimosso dalla barra laterale. I tuoi file, memorie e dati delle sessioni verranno preservati.",
     "cannotUndo": "Puoi riaggiungerlo in seguito."
   },
+  "participants": {
+    "lastSeen": "Visto l'ultima volta",
+    "invocations_one": "{{count}} invocazione",
+    "invocations_other": "{{count}} invocazioni",
+    "usersAria_one": "{{count}} partecipante",
+    "usersAria_other": "{{count}} partecipanti",
+    "andMore_one": "e {{count}} altro",
+    "andMore_other": "e {{count}} altri",
+    "projectSummary": "{{users}} utenti · {{agents}} agenti",
+    "roles": {
+      "owner": "Proprietario",
+      "admin": "Amministratore",
+      "user": "Membro"
+    },
+    "agentKinds": {
+      "model": "Modello base",
+      "subagent": "Sottoagente"
+    }
+  },
   "upstream": {
-    "newRelease": "Upstream v{{version}} released",
-    "openRelease": "Open the upstream v{{version}} release page",
-    "acknowledge": "Acknowledge"
+    "newRelease": "Upstream v{{version}} rilasciato",
+    "openRelease": "Apri la pagina di release upstream v{{version}}",
+    "acknowledge": "Visto"
   }
 }
