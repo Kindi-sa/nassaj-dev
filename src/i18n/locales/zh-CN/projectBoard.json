@@ -1,149 +1,235 @@
 {
   "sections": {
-    "overview": "Overview",
-    "schedule": "Timeline",
-    "objectives": "Objectives",
-    "visual": "Visual Checks",
-    "architecture": "Architecture"
+    "overview": "概览",
+    "schedule": "时间线",
+    "objectives": "目标",
+    "visual": "视觉检查",
+    "architecture": "架构"
   },
-  "updated": "Updated {{date}}",
-  "overallProgress": "Overall progress",
-  "error": "Failed to load the project board.",
-  "stateError": "project-state.json is invalid — showing the last valid version.",
+  "updated": "更新于 {{date}}",
+  "overallProgress": "整体进度",
+  "error": "加载项目看板失败。",
+  "stateError": "project-state.json 无效 — 显示最后有效版本。",
   "empty": {
-    "title": "No project board yet",
-    "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
-    "hint": "The board updates automatically whenever the file changes — no refresh needed.",
-    "copyTemplate": "Copy starter template",
-    "copied": "Copied — paste it into the file"
+    "title": "暂无项目看板",
+    "description": "此项目没有项目状态文件。创建后即可获得包含阶段、任务和问题的实时看板。",
+    "hint": "文件更改时看板会自动更新 — 无需手动刷新。",
+    "copyTemplate": "复制入门模板",
+    "copied": "已复制 — 将其粘贴到文件中"
   },
   "phases": {
-    "title": "Phases",
-    "current": "Current"
+    "title": "阶段",
+    "current": "当前",
+    "planned": "已计划",
+    "runnerHere": "al-Minwāl 在此",
+    "progressCount": "{{progress}}%（{{done}}/{{total}}）"
   },
   "sprint": {
-    "current": "Current sprint",
-    "started": "Started {{date}}",
-    "ended": "Ended {{date}}",
-    "taskCount": "Tasks {{done}}/{{total}}",
-    "others": "Other sprints ({{count}})",
+    "current": "当前冲刺",
+    "started": "开始于 {{date}}",
+    "ended": "结束于 {{date}}",
+    "taskCount": "任务 {{done}}/{{total}}",
+    "others": "其他冲刺 ({{count}})",
     "status": {
-      "planned": "Planned",
-      "current": "Current",
-      "done": "Done"
+      "planned": "已计划",
+      "current": "当前",
+      "done": "已完成"
     }
   },
   "tasksSection": {
-    "title": "Tasks",
-    "open": "Open",
-    "in_progress": "In progress",
-    "done": "Done",
-    "empty": "No tasks",
+    "title": "任务",
+    "open": "待办",
+    "in_progress": "进行中",
+    "done": "已完成",
+    "empty": "暂无任务",
     "kind": {
-      "feature": "Feature",
-      "bug": "Bug",
-      "chore": "Chore",
-      "spike": "Spike"
+      "feature": "功能",
+      "bug": "缺陷",
+      "chore": "维护",
+      "spike": "探索"
     },
-    "issueLink": "View issue {{id}}"
+    "issueLink": "查看问题 {{id}}"
   },
   "issues": {
-    "title": "Issues",
+    "title": "问题",
     "severity": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "严重"
     },
     "status": {
-      "open": "Open",
-      "fixed": "Fixed",
-      "wontfix": "Won't fix"
+      "open": "待处理",
+      "fixed": "已修复",
+      "wontfix": "不予修复"
     }
   },
   "decisions": {
-    "title": "Decisions",
-    "empty": "No decisions yet",
-    "openLink": "Open decision document {{id}}"
+    "title": "决策",
+    "empty": "暂无决策",
+    "openLink": "打开决策文档 {{id}}"
   },
   "schedule": {
-    "title": "Timeline (Gantt)",
-    "critical": "Critical",
-    "legendScheduled": "Scheduled",
-    "legendCritical": "Critical path",
-    "legendMilestone": "Milestone",
+    "title": "时间线（甘特图）",
+    "critical": "关键路径",
+    "legendScheduled": "已安排",
+    "legendCritical": "关键路径",
+    "legendMilestone": "里程碑",
     "cpm": {
-      "cycle": "Critical path skipped: dependency cycle detected.",
-      "missingDeps": "Some dependencies reference missing items and were ignored in the critical path."
+      "cycle": "关键路径已跳过：检测到依赖循环。",
+      "missingDeps": "部分依赖引用了缺失项，已在关键路径中忽略。"
     },
-    "noDates": "No valid dates to draw the timeline.",
-    "progress": "Progress {{value}}%",
-    "durationDays": "Duration: {{days}} days",
-    "owner": "Owner: {{name}}",
-    "deliverable": "Deliverable: {{id}}",
-    "deliverableLink": "View deliverable {{id}}",
-    "dependsOn": "Depends on: {{ids}}"
+    "noDates": "没有有效日期可绘制时间线。",
+    "progress": "进度 {{value}}%",
+    "durationDays": "工期：{{days}} 天",
+    "owner": "负责人：{{name}}",
+    "deliverable": "交付物：{{id}}",
+    "deliverableLink": "查看交付物 {{id}}",
+    "dependsOn": "依赖：{{ids}}"
   },
   "deliverables": {
-    "title": "Deliverables",
-    "due": "Due {{date}}",
-    "overdue": "Overdue",
-    "acceptance": "Acceptance criterion",
-    "deliveredBy": "Delivered by: {{ids}}",
+    "title": "交付物",
+    "due": "截止 {{date}}",
+    "overdue": "已逾期",
+    "acceptance": "验收标准",
+    "deliveredBy": "交付人：{{ids}}",
     "statuses": {
-      "pending": "Pending",
-      "in_progress": "In progress",
-      "delivered": "Delivered",
-      "accepted": "Accepted",
-      "rejected": "Rejected"
+      "pending": "待处理",
+      "in_progress": "进行中",
+      "delivered": "已交付",
+      "accepted": "已验收",
+      "rejected": "已拒绝"
     }
   },
   "objectives": {
-    "title": "Objectives (OKR)",
-    "baseline": "Baseline: {{value}}",
+    "title": "目标（OKR）",
+    "baseline": "基准：{{value}}",
     "statuses": {
-      "on_track": "On track",
-      "at_risk": "At risk",
-      "off_track": "Off track",
-      "done": "Done"
+      "on_track": "正常",
+      "at_risk": "存在风险",
+      "off_track": "偏离",
+      "done": "已完成"
     }
   },
   "kpis": {
-    "title": "KPIs",
-    "target": "Target: {{value}}"
+    "title": "KPI 指标",
+    "target": "目标：{{value}}"
   },
   "visualChecks": {
-    "title": "Visual Checks",
-    "empty": "No visual checks yet.",
-    "step": "Step",
-    "expect": "Expected",
-    "result": "Owner note",
-    "counter": "Verified {{verified}} / {{total}}",
+    "title": "视觉检查",
+    "empty": "暂无视觉检查。",
+    "step": "步骤",
+    "expect": "预期",
+    "result": "所有者备注",
+    "counter": "已验证 {{verified}} / {{total}}",
     "status": {
-      "pending": "Awaiting check",
-      "verified": "Verified",
-      "failed": "Failed"
-    }
-  },
-  "approvals": {
-    "title": "Pending approvals",
-    "awaitingReview": "Awaiting your review",
-    "approve": "Approve",
-    "reject": "Reject",
-    "pending": "Submitting…",
-    "error": "Action failed. Try again.",
-    "kind": {
-      "prod-migration": "Production migration",
-      "secret": "Secret",
-      "restart": "Restart",
-      "push": "Push",
-      "sensitive": "Sensitive action"
+      "pending": "等待检查",
+      "verified": "已验证",
+      "failed": "未通过"
     }
   },
   "architecture": {
-    "technical": "Technical",
-    "simplified": "Simplified",
-    "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
-    "variantMissing": "This version of the architecture document does not exist."
+    "technical": "技术版",
+    "simplified": "简化版",
+    "missing": "未找到架构文档（docs/ARCHITECTURE.md 或 docs/ARCHITECTURE_AR.md）。",
+    "variantMissing": "此版本的架构文档不存在。"
+  },
+  "approvals": {
+    "title": "待审批",
+    "awaitingReview": "等待您的审批",
+    "approve": "批准",
+    "reject": "拒绝",
+    "pending": "提交中…",
+    "error": "操作失败，请重试。",
+    "kind": {
+      "prod-migration": "生产迁移",
+      "secret": "密钥",
+      "restart": "重启",
+      "push": "推送",
+      "sensitive": "敏感操作"
+    }
+  },
+  "runner": {
+    "label": "al-Minwāl",
+    "description": "自主运行器",
+    "fullName": "al-Minwāl（自主运行器）",
+    "cycle": "第 {{n}} 轮",
+    "stage": "阶段",
+    "model": "模型",
+    "quota": "配额",
+    "task": "任务",
+    "phase": "阶段",
+    "verdict": "上次结论",
+    "clean": "通过",
+    "unclean": "未通过",
+    "pendingTick": "等待下次触发…",
+    "status": {
+      "idle": "空闲",
+      "running": "运行中",
+      "building": "构建中",
+      "verifying": "验证中",
+      "interrupted": "已中断（配额）",
+      "failed": "失败",
+      "blocked": "已阻止",
+      "paused": "已暂停",
+      "awaiting_approval": "等待审批",
+      "disabled": "已禁用"
+    },
+    "statusLine": {
+      "running": "🟢 al-Minwāl 工作中",
+      "awaiting": "🔵 al-Minwāl 等待审批",
+      "interrupted": "🟡 al-Minwāl 已暂停",
+      "failed": "🔴 al-Minwāl 失败",
+      "idle": "⚪ al-Minwāl 空闲"
+    },
+    "stages": {
+      "review": "审查",
+      "fix": "修复",
+      "critique": "评审",
+      "phase": "构建阶段",
+      "awaiting_approval": "等待审批"
+    },
+    "actions": {
+      "start": "启动",
+      "stop": "停止",
+      "pause": "暂停",
+      "resume": "恢复",
+      "approve": "批准阶段",
+      "enable": "启用",
+      "enableHint": "为此项目重新启用 al-Minwāl",
+      "disable": "禁用",
+      "disableHint": "在 al-Minwāl 注册表中禁用此项目（启用前不开启新轮次）— 不会终止正在运行的轮次",
+      "forceStop": "强制停止",
+      "forceStopHint": "通过终止其会话立即结束当前运行轮次，然后阻止重新启动",
+      "forceStopConfirm": "这将通过终止会话立即结束当前运行轮次。是否继续？",
+      "forceStopConfirmYes": "是，立即停止",
+      "forceStopCancel": "取消"
+    },
+    "errors": {
+      "notAwaiting": "运行器当前未在等待阶段审批。",
+      "forceStopFailed": "立即停止失败（无法停止单元）。轮次可能仍在运行 — 请重试。",
+      "generic": "无法执行该操作。"
+    },
+    "journey": {
+      "title": "运行器历程",
+      "here": "运行器在此",
+      "cyclesCount": "轮次 ({{n}})",
+      "noCycles": "运行器尚未开始任何轮次",
+      "cycleN": "第 {{n}} 轮",
+      "showAll": "显示全部 ({{n}})",
+      "stale": "可能已冻结",
+      "phasesLabel": "轮次阶段",
+      "stage": {
+        "build": "构建",
+        "verify": "验证",
+        "verdict": "结论",
+        "gate": "关卡"
+      },
+      "cycleStatus": {
+        "succeeded": "成功",
+        "failed": "失败",
+        "interrupted": "已中断"
+      }
+    }
   }
 }
