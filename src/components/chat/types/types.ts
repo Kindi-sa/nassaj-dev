@@ -9,6 +9,14 @@ export interface ChatImage {
   name: string;
 }
 
+export interface ChatFile {
+  name: string;
+  path: string;
+  relPath?: string;
+  size?: number;
+  mimeType?: string;
+}
+
 export interface ToolResult {
   content?: unknown;
   isError?: boolean;
@@ -57,6 +65,7 @@ export interface ChatMessage {
   originKind?: 'coordinator' | 'peer' | 'channel' | 'task-notification' | string;
   timestamp: string | number | Date;
   images?: ChatImage[];
+  files?: ChatFile[];
   reasoning?: string;
   isThinking?: boolean;
   isStreaming?: boolean;

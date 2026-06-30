@@ -14,6 +14,7 @@ import type {
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, UsersIcon, ChevronUpIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
+import FileAttachment from './FileAttachment';
 import type { RunProgress } from '../../hooks/useRunProgress';
 import {
   PromptInput,
@@ -95,6 +96,10 @@ interface ChatComposerProps {
   onCloseCommandMenu: () => void;
   isCommandMenuOpen: boolean;
   frequentCommands: SlashCommand[];
+  attachedFiles: File[];
+  onRemoveFile: (index: number) => void;
+  uploadingFiles: Map<string, number>;
+  fileErrors: Map<string, string>;
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
   openImagePicker: () => void;
@@ -152,6 +157,10 @@ export default function ChatComposer({
   onRemoveImage,
   uploadingImages,
   imageErrors,
+  attachedFiles,
+  onRemoveFile,
+  uploadingFiles,
+  fileErrors,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -323,22 +332,31 @@ export default function ChatComposer({
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                   />
                 </svg>
-                <p className="text-sm font-medium">Drop images here</p>
+                <p className="text-sm font-medium">{t('input.dropFilesHere')}</p>
               </div>
             </div>
           )}
 
-          {attachedImages.length > 0 && (
+          {(attachedImages.length > 0 || attachedFiles.length > 0) && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
                   {attachedImages.map((file, index) => (
                     <ImageAttachment
-                      key={index}
+                      key={`img-${index}`}
                       file={file}
                       onRemove={() => onRemoveImage(index)}
                       uploadProgress={uploadingImages.get(file.name)}
                       error={imageErrors.get(file.name)}
+                    />
+                  ))}
+                  {attachedFiles.map((file, index) => (
+                    <FileAttachment
+                      key={`file-${index}`}
+                      file={file}
+                      onRemove={() => onRemoveFile(index)}
+                      uploadProgress={uploadingFiles.get(file.name)}
+                      error={fileErrors.get(file.name)}
                     />
                   ))}
                 </div>
@@ -374,8 +392,17 @@ export default function ChatComposer({
         <PromptInputFooter>
           <PromptInputTools>
             <PromptInputButton
-              tooltip={{ content: t('input.attachImages') }}
+              tooltip={{
+                content: provider !== 'claude'
+                  ? t('input.nonClaudeAttachmentHint')
+                  : t('input.attachFilesAndImages'),
+              }}
               onClick={openImagePicker}
+              aria-label={
+                provider !== 'claude'
+                  ? t('input.nonClaudeAttachmentHint')
+                  : t('input.attachFilesAndImages')
+              }
             >
               <ImageIcon />
             </PromptInputButton>

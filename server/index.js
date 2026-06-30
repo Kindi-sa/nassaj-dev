@@ -22,6 +22,7 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import { clientIp } from './utils/client-ip.js';
+import { sanitizeAttachmentName, resolveCollisionFreeDest } from './utils/attachment-helpers.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
@@ -136,6 +137,11 @@ const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
 const MAX_FILE_UPLOAD_SIZE_MB = 200;
 const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_FILE_UPLOAD_SIZE_MB * 1024 * 1024;
 const MAX_FILE_UPLOAD_COUNT = 20;
+// Per-file cap for agent attachment uploads (POST /upload-attachments). Distinct
+// from MAX_FILE_UPLOAD_SIZE_BYTES so the attachment surface can be tuned without
+// affecting the file-manager upload path.
+const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_ATTACHMENT_COUNT = 20;
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
@@ -946,6 +952,45 @@ app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) =>
 // ============================================================================
 
 /**
+ * Builds a multer instance for endpoints that receive uploads into the OS temp
+ * dir before the route copies them into the project tree. Centralises the
+ * dynamic multer import, the temp diskStorage (collision-proof unique name with
+ * NO path components — folder-upload originalnames may contain separators), and
+ * the size/count limits.
+ *
+ * NOTE: deliberately NOT wired into the legacy `uploadFilesHandler` or the
+ * `upload-images` endpoint — their filename/destination/limit semantics differ
+ * and changing them is out of scope. New attachment endpoint only.
+ *
+ * @param {Object} opts
+ * @param {Function} opts.fileFilter - multer fileFilter(req, file, cb)
+ * @param {number} opts.maxSizeBytes - per-file byte cap (limits.fileSize)
+ * @param {number} opts.maxCount - max file count (limits.files)
+ * @returns {Promise<import('multer').Multer>}
+ */
+async function buildTempUploadMulter({ fileFilter, maxSizeBytes, maxCount }) {
+    const multer = (await import('multer')).default;
+    return multer({
+        storage: multer.diskStorage({
+            destination: (req, file, cb) => {
+                cb(null, os.tmpdir());
+            },
+            filename: (req, file, cb) => {
+                // Unique temp name only; the original (possibly unsafe) name is
+                // preserved on file.originalname and sanitised by the route.
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                cb(null, `upload-${uniqueSuffix}`);
+            }
+        }),
+        fileFilter,
+        limits: {
+            fileSize: maxSizeBytes,
+            files: maxCount
+        }
+    });
+}
+
+/**
  * Validate that a path is within the project root
  * @param {string} projectRoot - The project root path
  * @param {string} targetPath - The path to validate
@@ -1488,6 +1533,156 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
         });
     } catch (error) {
         console.error('Error in image upload endpoint:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// Agent attachment upload. Accepts the DB-assigned `projectId` and lands the
+// uploaded files inside the project's own .nassaj-uploads/inbox so the agent can
+// reference them by a project-relative path. Distinct from the file-manager
+// upload (`files/upload`, arbitrary target dir) and from image upload (base64,
+// no disk landing in the project).
+//
+// Safe-list: an extension whose declared mimetype is in the allow-set for that
+// extension. Browsers vary on text-ish types, so those extensions also accept
+// the common generic mimetypes (text/plain, application/octet-stream, '').
+const ATTACHMENT_ALLOWED = {
+    pdf:  ['application/pdf'],
+    xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'],
+    xls:  ['application/vnd.ms-excel', 'application/octet-stream'],
+    csv:  ['text/csv', 'application/csv', 'text/plain', 'application/octet-stream', ''],
+    tsv:  ['text/tab-separated-values', 'text/plain', 'application/octet-stream', ''],
+    docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'],
+    pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/octet-stream'],
+    txt:  ['text/plain', 'application/octet-stream', ''],
+    md:   ['text/markdown', 'text/x-markdown', 'text/plain', 'application/octet-stream', ''],
+    json: ['application/json', 'text/json', 'text/plain', 'application/octet-stream', ''],
+    png:  ['image/png'],
+    jpg:  ['image/jpeg'],
+    jpeg: ['image/jpeg'],
+    gif:  ['image/gif'],
+    webp: ['image/webp'],
+    svg:  ['image/svg+xml', 'text/plain', ''],
+    zip:  ['application/zip', 'application/x-zip-compressed', 'application/octet-stream']
+};
+
+app.post('/api/projects/:projectId/upload-attachments', authenticateToken, async (req, res) => {
+    try {
+        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
+        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+            return res.status(404).json({ error: 'Project not found' });
+        }
+
+        const fileFilter = (req, file, cb) => {
+            const ext = path.extname(file.originalname || '').slice(1).toLowerCase();
+            const allowedMimes = ATTACHMENT_ALLOWED[ext];
+            if (!allowedMimes) {
+                return cb(new Error(`File type .${ext || '(none)'} is not allowed.`));
+            }
+            const mime = (file.mimetype || '').toLowerCase();
+            if (!allowedMimes.includes(mime)) {
+                return cb(new Error(`File type .${ext} with content type ${file.mimetype || '(none)'} is not allowed.`));
+            }
+            cb(null, true);
+        };
+
+        const upload = await buildTempUploadMulter({
+            fileFilter,
+            maxSizeBytes: MAX_ATTACHMENT_SIZE_BYTES,
+            maxCount: MAX_ATTACHMENT_COUNT
+        });
+
+        upload.array('files', MAX_ATTACHMENT_COUNT)(req, res, async (err) => {
+            if (err) {
+                // multer surfaces fileFilter errors, LIMIT_FILE_SIZE, LIMIT_FILE_COUNT, etc.
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ error: `File too large. Maximum size is ${MAX_ATTACHMENT_SIZE_BYTES / (1024 * 1024)}MB per file.` });
+                }
+                if (err.code === 'LIMIT_FILE_COUNT') {
+                    return res.status(400).json({ error: `Too many files. Maximum is ${MAX_ATTACHMENT_COUNT} files.` });
+                }
+                return res.status(400).json({ error: err.message });
+            }
+
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({ error: 'No files provided' });
+            }
+
+            // Helper: remove every temp file multer wrote (used on any early exit).
+            const cleanupTemps = async () => {
+                await Promise.all(req.files.map(f => fsPromises.unlink(f.path).catch(() => {})));
+            };
+
+            try {
+                const projectRoot = await projectsDb.getProjectPathById(req.params.projectId);
+                if (!projectRoot) {
+                    await cleanupTemps();
+                    return res.status(404).json({ error: 'Project not found' });
+                }
+
+                // Create the inbox we own, then realpath-guard it against the
+                // project root (defends against a symlinked .nassaj-uploads that
+                // would otherwise escape the tree).
+                const inboxDir = path.join(projectRoot, '.nassaj-uploads', 'inbox');
+                await fsPromises.mkdir(inboxDir, { recursive: true });
+
+                const realRoot = await fsPromises.realpath(projectRoot);
+                const realInbox = await fsPromises.realpath(inboxDir);
+                if (!realInbox.startsWith(realRoot + path.sep)) {
+                    await cleanupTemps();
+                    return res.status(400).json({ error: 'Invalid upload destination' });
+                }
+
+                const savedFiles = [];
+                for (const file of req.files) {
+                    // Sanitise via exported pure helper (tested in isolation).
+                    const name = sanitizeAttachmentName(file.originalname);
+                    // Reject all-dots results ('.', '..', '...') which are not real
+                    // filenames and could resolve to the inbox/parent directory.
+                    if (/^\.+$/.test(name)) {
+                        await cleanupTemps();
+                        return res.status(400).json({ error: `Invalid file name: ${file.originalname}` });
+                    }
+
+                    // Resolve a collision-free destination via exported pure helper.
+                    const { destPath } = resolveCollisionFreeDest(
+                        inboxDir,
+                        name,
+                        (p) => { try { fs.accessSync(p); return true; } catch { return false; } }
+                    );
+
+                    // Belt-and-suspenders: confirm the final dest is under the
+                    // project root (alongside the realpath inbox guard above).
+                    const destValidation = validatePathInProject(projectRoot, destPath);
+                    if (!destValidation.valid) {
+                        await cleanupTemps();
+                        return res.status(400).json({ error: destValidation.error });
+                    }
+
+                    await fsPromises.copyFile(file.path, destPath);
+                    await fsPromises.unlink(file.path);
+
+                    savedFiles.push({
+                        name: path.basename(destPath),
+                        path: destPath,
+                        relPath: path.relative(projectRoot, destPath),
+                        size: file.size,
+                        mimeType: file.mimetype
+                    });
+                }
+
+                res.json({ success: true, files: savedFiles });
+            } catch (error) {
+                console.error('Error saving attachments:', error);
+                await cleanupTemps();
+                if (error.code === 'EACCES') {
+                    return res.status(403).json({ error: 'Permission denied' });
+                }
+                res.status(500).json({ error: 'Failed to save attachments' });
+            }
+        });
+    } catch (error) {
+        console.error('Error in attachment upload endpoint:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });

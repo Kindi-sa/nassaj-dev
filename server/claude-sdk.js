@@ -1048,6 +1048,28 @@ async function handleImages(command, images, cwd) {
 }
 
 /**
+ * Appends agent attachment paths to the prompt so the model can read them. The
+ * files already live on disk (the upload endpoint copied them into the project's
+ * .nassaj-uploads/inbox); here we only annotate the prompt with their paths.
+ *
+ * Mirrors handleImages: the note is appended AFTER the command text, and an
+ * empty/absent file list is a total no-op (returns the command unchanged) so the
+ * authorship hash of fileless messages is identical to before this feature.
+ *
+ * @param {string} command - Prompt text (already image-annotated)
+ * @param {Array<{path: string, name?: string}>} files - paths are cwd-relative
+ * @returns {{ modifiedCommand: string }}
+ */
+function handleFiles(command, files) {
+  if (!files || files.length === 0) {
+    return { modifiedCommand: command };
+  }
+
+  const fileNote = `\n\n[Files provided at the following paths:]\n${files.map((f, i) => `${i + 1}. ${f.path}`).join('\n')}`;
+  return { modifiedCommand: command + fileNote };
+}
+
+/**
  * Cleans up temporary image files
  * @param {Array<string>} tempImagePaths - Array of temp file paths to delete
  * @param {string} tempDir - Temp directory to remove
@@ -1347,12 +1369,16 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
     // Handle images - save to temp files and modify prompt
     const imageResult = await handleImages(command, options.images, options.cwd);
+    // Handle attachment files - append their paths after the image annotation.
+    // No-op (returns the same string) when options.files is empty, so the
+    // authorship hash for fileless messages is unchanged.
+    const fileResult = handleFiles(imageResult.modifiedCommand, options.files);
     // Ultracode (UI intensity 4): besides the SDK effort='max' set above, the
     // CLI's "deeper reasoning + multi-agent workflow" super-modes are activated
     // by magic keywords in the prompt text. Append them here so ultracode takes
     // real effect (no-op for every other effort value). Applied after the image
     // annotation so the keywords ride along on the exact text the CLI receives.
-    const finalCommand = maybeApplyUltracodeKeywords(imageResult.modifiedCommand, options.effort);
+    const finalCommand = maybeApplyUltracodeKeywords(fileResult.modifiedCommand, options.effort);
     tempImagePaths = imageResult.tempImagePaths;
     tempDir = imageResult.tempDir;
     // The transcript stores the prompt exactly as handed to the SDK, so
@@ -2049,5 +2075,7 @@ export {
   sweepGhostSessions,
   addSession,
   removeSession,
-  getSession
+  getSession,
+  // Pure helpers — exported for unit testing only (no side effects, no I/O).
+  handleFiles
 };

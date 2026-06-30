@@ -18,6 +18,7 @@ import { effortModes } from '../constants/thinkingModes';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
 import type {
+  ChatFile,
   ChatMessage,
   PendingPermissionRequest,
   PermissionMode,
@@ -31,6 +32,31 @@ import { isPassthroughBuiltInCommand, type SlashCommand, useSlashCommands } from
 // Maximum number of images that can be attached to a single chat message.
 // Must stay in sync with the server-side multer limit (`upload.array('images', 15)`).
 const MAX_IMAGES = 15;
+
+// Maximum number of non-image file attachments per message.
+const MAX_FILES = 10;
+
+// Allowed non-image MIME types / extensions for the file attachment path.
+const ALLOWED_FILE_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'text/csv',
+  'text/tab-separated-values',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/markdown',
+  'application/json',
+  'application/zip',
+  'application/x-zip-compressed',
+]);
+
+// 50 MB cap for non-image files.
+const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 type PendingViewSession = {
   sessionId: string | null;
@@ -238,6 +264,9 @@ export function useChatComposerState({
   const [attachedImages, setAttachedImages] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState<Map<string, number>>(new Map());
+  const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [thinkingMode, setThinkingMode] = useState('auto');
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
@@ -551,6 +580,66 @@ export function useChatComposerState({
     }
   }, []);
 
+  const handleNonImageFiles = useCallback((files: File[]) => {
+    const validFiles = files.filter((file) => {
+      try {
+        if (!file || typeof file !== 'object') {
+          console.warn('Invalid file object:', file);
+          return false;
+        }
+
+        // Accept by MIME type, or fall back to extension for types browsers misdetect.
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const allowedExtensions = new Set([
+          'pdf', 'xls', 'xlsx', 'ods', 'csv', 'tsv',
+          'doc', 'docx', 'ppt', 'pptx',
+          'txt', 'md', 'json', 'zip',
+        ]);
+        const typeOk = ALLOWED_FILE_TYPES.has(file.type) || allowedExtensions.has(ext);
+        if (!typeOk) {
+          setFileErrors((previous) => {
+            const next = new Map(previous);
+            next.set(file.name, t('fileAttachment.errorType'));
+            return next;
+          });
+          return false;
+        }
+
+        if (file.size > MAX_FILE_SIZE) {
+          setFileErrors((previous) => {
+            const next = new Map(previous);
+            next.set(file.name, t('fileAttachment.errorSize'));
+            return next;
+          });
+          return false;
+        }
+
+        return true;
+      } catch (error) {
+        console.error('Error validating non-image file:', error, file);
+        return false;
+      }
+    });
+
+    if (validFiles.length > 0) {
+      setAttachedFiles((previous) => {
+        const combined = [...previous, ...validFiles];
+        const next = combined.slice(0, MAX_FILES);
+
+        if (combined.length > MAX_FILES && next.length > 0) {
+          const anchorName = next[next.length - 1].name || 'Unknown file';
+          setFileErrors((previousErrors) => {
+            const updated = new Map(previousErrors);
+            updated.set(anchorName, t('fileAttachment.errorCount', { max: MAX_FILES }));
+            return updated;
+          });
+        }
+
+        return next;
+      });
+    }
+  }, [t]);
+
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
       const items = Array.from(event.clipboardData.items);
@@ -568,21 +657,46 @@ export function useChatComposerState({
       if (items.length === 0 && event.clipboardData.files.length > 0) {
         const files = Array.from(event.clipboardData.files);
         const imageFiles = files.filter((file) => file.type.startsWith('image/'));
+        const nonImageFiles = files.filter((file) => !file.type.startsWith('image/'));
         if (imageFiles.length > 0) {
           handleImageFiles(imageFiles);
         }
+        if (nonImageFiles.length > 0) {
+          handleNonImageFiles(nonImageFiles);
+        }
       }
     },
-    [handleImageFiles],
+    [handleImageFiles, handleNonImageFiles],
   );
+
+  const handleDroppedFiles = useCallback((files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    const nonImageFiles = files.filter((f) => !f.type.startsWith('image/'));
+    if (imageFiles.length > 0) handleImageFiles(imageFiles);
+    if (nonImageFiles.length > 0) handleNonImageFiles(nonImageFiles);
+  }, [handleImageFiles, handleNonImageFiles]);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     accept: {
       'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
+      'application/pdf': ['.pdf'],
+      'application/vnd.ms-excel': ['.xls'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.oasis.opendocument.spreadsheet': ['.ods'],
+      'text/csv': ['.csv'],
+      'text/tab-separated-values': ['.tsv'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/vnd.ms-powerpoint': ['.ppt'],
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+      'text/plain': ['.txt'],
+      'text/markdown': ['.md'],
+      'application/json': ['.json'],
+      'application/zip': ['.zip'],
     },
-    maxSize: 5 * 1024 * 1024,
-    maxFiles: MAX_IMAGES,
-    onDrop: handleImageFiles,
+    maxSize: MAX_FILE_SIZE,
+    maxFiles: MAX_IMAGES + MAX_FILES,
+    onDrop: handleDroppedFiles,
     noClick: true,
     noKeyboard: true,
   });
@@ -623,6 +737,7 @@ export function useChatComposerState({
       targetSessionId: string | null | undefined,
       uploadedImages: unknown[] = [],
       effortValue?: string,
+      uploadedFiles: ChatFile[] = [],
     ): boolean => {
       const toolsSettings = getToolsSettings();
       const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
@@ -732,6 +847,10 @@ export function useChatComposerState({
         if (effortValue) {
           claudeOptions.effort = effortValue;
         }
+        // File attachments are Claude-only (server contract).
+        if (uploadedFiles.length > 0) {
+          claudeOptions.files = uploadedFiles.map((f) => ({ path: f.relPath ?? f.path, name: f.name }));
+        }
         // ADR-037 (B-DEL-6): the "allow delegating subtasks to other models"
         // toggle lives in the Claude agent settings (claude-settings, the same
         // blob toolsSettings is for provider==='claude'). When on, the server
@@ -807,6 +926,9 @@ export function useChatComposerState({
           setAttachedImages([]);
           setUploadingImages(new Map());
           setImageErrors(new Map());
+          setAttachedFiles([]);
+          setUploadingFiles(new Map());
+          setFileErrors(new Map());
           resetCommandMenuState();
           setIsTextareaExpanded(false);
           if (textareaRef.current) {
@@ -822,35 +944,52 @@ export function useChatComposerState({
       const effortValue = selectedEffortMode?.effortValue ?? '';
 
       let uploadedImages: unknown[] = [];
-      if (attachedImages.length > 0) {
+      let uploadedFiles: ChatFile[] = [];
+
+      // Upload images and non-image files in parallel.
+      const imageUploadPromise = (async () => {
+        if (attachedImages.length === 0) return;
         const formData = new FormData();
         attachedImages.forEach((file) => {
           formData.append('images', file);
         });
+        const response = await authenticatedFetch(`/api/projects/${selectedProject.projectId}/upload-images`, {
+          method: 'POST',
+          headers: {},
+          body: formData,
+        });
+        if (!response.ok) throw new Error('Failed to upload images');
+        const result = await response.json();
+        uploadedImages = result.images;
+      })();
 
-        try {
-          const response = await authenticatedFetch(`/api/projects/${selectedProject.projectId}/upload-images`, {
-            method: 'POST',
-            headers: {},
-            body: formData,
-          });
+      const fileUploadPromise = (async () => {
+        if (attachedFiles.length === 0) return;
+        const formData = new FormData();
+        attachedFiles.forEach((file) => {
+          formData.append('files', file);
+        });
+        const response = await authenticatedFetch(`/api/projects/${selectedProject.projectId}/upload-attachments`, {
+          method: 'POST',
+          headers: {},
+          body: formData,
+        });
+        if (!response.ok) throw new Error('Failed to upload attachments');
+        const result = await response.json();
+        uploadedFiles = (result.files ?? []) as ChatFile[];
+      })();
 
-          if (!response.ok) {
-            throw new Error('Failed to upload images');
-          }
-
-          const result = await response.json();
-          uploadedImages = result.images;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Unknown error';
-          console.error('Image upload failed:', error);
-          addMessage({
-            type: 'error',
-            content: `Failed to upload images: ${message}`,
-            timestamp: new Date(),
-          });
-          return;
-        }
+      try {
+        await Promise.all([imageUploadPromise, fileUploadPromise]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Upload failed:', error);
+        addMessage({
+          type: 'error',
+          content: `Failed to upload files: ${message}`,
+          timestamp: new Date(),
+        });
+        return;
       }
 
       const effectiveSessionId =
@@ -860,6 +999,7 @@ export function useChatComposerState({
         type: 'user',
         content: currentInput,
         images: uploadedImages as any,
+        files: uploadedFiles.length > 0 ? uploadedFiles : undefined,
         timestamp: new Date(),
         userId: authUserId,
       };
@@ -886,7 +1026,7 @@ export function useChatComposerState({
         onSessionProcessing?.(effectiveSessionId);
       }
 
-      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages, effortValue);
+      const sent = dispatchProviderCommand(messageContent, effectiveSessionId, uploadedImages, effortValue, uploadedFiles);
 
       if (!sent) {
         // WS was not open — roll back optimistic UI state and surface error.
@@ -912,6 +1052,9 @@ export function useChatComposerState({
       setAttachedImages([]);
       setUploadingImages(new Map());
       setImageErrors(new Map());
+      setAttachedFiles([]);
+      setUploadingFiles(new Map());
+      setFileErrors(new Map());
       setIsTextareaExpanded(false);
       setThinkingMode('auto');
 
@@ -924,6 +1067,7 @@ export function useChatComposerState({
     [
       selectedSession,
       attachedImages,
+      attachedFiles,
       authUserId,
       currentSessionId,
       dispatchProviderCommand,
@@ -1240,6 +1384,11 @@ export function useChatComposerState({
     setAttachedImages,
     uploadingImages,
     imageErrors,
+    attachedFiles,
+    setAttachedFiles,
+    uploadingFiles,
+    fileErrors,
+    handleNonImageFiles,
     getRootProps,
     getInputProps,
     isDragActive,

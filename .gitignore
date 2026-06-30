@@ -96,6 +96,9 @@ tmp/
 temp/
 .tmp/
 
+# Agent attachment uploads (landed inside project trees by upload-attachments)
+.nassaj-uploads/
+
 # Vite
 .vite/
 
