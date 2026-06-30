@@ -1,7 +1,7 @@
 # PHASE-T242 — مؤشّر/إشعار موثوق للعمل الخلفي (إعادة التصميم بعد فيتو qa-critic)
 
 > طبقة الرؤية في «مشكلة B» / ADR-051 المرحلة 1.
-> الحالة: تصميم (لا تنفيذ). يُراجَع بفيتو qa-critic قبل تفويض أي بند تنفيذ.
+> **الحالة: التصميم أدناه (الأقسام 0–7) مرفوض ثانيةً بفيتو qa-critic (P1، 2026-06-30) — لا يُنفَّذ.** الثغرة: مصادر الحياة الثلاث تتبع المنسّق لا الـworkflow وتهبط كلّها عند نهاية دور المنسّق فيرتدّ التصنيف إلى mtime/QUIET المقتول في فيتو #1. **المواصفة المعتمدة للتنفيذ = القسم 8 (إعادة التصميم المعتمدة (أ)) أدناه.**
 > تاريخ: 2026-06-30. يحلّ محل تصميم T-242 السابق المرفوض بمراجعة aaa570b.
 
 ---
@@ -201,3 +201,53 @@ Request: لا بارامترات (يُشتقّ المالك من req.user)
 ## 7. ما لا يُمَسّ (فيتو #6)
 
 `workflow-reconcile.service.ts` المنطق القائم (`findReconciledWorkflows`, `classifyWorkflowSettlement`, `reconcileWorkflowMessages`, `buildReconcileMessage`, `findLatestStoppedNotificationMs`)، ومسار حقنه في `claude-sessions.provider.ts:215-223`، ومسار drain/B-N-DRAIN. الجديد يُضاف بجانبها ويعيد استخدام `readJournalKeySets` + `classifyWorkflowSettlement` فقط.
+
+---
+
+# 8. إعادة التصميم المعتمدة (أ) — مصدر حياة pid حقيقي للـworkflow
+
+> **هذا هو القسم النافذ للتنفيذ** (يحلّ محل الأقسام 0–7 أعلاه المرفوضة). مُجمَّع من لجنة ثلاثية (architect + backend-dev + qa-critic، 2026-06-30). **يتطلب إعادة مراجعة qa-critic بعد التنفيذ قبل الاعتماد.**
+> **محادثة التنفيذ:** خادمي (build:server + restart المالك) — منفصل عن v1.35 العميل (انظر `EXECUTION-PLAN-v1.35.md` §0).
+
+## 8.1 لماذا رُفض التصميم السابق (الجذر المؤكَّد كوداً)
+
+مصدر الحياة الثلاثي `isClaudeSDKSessionActive(sid) || claudeSessionRegistry.isActive(sid) || countLiveMirrors(sid)>0` **يتتبّع عمر المولِّد/الـturn للمنسّق لا عمر الـworkflow**:
+- `isClaudeSDKSessionActive` → `activeSessions.get(sid).status==='active'` (`claude-sdk.js:1919-1922`) تُمسح بـ`removeSession` (`claude-sdk.js:791-792`) فور نهاية for-await (`1716-1718`).
+- `claudeSessionRegistry.isActive` خلف علم `SESSION_REGISTRY_claude` — **مفعَّل `'1'` في الإنتاج** (`ecosystem.config.cjs:75`، تصحيح: التصميم القديم ظنّه مطفأ) لكنه يهبط مع `activeSessions` في نفس النقطة (`setActive(false)` عند `1735`).
+- `countLiveMirrors>0` يتطلب socket حيّاً — المنسّق الخلفي بلا متصفّح ⇒ صفر.
+
+**الإثبات الرقمي (حادثة `wf_ef5ba242`):** أول `started` 14:51:51، آخر `result` 14:57:09 — كلاهما **بعد** انتهاء دور المنسّق/مسح `activeSessions` ~14:49:41. نافذة «حيّ على القرص + ميت في الذاكرة» = **6د 7ث**. خلالها التصميم القديم يحكم بفرع «ميت» ⇒ `quiet=(now-mtime)>=QUIET_MS` حصراً = فيتو #1 مُقنَّعاً. (`DEFAULT_QUIET_MS=5000`، 5s لا 180 — يفاقم الخطأ.)
+
+## 8.2 الحقيقة المُمكِّنة: بنية pid موجودة ومُختبَرة حيّاً
+
+`server/services/session-process-monitor.js` **يحلّ ويحفظ pid الطفل المستقرّ اليوم**: العملية الـCLI الابن (spawned، `claude-sdk.js:497`) موسومة بـ`CCUI_PROCESS_TAG = crypto.randomUUID()` فريد لكل `query()` (`claude-sdk.js:1293-1294`)؛ المونيتور يمسح `/proc/<pid>/environ` لمطابقة الوسم (`environHasTag`، ~95-103)، يثبّت pid («stable for run's life»، ~132)، ويفحص `/proc/<pid>/stat` كل 5s. **هذا مصدر حياة حقيقي للـworkflow (حياته = حياة شجرة عملية الطفل، ADR-048: treekill:false يُبقي الأب)، والتصميم القديم يتجاهله.**
+
+## 8.3 المواصفة (أ) — الشروط الخمسة (qa-critic، غير قابلة للتفاوض)
+
+- **ش1 — فكّ حياة الطفل عن دورة المنسّق:** مصدر الحياة = `kill(pid,0)` ينجح **أو** `/proc/<pid>/stat` موجود وحالته ∉ {Z,X}، على **pid الطفل** (لا حضور sessionId في activeSessions). يبقى صحيحاً **بعد** `removeSession`. **يشمل إصلاح علّة `unregisterSessionProcess` المُستدعى في `removeSession` (`claude-sdk.js:796`) — لا يُلغى التسجيل عند نهاية for-await، بل يبقى pid مُتعقَّباً حتى يُثبت `/proc` الخروج الفعلي.** (سابقة الفصل: `getDrainBlockingClaudeSessions` vs `getActiveClaudeSDKSessions`، `claude-sdk.js:1944`.)
+- **ش2 — ربط pid↔workflow لا pid↔session:** الطفل يُولَّد بـ`processRunTag` مرة لكل turn، و`addSession` يُستدعى مرّتين بنفس الـrunTag (resume id ثم captured id، `1521`/`1606`). أثبِت أن pid المُتعقَّب مالك `journal.jsonl` المعني عبر **runTag** لا عبر sessionId، وإلا «pid حيّ» لجلسة أخرى = ادّعاء كاذب.
+- **ش3 — fixtures من transcript حقيقي تشمل النافذة:** اختبار إلزامي يُعيد لقطة `wf_ef5ba242` (مثلاً 14:54): `started⊄result` + journal يُكتب + **pid الطفل حيّ بينما activeSessions خالٍ ⇒ RUNNING**؛ ولقطة بعد 14:57:09 + pid مات ⇒ COMPLETED/SETTLED. مشتقّة حرفياً من `…/230ab538-…/subagents/workflows/wf_ef5ba242-b4b/journal.jsonl` + agent jsonl. **لا fixtures مصطنعة** (درس 06-28: regex طابق 6.5% رغم 18/18 أخضر).
+- **ش4 — سقف المسح لا يُسقِط الحالة بصمت:** §3.ب «آخر 200 جلسة» — الجلسات فوق السقف تُعلَن «غير مفحوصة» لا «لا workflow» (راحة زائفة). سقفٌ يبتلع workflows يتيمة = فشل المؤشّر.
+- **ش5 — سلوك بلا `/proc` معلَن:** على منصّة بلا `/proc` (غير لينكس): degraded صريح («غير معروف»)، لا fallback صامت إلى mtime.
+
+## 8.4 الفخاخ الأربعة (تُعالَج صراحةً في التصميم)
+
+1. **race الالتقاط المتأخر:** pid يُحلّ في tick بعد الإطلاق (حتى 5s، `run.pid=null`). pid مجهول + journal حديث ⇒ **RUNNING تحفّظاً لا ORPHAN** (لا تُعلن موت الوليد).
+2. **إعادة استخدام pid:** لينكس يدوّر pids ⇒ `kill(pid,0)` ينجح كذباً لعملية غريبة. **أعِد تحقّق runTag في `/proc/<pid>/environ`** لا تكتفِ بـ`kill(pid,0)`.
+3. **الزومبي:** طفل انتهى غير محصود (`Z`) ⇒ stat موجود وkill ينجح لكنه ميت. **استبعد state∈{Z,X} صراحةً** (المونيتور يقرأ state لكن يستخدمه لـT/frozen فقط — وسّعه).
+4. **الادّعاء الزمني:** اختبار يمرّ على fixtures بلا لقطة pid-حيّ-وsession-غائب = راحة زائفة. لا يثبت شيئاً عن الحالة المُصمَّم لها.
+
+## 8.5 الملفات + التقدير
+
+- `workflow-reconcile.service.ts`: تصدير `readJournalKeySets`+QUIET، إضافة `classifyWorkflowLiveness` بجانب المنطق القائم (لا لمسه). ≈50-70 LOC.
+- `participants.db.ts`: `getSessionIdsForUser` على غرار `getProjectPathsForUser:253`. ≈15-20 LOC.
+- `claude-sessions.provider.ts` (~215) + `types.ts`: حقن `isWorkflowProcessAlive` (pid عبر runTag) + إرفاق `backgroundWorkflows` على `FetchHistoryResult`. ≈30-40 LOC.
+- `claude-sdk.js`: إصلاح موضع `unregisterSessionProcess` (ش1) + فصل «حيّ-للـworkflow». **ملف حسّاس — أدنى لمس + اختبار مكثّف.**
+- `session-process-monitor.js`: توسيع فحص state ليستبعد Z/X (فخّ 3)، وإتاحة استعلام «هل runTag حيّ» للموفّر.
+- `provider.routes.ts` + `workflow-status.service.ts` جديد: endpoint `GET /workflows/active` (يعيد استخدام جدول `runs` in-memory لا مسح `/proc` لكل نداء — فخّ تكلفة).
+- اختبارات B5 (ش3) + frontend F1-F3 (شارة per-session + مؤشّر app-level + حالات فارغة هادئة).
+- **إجمالي backend ≈ 160-210 LOC + اختبارات مشتقّة من transcript حقيقي.**
+
+## 8.6 المُحتفَظ به سليماً (لا يُعاد تصميمه)
+
+`classifyWorkflowSettlement`/`readJournalKeySets`/reconcile القائم (فيتو #6)، العزل per-user عبر `getSessionIdsForUser` + بوّابة `fetchHistory:258` (B-105 المنشورة)، حقن `isSessionProcessAlive` من الأعلى لتجنّب دورة الاستيراد. هذه عبرت مراجعة qa-critic بلا اعتراض.
