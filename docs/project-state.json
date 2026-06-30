@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-29T13:00:00.000Z",
+  "updated": "2026-06-30T07:00:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2698,10 +2698,10 @@
       "phase": "P4",
       "kind": "feature",
       "sprint": "S-2",
-      "status": "in_progress",
+      "status": "done",
       "owner": "coordinator",
       "title": "ميزة: توسيع زر الرفع لقبول أي ملف (Excel/PDF/…) وحفظه في inbox المشروع ليقرأه الوكيل",
-      "note": "منجَز كوداً ومُختبَراً وملتزَماً (backend-dev+frontend-dev+tester): endpoint upload-attachments + handleFiles + helpers مستخرجة + زر إرفاق موحّد + بوابة غير-claude تلميحاً. 50 اختبار أمني، الحزمة 137/0 (أُعيد تشغيلها يدوياً). build:server تمّ ودخل dist-server. يبقى للمالك restart (محجوب) ثم build:client للنشر الحيّ + تحقّق. ADR-049."
+      "note": "منشور حيّاً ومُتحقَّق 2026-06-30: build:server + restart (الخادم عمره ~دقيقتان، dist-server جديد) + build:client؛ الحزمة تُحمّل 0 أخطاء JS؛ endpoint حيّ (401=وصول)؛ 137 اختبار أمني/0 (أُعيد تشغيلها يدوياً). زر إرفاق واحد يقبل أي ملف → .nassaj-uploads/inbox، مسار يُحقَن للوكيل. يبقى تأكيد المالك التفاعلي على جهازه المسجَّل + git push بإذن. ADR-049."
     },
     {
       "id": "T-236",
@@ -2722,7 +2722,7 @@
       "owner": "frontend-dev",
       "issue": "B-100",
       "title": "أخذ تحصين QuestionAnswerContent من upstream #920 (ed4ae311): حارس Array.isArray + تصفية options غير الكائنية + typeof answer قبل split، على src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx.",
-      "note": "موجة 1 (موصى بها أولاً). كيّف الحارس على ملفنا، لا تأخذ ملف اختبار upstream حرفياً؛ شغّل اختبار src يدوياً (npx tsx --test) لأن سكربت npm test يفحص server/** فقط. build:client بلا restart. ينتظر إذن المالك."
+      "note": "حالة 2026-06-30: الحارس مُطبَّق على القرص (Array.isArray×3 في QuestionAnswerContent.tsx) + اختبار 110 سطر (untracked)، لكن توقّفت ورشة wf_a816420d (B-103) قبل تحقّقي منه وقبل build:client. يلزم: إعادة تشغيل الاختبار + بناء + تحقّق قبل الإغلاق."
     },
     {
       "id": "T-238",
@@ -2732,7 +2732,7 @@
       "owner": "frontend-dev",
       "issue": "B-101",
       "title": "أخذ إصلاح regex من upstream #903 (4712431b): قصر نمط مطابقة المسافات في normalizeInlineCodeFences (chatFormatting.ts:14) على مسافة/تبويب فقط بدل أي مسافة بيضاء عبر الأسطر — موضعان داخل regex واحد.",
-      "note": "موجة 2. تافه (تغيير محرف واحد فعلياً). ملفنا مطابق بايتياً لنسخة upstream قبل الإصلاح فلا تعارض. تحقّق على نص عربي RTL متعدّد الأسطر. build:client."
+      "note": "حالة 2026-06-30: مُطبَّق على القرص (chatFormatting.ts: النمط الفضفاض للمسافات → مسافة/تبويب). غير مبنيّ وغير متحقَّق بعد (B-103)."
     },
     {
       "id": "T-239",
@@ -2742,7 +2742,7 @@
       "owner": "frontend-dev",
       "issue": "B-102",
       "title": "أخذ مفاتيح sidebar.messages الناقصة من upstream #896 (7ca35565): 6 مفاتيح (updateProjectError/refreshError + 4 restore) لكل لغاتنا التسع، مع صياغة ar يدوية وإسقاط شرائح fr/zh-TW (غير موجودة لدينا).",
-      "note": "موجة 2. i18n إضافي بحت. خصّص كل ملفات locale لوكيل واحد وأعد التحقّق من صحّة JSON بعد التعديل (درس سباق الملفات المشتركة B-96/B-97). build:client."
+      "note": "حالة 2026-06-30: ناقص — ar+en فقط من 9 لغات؛ de/it/ja/ko/ru/tr/zh-CN بلا المفاتيح الستة. توقّفت الورشة في منتصف الموجة (B-103). يلزم إكمال السبع المتبقّية بوكيل واحد + تحقّق JSON."
     },
     {
       "id": "T-240",
@@ -2753,6 +2753,27 @@
       "issue": null,
       "title": "أخذ معاينة الوسائط/الفيديو + معاينة HTML داخل محرّر الكود من upstream #933 (2ebe64f2): ملفان جديدان (CodeEditorMediaPreview.tsx + utils/previewableFile.ts) + تعديلات صغيرة على CodeEditor/Header/useCodeEditorDocument + مفاتيح ar.",
       "note": "موجة 3 (اختيارية، UX). الخادم جاهز: /api/projects/:id/files/content قائم ومحصّن بـisProjectVisible (آمن multi-user). سطوح XSS مغلقة سلفاً من المؤلّف (magic-bytes للـPDF، حجب فتح SVG، iframe.sandbox بلا allow-same-origin، revokeObjectURL). أضف مفاتيح ar (filePreview.*, actions.previewHtml) بوكيل واحد. build:client."
+    },
+    {
+      "id": "T-241",
+      "kind": "chore",
+      "phase": "P7",
+      "status": "done",
+      "owner": "architect",
+      "issue": "B-103",
+      "title": "تخطيط حلول لثلاث مشاكل دورة-حياة مترابطة (خطة لا تنفيذ): (A) كشف انحراف الواجهة/الخادم ببصمة بناء بدل رقم النسخة، (B) صمود ورؤية التنسيق الخلفي عبر خروج عملية Claude، (C) قرار دَين بوّابة WS الموحّدة T-234 — عبر workflow architect+qa-critic.",
+      "note": "منجَز 2026-06-30 (wf_fea564e9، 10 وكلاء، نقد qa-critic عدائي). المخرَج ADR-051 (الخطة الموحّدة). كشف ميدانياً انحرافاً حيّاً B-104. التوصية: A نفّذ الآن، B رؤية الآن + صمود مؤجَّل خلف فيتو T-B0، C أجّل خلف بوّابتي journal المشتركتين مع B. أبرز فيتو qa-critic: (1) resumeFromRunId غير مُتحقَّق أن SDK يستأنف فعلاً، (2) التسجيل يجب لحظة الإطلاق لا عند complete، (3) عزل اشتراك fail-closed في صمود B. الخطة الكاملة: tasks/wsnbwr1pv.output.",
+      "closed": "2026-06-30"
+    },
+    {
+      "id": "T-242",
+      "kind": "feature",
+      "phase": "P7",
+      "status": "current",
+      "owner": "architect",
+      "issue": "B-103",
+      "title": "إشعار/مؤشّر واجهة موثوق للعمل الخلفي (متطلب مالك صريح 2026-06-30): إظهار حالة أي workflow/وكلاء خلفيين — شغّال/يتيم/مكتمل — مستقلاً عن حياة جلسة Claude (المصدر = journal على القرص لا بثّ WS الزائل). = طبقة الرؤية في مشكلة B / ADR-051 المرحلة 1.",
+      "note": "تصميم منجَز ومتحقَّق ميدانياً 2026-06-30 (architect + تحقّق المنسّق على journal الفعلي wf_a816420d: started7/result6/pending1، الوكيل اليتيم v2:d5cbd8d، آخر نشاط 08:36، الآن +1h ≫180s → orphan — يطابق الجلسة الأخرى، فمنطق التصنيف من القرص صحيح). الجذر: المؤشّر الوحيد (useChatRealtimeHandlers.ts:445 ← complete.pendingWorkflows) مربوط ببثّ WS الحيّ فيموت مع الجلسة؛ لا polling/scheduler يقرأ القرص؛ reconcile pull-only ونهائي-فقط وOFF افتراضياً. التصميم: المصدر = القرص عبر scanWorkflowLiveness (يضيف حالتي running/orphan لمنطق classifyWorkflowSettlement القائم) + endpoint استطلاع /workflow-status (الضمانة، قراءة قرص بحتة تعمل والجلسة ميتة) + نبضة push مبوَّبة countLiveMirrors>0 تبثّ workflow_reconciled (تحسين كمون، scheduler في عملية الخادم لا المنسّق) + badge running فوق الComposer + بطاقة orphan (إعادة استخدام مسار isTaskNotification بإضافة taskStatus:orphan). work items: B-WF-LIVE / T-WF-API / T-WF-PUSH / T-WF-CLIENT / T-WF-ORPHAN-CARD / B-WF-FLAG. بوّابات: (1) تحقّق على journal فعلي ✅ جوهره مؤكَّد، (2) عزل per-user/B-PRIV — ثغرة قائمة: /messages لا يمرّر userId، لا تُكرَّر في endpoint الجديد، (3) علم WORKFLOW_RECONCILE_PUSH منفصل fail-closed. الضمانة الأساسية لا تعتمد على أي قدرة غير مُختبَرة (pull = قراءة قرص). ينتظر إذن المالك للتنفيذ. التقرير الكامل في مخرجات الوكيل a759734f."
     }
   ],
   "issues": [
@@ -3675,6 +3696,28 @@
       "found": "2026-06-30",
       "triage": "low → backlog؛ يُصلَح بأخذ #896 عبر T-239. مُكتشَف في T-236.",
       "description": "مواقع الاستدعاء في src/components/sidebar/hooks/useSidebarController.ts (updateProjectError L452/479/609/627، refreshError L700) بلا default inline، والمفاتيح غائبة من ar/sidebar.json وen/sidebar.json. عند الفشل يرى مستخدم ar وen السلسلة الخام messages.updateProjectError؛ ومفاتيح restore تتدهور إلى إنجليزية مثبّتة في واجهة ar. الإصلاح #896 (7ca35565) مع مراعاة أن لدينا 9 لغات لا 10 (de موجودة، fr/zh-TW غير موجودتين)."
+    },
+    {
+      "id": "B-103",
+      "title": "ورشة تنفيذ خلفية (wf_a816420d) توقّفت في منتصف الموجة 2 عند خروج عملية Claude المنسّقة — السيرفر مستقرّ (ليست حادثة restart)؛ عمل جزئي بقي على القرص",
+      "status": "open",
+      "severity": "medium",
+      "phase": "P7",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "medium → مرتبط بخطة الصمود (T-241). الجذر بنيوي لا عابر: الورشة الخلفية تابعة لحياة عملية Claude المنسّقة، فبخروجها (لأي سبب) تتوقّف. عمل جزئي: W1(#920)+W2-regex(#903) على القرص غير مبنيّ، W2-i18n(#896) ناقص (ar+en فقط من 9)، W3(#933)+build لم تُنفّذ.",
+      "description": "ورشة wf_a816420d أُطلقت 08:25 لتنفيذ 4 بنود v1.35.0؛ ركضت حتى 08:36 ثم توقّفت. الأدلة: nassaj-dev مستقرّ 32h (PID 4123952 منذ Jun 29 00:37، unstable=0) فلا restart؛ عملية Claude المنسّقة خرجت ~08:36-08:38 (جلسة ssh جديدة 08:38). إشعار الإطلاق التالي = «stopped/no completion record from previous session». يطابق نمطي memory: incident_workflow_reconcile_wf_ef5ba242 (إشعار stopped كاذب) + feedback_restart_kills_own_session. resumeFromRunId متاح (الوكلاء المكتملون من الكاش) لكنه يحتاج جلسة حيّة تقوده."
+    },
+    {
+      "id": "B-104",
+      "title": "انحراف حيّ: الـbackend الشغّال (32h، commit 3387a71b) خلف القرص — endpoint رفع المرفقات T-235 (+195 سطر server/index.js، مُلتزَم اليوم 08:19) غير حيّ (لا build:server+restart بعده)",
+      "status": "open",
+      "severity": "medium",
+      "phase": "P7",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "medium → الحلّ الجذري = مشكلة A (كاشف البصمة، ADR-051/T-241). الحلّ الفوري = build:server + build:client + المالك ينفّذ restart بطرفيته (حارس العميل). كشفته ورشة التخطيط wf_fea564e9 ميدانياً.",
+      "description": "عملية nassaj-dev (PID 4123952) تعمل منذ Jun 29 00:37 (32h) على commit 3387a71b. HEAD=8b393798 (T-235، مُلتزَم 2026-06-30 08:19:20). git diff 3387a71b..HEAD -- server/ = 5 ملفات/796 سطراً (server/index.js +195 = endpoint رفع المرفقات، claude-sdk.js +32، attachment-helpers.js +53، اختباران). فالخادم الحيّ لا يحوي منطق T-235 الخادمي، وdist من Jun 29 (build:client لم يُعَد بعد 08:19) → ميزة T-235 غير حيّة كلياً حتى نشر+restart. تجسيد حيّ لمشكلة A (الانحراف الصامت): /health بلا أي بصمة بناء فلا شيء يكشف هذا."
     }
   ],
   "decisions": [
@@ -3859,6 +3902,13 @@
       "status": "proposed",
       "date": "2026-06-30",
       "rationale": "Workflow متعدد الوكلاء (wf_c08f22e9: 6 عدسات + qa-critic عدائي) على فجوة 46 commit بين أساسنا v1.34.0 وأحدث upstream v1.35.0 (2026-06-29). يُؤخَذ (build:client بلا restart): #920 تحصين QuestionAnswerContent (B-100/T-237)، #903 إصلاح regex code-fence (B-101/T-238)، #896 مفاتيح sidebar.messages (B-102/T-239)، #933 معاينة الوسائط في المحرّر (T-240). يُرفض: (1) كتالوج Gemini 3d948217 — تراجع لا ترقية (يحذف نماذج Pro، يخفّض DEFAULT إلى flash) ويمسّ public/modelConstants.js (فيتو agy)، وثلثاه غير قابل للتطبيق (طبقة كاش/معالِج workflow متباعدان)؛ (2) سلسلة unified-gateway f5eac2ec وتوابعها (591b18e9/3bbb42c2/d0adddbb/677d3309/123ae310/9fb2d91b/56b2e140) — إعادة هيكلة بوّابة WS/الجلسات تعتمد chat-run-registry الغائب وتمسّ مرايا الجلسة/drain المخصّصة = إعادة تصميم لا دمج، مرتبط دَين T-234؛ (3) كاشف restart-skew #898 (f6326c80) — يقارن package.json.version الذي لا يتغيّر في سير عملنا (build:client بلا رفع version) فالبانر خامل/راحة زائفة + يُغفل locale عربي؛ الحلّ الصحيح بصمة بناء (hash/SHA) تصميم منفصل يُحال لـarchitect. ALREADY_HAVE: #909 مهارات المزوّدات، #854 تخطّي subagent transcripts. N/A للفورْك: Electron/computer-use/CI/نقل اختبارات. status=proposed: ينتظر اختيار المالك للموجات قبل التنفيذ."
+    },
+    {
+      "id": "ADR-051",
+      "title": "خطة موحّدة لثلاث مشاكل دورة-حياة (A كشف الانحراف / B صمود التنسيق / C دَين WS) — جذر مشترك: سيرفر طويل العمر + build:client بلا restart + جلسات Claude عابرة",
+      "status": "proposed",
+      "date": "2026-06-30",
+      "rationale": "ورشة architect+qa-critic عدائي (wf_fea564e9، خطة لا تنفيذ). الجذر: ثلاث ساعات لا رابط بينها (backend 32h+، dist لحظي، عملية Claude عابرة). (A) **نفّذ الآن** — بصمة بناء تُختَم في build:server وتُقرأ وقت الإقلاع وتُعرَض في /health + بانر RTL؛ رفض رؤوس HTTP (هشّة خلف نفق Cloudflare) وWS وsemver (#898/ADR-050). حرج B-A2: الختم يُربَط بـpostbuild:server بعد tsc (prebuild:server يمسح dist-server بـrmSync وإلا انتقل الانحراف للثابت المختوم). (B) **رؤية الآن + صمود مؤجَّل** — المرحلة 1 (Sentinel + تسجيل لحظة الإطلاق لا عند complete، إذ العملية تخرج وسط الموجة فلا تبلغ claude-sdk.js:1730 وSIGKILL/قطع ssh لا يُمسَكان) تُنفَّذ؛ المرحلة 2 (auto-resume) خلف **فيتو T-B0**: resumeFromRunId غير مُتحقَّق ميدانياً أن SDK يستأنف من journal — لا سطر صمود قبل إثباته؛ + حسم المضيف (داخل الخادم يخضع لtreekill أم مضيف منفصل دائم) + عزل per-user fail-closed (IS_PLATFORM/ToS). (C) **أجّل، نفّذ البوّابات** — رفض تبنّي بوّابة upstream الموحّدة الآن (40 ملفاً، يقلب الهوية، يدهس 4 طبقات تعمل)؛ الدَّين رؤية-فقط (المعالِج العميلي فرع ميّت ينتظر باعثاً خادمياً، useChatRealtimeHandlers TODO ADR-048 phase-2)؛ بوّابتان T-C0 (ثبات صيغة journal.jsonl على نسخة SDK) + T-C1 (تحقّق على transcript wf_ef5ba242 الفعلي لا fixtures مصطنعة) **مشتركتان مع B** فتُرفَعان مرّة. الأولوية: A → بوّابتا journal → رؤية B + بثّ C على بنية مشتركة → صمود B أخيراً. كشفت B-104 (انحراف حيّ). الخطة الكاملة: tasks/wsnbwr1pv.output. status=proposed: ينتظر إذن المالك."
     }
   ],
   "_note_session_51db2a0a": "ملخص جلسة 51db2a0a (2026-06-25): ثلاث مخرجات. (1) مؤشّر «Workflow شغّال» بالواجهة — أُصلح df79c723 (claude-sdk يبثّ pendingWorkflows + useChatRealtimeHandlers يُبقي isLoading)، حيّ. (2) إدارة المستخدمين/مفتاح الوصول «المعطّلة» — لا خلل كودي (الـAPIs الثلاثة تعمل)؛ السبب توكن بائت→401 صامت؛ موثّق T-216. أُصلح في نفس الجلسة معترض 401 (6fa3f66c) وpwd_iat WS (8c3c0c88). (3) الدخول الموحّد — قرار الوكلاء النهائي Zitadel (تغيّر عن Pocket-ID→Authentik→Zitadel، ADR-045/046)؛ خطة P-IDP-0..5 = T-206..T-212؛ كود نسّاج RP منجَز 96c4af44 (T-210)؛ متبقٍّ للمالك: VM Zitadel على ibrahim-proxmox (T-207/P-IDP-1) + TLS Tailscale (T-208). كل إصلاحات الجلسة في integration/publish ومرفوعة."
