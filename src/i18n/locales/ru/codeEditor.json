@@ -22,7 +22,13 @@
     "fullscreen": "Полноэкранный режим",
     "close": "Закрыть",
     "previewMarkdown": "Предпросмотр markdown",
-    "editMarkdown": "Редактировать markdown"
+    "editMarkdown": "Редактировать markdown",
+    "previewHtml": "Открыть предпросмотр HTML в новой вкладке"
+  },
+  "filePreview": {
+    "loading": "Загрузка предпросмотра...",
+    "error": "Невозможно отобразить этот файл.",
+    "openInNewTab": "Открыть в новой вкладке"
   },
   "footer": {
     "lines": "Строк:",

@@ -21,9 +21,9 @@
     "chat": "Чат",
     "shell": "Терминал",
     "files": "Файлы",
-    "git": "Система контроля версий",
+    "git": "Контроль версий",
     "tasks": "Задачи",
-    "board": "Project Board",
+    "board": "Доска проекта",
     "wiki": "Вики"
   },
   "wiki": {
@@ -82,7 +82,9 @@
     "version": "Версия",
     "select": "Выбрать",
     "selectAll": "Выбрать все",
-    "deselectAll": "Снять выделение"
+    "deselectAll": "Снять выделение",
+    "done": "Готово",
+    "failed": "Не удалось"
   },
   "time": {
     "justNow": "Только что",
@@ -109,7 +111,9 @@
     "createProjectDesktop": "Создайте новый проект, нажав на значок папки на боковой панели",
     "newSession": "Новый сеанс",
     "untitledSession": "Безымянный сеанс",
-    "projectFiles": "Файлы проекта"
+    "projectFiles": "Файлы проекта",
+    "sessionIdTooltip": "ID сеанса: {{id}} — нажмите для копирования",
+    "sessionIdCopy": "Скопировать ID сеанса {{id}}"
   },
   "fileTree": {
     "loading": "Загрузка файлов...",
@@ -135,6 +139,11 @@
     "newFolder": "Новая папка (Cmd+Shift+N)",
     "refresh": "Обновить",
     "collapseAll": "Свернуть все",
+    "uploadFiles": "Загрузить файлы (макс. {{size}} каждый)",
+    "uploadingFiles": "Загрузка файлов",
+    "uploadComplete": "Загрузка завершена",
+    "uploadFailed": "Загрузка не удалась",
+    "uploadedCount": "Загружено {{uploaded}} из {{total}} {{label}}",
     "context": {
       "rename": "Переименовать",
       "delete": "Удалить",
@@ -241,6 +250,36 @@
       "failedToCreateFolder": "Не удалось создать папку"
     }
   },
+  "notifications": {
+    "genericTool": "инструмент",
+    "codes": {
+      "generic": {
+        "info": {
+          "title": "Уведомление"
+        }
+      },
+      "permission": {
+        "required": {
+          "title": "Требуется действие",
+          "body": "{{toolName}} ожидает вашего решения."
+        }
+      },
+      "run": {
+        "stopped": {
+          "title": "Запуск остановлен",
+          "body": "Причина: {{reason}}"
+        },
+        "failed": {
+          "title": "Запуск завершился с ошибкой"
+        }
+      },
+      "agent": {
+        "notification": {
+          "title": "Уведомление агента"
+        }
+      }
+    }
+  },
   "versionUpdate": {
     "title": "Доступно обновление",
     "newVersionReady": "Новая версия готова",
@@ -271,13 +310,19 @@
     }
   },
   "sessionProcessState": {
-    "running": "Running",
-    "frozen": "Paused (frozen)",
-    "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "running": "Выполняется",
+    "frozen": "Приостановлен (заморожен)",
+    "runningHint": "Процесс сеанса выполняется",
+    "frozenHint": "Процесс сеанса временно заморожен (kill -STOP)",
     "projectBusyHint": "Сеанс в этом проекте сейчас выполняется",
     "done": "Завершена",
     "doneHint": "Сессия завершена и ещё не открыта",
     "projectDoneHint": "Сессия в этом проекте завершена и ещё не открыта"
+  },
+  "buildUpdate": {
+    "available": "Доступна новая сборка",
+    "reload": "Обновить страницу",
+    "ariaLabel": "Уведомление о новой сборке",
+    "dismiss": "Скрыть"
   }
 }

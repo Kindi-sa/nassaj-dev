@@ -8,8 +8,13 @@
     "loadingProjects": "Загрузка проектов...",
     "searchPlaceholder": "Поиск проектов...",
     "projectNamePlaceholder": "Имя проекта",
+    "privateProject": "Приватный проект",
+    "makePrivate": "Сделать приватным",
+    "makePublic": "Сделать публичным",
     "starred": "Избранное",
     "all": "Все",
+    "myProjects": "Мои проекты",
+    "teamProjects": "Команда",
     "untitledSession": "Безымянный сеанс",
     "newSession": "Новый сеанс",
     "codexSession": "Сеанс Codex",
@@ -20,7 +25,7 @@
     "runClaudeCli": "Запустите Claude CLI в каталоге проекта для начала работы"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "nassaj",
     "subtitle": "Интерфейс AI помощника для программирования"
   },
   "sessions": {
@@ -43,6 +48,8 @@
     "deleteProject": "Убрать проект из боковой панели (Delete)",
     "addToFavorites": "Добавить в избранное",
     "removeFromFavorites": "Удалить из избранного",
+    "starSession": "Отметить разговор звездой",
+    "unstarSession": "Снять отметку звездой",
     "editSessionName": "Вручную редактировать имя сеанса",
     "deleteSession": "Удалить этот сеанс навсегда",
     "activeSessionIndicator": "Недавно активный сеанс (последние 10 минут)",
@@ -50,8 +57,8 @@
     "cancel": "Отмена",
     "clearSearch": "Очистить поиск",
     "openCommandPalette": "Открыть палитру команд",
-    "openWiki": "Open Nassaj Wiki",
-    "goHome": "Home"
+    "openWiki": "Открыть вики Nassaj",
+    "goHome": "На главную"
   },
   "navigation": {
     "chat": "Чат",
@@ -74,8 +81,8 @@
     "starOnGithub": "Звезда на GitHub"
   },
   "systemStats": {
-    "cpuUsage": "CPU usage",
-    "memoryUsage": "Memory usage"
+    "cpuUsage": "Загрузка ЦП",
+    "memoryUsage": "Использование памяти"
   },
   "branding": {
     "openSource": "Открытый исходный код"
@@ -112,7 +119,13 @@
     "deleteProjectFailed": "Не удалось убрать проект. Попробуйте снова.",
     "deleteProjectError": "Ошибка при удалении проекта из списка. Попробуйте снова.",
     "createProjectFailed": "Не удалось создать проект. Попробуйте снова.",
-    "createProjectError": "Ошибка при создании проекта. Попробуйте снова."
+    "createProjectError": "Ошибка при создании проекта. Попробуйте снова.",
+    "updateProjectError": "Ошибка при обновлении проекта. Попробуйте снова.",
+    "refreshError": "Не удалось обновить. Попробуйте снова.",
+    "restoreProjectFailed": "Не удалось восстановить проект. Попробуйте снова.",
+    "restoreProjectError": "Ошибка при восстановлении проекта. Попробуйте снова.",
+    "restoreSessionFailed": "Не удалось восстановить сеанс. Попробуйте снова.",
+    "restoreSessionError": "Ошибка при восстановлении сеанса. Попробуйте снова."
   },
   "version": {
     "updateAvailable": "Доступно обновление"
@@ -130,9 +143,28 @@
     "allConversationsDeleted": "Проект будет убран из боковой панели. Ваши файлы, воспоминания и данные сеансов сохранятся.",
     "cannotUndo": "Вы сможете добавить проект позже."
   },
+  "participants": {
+    "lastSeen": "Последний визит",
+    "invocations_one": "{{count}} вызов",
+    "invocations_other": "{{count}} вызовов",
+    "usersAria_one": "{{count}} участник",
+    "usersAria_other": "{{count}} участников",
+    "andMore_one": "и ещё {{count}}",
+    "andMore_other": "и ещё {{count}}",
+    "projectSummary": "{{users}} пользователей · {{agents}} агентов",
+    "roles": {
+      "owner": "Владелец",
+      "admin": "Администратор",
+      "user": "Участник"
+    },
+    "agentKinds": {
+      "model": "Базовая модель",
+      "subagent": "Субагент"
+    }
+  },
   "upstream": {
-    "newRelease": "Upstream v{{version}} released",
-    "openRelease": "Open the upstream v{{version}} release page",
-    "acknowledge": "Acknowledge"
+    "newRelease": "Выпущена версия upstream v{{version}}",
+    "openRelease": "Открыть страницу релиза upstream v{{version}}",
+    "acknowledge": "Понятно"
   }
 }

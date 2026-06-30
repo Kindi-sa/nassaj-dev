@@ -1,149 +1,235 @@
 {
   "sections": {
-    "overview": "Overview",
-    "schedule": "Timeline",
-    "objectives": "Objectives",
-    "visual": "Visual Checks",
-    "architecture": "Architecture"
+    "overview": "Обзор",
+    "schedule": "Расписание",
+    "objectives": "Цели",
+    "visual": "Визуальные проверки",
+    "architecture": "Архитектура"
   },
-  "updated": "Updated {{date}}",
-  "overallProgress": "Overall progress",
-  "error": "Failed to load the project board.",
-  "stateError": "project-state.json is invalid — showing the last valid version.",
+  "updated": "Обновлено {{date}}",
+  "overallProgress": "Общий прогресс",
+  "error": "Не удалось загрузить доску проекта.",
+  "stateError": "Файл project-state.json недействителен — показывается последняя рабочая версия.",
   "empty": {
-    "title": "No project board yet",
-    "description": "This project has no project state file. Create it to get a live board of phases, tasks and issues.",
-    "hint": "The board updates automatically whenever the file changes — no refresh needed.",
-    "copyTemplate": "Copy starter template",
-    "copied": "Copied — paste it into the file"
+    "title": "Доска проекта пока пуста",
+    "description": "У этого проекта нет файла состояния. Создайте его для получения живой доски с фазами, задачами и проблемами.",
+    "hint": "Доска обновляется автоматически при изменении файла — обновление не требуется.",
+    "copyTemplate": "Копировать стартовый шаблон",
+    "copied": "Скопировано — вставьте в файл"
   },
   "phases": {
-    "title": "Phases",
-    "current": "Current"
+    "title": "Фазы",
+    "current": "Текущая",
+    "planned": "Запланировано",
+    "runnerHere": "аль-Минвал здесь",
+    "progressCount": "{{progress}}% ({{done}}/{{total}})"
   },
   "sprint": {
-    "current": "Current sprint",
-    "started": "Started {{date}}",
-    "ended": "Ended {{date}}",
-    "taskCount": "Tasks {{done}}/{{total}}",
-    "others": "Other sprints ({{count}})",
+    "current": "Текущий спринт",
+    "started": "Начат {{date}}",
+    "ended": "Завершён {{date}}",
+    "taskCount": "Задачи {{done}}/{{total}}",
+    "others": "Другие спринты ({{count}})",
     "status": {
-      "planned": "Planned",
-      "current": "Current",
-      "done": "Done"
+      "planned": "Запланировано",
+      "current": "Текущий",
+      "done": "Выполнено"
     }
   },
   "tasksSection": {
-    "title": "Tasks",
-    "open": "Open",
-    "in_progress": "In progress",
-    "done": "Done",
-    "empty": "No tasks",
+    "title": "Задачи",
+    "open": "Открытые",
+    "in_progress": "В процессе",
+    "done": "Выполнено",
+    "empty": "Задач нет",
     "kind": {
-      "feature": "Feature",
-      "bug": "Bug",
-      "chore": "Chore",
-      "spike": "Spike"
+      "feature": "Функция",
+      "bug": "Ошибка",
+      "chore": "Техзадача",
+      "spike": "Исследование"
     },
-    "issueLink": "View issue {{id}}"
+    "issueLink": "Открыть проблему {{id}}"
   },
   "issues": {
-    "title": "Issues",
+    "title": "Проблемы",
     "severity": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "critical": "Critical"
+      "low": "Низкая",
+      "medium": "Средняя",
+      "high": "Высокая",
+      "critical": "Критическая"
     },
     "status": {
-      "open": "Open",
-      "fixed": "Fixed",
-      "wontfix": "Won't fix"
+      "open": "Открытая",
+      "fixed": "Исправлена",
+      "wontfix": "Не будет исправлена"
     }
   },
   "decisions": {
-    "title": "Decisions",
-    "empty": "No decisions yet",
-    "openLink": "Open decision document {{id}}"
+    "title": "Решения",
+    "empty": "Решений пока нет",
+    "openLink": "Открыть документ решения {{id}}"
   },
   "schedule": {
-    "title": "Timeline (Gantt)",
-    "critical": "Critical",
-    "legendScheduled": "Scheduled",
-    "legendCritical": "Critical path",
-    "legendMilestone": "Milestone",
+    "title": "Расписание (Gantt)",
+    "critical": "Критический",
+    "legendScheduled": "Запланировано",
+    "legendCritical": "Критический путь",
+    "legendMilestone": "Веха",
     "cpm": {
-      "cycle": "Critical path skipped: dependency cycle detected.",
-      "missingDeps": "Some dependencies reference missing items and were ignored in the critical path."
+      "cycle": "Критический путь пропущен: обнаружен цикл зависимостей.",
+      "missingDeps": "Некоторые зависимости ссылаются на отсутствующие элементы и были проигнорированы в критическом пути."
     },
-    "noDates": "No valid dates to draw the timeline.",
-    "progress": "Progress {{value}}%",
-    "durationDays": "Duration: {{days}} days",
-    "owner": "Owner: {{name}}",
-    "deliverable": "Deliverable: {{id}}",
-    "deliverableLink": "View deliverable {{id}}",
-    "dependsOn": "Depends on: {{ids}}"
+    "noDates": "Нет корректных дат для отрисовки расписания.",
+    "progress": "Прогресс {{value}}%",
+    "durationDays": "Длительность: {{days}} дн.",
+    "owner": "Ответственный: {{name}}",
+    "deliverable": "Результат: {{id}}",
+    "deliverableLink": "Открыть результат {{id}}",
+    "dependsOn": "Зависит от: {{ids}}"
   },
   "deliverables": {
-    "title": "Deliverables",
-    "due": "Due {{date}}",
-    "overdue": "Overdue",
-    "acceptance": "Acceptance criterion",
-    "deliveredBy": "Delivered by: {{ids}}",
+    "title": "Результаты",
+    "due": "Срок {{date}}",
+    "overdue": "Просрочено",
+    "acceptance": "Критерий приёмки",
+    "deliveredBy": "Выполнено: {{ids}}",
     "statuses": {
-      "pending": "Pending",
-      "in_progress": "In progress",
-      "delivered": "Delivered",
-      "accepted": "Accepted",
-      "rejected": "Rejected"
+      "pending": "Ожидается",
+      "in_progress": "В процессе",
+      "delivered": "Сдано",
+      "accepted": "Принято",
+      "rejected": "Отклонено"
     }
   },
   "objectives": {
-    "title": "Objectives (OKR)",
-    "baseline": "Baseline: {{value}}",
+    "title": "Цели (OKR)",
+    "baseline": "Базовое значение: {{value}}",
     "statuses": {
-      "on_track": "On track",
-      "at_risk": "At risk",
-      "off_track": "Off track",
-      "done": "Done"
+      "on_track": "В графике",
+      "at_risk": "Под угрозой",
+      "off_track": "Не в графике",
+      "done": "Выполнено"
     }
   },
   "kpis": {
-    "title": "KPIs",
-    "target": "Target: {{value}}"
+    "title": "KPI",
+    "target": "Цель: {{value}}"
   },
   "visualChecks": {
-    "title": "Visual Checks",
-    "empty": "No visual checks yet.",
-    "step": "Step",
-    "expect": "Expected",
-    "result": "Owner note",
-    "counter": "Verified {{verified}} / {{total}}",
+    "title": "Визуальные проверки",
+    "empty": "Визуальных проверок пока нет.",
+    "step": "Шаг",
+    "expect": "Ожидаемое",
+    "result": "Примечание владельца",
+    "counter": "Проверено {{verified}} / {{total}}",
     "status": {
-      "pending": "Awaiting check",
-      "verified": "Verified",
-      "failed": "Failed"
-    }
-  },
-  "approvals": {
-    "title": "Pending approvals",
-    "awaitingReview": "Awaiting your review",
-    "approve": "Approve",
-    "reject": "Reject",
-    "pending": "Submitting…",
-    "error": "Action failed. Try again.",
-    "kind": {
-      "prod-migration": "Production migration",
-      "secret": "Secret",
-      "restart": "Restart",
-      "push": "Push",
-      "sensitive": "Sensitive action"
+      "pending": "Ожидает проверки",
+      "verified": "Подтверждено",
+      "failed": "Не прошло"
     }
   },
   "architecture": {
-    "technical": "Technical",
-    "simplified": "Simplified",
-    "missing": "No architecture documents found (docs/ARCHITECTURE.md or docs/ARCHITECTURE_AR.md).",
-    "variantMissing": "This version of the architecture document does not exist."
+    "technical": "Техническая",
+    "simplified": "Упрощённая",
+    "missing": "Документы архитектуры не найдены (docs/ARCHITECTURE.md или docs/ARCHITECTURE_AR.md).",
+    "variantMissing": "Эта версия документа архитектуры не существует."
+  },
+  "approvals": {
+    "title": "Ожидают одобрения",
+    "awaitingReview": "Ожидает вашей проверки",
+    "approve": "Одобрить",
+    "reject": "Отклонить",
+    "pending": "Отправка…",
+    "error": "Действие не удалось. Попробуйте снова.",
+    "kind": {
+      "prod-migration": "Миграция продакшена",
+      "secret": "Секрет",
+      "restart": "Перезапуск",
+      "push": "Push",
+      "sensitive": "Чувствительное действие"
+    }
+  },
+  "runner": {
+    "label": "аль-Минвал",
+    "description": "Автономный раннер",
+    "fullName": "аль-Минвал (Автономный раннер)",
+    "cycle": "Цикл {{n}}",
+    "stage": "Этап",
+    "model": "Модель",
+    "quota": "Квота",
+    "task": "Задача",
+    "phase": "Фаза",
+    "verdict": "Последний вердикт",
+    "clean": "чисто",
+    "unclean": "не чисто",
+    "pendingTick": "Ожидание следующего тика…",
+    "status": {
+      "idle": "Простой",
+      "running": "Выполняется",
+      "building": "Сборка",
+      "verifying": "Проверка",
+      "interrupted": "Прерван (квота)",
+      "failed": "Не удалось",
+      "blocked": "Заблокирован",
+      "paused": "Приостановлен",
+      "awaiting_approval": "Ожидает одобрения",
+      "disabled": "Отключён"
+    },
+    "statusLine": {
+      "running": "🟢 аль-Минвал работает",
+      "awaiting": "🔵 аль-Минвал ожидает одобрения",
+      "interrupted": "🟡 аль-Минвал приостановлен",
+      "failed": "🔴 аль-Минвал завершился ошибкой",
+      "idle": "⚪ аль-Минвал простаивает"
+    },
+    "stages": {
+      "review": "Обзор",
+      "fix": "Исправление",
+      "critique": "Критика",
+      "phase": "Сборка фазы",
+      "awaiting_approval": "Ожидает одобрения"
+    },
+    "actions": {
+      "start": "Запустить",
+      "stop": "Остановить",
+      "pause": "Приостановить",
+      "resume": "Возобновить",
+      "approve": "Одобрить фазу",
+      "enable": "Включить",
+      "enableHint": "Повторно включить аль-Минвал для этого проекта",
+      "disable": "Отключить",
+      "disableHint": "Отключить проект в реестре аль-Минвала (без новых циклов до включения) — не завершает текущий цикл",
+      "forceStop": "Принудительная остановка",
+      "forceStopHint": "Немедленно завершить текущий цикл, прервав сеанс, затем заблокировать перезапуск",
+      "forceStopConfirm": "Это немедленно завершит текущий цикл, прервав его сеанс. Продолжить?",
+      "forceStopConfirmYes": "Да, остановить",
+      "forceStopCancel": "Отмена"
+    },
+    "errors": {
+      "notAwaiting": "Раннер сейчас не ожидает одобрения фазы.",
+      "forceStopFailed": "Принудительная остановка не удалась (не удалось остановить сеанс). Цикл может всё ещё выполняться — попробуйте снова.",
+      "generic": "Не удалось выполнить действие."
+    },
+    "journey": {
+      "title": "Путь раннера",
+      "here": "Раннер здесь",
+      "cyclesCount": "Циклы ({{n}})",
+      "noCycles": "Раннер ещё не запускал ни одного цикла",
+      "cycleN": "Цикл {{n}}",
+      "showAll": "Показать все ({{n}})",
+      "stale": "Возможно заморожен",
+      "phasesLabel": "Этапы цикла",
+      "stage": {
+        "build": "Сборка",
+        "verify": "Проверка",
+        "verdict": "Вердикт",
+        "gate": "Шлюз"
+      },
+      "cycleStatus": {
+        "succeeded": "Успешно",
+        "failed": "Не удалось",
+        "interrupted": "Прервано"
+      }
+    }
   }
 }
