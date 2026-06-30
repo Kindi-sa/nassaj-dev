@@ -1,6 +1,6 @@
 {
   "reference": "en",
-  "refTotalKeys": 1608,
+  "refTotalKeys": 1612,
   "namespaces": [
     "auth.json",
     "chat.json",
@@ -17,7 +17,7 @@
       "missingFiles": [
         "presence.json"
       ],
-      "totalMissingKeys": 479,
+      "totalMissingKeys": 483,
       "totalOrphanKeys": 1,
       "totalUntranslated": 217,
       "namespaces": {
@@ -213,8 +213,13 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 0,
-          "missingKeys": [],
+          "missingCount": 4,
+          "missingKeys": [
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
+          ],
           "orphanCount": 0,
           "orphanKeys": [],
           "untranslatedCount": 0,
@@ -820,7 +825,7 @@
       "missingFiles": [
         "presence.json"
       ],
-      "totalMissingKeys": 466,
+      "totalMissingKeys": 470,
       "totalOrphanKeys": 0,
       "totalUntranslated": 206,
       "namespaces": {
@@ -1018,8 +1023,13 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 0,
-          "missingKeys": [],
+          "missingCount": 4,
+          "missingKeys": [
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
+          ],
           "orphanCount": 0,
           "orphanKeys": [],
           "untranslatedCount": 0,
@@ -1597,7 +1607,7 @@
       "missingFiles": [
         "presence.json"
       ],
-      "totalMissingKeys": 495,
+      "totalMissingKeys": 499,
       "totalOrphanKeys": 2,
       "totalUntranslated": 214,
       "namespaces": {
@@ -1823,10 +1833,14 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 2,
+          "missingCount": 6,
           "missingKeys": [
             "actions.previewMarkdown",
-            "actions.editMarkdown"
+            "actions.editMarkdown",
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
           ],
           "orphanCount": 0,
           "orphanKeys": [],
@@ -2417,7 +2431,7 @@
         "presence.json",
         "tasks.json"
       ],
-      "totalMissingKeys": 576,
+      "totalMissingKeys": 580,
       "totalOrphanKeys": 1,
       "totalUntranslated": 213,
       "namespaces": {
@@ -2632,10 +2646,14 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 2,
+          "missingCount": 6,
           "missingKeys": [
             "actions.previewMarkdown",
-            "actions.editMarkdown"
+            "actions.editMarkdown",
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
           ],
           "orphanCount": 0,
           "orphanKeys": [],
@@ -3314,8 +3332,8 @@
       "missingFiles": [
         "presence.json"
       ],
-      "totalMissingKeys": 479,
-      "totalOrphanKeys": 3,
+      "totalMissingKeys": 483,
+      "totalOrphanKeys": 1,
       "totalUntranslated": 194,
       "namespaces": {
         "auth.json": {
@@ -3505,8 +3523,13 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 0,
-          "missingKeys": [],
+          "missingCount": 4,
+          "missingKeys": [
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
+          ],
           "orphanCount": 0,
           "orphanKeys": [],
           "untranslatedCount": 0,
@@ -4063,11 +4086,8 @@
             "participants.agentKinds.model",
             "participants.agentKinds.subagent"
           ],
-          "orphanCount": 2,
-          "orphanKeys": [
-            "deleteConfirmation.sessionCount_few",
-            "deleteConfirmation.sessionCount_many"
-          ],
+          "orphanCount": 0,
+          "orphanKeys": [],
           "untranslatedCount": 8,
           "untranslatedKeys": [
             "app.title",
@@ -4097,7 +4117,7 @@
       "missingFiles": [
         "presence.json"
       ],
-      "totalMissingKeys": 466,
+      "totalMissingKeys": 470,
       "totalOrphanKeys": 0,
       "totalUntranslated": 199,
       "namespaces": {
@@ -4290,8 +4310,13 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 0,
-          "missingKeys": [],
+          "missingCount": 4,
+          "missingKeys": [
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
+          ],
           "orphanCount": 0,
           "orphanKeys": [],
           "untranslatedCount": 0,
@@ -4868,7 +4893,7 @@
         "presence.json",
         "tasks.json"
       ],
-      "totalMissingKeys": 575,
+      "totalMissingKeys": 579,
       "totalOrphanKeys": 1,
       "totalUntranslated": 208,
       "namespaces": {
@@ -5082,10 +5107,14 @@
         },
         "codeEditor.json": {
           "missingFile": false,
-          "missingCount": 2,
+          "missingCount": 6,
           "missingKeys": [
             "actions.previewMarkdown",
-            "actions.editMarkdown"
+            "actions.editMarkdown",
+            "actions.previewHtml",
+            "filePreview.loading",
+            "filePreview.error",
+            "filePreview.openInNewTab"
           ],
           "orphanCount": 0,
           "orphanKeys": [],

@@ -19,6 +19,20 @@ function flatten(obj, prefix = '', out = {}) {
   }
   return out;
 }
+// Returns true when key K is a plural variant (e.g. sessionCount_few) whose
+// base form has at least one plural form present in the reference namespace.
+// Plural suffixes per i18next convention: zero/one/two/few/many/other.
+const PLURAL_SUFFIX_RE = /^(.+)_(zero|one|two|few|many|other)$/;
+function isPluralVariant(k, refKeys) {
+  const m = PLURAL_SUFFIX_RE.exec(k);
+  if (!m) return false;
+  const base = m[1];
+  // Check whether the reference namespace contains any plural form of the same base.
+  return refKeys.some(rk => {
+    const rm = PLURAL_SUFFIX_RE.exec(rk);
+    return rm && rm[1] === base;
+  });
+}
 function load(lang, ns) {
   const p = path.join(LOCALES, lang, ns);
   if (!fs.existsSync(p)) return null;
@@ -45,7 +59,7 @@ for (const lang of LANGS) {
     const lf = flatten(o);
     const langKeys = Object.keys(lf);
     const missing = refKeys.filter(k => !(k in lf));
-    const orphan = langKeys.filter(k => !(k in refFlat[ns]));
+    const orphan = langKeys.filter(k => !(k in refFlat[ns]) && !isPluralVariant(k, refKeys));
     const untranslated = refKeys.filter(k => (k in lf) && typeof refFlat[ns][k] === 'string' && lf[k] === refFlat[ns][k] && String(refFlat[ns][k]).trim().length > 1);
     entry.namespaces[ns] = { missingFile: false, missingCount: missing.length, missingKeys: missing, orphanCount: orphan.length, orphanKeys: orphan, untranslatedCount: untranslated.length, untranslatedKeys: untranslated };
     entry.totalMissingKeys += missing.length;
