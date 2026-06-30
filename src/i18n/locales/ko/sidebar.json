@@ -8,8 +8,13 @@
     "loadingProjects": "프로젝트 로딩 중...",
     "searchPlaceholder": "프로젝트 검색...",
     "projectNamePlaceholder": "프로젝트 이름",
+    "privateProject": "비공개 프로젝트",
+    "makePrivate": "비공개로 설정",
+    "makePublic": "공개로 설정",
     "starred": "즐겨찾기",
     "all": "전체",
+    "myProjects": "내 프로젝트",
+    "teamProjects": "팀",
     "untitledSession": "제목 없는 세션",
     "newSession": "새 세션",
     "codexSession": "Codex 세션",
@@ -20,7 +25,7 @@
     "runClaudeCli": "프로젝트 디렉토리에서 Claude CLI를 실행하여 시작하세요"
   },
   "app": {
-    "title": "CloudCLI",
+    "title": "Nassaj",
     "subtitle": "AI 코딩 어시스턴트 UI"
   },
   "sessions": {
@@ -43,14 +48,17 @@
     "deleteProject": "사이드바에서 프로젝트 제거 (Delete)",
     "addToFavorites": "즐겨찾기에 추가",
     "removeFromFavorites": "즐겨찾기에서 제거",
+    "starSession": "이 대화 즐겨찾기",
+    "unstarSession": "이 대화 즐겨찾기 해제",
+    "clearSearch": "검색 지우기",
     "editSessionName": "세션 이름 직접 편집",
     "deleteSession": "이 세션 영구 삭제",
     "activeSessionIndicator": "최근 활성 세션 (지난 10분)",
     "save": "저장",
     "cancel": "취소",
     "openCommandPalette": "명령 팔레트 열기",
-    "openWiki": "Open Nassaj Wiki",
-    "goHome": "Home"
+    "openWiki": "Nassaj 위키 열기",
+    "goHome": "홈으로"
   },
   "navigation": {
     "chat": "채팅",
@@ -73,8 +81,8 @@
     "starOnGithub": "GitHub에서 스타"
   },
   "systemStats": {
-    "cpuUsage": "CPU usage",
-    "memoryUsage": "Memory usage"
+    "cpuUsage": "CPU 사용량",
+    "memoryUsage": "메모리 사용량"
   },
   "branding": {
     "openSource": "오픈 소스"
@@ -111,7 +119,13 @@
     "deleteProjectFailed": "프로젝트 제거 실패. 다시 시도해주세요.",
     "deleteProjectError": "프로젝트 제거 오류. 다시 시도해주세요.",
     "createProjectFailed": "프로젝트 생성 실패. 다시 시도해주세요.",
-    "createProjectError": "프로젝트 생성 오류. 다시 시도해주세요."
+    "createProjectError": "프로젝트 생성 오류. 다시 시도해주세요.",
+    "updateProjectError": "프로젝트 업데이트 오류. 다시 시도해주세요.",
+    "refreshError": "새로고침 실패. 다시 시도해주세요.",
+    "restoreProjectFailed": "프로젝트 복원 실패. 다시 시도해주세요.",
+    "restoreProjectError": "프로젝트 복원 오류. 다시 시도해주세요.",
+    "restoreSessionFailed": "세션 복원 실패. 다시 시도해주세요.",
+    "restoreSessionError": "세션 복원 오류. 다시 시도해주세요."
   },
   "version": {
     "updateAvailable": "업데이트 가능"
@@ -127,9 +141,28 @@
     "allConversationsDeleted": "프로젝트가 사이드바에서 제거됩니다. 파일, 메모리 및 세션 데이터는 보존됩니다.",
     "cannotUndo": "나중에 프로젝트를 다시 추가할 수 있습니다."
   },
+  "participants": {
+    "lastSeen": "마지막 접속",
+    "invocations_one": "{{count}}회 호출",
+    "invocations_other": "{{count}}회 호출",
+    "usersAria_one": "{{count}}명 참가자",
+    "usersAria_other": "{{count}}명 참가자",
+    "andMore_one": "{{count}}명 더",
+    "andMore_other": "{{count}}명 더",
+    "projectSummary": "{{users}}명 사용자 · {{agents}}개 에이전트",
+    "roles": {
+      "owner": "소유자",
+      "admin": "관리자",
+      "user": "멤버"
+    },
+    "agentKinds": {
+      "model": "기본 모델",
+      "subagent": "서브에이전트"
+    }
+  },
   "upstream": {
-    "newRelease": "Upstream v{{version}} released",
-    "openRelease": "Open the upstream v{{version}} release page",
-    "acknowledge": "Acknowledge"
+    "newRelease": "업스트림 v{{version}} 출시",
+    "openRelease": "업스트림 v{{version}} 릴리스 페이지 열기",
+    "acknowledge": "확인"
   }
 }

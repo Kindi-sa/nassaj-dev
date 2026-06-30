@@ -19,11 +19,11 @@
   },
   "tabs": {
     "chat": "채팅",
-    "shell": "Shell",
+    "shell": "셸",
     "files": "파일",
     "git": "소스 관리",
     "tasks": "작업",
-    "board": "Project Board",
+    "board": "프로젝트 보드",
     "wiki": "위키"
   },
   "wiki": {
@@ -82,7 +82,9 @@
     "version": "버전",
     "select": "선택",
     "selectAll": "전체 선택",
-    "deselectAll": "전체 해제"
+    "deselectAll": "전체 해제",
+    "done": "완료",
+    "failed": "실패"
   },
   "time": {
     "justNow": "방금 전",
@@ -109,7 +111,9 @@
     "createProjectDesktop": "사이드바의 폴더 아이콘을 클릭하여 새 프로젝트를 생성하세요",
     "newSession": "새 세션",
     "untitledSession": "제목 없는 세션",
-    "projectFiles": "프로젝트 파일"
+    "projectFiles": "프로젝트 파일",
+    "sessionIdTooltip": "세션 ID: {{id}} — 클릭하여 복사",
+    "sessionIdCopy": "세션 ID {{id}} 복사"
   },
   "fileTree": {
     "loading": "파일 로딩 중...",
@@ -135,6 +139,11 @@
     "newFolder": "새 폴더 (Cmd+Shift+N)",
     "refresh": "새로고침",
     "collapseAll": "모두 접기",
+    "uploadFiles": "파일 업로드 (최대 {{size}} 각)",
+    "uploadingFiles": "파일 업로드 중",
+    "uploadComplete": "업로드 완료",
+    "uploadFailed": "업로드 실패",
+    "uploadedCount": "{{total}} 중 {{uploaded}} 업로드 완료",
     "context": {
       "rename": "이름 변경",
       "delete": "삭제",
@@ -301,13 +310,19 @@
     }
   },
   "sessionProcessState": {
-    "running": "Running",
-    "frozen": "Paused (frozen)",
-    "runningHint": "Session process is running",
-    "frozenHint": "Session process is temporarily frozen (kill -STOP)",
+    "running": "실행 중",
+    "frozen": "일시 중지됨 (동결)",
+    "runningHint": "세션 프로세스가 실행 중입니다",
+    "frozenHint": "세션 프로세스가 일시적으로 동결되었습니다 (kill -STOP)",
     "projectBusyHint": "이 프로젝트의 세션이 처리 중입니다",
     "done": "완료",
     "doneHint": "세션이 완료되었으며 아직 열지 않았습니다",
     "projectDoneHint": "이 프로젝트의 세션이 완료되었으며 아직 열지 않았습니다"
+  },
+  "buildUpdate": {
+    "available": "새 빌드가 출시되었습니다",
+    "reload": "새로고침",
+    "ariaLabel": "새 빌드 업데이트 알림",
+    "dismiss": "닫기"
   }
 }
