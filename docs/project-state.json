@@ -86,8 +86,8 @@
       "phase": "P4",
       "status": "done",
       "owner": "frontend-dev",
-      "title": "قصر لغات الواجهة على ar/en (تعطيل عبر المنتقي لا حذف الملفات، السقوط على ar) + زرّ يطوي مجموعة أيقونات الشريط العلوي (MainContentTabSwitcher) بجانب التابات عبر تفضيل topBarIconsCollapsed (RTL).",
-      "note": "طلب المالك 2026-06-30 (اللغات تسبب مشاكل). commits cb6ae56d (لغات) + fc0d698b (تصحيح: زر يطوي أيقونات الشريط العلوي بعد سوء فهم أولي؛ الشريط الجانبي أُعيد لأصله)؛ tsc 0 + build:client ×؛ حيّ على alkindy (يلزم Ctrl+Shift+R لـSW). traventure يحتاج push+pull+build:client. ينتظر تأكيد المالك بصرياً (يحتاج دخولاً)."
+      "title": "قصر لغات الواجهة على ar/en (تعطيل عبر المنتقي لا حذف الملفات، السقوط على ar) + زرّ في الشريط العلوي بجانب التابات يبدّل إعداد «Compact tabs (icons only)» (tabsIconOnly) كاختصار سريع متزامن مع checkbox الإعدادات (RTL، aria-pressed).",
+      "note": "طلب المالك 2026-06-30 (اللغات تسبب مشاكل). commits cb6ae56d (لغات) + fc0d698b (استرجاع الشريط الجانبي) + 18447fef (الزرّ يبدّل tabsIconOnly — المواصفة النهائية بعد جولتي توضيح)؛ tsc 0 + build:client ×؛ حيّ على alkindy (يلزم Ctrl+Shift+R لـSW). traventure يحتاج push+pull+build:client. ينتظر تأكيد المالك بصرياً (يحتاج دخولاً)."
     },
     {
       "id": "T-243",
