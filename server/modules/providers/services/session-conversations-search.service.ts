@@ -5,7 +5,7 @@ import readline from 'node:readline';
 import { spawn } from 'cross-spawn';
 import { rgPath } from '@vscode/ripgrep';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex' | 'gemini';
@@ -48,6 +48,11 @@ export type SessionConversationSearchProgressUpdate = {
 type SearchSessionConversationsInput = {
   query: string;
   limit: number;
+  // Authenticated caller resolved by the route from req.user (B-106). The search
+  // only ever scans / streams sessions this user owns or participates in. `null`
+  // is the explicit "no authenticated identity" value and yields zero results —
+  // it never widens access.
+  requesterUserId: number | null;
   signal?: AbortSignal;
   onProgress?: (update: SessionConversationSearchProgressUpdate) => void;
 };
@@ -519,6 +524,37 @@ function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSe
   }
 
   return normalizedRows;
+}
+
+/**
+ * Per-session ownership gate for conversation search (B-106 — sibling of the
+ * B-105 REST IDOR fix). The search used to scan every transcript on disk across
+ * all projects with no notion of who was asking, so any authenticated user could
+ * read other users' conversation content (and live SSE snippets). This filter
+ * keeps ONLY the sessions the requester owns or participates in, using the same
+ * `participantsDb.isParticipant` predicate that gates GET /sessions/:id/messages.
+ *
+ * Applied to the candidate set BEFORE ripgrep runs and before any project bucket
+ * is built or streamed, so a non-owned session's content is never read off disk
+ * and never emitted over SSE — not even transiently. Enforcing at the session
+ * level subsumes per-project isolation: a user only matches sessions they belong
+ * to, regardless of which project those sessions live in.
+ *
+ * Fail-closed by construction: a `null` requester (anonymous / unresolved) is
+ * not an integer user id, so `isParticipant` returns false for every session and
+ * the result is empty. Uses prepared statements only (inside participantsDb).
+ */
+function filterSessionsByOwnership(
+  searchableSessions: SearchableSessionRow[],
+  requesterUserId: number | null,
+): SearchableSessionRow[] {
+  if (requesterUserId === null) {
+    return [];
+  }
+
+  return searchableSessions.filter((session) =>
+    participantsDb.isParticipant(session.session_id, requesterUserId),
+  );
 }
 
 function buildProjectBuckets(searchableSessions: SearchableSessionRow[]): ProjectBucket[] {
@@ -1155,6 +1191,7 @@ async function parseSessionMatches(
 
 export async function searchConversations(
   query: string,
+  requesterUserId: number | null,
   limit = 50,
   onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null,
   signal: AbortSignal | null = null,
@@ -1167,12 +1204,24 @@ export async function searchConversations(
     return { results: [], totalMatches: 0, query: safeQuery };
   }
 
+  // Fail-closed ownership gate (B-106): a null / unresolved caller owns nothing,
+  // so refuse before touching the database, ripgrep, or the SSE stream.
+  if (requesterUserId === null) {
+    return { results: [], totalMatches: 0, query: safeQuery };
+  }
+
   const isAborted = () => signal?.aborted === true;
   if (isAborted()) {
     return { results: [], totalMatches: 0, query: safeQuery };
   }
 
-  const searchableSessions = normalizeSearchableSessions(sessionsDb.getAllSessions());
+  // Restrict the candidate set to sessions this user owns / participates in
+  // BEFORE any file is scanned or any project bucket is built/streamed, so no
+  // other user's transcript content is ever read off disk or emitted over SSE.
+  const searchableSessions = filterSessionsByOwnership(
+    normalizeSearchableSessions(sessionsDb.getAllSessions()),
+    requesterUserId,
+  );
   if (searchableSessions.length === 0) {
     return { results: [], totalMatches: 0, query: safeQuery };
   }
@@ -1308,6 +1357,7 @@ export const sessionConversationsSearchService = {
   async search(input: SearchSessionConversationsInput): Promise<void> {
     await searchConversations(
       input.query,
+      input.requesterUserId,
       input.limit,
       input.onProgress ?? null,
       input.signal ?? null,

@@ -632,6 +632,10 @@ router.get(
 router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) => {
   const query = parseSessionSearchQuery(req.query.q);
   const limit = parseSessionSearchLimit(req.query.limit);
+  // Ownership scope for the search (B-106): only this user's own sessions are
+  // ever scanned or streamed. Resolved from req.user (set by authenticateToken
+  // guarding this router); null here means no usable identity → zero results.
+  const requesterUserId = readRequesterUserId(req);
 
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -651,6 +655,7 @@ router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) 
     await sessionConversationsSearchService.search({
       query,
       limit,
+      requesterUserId,
       signal: abortController.signal,
       onProgress: ({ projectResult, totalMatches, scannedProjects, totalProjects }) => {
         if (closed) {
