@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T10:35:00.000Z",
+  "updated": "2026-06-30T11:05:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2773,7 +2773,7 @@
       "owner": "architect",
       "issue": "B-103",
       "title": "إشعار/مؤشّر واجهة موثوق للعمل الخلفي (متطلب مالك صريح 2026-06-30): إظهار حالة أي workflow/وكلاء خلفيين — شغّال/يتيم/مكتمل — مستقلاً عن حياة جلسة Claude (المصدر = journal على القرص لا بثّ WS الزائل). = طبقة الرؤية في مشكلة B / ADR-051 المرحلة 1.",
-      "note": "تصميم T-242 (نواة running/orphan) مرفوض بفيتو qa-critic 2026-06-30 (مراجعة aaa570b، متحقَّقة في الكود). 3 فيتوات: (1) **عتبة 180s مستحيلة** — journal.jsonl بلا timestamp لكل سطر ({type,key,agentId} فقط، مؤكَّد قرصياً + workflow-reconcile.service.ts:156)؛ mtime لا يميّز وكيلاً بطيئاً حيّاً (177s+ وارد فعلاً بالمشروع) عن ميّت → إيجابيات/سلبيات كاذبة = «إشعار موثوق» يصير أسوأ من غيابه. البديل: حياة العملية الحقيقية claudeSessionRegistry.isActive(sessionId) (claude-sdk.js:1600) + countLiveMirrors، لا mtime؛ orphan = started⊄result + العملية غائبة من السجلّ + journal هادئ ≥ DEFAULT_QUIET_MS. (2) **عزل per-user مفقود** على نفس المسار → B-105 (تأسيسي قبل الميزة). (3) **بيضة-دجاجة**: العميل بعد موت العملية لا يعرف أن يستطلع (مصدر علمه complete.pendingWorkflows مات) — انقل تصنيف running/orphan إلى مسار fetchHistory (يُحسب عند فتح الجلسة، يعمل والجلسة ميتة)؛ الاستطلاع تحسين لا ضمانة. + مهم: المتطلَّب global والتصميم per-session → يلزم مؤشّر app-level للجلسات المملوكة وإلا «دائماً» غير محقَّق. الجيد المُتحقَّق ويُحتفظ به: completed/settled مُصلّب وآمن وحيّ. **الحالة: محجوب على B-105 + يلزم إعادة تصميم تتضمّن الإصلاحات الثلاثة قبل أي تنفيذ.**"
+      "note": "تصميم T-242 (نواة running/orphan) مرفوض بفيتو qa-critic 2026-06-30 (مراجعة aaa570b، متحقَّقة في الكود). 3 فيتوات: (1) **عتبة 180s مستحيلة** — journal.jsonl بلا timestamp لكل سطر ({type,key,agentId} فقط، مؤكَّد قرصياً + workflow-reconcile.service.ts:156)؛ mtime لا يميّز وكيلاً بطيئاً حيّاً (177s+ وارد فعلاً بالمشروع) عن ميّت → إيجابيات/سلبيات كاذبة = «إشعار موثوق» يصير أسوأ من غيابه. البديل: حياة العملية الحقيقية claudeSessionRegistry.isActive(sessionId) (claude-sdk.js:1600) + countLiveMirrors، لا mtime؛ orphan = started⊄result + العملية غائبة من السجلّ + journal هادئ ≥ DEFAULT_QUIET_MS. (2) **عزل per-user مفقود** على نفس المسار → B-105 (تأسيسي قبل الميزة). (3) **بيضة-دجاجة**: العميل بعد موت العملية لا يعرف أن يستطلع (مصدر علمه complete.pendingWorkflows مات) — انقل تصنيف running/orphan إلى مسار fetchHistory (يُحسب عند فتح الجلسة، يعمل والجلسة ميتة)؛ الاستطلاع تحسين لا ضمانة. + مهم: المتطلَّب global والتصميم per-session → يلزم مؤشّر app-level للجلسات المملوكة وإلا «دائماً» غير محقَّق. الجيد المُتحقَّق ويُحتفظ به: completed/settled مُصلّب وآمن وحيّ. **الحالة: محجوب على B-105 + يلزم إعادة تصميم تتضمّن الإصلاحات الثلاثة قبل أي تنفيذ.** [تحديث 2026-06-30: B-105 حُلّ ونُشر حيّاً؛ إعادة التصميم في docs/workitems/PHASE-T242.md رُفضت بفيتو qa-critic ثانٍ — isClaudeSDKSessionActive لا يرى الـworkflow الخلفي بعد removeSession (claude-sdk.js:1717) فلا مصدر حياة موثوق؛ قرار مالك مطلوب: (أ) تتبّع حياة حقيقي / (ب) معيار زمني معاير / (ج) تأجيل. تفاصيل: docs/workitems/SESSION-HANDOFF-2026-06-30.md]"
     }
   ],
   "issues": [
@@ -3757,6 +3757,17 @@
       "found": "2026-06-30",
       "triage": "medium → معزول في src/ فقط، لا يحجب أي بناء (build:server=tsc خادم فقط؛ build:client=vite/esbuild لا يفحص الأنواع) فلم يمنع نشر B-105/B-106. عيب نوعي حقيقي (hermes/sakana بلا تغطية → undefined وقت التشغيل في مسارات اختيار المزوّد). يُصلَح ضمن v1.35 قبل build:client.",
       "description": "كشفه devops كبوّابة فحص قبل بناء B-105. npm run typecheck أحمر بـ3 أخطاء كلها في العميل: useChatProviderState.ts:37 (Record<LLMProvider> ناقص hermes+sakana)، ProviderSelectionEmptyState.tsx:275 (ناقص sakana)، useSessionStore.test.ts:27 ('anthropic' ليس LLMProvider صالحاً). الملفات متعقَّبة ومُلتزَمة (ليست من تعديلات v1.35 غير المُلتزَمة). الإصلاح: إضافة hermes/sakana للخريطتين + تصحيح قيمة الاختبار."
+    },
+    {
+      "id": "B-108",
+      "title": "#896 i18n غير منجَز: 7 لغات ينقصها 466-576 مفتاحاً + ملفات namespace مفقودة؛ ومحاولة الإصلاح أنتجت حلقة وكلاء هاربة (صفر كتابة)",
+      "status": "open",
+      "severity": "medium",
+      "phase": "P7",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "medium → عمل v1.35 متبقٍّ. محاولة 2026-06-30 فشلت: frontend-dev (بأداة Agent) توالد recursively (af986d2→…→4 وكلاء قراءة)، ~580k توكن، صفر كتابة. الإصلاح: وكيل/لغة + منع توالد صريح + تحقّق قرص. الفجوة الدقيقة: docs/workitems/SESSION-HANDOFF-2026-06-30.md (P3).",
+      "description": "اللغات السبع (de/it/ja/ko/ru/tr/zh-CN) ناقصة مقابل en (9 namespaces/1608 مفاتيح): de 479, it 466, ja 495, ko 576, ru 479, tr 466, zh-CN 575. ملفات مفقودة: presence.json (السبع)، tasks.json (ko/zh-CN). projectBoard.json إنجليزي غير مترجم (السبع). settings.json profile.passkeys إنجليزي. common.json notifications مفقود (de/ru). درس الحلقة: memory/feedback_agent_recursive_delegation."
     }
   ],
   "decisions": [
