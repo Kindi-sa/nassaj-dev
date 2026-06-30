@@ -4,6 +4,7 @@ import path from 'node:path';
 import {
   hashMessageAuthorContent,
   messageAuthorsDb,
+  participantsDb,
   projectsDb,
   sessionsDb,
 } from '@/modules/database/index.js';
@@ -226,13 +227,35 @@ export const sessionsService = {
    *
    * Provider and provider-specific lookup hints are resolved from the indexed
    * session metadata in the database.
+   *
+   * Ownership is enforced fail-closed (B-105): `requesterUserId` is the
+   * authenticated caller resolved by the route from req.user. Unless that user
+   * is an owner/participant of — or a recorded message author in — the session,
+   * the read is refused. To avoid disclosing the existence of another user's
+   * session (sessionId enumeration), an authorization failure is surfaced with
+   * the SAME 404 contract as a missing session rather than a distinguishable
+   * 403 — matching the existing B-PRIV pattern on the token-usage route.
+   *
+   * `requesterUserId` is required by the type, but `null` is accepted as the
+   * explicit "no authenticated identity" value (anonymous / unresolved) and is
+   * treated as having access to nothing — it never widens access.
    */
   async fetchHistory(
     sessionId: string,
+    requesterUserId: number | null,
     options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
   ): Promise<FetchHistoryResult> {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    // Fail-closed ownership gate. A non-integer / null requester matches nothing
+    // (isParticipant returns false), so anonymous callers are refused here.
+    if (requesterUserId === null || !participantsDb.isParticipant(sessionId, requesterUserId)) {
       throw new AppError(`Session "${sessionId}" was not found.`, {
         code: 'SESSION_NOT_FOUND',
         statusCode: 404,

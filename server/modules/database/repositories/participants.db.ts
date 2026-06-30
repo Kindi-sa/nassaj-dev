@@ -115,6 +115,51 @@ export const participantsDb = {
   },
 
   /**
+   * Access predicate for a session: is `userId` a human owner/participant of
+   * `sessionId`, OR the recorded author of at least one message in it?
+   *
+   * This is the REST authorization gate for any endpoint that discloses a
+   * session's content/messages by sessionId (B-105). The access model mirrors
+   * the "native session" predicate in sessions.db.ts exactly — a user belongs
+   * to a session iff the server's run path recorded them as a participant
+   * (session_participants) or as a message author (message_authors). Both are
+   * written only on the authenticated spawn path, never by an out-of-band CLI
+   * run, so this cannot be spoofed by dropping a transcript on disk.
+   *
+   * message_authors is included because it is half of the access model: a user
+   * who sent prompts into a session is an author of its content even in the
+   * (rare) window before/without a participant row, so excluding it could
+   * fail-closed against a legitimate sender. Owner-only sessions still pass via
+   * the participant branch.
+   *
+   * Fail-closed by construction: a non-integer userId (anonymous / unresolved)
+   * matches nothing and returns false. Uses prepared statements only.
+   */
+  isParticipant(sessionId: string, userId: number): boolean {
+    if (!sessionId || !Number.isInteger(userId)) {
+      return false;
+    }
+
+    const db = getConnection();
+    const row = db
+      .prepare(
+        `SELECT 1 AS ok
+         WHERE EXISTS (
+                 SELECT 1 FROM session_participants sp
+                 WHERE sp.session_id = ? AND sp.user_id = ?
+               )
+            OR EXISTS (
+                 SELECT 1 FROM message_authors ma
+                 WHERE ma.session_id = ? AND ma.user_id = ?
+               )
+         LIMIT 1`
+      )
+      .get(sessionId, userId, sessionId, userId) as { ok: number } | undefined;
+
+    return row !== undefined;
+  },
+
+  /**
    * Lists the human participants of a session, joined to their current
    * username. Ordered owner-first then by first appearance so the UI renders a
    * stable, meaningful sequence.

@@ -9,6 +9,7 @@ import { providerSecretsService } from '@/modules/providers/services/provider-se
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { coerceUserId } from '@/modules/projects/index.js';
 import type {
   LLMProvider,
   McpScope,
@@ -43,6 +44,14 @@ const normalizeProviderParam = (value: unknown): string =>
 // A null id maps the per-user secrets store to its single-operator shared file.
 const readAuthenticatedUserId = (req: Request): string | number | null =>
   (req as Request & { user?: { id?: string | number } }).user?.id ?? null;
+
+// Normalized numeric id of the authenticated caller, or null when unresolved.
+// Used by ownership-gated session reads (B-105) where the value must be a DB
+// user id, not the raw secrets-store key. `req.user` is set by authenticateToken
+// (the whole router is mounted behind it), so a null here means no usable
+// identity and the gate downstream refuses access fail-closed.
+const readRequesterUserId = (req: Request): number | null =>
+  coerceUserId((req as Request & { user?: { id?: string | number } }).user?.id ?? null);
 
 // Reads the raw API key from a key-set body without ever logging or echoing it.
 // Presence/emptiness is enforced by the service so the 400 contract lives in one place.
@@ -612,7 +621,7 @@ router.get(
       offset = parsedOffset;
     }
 
-    const result = await sessionsService.fetchHistory(sessionId, {
+    const result = await sessionsService.fetchHistory(sessionId, readRequesterUserId(req), {
       limit,
       offset,
     });
