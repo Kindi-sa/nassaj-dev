@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T09:08:46.000Z",
+  "updated": "2026-06-30T10:35:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -3711,11 +3711,13 @@
     {
       "id": "B-104",
       "title": "انحراف حيّ: الـbackend الشغّال (32h، commit 3387a71b) خلف القرص — endpoint رفع المرفقات T-235 (+195 سطر server/index.js، مُلتزَم اليوم 08:19) غير حيّ (لا build:server+restart بعده)",
-      "status": "open",
+      "status": "resolved",
       "severity": "medium",
       "phase": "P7",
       "kind": "bug",
       "found": "2026-06-30",
+      "resolved": "2026-06-30",
+      "note": "مُغلق حيّاً 2026-06-30: build:server (dist-server 13:17) + restart المالك عبر safe-restart.sh؛ nassaj-dev pid 1619100 uptime جديد unstable=0؛ منطق T-235 الخادمي حيّ الآن مع B-105+B-106.",
       "triage": "medium → الحلّ الجذري = مشكلة A (كاشف البصمة، ADR-051/T-241). الحلّ الفوري = build:server + build:client + المالك ينفّذ restart بطرفيته (حارس العميل). كشفته ورشة التخطيط wf_fea564e9 ميدانياً.",
       "description": "عملية nassaj-dev (PID 4123952) تعمل منذ Jun 29 00:37 (32h) على commit 3387a71b. HEAD=8b393798 (T-235، مُلتزَم 2026-06-30 08:19:20). git diff 3387a71b..HEAD -- server/ = 5 ملفات/796 سطراً (server/index.js +195 = endpoint رفع المرفقات، claude-sdk.js +32، attachment-helpers.js +53، اختباران). فالخادم الحيّ لا يحوي منطق T-235 الخادمي، وdist من Jun 29 (build:client لم يُعَد بعد 08:19) → ميزة T-235 غير حيّة كلياً حتى نشر+restart. تجسيد حيّ لمشكلة A (الانحراف الصامت): /health بلا أي بصمة بناء فلا شيء يكشف هذا."
     },
@@ -3730,18 +3732,31 @@
       "triage": "كشفه qa-critic أثناء مراجعة T-242 (متحقَّق في الكود file:line). حرج كوداً. **خطورته الفعلية تتوقّف على نموذج النشر**: critical إن كان تعدد المستخدمين فعّالاً على النشر الحيّ، أدنى إن كان أحادي-المالك فعلياً. **تحقّق من النموذج فوراً قبل تثبيت الخطورة** (درس feedback_verify_model_before_enforcing — لا تبنِ حارساً على فرض نموذج). الإصلاح تأسيسي ويسبق ميزة T-242: isParticipant(sessionId,userId) في participants.db + فحص ملكية على /messages و/workflow-status + تصفية fanOutToMirrors بالمالكين.",
       "description": "qa-critic (aaa570b): /sessions/:id/messages (provider.routes.ts:584-621) يشتقّ الجلسة من parseSessionId فقط ولا يمرّر userId لـfetchHistory؛ getSessionById (sessions.db.ts:112-125) بلا شرط ملكية (WHERE session_id=?)؛ NATIVE_SESSION_PREDICATE_SQL (sessions.db.ts:50-53) يفحص وجود أي مشارك لا أن المستدعي مشارك (يخفي اليتيمة فقط). نموذج الملكية موجود في DB (session_participants دور owner/participant، message_authors) لكن غير مطبَّق على هذا المنفذ. مرايا الجلسة (websocket-writer.service.ts:30-46) بلا فحص ملكية عند التسجيل. أي ميزة بثّ جديدة (T-242) ستركب نفس المسار غير المعزول فتُضاعف السطح.",
       "resolved": "2026-06-30",
-      "note": "أُصلح ومُلتزَم 2026-06-30 (commit 366c8452، فرع integration/publish؛ متحقَّق: المنسّق أعاد الاختبار 5/5 + tsc نظيف بنفسه). الثغرة كانت **قابلة للاستغلال فعلياً** (DB إنتاج /home/nassaj/.local/share/nassaj-dev/db.sqlite: 4 مستخدمين/4 مالكين = تعدد نشط لا نظري) — لذا critical مؤكَّدة. الإصلاح: participantsDb.isParticipant (participant OR message_author، prepared، fail-closed) + بوابة 404 في sessions.service.fetchHistory قبل أي جلب محتوى؛ 404 لا 403 يمنع تعداد sessionId؛ نموذج الوصول يطابق NATIVE_SESSION_PREDICATE فلا يكسر المُرسِلين؛ 300/300 جلسة لها سجلّ مالك فلا قفل ولا backfill. **يلزم نشر (build:server + restart) ليصبح حيّاً — الخادم الحيّ 32h ما زال يحمل الثغرة.** ثغرة شقيقة مؤكَّدة: B-106."
+      "note": "أُصلح ومُلتزَم 2026-06-30 (commit 366c8452، فرع integration/publish؛ متحقَّق: المنسّق أعاد الاختبار 5/5 + tsc نظيف بنفسه). الثغرة كانت **قابلة للاستغلال فعلياً** (DB إنتاج /home/nassaj/.local/share/nassaj-dev/db.sqlite: 4 مستخدمين/4 مالكين = تعدد نشط لا نظري) — لذا critical مؤكَّدة. الإصلاح: participantsDb.isParticipant (participant OR message_author، prepared، fail-closed) + بوابة 404 في sessions.service.fetchHistory قبل أي جلب محتوى؛ 404 لا 403 يمنع تعداد sessionId؛ نموذج الوصول يطابق NATIVE_SESSION_PREDICATE فلا يكسر المُرسِلين؛ 300/300 جلسة لها سجلّ مالك فلا قفل ولا backfill. **مُنشور وحيّ 2026-06-30** (dist-server 13:17، restart المالك؛ /sessions/:id/messages بلا توكن=401؛ المنسّق أعاد الاختبار 5/5). ثغرة شقيقة: B-106 (مُصلَحة ومنشورة بنفس البناء)."
     },
     {
       "id": "B-106",
       "title": "خصوصية (IDOR شقيقة لـB-105): GET /search/sessions يمسح transcripts عبر كل المشاريع بلا فلترة userId/ملكية ويبثّ مقتطفات محتوى عبر SSE",
-      "status": "open",
+      "status": "fixed",
       "severity": "critical",
       "phase": "P4",
       "kind": "bug",
       "found": "2026-06-30",
+      "resolved": "2026-06-30",
+      "note": "مُصلَح ومُلتزَم 2026-06-30 (commit 6d509f78) + qa-critic APPROVE (mutation test أثبت الاختبار حقيقياً، fixtures إنتاجية) + المنسّق أعاد 4/4 وtsc نظيف. الإصلاح: حقن requesterUserId + filterSessionsByOwnership عبر isParticipant، الفلترة قبل ripgrep/SSE (لا تسريب مقتطف لحظي)، fail-closed مزدوج. مُنشور وحيّ بنفس بناء B-105 (dist-server 13:17؛ /search/sessions بلا توكن=401). IS_PLATFORM خامل (per-user)=B-5/T-50 لا ثغرة جديدة.",
       "triage": "كشفه backend-dev أثناء إصلاح B-105؛ لم يُحشر إصلاح متسرّع (fail-open خطر). critical (تعدد مستخدمين نشط مؤكَّد: 4 مالكين). الإصلاح = حقن userId + فلترة per-project/per-session في session-conversations-search.service.ts (1200+ سطر) → يستحق مراجعة مستقلة. أولوية عالية تلي B-105 مباشرة، يُنفَّذ في الجلسة التالية ضمن التسلسل.",
-      "description": "provider.routes.ts:632 → session-conversations-search.service.ts: يمسح transcripts عبر كل المشاريع بلا أي فلترة بـuserId/ملكية، ويبثّ مقتطفات محتوى عبر SSE = تسريب محتوى حقيقي عبر REST. نفس فئة B-105 (IDOR) لكن أوسع (عابر للمشاريع، بثّ مقتطفات). مؤكَّد من backend-dev، غير مُصلَح بعد."
+      "description": "provider.routes.ts:632 → session-conversations-search.service.ts: يمسح transcripts عبر كل المشاريع بلا أي فلترة بـuserId/ملكية، ويبثّ مقتطفات محتوى عبر SSE = تسريب محتوى حقيقي عبر REST. نفس فئة B-105 (IDOR) لكن أوسع (عابر للمشاريع، بثّ مقتطفات). مؤكَّد من backend-dev. مُصلَح ومنشور 2026-06-30 (انظر note)."
+    },
+    {
+      "id": "B-107",
+      "title": "typecheck العميل أحمر (سابق على الفرع): LLMProvider يشمل hermes/sakana لكن خريطتَي Record<LLMProvider,string> ناقصتان + اختبار يستخدم 'anthropic'",
+      "status": "open",
+      "severity": "medium",
+      "phase": "P7",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "medium → معزول في src/ فقط، لا يحجب أي بناء (build:server=tsc خادم فقط؛ build:client=vite/esbuild لا يفحص الأنواع) فلم يمنع نشر B-105/B-106. عيب نوعي حقيقي (hermes/sakana بلا تغطية → undefined وقت التشغيل في مسارات اختيار المزوّد). يُصلَح ضمن v1.35 قبل build:client.",
+      "description": "كشفه devops كبوّابة فحص قبل بناء B-105. npm run typecheck أحمر بـ3 أخطاء كلها في العميل: useChatProviderState.ts:37 (Record<LLMProvider> ناقص hermes+sakana)، ProviderSelectionEmptyState.tsx:275 (ناقص sakana)، useSessionStore.test.ts:27 ('anthropic' ليس LLMProvider صالحاً). الملفات متعقَّبة ومُلتزَمة (ليست من تعديلات v1.35 غير المُلتزَمة). الإصلاح: إضافة hermes/sakana للخريطتين + تصحيح قيمة الاختبار."
     }
   ],
   "decisions": [
