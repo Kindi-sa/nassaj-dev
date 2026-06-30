@@ -1,4 +1,4 @@
-import { Archive, BookOpen, FolderPlus, Plus, Search, X } from 'lucide-react';
+import { Archive, BookOpen, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { useNavigate } from 'react-router-dom';
 
@@ -29,6 +29,7 @@ type SidebarHeaderProps = {
   onRefresh: () => void;
   isRefreshing: boolean;
   onCreateProject: () => void;
+  onCollapseSidebar: () => void;
   t: TFunction;
 };
 
@@ -49,6 +50,7 @@ export default function SidebarHeader({
   onRefresh,
   isRefreshing,
   onCreateProject,
+  onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
   const navigate = useNavigate();
@@ -196,8 +198,15 @@ export default function SidebarHeader({
                 <BookOpen className="h-3.5 w-3.5" />
               </Button>
             </Tooltip>
-            {/* Sidebar collapse moved to the top bar (MainContentHeader),
-                next to the tab pills — see task B/C. */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-accent/80 hover:text-foreground"
+              onClick={onCollapseSidebar}
+              title={t('tooltips.hideSidebar')}
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+            </Button>
           </div>
         </div>
 

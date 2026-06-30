@@ -104,6 +104,7 @@ function Sidebar({
     restoreArchivedSession,
     refreshProjects,
     updateSessionSummary,
+    collapseSidebar: handleCollapseSidebar,
     expandSidebar: handleExpandSidebar,
     setShowNewProject,
     setEditingName,
@@ -266,6 +267,7 @@ function Sidebar({
             }}
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
+            onCollapseSidebar={handleCollapseSidebar}
             onProjectSelect={handleProjectSelect}
             updateAvailable={updateAvailable}
             releaseInfo={releaseInfo}
