@@ -273,6 +273,11 @@ export function useChatComposerState({
   // Non-null while a send failed due to WS disconnect; cleared on next attempt or after timeout.
   const [sendError, setSendError] = useState<string | null>(null);
   const sendErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True between issuing an abort and the server confirming it (complete/aborted
+  // or error). Disables the STOP button so a double-click can't fire two aborts,
+  // and gives the user immediate feedback that the stop is in flight.
+  const [isAborting, setIsAborting] = useState(false);
+  const abortTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputHighlightRef = useRef<HTMLDivElement>(null);
@@ -1276,8 +1281,33 @@ export function useChatComposerState({
     setIsTextareaExpanded(false);
   }, [resetCommandMenuState]);
 
+  // Clear the in-flight abort state once the server confirms the run ended.
+  // The realtime handler flips canAbortSession→false on complete/aborted/error;
+  // that transition is our signal the STOP took effect, so we re-enable any UI
+  // gated on isAborting and cancel the safety timeout.
+  useEffect(() => {
+    if (!canAbortSession && isAborting) {
+      setIsAborting(false);
+      if (abortTimerRef.current) {
+        clearTimeout(abortTimerRef.current);
+        abortTimerRef.current = null;
+      }
+    }
+  }, [canAbortSession, isAborting]);
+
+  // Tidy the safety timeout on unmount.
+  useEffect(
+    () => () => {
+      if (abortTimerRef.current) {
+        clearTimeout(abortTimerRef.current);
+        abortTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
   const handleAbortSession = useCallback(() => {
-    if (!canAbortSession) {
+    if (!canAbortSession || isAborting) {
       return;
     }
 
@@ -1293,17 +1323,36 @@ export function useChatComposerState({
     const targetSessionId =
       candidateSessionIds.find((sessionId) => Boolean(sessionId)) || null;
 
-    if (!targetSessionId) {
-      console.warn('Abort requested but no concrete session ID is available yet.');
+    // Even with no concrete id (the brand-new-session race: the run started but
+    // its real session_id has not arrived yet), still send the abort with an
+    // empty id. The server falls back to the newest active claude run on THIS
+    // socket, so STOP works before the id is known. Previously this bailed with
+    // a silent console.warn, which is exactly the dead-button symptom.
+    const result = sendMessage({
+      type: 'abort-session',
+      sessionId: targetSessionId || '',
+      provider,
+    });
+
+    // Surface transport failure instead of failing silently. A `void` return
+    // (legacy senders) is treated as success.
+    if (result && result.ok === false) {
+      const errMsg = t('ws.abortFailed', {
+        defaultValue: 'Could not stop — connection lost. Retrying may help.',
+      });
+      setSendError(errMsg);
+      if (sendErrorTimerRef.current) clearTimeout(sendErrorTimerRef.current);
+      sendErrorTimerRef.current = setTimeout(() => setSendError(null), 6000);
       return;
     }
 
-    sendMessage({
-      type: 'abort-session',
-      sessionId: targetSessionId,
-      provider,
-    });
-  }, [canAbortSession, currentSessionId, provider, selectedSession?.id, sendMessage]);
+    // Disable STOP and show "Stopping…" until the server's complete/aborted
+    // event arrives (cleared by the realtime handler) or a safety timeout fires
+    // so the button never gets stuck disabled if the confirmation is lost.
+    setIsAborting(true);
+    if (abortTimerRef.current) clearTimeout(abortTimerRef.current);
+    abortTimerRef.current = setTimeout(() => setIsAborting(false), 10000);
+  }, [canAbortSession, isAborting, currentSessionId, provider, selectedSession?.id, sendMessage, t]);
 
   const handleGrantToolPermission = useCallback(
     (suggestion: { entry: string; toolName: string }) => {
@@ -1410,5 +1459,6 @@ export function useChatComposerState({
     commandModalPayload,
     closeCommandModal,
     sendError,
+    isAborting,
   };
 }

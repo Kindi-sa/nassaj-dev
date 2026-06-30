@@ -454,9 +454,17 @@ export function useChatRealtimeHandlers({
 
         // Handle aborted case
         if (msg.aborted) {
-          // Abort was requested — the complete event confirms it
-          // No special UI action needed beyond clearing loading state above
-          // The backend already sent any abort-related messages
+          // Abort was requested — the complete event confirms it. The loading
+          // state was already cleared above. If the server could NOT honour the
+          // abort (no matching/active session), surface why instead of leaving
+          // the user thinking STOP silently failed.
+          if (msg.success === false || msg.abortFailed) {
+            const reason =
+              typeof msg.error === 'string' && msg.error.trim().length > 0
+                ? msg.error
+                : 'Could not stop the run (no active session matched).';
+            onServerError?.(reason);
+          }
           break;
         }
 

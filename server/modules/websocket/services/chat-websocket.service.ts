@@ -49,7 +49,10 @@ type ChatWebSocketDependencies = {
    * conversation that has not been persisted yet).
    */
   getSessionProvider: (sessionId: string) => LLMProvider | null;
-  abortClaudeSDKSession: (sessionId: string) => Promise<boolean>;
+  abortClaudeSDKSession: (
+    sessionId: string,
+    rawWs?: unknown,
+  ) => Promise<boolean | { aborted: boolean; reason: string; sessionId: string | null }>;
   abortCursorSession: (sessionId: string) => boolean;
   abortCodexSession: (sessionId: string) => boolean;
   abortGeminiSession: (sessionId: string) => boolean;
@@ -419,6 +422,10 @@ export function handleChatConnection(
         const provider = readProvider(data.provider);
         const sessionId = typeof data.sessionId === 'string' ? data.sessionId : '';
         let success = false;
+        // The session the abort actually resolved to (claude may fall back to the
+        // newest active run on this connection when the id is missing/stale).
+        let resolvedSessionId: string | null = sessionId || null;
+        let abortReason: string | null = null;
 
         if (provider === 'cursor') {
           success = dependencies.abortCursorSession(sessionId);
@@ -439,7 +446,19 @@ export function handleChatConnection(
         } else if (provider === 'glm') {
           success = dependencies.abortGlmSession(sessionId);
         } else {
-          success = await dependencies.abortClaudeSDKSession(sessionId);
+          // Claude: pass the raw socket so the SDK can fall back to this
+          // connection's newest active run when `sessionId` is empty/stale
+          // (the brand-new-session abort race). Result is structured.
+          const result = await dependencies.abortClaudeSDKSession(sessionId, ws);
+          if (typeof result === 'boolean') {
+            success = result;
+          } else {
+            success = result.aborted;
+            abortReason = result.reason;
+            if (result.sessionId) {
+              resolvedSessionId = result.sessionId;
+            }
+          }
         }
 
         writer.send(
@@ -448,8 +467,11 @@ export function handleChatConnection(
             exitCode: success ? 0 : 1,
             aborted: true,
             success,
-            sessionId,
+            // Echo the session the abort resolved to so the client clears the
+            // right run's spinner even when it sent an empty/stale id.
+            sessionId: resolvedSessionId ?? sessionId,
             provider,
+            ...(success ? {} : { abortFailed: true, error: abortReason ?? 'abort failed' }),
           })
         );
         return;

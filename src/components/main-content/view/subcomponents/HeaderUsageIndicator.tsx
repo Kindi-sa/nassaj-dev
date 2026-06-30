@@ -60,7 +60,11 @@ const WINDOWS: { letter: string; key: WindowKey }[] = [
 // ---------------------------------------------------------------------------
 // HeaderUsageIndicator
 // ---------------------------------------------------------------------------
-export default function HeaderUsageIndicator() {
+interface HeaderUsageIndicatorProps {
+  tabsMode?: 'full' | 'compact' | 'hidden';
+}
+
+export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorProps) {
   const { i18n, t } = useTranslation('settings');
   const { preferences } = useUiPreferences();
 
@@ -70,6 +74,10 @@ export default function HeaderUsageIndicator() {
   const isWide = useMediaQuery(`(min-width: ${minWidth}px)`);
 
   const usageState = useClaudeUsage(isWide);
+
+  // Hidden-tabs mode: conceal the indicator for visual consistency with the
+  // collapsed tab bar. Bail out before any expensive work.
+  if (tabsMode === 'hidden') return null;
 
   if (!isWide) return null;
 

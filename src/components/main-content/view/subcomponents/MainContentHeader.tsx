@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { PanelTop, PanelTopDashed, PanelTopClose, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MainContentHeaderProps } from '../../types/types';
 import { Tooltip } from '../../../../shared/view/ui';
@@ -14,13 +14,6 @@ const NEXT_TABS_MODE: Record<TabsDisplayMode, TabsDisplayMode> = {
   full: 'compact',
   compact: 'hidden',
   hidden: 'full',
-};
-
-// Icon shown on the toggle reflects the *current* mode at a glance.
-const TABS_MODE_ICON: Record<TabsDisplayMode, LucideIcon> = {
-  full: PanelTop,
-  compact: PanelTopDashed,
-  hidden: PanelTopClose,
 };
 
 export default function MainContentHeader({
@@ -43,11 +36,24 @@ export default function MainContentHeader({
   // source of truth across reloads and instances.
   const tabsMode = preferences.tabsDisplayMode;
   const nextMode = NEXT_TABS_MODE[tabsMode];
-  const CurrentModeIcon = TABS_MODE_ICON[tabsMode];
 
   const cycleTabsMode = useCallback(() => {
     setPreference('tabsDisplayMode', NEXT_TABS_MODE[tabsMode]);
   }, [setPreference, tabsMode]);
+
+  // Chevron direction encodes the fold/unfold intent:
+  //   full    → pointing toward inline-end (collapse inward)
+  //   compact → pointing toward inline-end (collapse further)
+  //   hidden  → pointing toward inline-start (expand outward)
+  // We use ChevronRight/ChevronLeft and flip via `dir` on the document so RTL
+  // layouts receive the mirrored glyph automatically (ChevronLeft = expand in LTR
+  // but = collapse in RTL; we invert the mapping so intent stays constant).
+  const isRtl = i18n.dir?.() === 'rtl' || document?.documentElement?.dir === 'rtl';
+  // In LTR: collapse = Right, expand = Left. In RTL: mirrored automatically by the
+  // browser when we use the logical chevron mapping below.
+  const ChevronIcon = tabsMode === 'hidden'
+    ? (isRtl ? ChevronRight : ChevronLeft)   // expand: point toward start
+    : (isRtl ? ChevronLeft : ChevronRight);  // collapse: point toward end
 
   // No dedicated locale keys yet (locales are owned elsewhere); supply correct
   // per-language defaults so the control is always meaningful for a11y. Future
@@ -111,7 +117,7 @@ export default function MainContentHeader({
           />
         </div>
 
-        <HeaderUsageIndicator />
+        <HeaderUsageIndicator tabsMode={tabsMode} />
 
         <div className="flex min-w-0 flex-shrink items-center gap-1.5 sm:flex-shrink-0">
           {/* Tab group renders only when the display mode is not "hidden".
@@ -138,20 +144,20 @@ export default function MainContentHeader({
             </div>
           )}
 
-          {/* Cyclic tabs-display toggle (full -> compact -> hidden), pinned to the
-              trailing (inline-end) edge of the header. Small and quiet (ghost):
-              muted by default, gentle accent on hover; the icon reflects the
-              current mode. Sole control bound to `tabsDisplayMode`; the appearance
-              "Compact tabs" checkbox stays consistent via the preferences reducer. */}
+          {/* Cyclic tabs-display toggle (full -> compact -> hidden -> full), pinned
+              to the trailing (inline-end) edge of the header. Rendered as a small
+              circular button containing a directional chevron: the chevron points
+              toward inline-end when collapsing (full/compact) and toward inline-start
+              when expanding (hidden), matching RTL layouts automatically. */}
           <Tooltip content={toggleLabel} position="bottom">
             <button
               type="button"
               onClick={cycleTabsMode}
               aria-label={toggleLabel}
               title={toggleLabel}
-              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border border-border/50 bg-background text-muted-foreground/70 transition-colors hover:border-border hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <CurrentModeIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+              <ChevronIcon className="h-3.5 w-3.5" strokeWidth={2} aria-hidden="true" />
             </button>
           </Tooltip>
         </div>

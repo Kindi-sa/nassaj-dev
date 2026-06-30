@@ -100,6 +100,39 @@ function scheduleClaudeBufferDrop(key) {
 
 const activeSessions = new Map();
 const pendingToolApprovals = new Map();
+// Per-connection active-session index (abort robustness, B-ABORT-FALLBACK).
+// Maps a raw WebSocket → an insertion-ordered Set of the claude sessionIds that
+// are currently active on THAT socket. Lets abortClaudeSDKSession fall back to
+// the connection's own newest active run when the client-supplied sessionId is
+// missing or stale (the brand-new-session race: the user hits STOP before the
+// SDK has reported its real session_id, so the front end has no concrete id to
+// send yet). A WeakMap so a closed socket's entry is GC'd with the socket; we
+// still prune explicitly in removeSession to keep getNewestSessionForSocket
+// accurate while the socket lives.
+const sessionsByConnection = new WeakMap(); // rawWs → Set<sessionId> (ordered)
+
+/** Returns the raw underlying socket for a session's writer, or null. */
+function rawSocketForSession(session) {
+  const ws = session?.writer?.ws ?? session?.writer ?? null;
+  return ws && typeof ws === 'object' ? ws : null;
+}
+
+/**
+ * Resolves the newest still-active claude sessionId bound to a given raw socket.
+ * Used as the abort fallback when the supplied id does not resolve. Returns null
+ * when the socket has no live session.
+ */
+function getNewestSessionForSocket(rawWs) {
+  if (!rawWs) return null;
+  const ids = sessionsByConnection.get(rawWs);
+  if (!ids || ids.size === 0) return null;
+  let newest = null;
+  // Insertion order is preserved by Set; the last live id is the newest run.
+  for (const id of ids) {
+    if (activeSessions.has(id)) newest = id;
+  }
+  return newest;
+}
 // Guards the race window between removeSession() and the next addSession() for
 // the same sessionId — a writer swap during this gap would mismatch the new ws.
 const recentlyEndedSessions = new Map(); // sessionId → expiry timestamp
@@ -779,6 +812,19 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
   if (writer && runTag) {
     registerSessionProcess(sessionId, { provider: 'claude', writer, runTag, projectPath });
   }
+  // B-ABORT-FALLBACK: index this session under its originating socket so an
+  // abort can be resolved by connection even before/without a matching id.
+  const rawWs = rawSocketForSession({ writer });
+  if (sessionId && rawWs) {
+    let ids = sessionsByConnection.get(rawWs);
+    if (!ids) {
+      ids = new Set();
+      sessionsByConnection.set(rawWs, ids);
+    }
+    // Re-insert to keep newest-last ordering for getNewestSessionForSocket.
+    ids.delete(sessionId);
+    ids.add(sessionId);
+  }
   // ADR-042 (B-80c): start the lazy ghost sweep (no-op unless the flag is ON or
   // the timer already runs). Stopped again in removeSession when the map empties.
   startGhostSweep();
@@ -789,6 +835,17 @@ function addSession(sessionId, queryInstance, tempImagePaths = [], tempDir = nul
  * @param {string} sessionId - Session identifier
  */
 function removeSession(sessionId) {
+  // B-ABORT-FALLBACK: drop the per-connection index entry before deleting the
+  // session, so getNewestSessionForSocket never returns a torn-down id.
+  const ending = activeSessions.get(sessionId);
+  const rawWs = rawSocketForSession(ending);
+  if (rawWs) {
+    const ids = sessionsByConnection.get(rawWs);
+    if (ids) {
+      ids.delete(sessionId);
+      if (ids.size === 0) sessionsByConnection.delete(rawWs);
+    }
+  }
   activeSessions.delete(sessionId);
   // ADR-042 (B-80c): tear down the lazy ghost sweep once no session remains.
   if (activeSessions.size === 0) stopGhostSweep();
@@ -1863,17 +1920,48 @@ async function queryClaudeSDK(command, options = {}, ws) {
 }
 
 /**
- * Aborts an active SDK session
- * @param {string} sessionId - Session identifier
- * @returns {boolean} True if session was aborted, false if not found
+ * Aborts an active SDK session.
+ *
+ * Resolution order (B-ABORT-FALLBACK):
+ *   1. Exact match on the supplied sessionId.
+ *   2. If that misses AND a raw socket is supplied, fall back to the newest
+ *      active session bound to that same connection. This covers the brand-new
+ *      session race where the user hits STOP before the SDK has reported its
+ *      real session_id, so the client had no concrete id (or a stale one) to
+ *      send. Aborting "the run this socket just started" is always the user's
+ *      intent on STOP, so the fallback is safe and connection-scoped.
+ *
+ * @param {string} sessionId - Session identifier supplied by the client.
+ * @param {object|null} [rawWs] - The raw WebSocket the abort arrived on, used
+ *   only for the connection fallback above.
+ * @returns {Promise<{ aborted: boolean, reason: string, sessionId: string|null }>}
+ *   Structured result; `aborted` is the boolean the WS layer maps to success.
  */
-async function abortClaudeSDKSession(sessionId) {
-  const session = getSession(sessionId);
+async function abortClaudeSDKSession(sessionId, rawWs = null) {
+  let resolvedId = sessionId;
+  let session = getSession(resolvedId);
+
+  if (!session && rawWs) {
+    const fallbackId = getNewestSessionForSocket(rawWs);
+    if (fallbackId) {
+      resolvedId = fallbackId;
+      session = getSession(resolvedId);
+      console.log(
+        `[WS-DIAG] sdk-abort fallback: requested=${sessionId || 'none'} `
+        + `resolved-by-connection=${resolvedId}`
+      );
+    }
+  }
 
   if (!session) {
-    console.log(`Session ${sessionId} not found`);
-    return false;
+    const reason = sessionId
+      ? `no active claude session matched id=${sessionId} (and none active on this connection)`
+      : 'abort carried no sessionId and the connection has no active claude session';
+    console.log(`[WS-DIAG] sdk-abort no-op: ${reason}`);
+    return { aborted: false, reason, sessionId: null };
   }
+
+  sessionId = resolvedId;
 
   try {
     console.log(`Aborting SDK session: ${sessionId}`);
@@ -1893,6 +1981,11 @@ async function abortClaudeSDKSession(sessionId) {
     cancelPendingApprovalsForSession(sessionId);
 
     // Call interrupt() on the query instance
+    if (!session.instance || typeof session.instance.interrupt !== 'function') {
+      const reason = `session ${sessionId} has no interruptable SDK instance`;
+      console.error(`[WS-DIAG] sdk-abort failed: ${reason}`);
+      return { aborted: false, reason, sessionId };
+    }
     await session.instance.interrupt();
 
     // Update session status
@@ -1904,10 +1997,11 @@ async function abortClaudeSDKSession(sessionId) {
     // Clean up session
     removeSession(sessionId);
 
-    return true;
+    return { aborted: true, reason: 'interrupted', sessionId };
   } catch (error) {
-    console.error(`Error aborting session ${sessionId}:`, error);
-    return false;
+    const detail = error?.message || String(error);
+    console.error(`[WS-DIAG] sdk-abort interrupt() threw for session ${sessionId}:`, error);
+    return { aborted: false, reason: `interrupt() failed: ${detail}`, sessionId };
   }
 }
 
