@@ -1,7 +1,7 @@
 # الهيكلة التقنية — nassaj-dev
 
 > **الجمهور:** الوكلاء وأي مطوّر. النسخة المبسطة للمالك: `ARCHITECTURE_AR.md` — **حدّثهما معاً** عند أي تغيير معماري.
-> **آخر تحديث:** 2026-06-10
+> **آخر تحديث:** 2026-06-30
 
 ## نظرة عامة
 
@@ -239,6 +239,60 @@ written by the run seam, indexed by the synchronizer, and replayed by
   `tool_use` by the sessions facet.
 - **GLM** — long streams can break mid-flight; per-event JSONL recording makes
   history correctness independent of stream length.
+
+## Session visibility & multi-user ownership (ADR-052)
+
+nassaj is a **single-tenant, team-trusted tool**: all storage is shared locally,
+and project `visibility = 'public'` means "readable by the team". Yet sessions
+(transcripts) are categorized by owner to prevent accidental reading of private
+work.
+
+**The ownership model:**
+
+A user can read a session if **any** of these holds:
+1. **User is a direct participant** (in `session_participants`).
+2. **OR the session's project is visible to the user**:
+   - Project is `public`, **OR**
+   - User is the creator (`created_by`), **OR**
+   - User is a project member, **OR**
+   - User has participated in **any** session in that project.
+
+**Implementation:** `isProjectPathVisibleToUser()` in `projects.db.ts` returns
+`true` iff the project exists, is not archived, and the user satisfies one of the
+four routes. This primitive is used by the **content layer** (`fetchHistory`,
+search, etc.) to gate session reads — mirroring the logic used by the **list
+layer** (`getVisibleProjectPaths`) so they cannot diverge.
+
+**Security:** Sessions in private projects remain private to non-members (403/404).
+Anonymous/unresolved callers (non-integer `userId`) fail-closed **before** any
+visibility check, so even public projects are hidden from the unauthenticated.
+
+(See `docs/decisions/052-session-visibility-project-scope.md` for context,
+alternatives, and consequences.)
+
+---
+
+## Deployment & process supervision (ADR-021/022/109/110)
+
+**Process management:** PM2 (`ecosystem.config.cjs`) supervises nassaj-dev with
+`treekill:false`, allowing orphaned vendor workers (Workflows) to outlive a
+restart, coupled with a drain timeout (30s) to gracefully stop the process.
+
+**Ecosystem file:** host-neutral (no `cwd`, no secrets); env and startup flags
+come from `.env` alone. The `ecosystem.config.cjs` is git-tracked and unified
+across the fleet (B-N-DRAIN), ensuring reproducible restarts.
+
+**Restart safety:** `scripts/safe-restart.sh` targets the process by name
+(`PROC_NAME`) and omits `--update-env` (prevents drift if `.env` changes mid-air).
+It guards with `pm2 describe` (exit code 4 if process missing) and warns of
+`treekill`/`kill_timeout` divergence.
+
+**CORS safety net:** `server/index.js` prepends a git-tracked list of allowed
+origins (default: `https://nassaj.alkindy.tech`, `https://nassaj.traventure.sa`,
+`https://nassaj.alrukhaimi.com`) so a drift in `ALLOWED_ORIGINS` env does not
+render a white page.
+
+---
 
 ## Guardrails (internal-individual scope)
 

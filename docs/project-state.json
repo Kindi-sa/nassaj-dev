@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T15:05:00.000Z",
+  "updated": "2026-06-30T16:55:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -80,6 +80,46 @@
     }
   ],
   "tasks": [
+    {
+      "id": "T-243",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "done",
+      "owner": "backend-dev",
+      "issue": "B-111",
+      "title": "تنفيذ الخيار أ (ADR-052): مُسنِد isProjectPathVisibleToUser مشترك مع طبقة القائمة في بوابتي fetchHistory والبحث + تحصين fail-closed (Number.isInteger قبل public في الـprimitiveين) + فلتر isArchived + إعادة صياغة 3 اختبارات B-105/B-106 لمشاريع private.",
+      "note": "مكتمل ومُرتكَب 2026-06-30 (commit f850b5e9). إجماع architect+qa-critic، تحقّق المنسّق ميدانياً: اختبارات الملكية 17/17، typecheck 0، build:server 0. ينتظر المالك: build:server+restart على alkindy لتفعيله حيّاً."
+    },
+    {
+      "id": "T-244",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "done",
+      "owner": "devops",
+      "issue": "B-109",
+      "title": "شبكة أمان CORS: إضافة nassaj.traventure.sa وnassaj.alrukhaimi.com إلى _corsDefaultOrigins (server/index.js) كثوابت مشحونة عبر git.",
+      "note": "مكتمل ومُرتكَب 2026-06-30 (commit b2b470fc). يمنع تكرار الصفحة البيضاء حتى مع انجراف ALLOWED_ORIGINS. ينتظر نشر المالك على traventure (/opt/nassaj)."
+    },
+    {
+      "id": "T-245",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "done",
+      "owner": "devops",
+      "issue": "B-110",
+      "title": "ecosystem.config.cjs محايد-المضيف متعقَّب (DRAIN حرفي، الخاص من .env، بلا cwd) + safe-restart يستهدف PROC_NAME بلا --update-env مع حارس pm2 describe + تحذير انجراف.",
+      "note": "مكتمل ومُرتكَب 2026-06-30 (commit b2b470fc). تحقّق devops: .env alkindy يحوي كل المنقول فلا ينكسر. ينتظر المالك: نشر traventure (إعادة بناء حالة PM2 من ecosystem). مرتبط B-114/T-246."
+    },
+    {
+      "id": "T-246",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "pending",
+      "owner": "devops",
+      "issue": "B-114",
+      "title": "تحديث bootstrap-node.sh في nassaj-core ليكتب .env خاصاً بالعقدة ويستعمل ecosystem.config.cjs المتعقَّب المحايد بدل توليد ملف منجرف (kill_timeout قديم، بلا SESSION_REGISTRY_claude/WORKFLOW_RECONCILE).",
+      "note": "اكتشفه devops أثناء C1 (2026-06-30). لازم لاكتمال «مصدر الحقيقة الأسطولي» لقرار B-110/ADR-052. ريبو nassaj-core (خارج nassaj-dev)."
+    },
     {
       "id": "T-216",
       "kind": "bug",
@@ -2778,6 +2818,61 @@
   ],
   "issues": [
     {
+      "id": "B-114",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "open",
+      "severity": "medium",
+      "found": "2026-06-30",
+      "title": "bootstrap-node.sh في nassaj-core (سطر76) يولّد ecosystem خاصاً بالعقدة بدل استخدام الملف المتعقَّب المحايد، وهو منجرف: kill_timeout=300000 (قيمة B-23 القديمة لا 24h لـB-95) ويفتقد SESSION_REGISTRY_claude وWORKFLOW_RECONCILE. يقوّض «مصدر الحقيقة الأسطولي» الذي يبرّر قرار B-110/ADR-052. كشفه devops أثناء C1.",
+      "triage": "medium → backlog، ريبو nassaj-core (خارج nassaj-dev). لازم لاكتمال B-110: حدّث bootstrap ليكتب .env خاصاً بالعقدة ويستعمل ecosystem.config.cjs المتعقَّب المحايد. مهمة T-246.",
+      "resolved": null
+    },
+    {
+      "id": "B-112",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-06-30",
+      "title": "فشلان سابقان في اختبارات السيرفر (مستقلّان عن B-111، أثبت backend-dev استقلالهما بـstash على الأساس النظيف، والمنسّق أكّد عدم مساس ملفاتهما): providerMcpService «global adder» (transports MCP) وB-MU-PTY-KEY (عزل PTY). يظهران في التشغيل الأوسع (330 اختباراً) لا في اختبارات الملكية.",
+      "triage": "low → backlog. تشخيص منفصل لاحقاً؛ لم يعيقا commitات اليوم (hook الـpre-commit = lint-staged/eslint لا اختبارات كاملة).",
+      "resolved": null
+    },
+    {
+      "id": "B-111",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "fixed",
+      "severity": "high",
+      "found": "2026-06-30",
+      "title": "عزل رؤية محادثات الفريق يناقض نموذج التعاون: بوابة isParticipant fail-closed على قراءة محتوى الجلسة (sessions.service.ts:258) والبحث (session-conversations-search.service.ts:556) تردّ 404 لأي عضو ليس participant/author. فجلسات المشاريع public تظهر بالقائمة (فلترة على مستوى المشروع، projects-with-sessions-fetch) لكن محتواها فارغ للعضو الآخر («Continue your conversation»). التخزين مشترك فيزيائياً (inode 1049513 لكل المستخدمين، resolve-provider-env.js:35-37) لا معزول — فرضية العزل التخزيني مدحوضة. الجذر: تشديد B-105 (366c8452) + B-106 (6d509f78) اليوم — صحّحا IDOR حقيقياً لكن أفرطا فحجبا الفريق. تحقيق architect مؤكَّد ذاتياً. بيانات حيّة: 18 مشروعاً كلها public، 209 جلسة بمشارِك واحد = مجموعة العَرَض.",
+      "triage": "high (يعطّل الغرض الأساسي للأداة) → يلزم قرار اتجاه: الخيار أ رؤية على مستوى المشروع في طبقة القراءة (موصى به) / الخيار ب مشاركة صريحة per-session / تأجيل. ثم ADR-052 ينقّح B-105 + مراجعة qa-critic قبل التنفيذ (تغيير عقد أمني اعتُمد اليوم؛ تجنّب إعادة فتح IDOR على المشاريع private). لا يمسّ عزل اشتراك التشغيل per-user — قراءة فقط لـJSONL مشترك أصلاً. [محسوم 2026-06-30: الخيار أ، ADR-052، commit f850b5e9، اختبارات 17/17؛ ينتظر restart المالك على alkindy للتفعيل الحيّ].",
+      "resolved": "2026-06-30"
+    },
+    {
+      "id": "B-110",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "fixed",
+      "severity": "high",
+      "found": "2026-06-30",
+      "title": "ملف ecosystem.config.cjs متعقَّب في git ومخصّص لمضيف dev = فخّ deploy: cwd:'/home/nassaj/Project/nassaj-dev' (الإنتاج /opt/nassaj، سطر26)، بلا ALLOWED_ORIGINS في env (69-135)، JWT_SECRET معلَّق (سطر120، وenv يطغى على .env سطر115). + safe-restart.sh:203 RESTART_CMD='env -u PORT pm2 restart $ECOSYSTEM --update-env && pm2 save' يقرأ هذا الملف ويفرض بيئته. أي safe-restart --exec على traventure يُلغي الحلّ المؤقت الآمن (الذي كان بلا --update-env)، يعيد الصفحة البيضاء + يطرد الجلسات. مؤكَّد ذاتياً (git ls-files + قراءة الأسطر).",
+      "triage": "high → السببان الهيكليان 1+3 لحادثة traventure. الإصلاح (كود يُشحن عبر git): تعميم/إلغاء تعقّب ecosystem (إزالة cwd والأسرار؛ JWT_SECRET/ALLOWED_ORIGINS من .env لكل مضيف) + إصلاح RESTART_CMD (إزالة --update-env، استهداف $PROC_NAME الموجود سطر66). مرتبط B-109. [محسوم 2026-06-30: الهجين المتعقَّب المحايد، commit b2b470fc؛ ينتظر نشر المالك على traventure].",
+      "resolved": "2026-06-30"
+    },
+    {
+      "id": "B-109",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "fixed",
+      "severity": "high",
+      "found": "2026-06-30",
+      "title": "الصفحة البيضاء على nassaj.traventure.sa (CORS drift): _corsDefaultOrigins (server/index.js:242-247) تحوي nassaj.alkindy.tech + 3 localhost فقط، بلا الدومين العام nassaj.traventure.sa. عند انجراف بيئة العملية (بلا ALLOWED_ORIGINS) تسقط على هذه الافتراضيات الناقصة → حجب رأس Access-Control-Allow-Origin عن XHR المتصفّح (الكود لا يرمي؛ يُعيد callback(null,false) سطر271 بنيّة تفادي حلقة التحميل) → #root فارغ. curl يُظهر السيرفر سليماً (سطر258 يسمح بلا Origin) = فخّ تشخيصي. منطق دمج ALLOWED_ORIGINS مع الافتراضيات مُصلَح (248-253) لكن قائمة الافتراضي ناقصة. مؤكَّد ذاتياً.",
+      "triage": "high → السبب الهيكلي 2 لحادثة traventure (أعلى عائد/أقل خطر). الإصلاح: إضافة 'https://nassaj.traventure.sa' (وربما nassaj.alrukhaimi.com) إلى _corsDefaultOrigins:243 → شبكة أمان مشحونة عبر git مستقلة عن البيئة، تمنع التكرار حتى مع انجراف مستقبلي. host-side على /opt/nassaj (إذن المالك): git pull + rebuild + إعادة بناء حالة PM2 من المصدر السليم + pm2 save + فحص refspec. [محسوم 2026-06-30: شبكة أمان CORS، commit b2b470fc؛ ينتظر نشر المالك على traventure].",
+      "resolved": "2026-06-30"
+    },
+    {
       "id": "B-92",
       "kind": "bug",
       "phase": "P4",
@@ -3771,6 +3866,13 @@
     }
   ],
   "decisions": [
+    {
+      "id": "ADR-052",
+      "date": "2026-06-30",
+      "status": "accepted",
+      "title": "رؤية محتوى الجلسة على مستوى المشروع (تنقيح B-105/B-106): توسيع بوابة قراءة محتوى الجلسة والبحث لتقبل رؤية المشروع الحاوي (isProjectPathVisibleToUser، إسقاط مشترك مع getVisibleProjectPaths) إضافةً إلى participant/author. السياق: نسّاج فريق موثوق واحد، تخزين JSONL مشترك، افتراض public، فطبقة القائمة تكشف كل مشروع public للكل بينما B-105/B-106 (اليوم) جعلا المحتوى participant-only ← تناقض (الجلسة تُدرَج، محتواها 404 للعضو الآخر). القرار: الخيار أ (public=مقروء-للفريق، private=للأعضاء). يُغلق IDOR على private (مُختبَر 404)، fail-closed لـnull/non-integer، عقد 404 موحّد، فلتر isArchived يطابق طبقة القائمة. لا يمسّ عزل اشتراك التشغيل per-user (قراءة فقط لـJSONL مشترك). اعتمده المالك 2026-06-30 بإجماع architect+qa-critic؛ commit f850b5e9؛ اختبارات الملكية 17/17. خارج نموذج المستأجر-الواحد يلزم إعادة النظر.",
+      "_relTask": "T-243"
+    },
     {
       "id": "ADR-047",
       "date": "2026-06-27",
