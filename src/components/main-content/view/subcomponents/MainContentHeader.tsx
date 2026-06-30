@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { PanelTop } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MainContentHeaderProps } from '../../types/types';
 import { Tooltip } from '../../../../shared/view/ui';
@@ -21,25 +21,28 @@ export default function MainContentHeader({
   const { t, i18n } = useTranslation('common');
   const { preferences, setPreference } = useUiPreferences();
 
-  // Top-bar action icons (the tab pills: chat · shell · files · git · board)
-  // can be folded as a group via a chevron next to them. The state is a synced
-  // `uiPreferences` value, so the choice persists across reloads and instances.
-  const iconsCollapsed = preferences.topBarIconsCollapsed;
+  // Quick-access shortcut for the existing "Compact tabs (icons only)" setting
+  // (the `tabsIconOnly` preference, also exposed as a checkbox in the appearance
+  // settings). Toggling here flips the very same synced `uiPreferences` value, so
+  // the button and the settings checkbox are one source of truth — pressing the
+  // button switches the tab pills between icons-only and icons+text, and the
+  // checkbox reflects it (and vice versa) across reloads and instances.
+  const compactTabs = preferences.tabsIconOnly;
 
-  const toggleIcons = useCallback(() => {
-    setPreference('topBarIconsCollapsed', !iconsCollapsed);
-  }, [setPreference, iconsCollapsed]);
+  const toggleCompactTabs = useCallback(() => {
+    setPreference('tabsIconOnly', !compactTabs);
+  }, [setPreference, compactTabs]);
 
   // No dedicated locale key yet (locales are owned elsewhere); supply a correct
   // per-language default so the control is always meaningful for a11y. A future
-  // translation of `mainContent.toolbarToggle.*` overrides these automatically.
+  // translation of `mainContent.compactTabsToggle.*` overrides these automatically.
   const isArabic = i18n.language?.startsWith('ar');
-  const toggleLabel = iconsCollapsed
-    ? t('mainContent.toolbarToggle.show', {
-        defaultValue: isArabic ? 'إظهار أيقونات الشريط' : 'Show toolbar icons',
+  const toggleLabel = compactTabs
+    ? t('mainContent.compactTabsToggle.expand', {
+        defaultValue: isArabic ? 'توسيع التبويبات (أيقونات + نصوص)' : 'Expand tabs (icons + text)',
       })
-    : t('mainContent.toolbarToggle.hide', {
-        defaultValue: isArabic ? 'إخفاء أيقونات الشريط' : 'Hide toolbar icons',
+    : t('mainContent.compactTabsToggle.compact', {
+        defaultValue: isArabic ? 'تبويبات مضغوطة (أيقونات فقط)' : 'Compact tabs (icons only)',
       });
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -78,51 +81,47 @@ export default function MainContentHeader({
         <HeaderUsageIndicator />
 
         <div className="flex min-w-0 flex-shrink items-center gap-1.5 sm:flex-shrink-0">
-          {/* Collapse/show toggle for the action-icon group. When the icons are
-              shown the chevron points toward them (inline-end) inviting a fold;
-              when collapsed it flips 180° to point back, inviting reveal.
-              `rtl:scale-x-[-1]` mirrors the glyph so the inline-end direction is
-              correct in RTL as well as LTR. */}
+          {/* Quick-access toggle for the "Compact tabs (icons only)" preference
+              (`tabsIconOnly`). It is a shortcut to the same setting exposed as a
+              checkbox in appearance settings — pressed = compact (icons only).
+              The tab group always renders; only the per-tab text labels show or
+              hide based on the preference. */}
           <Tooltip content={toggleLabel} position="bottom">
             <button
               type="button"
-              onClick={toggleIcons}
+              onClick={toggleCompactTabs}
               aria-label={toggleLabel}
-              aria-pressed={iconsCollapsed}
-              aria-expanded={!iconsCollapsed}
+              aria-pressed={compactTabs}
               title={toggleLabel}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground transition-colors hover:bg-accent/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                compactTabs
+                  ? 'bg-accent/80 text-foreground'
+                  : 'bg-muted/60 text-muted-foreground hover:bg-accent/80 hover:text-foreground'
+              }`}
             >
-              <ChevronRight
-                className={`h-4 w-4 transition-transform rtl:scale-x-[-1] ${
-                  iconsCollapsed ? 'rotate-180' : ''
-                }`}
-                aria-hidden="true"
-              />
+              <PanelTop className="h-4 w-4" aria-hidden="true" />
             </button>
           </Tooltip>
 
-          {!iconsCollapsed && (
-            <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
-              {canScrollLeft && (
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-              )}
-              <div
-                ref={scrollRef}
-                onScroll={updateScrollState}
-                className="scrollbar-hide overflow-x-auto"
-              >
-                <MainContentTabSwitcher
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
-                  shouldShowTasksTab={shouldShowTasksTab}
-                />
-              </div>
-              {canScrollRight && (
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
-              )}
+          <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
+            {canScrollLeft && (
+              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
+            )}
+            <div
+              ref={scrollRef}
+              onScroll={updateScrollState}
+              className="scrollbar-hide overflow-x-auto"
+            >
+              <MainContentTabSwitcher
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                shouldShowTasksTab={shouldShowTasksTab}
+              />
             </div>
-          )}
+            {canScrollRight && (
+              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
+            )}
+          </div>
         </div>
       </div>
     </div>
