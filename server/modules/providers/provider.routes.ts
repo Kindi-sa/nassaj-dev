@@ -632,9 +632,13 @@ router.get(
 router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) => {
   const query = parseSessionSearchQuery(req.query.q);
   const limit = parseSessionSearchLimit(req.query.limit);
-  // Ownership scope for the search (B-106): only this user's own sessions are
-  // ever scanned or streamed. Resolved from req.user (set by authenticateToken
-  // guarding this router); null here means no usable identity → zero results.
+  // Authorization scope for the search (B-106, widened by B-111): only sessions
+  // the caller may see are ever scanned or streamed — those they participate in
+  // OR that live in a project visible to them (public / shared / owned), the
+  // same predicate the sidebar list layer uses. A private project the caller is
+  // not a member of stays excluded (B-106 isolation preserved). Resolved from
+  // req.user (set by authenticateToken guarding this router); null here means no
+  // usable identity → zero results.
   const requesterUserId = readRequesterUserId(req);
 
   res.writeHead(200, {

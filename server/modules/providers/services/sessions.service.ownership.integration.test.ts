@@ -30,6 +30,8 @@ import {
   initializeDatabase,
   messageAuthorsDb,
   participantsDb,
+  projectMembersDb,
+  projectsDb,
   sessionsDb,
   userDb,
 } from '@/modules/database/index.js';
@@ -105,7 +107,17 @@ test('B-105: owner reads their own session history', async () => {
 });
 
 test("B-105: a different authenticated user is refused (404, no content leak)", async () => {
-  await withOwnedSession(async ({ outsiderId }) => {
+  await withOwnedSession(async ({ ownerId, outsiderId }) => {
+    // The IDOR boundary lives on PRIVATE content: a session whose project is
+    // private and whose caller is neither participant nor project member must
+    // never disclose another user's conversation. (createSession auto-registers
+    // the project as PUBLIC, which would legitimately admit any authenticated
+    // caller — not the boundary under test here — so flip it private first. The
+    // upsert on the same path returns the existing auto-created row.)
+    const { project } = projectsDb.createProjectPath(PROJECT_PATH, 'Secret Proj', ownerId);
+    assert.ok(project, 'project row exists for the session path');
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+
     await assert.rejects(
       () => sessionsService.fetchHistory(SESSION_ID, outsiderId, { limit: 10, offset: 0 }),
       (err: unknown) => {
@@ -114,7 +126,7 @@ test("B-105: a different authenticated user is refused (404, no content leak)", 
         assert.equal(e.code, 'SESSION_NOT_FOUND', 'same contract as a missing session (no existence disclosure)');
         return true;
       },
-      'an authenticated non-participant must NOT receive another user\'s conversation',
+      'an authenticated non-participant of a private project must NOT receive another user\'s conversation',
     );
   });
 });
@@ -151,5 +163,102 @@ test('B-105: isParticipant predicate is fail-closed for a non-member and rejects
     assert.equal(participantsDb.isParticipant(SESSION_ID, outsiderId), false, 'outsider is not');
     assert.equal(participantsDb.isParticipant(SESSION_ID, Number.NaN), false, 'NaN matches nothing');
     assert.equal(participantsDb.isParticipant('no-such-session', ownerId), false, 'unknown session matches nothing');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-111: align the content gate with the sidebar list gate. The B-105 fix gated
+// reads on session participation ALONE, which over-blocked: a session whose
+// project is public or shared with the caller is listed in the sidebar (the list
+// layer uses project visibility) yet its content returned 404. fetchHistory now
+// also admits a caller who can SEE the session's project, using the same
+// predicate the list layer uses. These scenarios register a real project row for
+// PROJECT_PATH (the fixture only creates the session + owner participant) so
+// project visibility is exercised end to end.
+// ---------------------------------------------------------------------------
+
+test('B-111: a project MEMBER who never participated reads a session in a PRIVATE project', async () => {
+  await withOwnedSession(async ({ ownerId, outsiderId }) => {
+    // Owner's session lives in a private project; `outsiderId` is NOT a session
+    // participant but IS added as an explicit project member (read access).
+    const { project } = projectsDb.createProjectPath(PROJECT_PATH, 'Secret Proj', ownerId);
+    assert.ok(project, 'project row created for the session path');
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+    projectMembersDb.add(project.project_id, outsiderId, 'member', ownerId);
+
+    // Pre-condition: the member is genuinely not a session participant, so the
+    // old participant-only gate would have refused (404).
+    assert.equal(
+      participantsDb.isParticipant(SESSION_ID, outsiderId),
+      false,
+      'member is not a session participant — proves the new branch (not participation) grants access',
+    );
+
+    const result = await sessionsService.fetchHistory(SESSION_ID, outsiderId, { limit: 10, offset: 0 });
+    assert.equal(result.total, 2, 'project member now reads the session content');
+    assert.equal(result.messages[0]?.content, 'my private prompt');
+  });
+});
+
+test('B-111: any authenticated user reads a session in a PUBLIC project', async () => {
+  await withOwnedSession(async ({ ownerId, outsiderId }) => {
+    const { project } = projectsDb.createProjectPath(PROJECT_PATH, 'Open Proj', ownerId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'public');
+
+    // Outsider is neither a participant nor a member — only project visibility
+    // (public) grants the read.
+    assert.equal(participantsDb.isParticipant(SESSION_ID, outsiderId), false);
+
+    const result = await sessionsService.fetchHistory(SESSION_ID, outsiderId, { limit: 10, offset: 0 });
+    assert.equal(result.total, 2, 'public-project session is readable by any authenticated user');
+  });
+});
+
+test('B-111: a non-member is still refused (404) for a session in a PRIVATE project — IDOR stays closed', async () => {
+  await withOwnedSession(async ({ ownerId, outsiderId }) => {
+    // Private project, outsider is NOT a member and NOT a participant: the
+    // B-105 IDOR fix must still hold — widening to project visibility must not
+    // reopen cross-user reads of private content.
+    const { project } = projectsDb.createProjectPath(PROJECT_PATH, 'Secret Proj', ownerId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+
+    assert.equal(
+      projectsDb.isProjectPathVisibleToUser(PROJECT_PATH, outsiderId),
+      false,
+      'private project is NOT visible to the non-member — the gate primitive itself refuses',
+    );
+
+    await assert.rejects(
+      () => sessionsService.fetchHistory(SESSION_ID, outsiderId, { limit: 10, offset: 0 }),
+      (err: unknown) => {
+        const e = err as { statusCode?: number; code?: string };
+        assert.equal(e.statusCode, 404, 'non-member of a private project still gets 404');
+        assert.equal(e.code, 'SESSION_NOT_FOUND', 'same contract — no existence disclosure');
+        return true;
+      },
+      'widening to project visibility must NOT reopen the B-105 IDOR for private projects',
+    );
+  });
+});
+
+test('B-111: an unauthenticated (null) caller is refused even when the project is PUBLIC', async () => {
+  await withOwnedSession(async ({ ownerId }) => {
+    const { project } = projectsDb.createProjectPath(PROJECT_PATH, 'Open Proj', ownerId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'public');
+
+    // Even a public project must not be readable by an unidentified caller via
+    // this endpoint: the null short-circuit runs before any visibility check.
+    await assert.rejects(
+      () => sessionsService.fetchHistory(SESSION_ID, null, { limit: 10, offset: 0 }),
+      (err: unknown) => {
+        const e = err as { statusCode?: number; code?: string };
+        assert.equal(e.statusCode, 404);
+        assert.equal(e.code, 'SESSION_NOT_FOUND');
+        return true;
+      },
+    );
   });
 });

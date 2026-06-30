@@ -33,6 +33,8 @@ import {
   closeConnection,
   initializeDatabase,
   participantsDb,
+  projectMembersDb,
+  projectsDb,
   sessionsDb,
   userDb,
 } from '@/modules/database/index.js';
@@ -179,6 +181,15 @@ test("B-106: a different authenticated user gets zero results AND zero snippets"
       secretLine: `top ${SECRET_TERM} secret only alice should see`,
     });
 
+    // The cross-user isolation boundary is PRIVATE content: addSession
+    // auto-registers the project as PUBLIC, which would legitimately surface the
+    // session to any authenticated searcher (not the leak under test). Make it
+    // private — Bob is neither participant nor member — so a zero result proves
+    // the gate excluded a genuinely non-visible session, not a public one.
+    const { project } = projectsDb.createProjectPath('/work/alice-proj', 'Alice Proj', aliceId);
+    assert.ok(project, 'project row exists for the session path');
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+
     // Bob searches the same term. The transcript is on disk and ripgrep WOULD
     // match it, so an empty result here proves the gate excluded it before the
     // scan rather than the term simply being absent.
@@ -236,6 +247,17 @@ test('B-106: per-project isolation — a user does not see another user project 
       secretLine: `bob ${SECRET_TERM} note`,
     });
 
+    // Both projects are auto-registered PUBLIC by addSession, which would make
+    // each session searchable by the other user (legitimate, but not the
+    // isolation property under test). Make both private so per-user isolation is
+    // exercised on PRIVATE content: neither user is a member of the other's
+    // project, so each must see only their own session.
+    const aliceProject = projectsDb.createProjectPath('/work/alice-proj', 'Alice Proj', aliceId).project;
+    const bobProject = projectsDb.createProjectPath('/work/bob-proj', 'Bob Proj', bobId).project;
+    assert.ok(aliceProject && bobProject, 'project rows exist for both session paths');
+    projectsDb.setProjectVisibility(aliceProject.project_id, 'private');
+    projectsDb.setProjectVisibility(bobProject.project_id, 'private');
+
     // Alice searches: she must see her project/session only, never bob's.
     const aliceUpdates: SessionConversationSearchProgressUpdate[] = [];
     const aliceResult = await searchConversations(SECRET_TERM, aliceId, 50, (update) => {
@@ -263,5 +285,134 @@ test('B-106: per-project isolation — a user does not see another user project 
       project.sessions.map((session) => session.sessionId),
     );
     assert.deepEqual(bobSessionIds, ['bob-session-1'], 'bob sees only his own session');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// B-111: align the search gate with the sidebar list gate. B-106 restricted the
+// search to sessions the caller participates in, which over-blocked: a session
+// in a public/shared project is listed in the sidebar but its content was not
+// searchable. The gate now also admits a caller who can SEE the session's
+// project (same predicate as the list layer), while a non-member of a private
+// project still matches nothing (B-106 isolation preserved). The fixture creates
+// no project row, so each scenario registers one for the session's path.
+// ---------------------------------------------------------------------------
+
+test('B-111: a project MEMBER who never participated finds matches in a session of a PRIVATE project', async () => {
+  await withFixture(async ({ aliceId, bobId, addSession }) => {
+    await addSession({
+      sessionId: 'alice-session-1',
+      projectPath: '/work/shared-proj',
+      ownerId: aliceId,
+      secretLine: `team ${SECRET_TERM} note`,
+    });
+
+    // The project is private but Bob is an explicit member (read access). Bob
+    // never participated in the session itself.
+    const { project } = projectsDb.createProjectPath('/work/shared-proj', 'Shared Proj', aliceId);
+    assert.ok(project, 'project row created for the session path');
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+    projectMembersDb.add(project.project_id, bobId, 'member', aliceId);
+
+    assert.equal(
+      participantsDb.isParticipant('alice-session-1', bobId),
+      false,
+      'bob is not a session participant — proves project membership (not participation) granted the match',
+    );
+
+    const updates: SessionConversationSearchProgressUpdate[] = [];
+    const result = await searchConversations(SECRET_TERM, bobId, 50, (update) => {
+      updates.push(update);
+    });
+
+    assert.equal(result.totalMatches, 1, 'project member now finds the shared-project session');
+    const sessionIds = result.results.flatMap((proj) =>
+      proj.sessions.map((session) => session.sessionId),
+    );
+    assert.deepEqual(sessionIds, ['alice-session-1'], 'the visible-project session is returned to the member');
+    const snippets = collectSnippets(updates);
+    assert.equal(snippets.length, 1, 'one snippet streamed to the authorized member');
+    assert.ok(snippets[0].includes(SECRET_TERM), 'the streamed snippet is the member-visible content');
+  });
+});
+
+test('B-111: any authenticated user finds matches in a session of a PUBLIC project', async () => {
+  await withFixture(async ({ aliceId, bobId, addSession }) => {
+    await addSession({
+      sessionId: 'alice-session-1',
+      projectPath: '/work/open-proj',
+      ownerId: aliceId,
+      secretLine: `open ${SECRET_TERM} note`,
+    });
+
+    const { project } = projectsDb.createProjectPath('/work/open-proj', 'Open Proj', aliceId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'public');
+
+    // Bob is neither a participant nor an explicit member — only the project's
+    // public visibility grants the search hit.
+    const result = await searchConversations(SECRET_TERM, bobId, 50);
+    const sessionIds = result.results.flatMap((proj) =>
+      proj.sessions.map((session) => session.sessionId),
+    );
+    assert.deepEqual(sessionIds, ['alice-session-1'], 'public-project session is searchable by any authenticated user');
+    assert.equal(result.totalMatches, 1);
+  });
+});
+
+test('B-111: a non-member finds NOTHING (no snippets) in a session of a PRIVATE project — isolation stays closed', async () => {
+  await withFixture(async ({ aliceId, bobId, addSession }) => {
+    await addSession({
+      sessionId: 'alice-session-1',
+      projectPath: '/work/private-proj',
+      ownerId: aliceId,
+      secretLine: `secret ${SECRET_TERM} only members`,
+    });
+
+    // Private project, Bob is NOT a member and NOT a participant: widening to
+    // project visibility must not reopen B-106 cross-user content reads.
+    const { project } = projectsDb.createProjectPath('/work/private-proj', 'Private Proj', aliceId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'private');
+
+    assert.equal(
+      projectsDb.isProjectPathVisibleToUser('/work/private-proj', bobId),
+      false,
+      'private project is not visible to the non-member — the gate primitive itself refuses',
+    );
+
+    const updates: SessionConversationSearchProgressUpdate[] = [];
+    const result = await searchConversations(SECRET_TERM, bobId, 50, (update) => {
+      updates.push(update);
+    });
+
+    assert.equal(result.totalMatches, 0, 'non-member of a private project finds no matches');
+    assert.equal(result.results.length, 0, "none of alice's private sessions surface to the non-member");
+    assert.equal(collectSnippets(updates).length, 0, 'NOT ONE snippet leaked over SSE for a private non-member');
+    assert.ok(
+      updates.every((update) => update.projectResult === null),
+      'no project result for a private non-owned session was ever emitted',
+    );
+  });
+});
+
+test('B-111: a null caller finds nothing even when the project is PUBLIC', async () => {
+  await withFixture(async ({ aliceId, addSession }) => {
+    await addSession({
+      sessionId: 'alice-session-1',
+      projectPath: '/work/open-proj',
+      ownerId: aliceId,
+      secretLine: `open ${SECRET_TERM} note`,
+    });
+    const { project } = projectsDb.createProjectPath('/work/open-proj', 'Open Proj', aliceId);
+    assert.ok(project);
+    projectsDb.setProjectVisibility(project.project_id, 'public');
+
+    const updates: SessionConversationSearchProgressUpdate[] = [];
+    const result = await searchConversations(SECRET_TERM, null, 50, (update) => {
+      updates.push(update);
+    });
+    assert.equal(result.totalMatches, 0, 'null caller owns/sees nothing even for a public project');
+    assert.equal(collectSnippets(updates).length, 0, 'null caller receives no snippets');
   });
 });

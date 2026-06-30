@@ -527,22 +527,29 @@ function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSe
 }
 
 /**
- * Per-session ownership gate for conversation search (B-106 — sibling of the
- * B-105 REST IDOR fix). The search used to scan every transcript on disk across
- * all projects with no notion of who was asking, so any authenticated user could
- * read other users' conversation content (and live SSE snippets). This filter
- * keeps ONLY the sessions the requester owns or participates in, using the same
- * `participantsDb.isParticipant` predicate that gates GET /sessions/:id/messages.
+ * Per-session authorization gate for conversation search (B-106 — sibling of the
+ * B-105 REST IDOR fix, extended by B-111). The search used to scan every
+ * transcript on disk across all projects with no notion of who was asking, so any
+ * authenticated user could read other users' conversation content (and live SSE
+ * snippets). This filter keeps ONLY the sessions the requester is authorized for:
+ * either a participant / message author of the session
+ * (`participantsDb.isParticipant`, the same predicate that gates
+ * GET /sessions/:id/messages), OR a viewer of the project the session lives in
+ * (`projectsDb.isProjectPathVisibleToUser`, the same predicate the sidebar list
+ * layer uses via getVisibleProjectPaths). Aligning the search gate with the list
+ * gate is the B-111 fix: a session listed because its project is public/shared
+ * must also be searchable, while a session in a private project the user is not a
+ * member of is still excluded (the B-106 isolation guarantee is preserved).
  *
  * Applied to the candidate set BEFORE ripgrep runs and before any project bucket
- * is built or streamed, so a non-owned session's content is never read off disk
- * and never emitted over SSE — not even transiently. Enforcing at the session
- * level subsumes per-project isolation: a user only matches sessions they belong
- * to, regardless of which project those sessions live in.
+ * is built or streamed, so an unauthorized session's content is never read off
+ * disk and never emitted over SSE — not even transiently.
  *
  * Fail-closed by construction: a `null` requester (anonymous / unresolved) is
- * not an integer user id, so `isParticipant` returns false for every session and
- * the result is empty. Uses prepared statements only (inside participantsDb).
+ * not an integer user id; both predicates return false for it, so the result is
+ * empty. Project-visibility decisions are memoized per normalized project_path so
+ * a folder of many sessions costs one visibility query, not one per session. Uses
+ * prepared statements only (inside the repositories).
  */
 function filterSessionsByOwnership(
   searchableSessions: SearchableSessionRow[],
@@ -552,8 +559,22 @@ function filterSessionsByOwnership(
     return [];
   }
 
-  return searchableSessions.filter((session) =>
-    participantsDb.isParticipant(session.session_id, requesterUserId),
+  const projectVisibilityByPath = new Map<string, boolean>();
+  const isProjectPathVisible = (projectPath: string | null): boolean => {
+    const key = typeof projectPath === 'string' ? projectPath : '';
+    if (!projectVisibilityByPath.has(key)) {
+      projectVisibilityByPath.set(
+        key,
+        projectsDb.isProjectPathVisibleToUser(projectPath, requesterUserId),
+      );
+    }
+    return projectVisibilityByPath.get(key) as boolean;
+  };
+
+  return searchableSessions.filter(
+    (session) =>
+      participantsDb.isParticipant(session.session_id, requesterUserId) ||
+      isProjectPathVisible(session.project_path),
   );
 }
 

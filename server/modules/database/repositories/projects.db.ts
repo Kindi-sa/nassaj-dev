@@ -325,11 +325,89 @@ export const projectsDb = {
         if (!row) {
             return false;
         }
+        // Fail-closed defense-in-depth: refuse an anonymous / unresolved caller
+        // before any visibility branch, so a non-integer id is never reported as
+        // seeing even a public project through this primitive.
+        if (!Number.isInteger(userId)) {
+            return false;
+        }
         if (row.visibility === 'public') {
             return true;
         }
+        return row.created_by === userId || row.isMember === 1 || row.isParticipant === 1;
+    },
+
+    /**
+     * Whether the project that OWNS a given project_path is visible to the user
+     * (B-PRIV guard primitive, path-keyed sibling of isProjectVisibleToUser).
+     *
+     * Sessions carry a project_path, not a project_id, while the content
+     * authorization layer must answer the SAME question the sidebar list layer
+     * answers via getVisibleProjectPaths(userId): "does this user see the project
+     * this session lives in?". This resolves that directly from the path so the
+     * content gate (B-111) and the list gate share one predicate and cannot
+     * diverge — a session listable because its project is public/shared is now
+     * also readable, while a session in a private project the user is not a
+     * member of stays invisible (the B-105 IDOR fix is preserved).
+     *
+     * The membership routes are an exact single-row projection of the
+     * getVisibleProjectPaths query (public OR creator OR project_members OR
+     * session-participation-derived), including its `isArchived = 0` filter, so
+     * the path-keyed content gate and the list gate cannot diverge: a project
+     * archived out of the visible list is also invisible here (the caller then
+     * falls back to participant-only). Returns false when:
+     *   - no ACTIVE (non-archived) project row exists for the path (fall back to
+     *     participant-only — this also covers an archived project),
+     *   - the project is private and the user satisfies no membership route,
+     *   - userId is not an integer (anonymous / unresolved) — the fail-closed
+     *     guard runs BEFORE the public check, so even a public project is not
+     *     reported visible to an unidentified caller via this primitive.
+     * Uses prepared statements only.
+     */
+    isProjectPathVisibleToUser(projectPath: string | null | undefined, userId: number | null): boolean {
+        if (typeof projectPath !== 'string' || projectPath.trim().length === 0) {
+            return false;
+        }
+
+        const db = getConnection();
+        const normalizedProjectPath = normalizeProjectPath(projectPath);
+        const row = db.prepare(`
+            SELECT
+                p.visibility AS visibility,
+                p.created_by AS created_by,
+                EXISTS (
+                    SELECT 1 FROM project_members pm
+                    WHERE pm.project_id = p.project_id AND pm.user_id = ?
+                ) AS isMember,
+                EXISTS (
+                    SELECT 1
+                    FROM session_participants sp
+                    JOIN sessions s ON s.session_id = sp.session_id
+                    WHERE sp.user_id = ?
+                      AND s.project_path = p.project_path
+                ) AS isParticipant
+            FROM projects p
+            WHERE p.project_path = ?
+              AND p.isArchived = 0
+        `).get(
+            Number.isInteger(userId) ? userId : -1,
+            Number.isInteger(userId) ? userId : -1,
+            normalizedProjectPath,
+        ) as
+            | { visibility: ProjectVisibility; created_by: number | null; isMember: number; isParticipant: number }
+            | undefined;
+
+        if (!row) {
+            return false;
+        }
+        // Fail-closed defense-in-depth: an anonymous / unresolved caller is
+        // refused before any visibility branch, so a non-integer id can never be
+        // reported as seeing even a public project through this primitive.
         if (!Number.isInteger(userId)) {
             return false;
+        }
+        if (row.visibility === 'public') {
+            return true;
         }
         return row.created_by === userId || row.isMember === 1 || row.isParticipant === 1;
     },

@@ -239,6 +239,16 @@ export const sessionsService = {
    * `requesterUserId` is required by the type, but `null` is accepted as the
    * explicit "no authenticated identity" value (anonymous / unresolved) and is
    * treated as having access to nothing — it never widens access.
+   *
+   * Access is granted when the caller is a participant / message author of the
+   * session OR can see the project the session lives in (B-111): the storage is
+   * physically shared, so a session listable in the sidebar because its project
+   * is public or shared with the caller must also be readable. Project
+   * visibility is resolved through the SAME predicate the list layer uses
+   * (projectsDb.getVisibleProjectPaths → isProjectPathVisibleToUser), so the
+   * content gate and the list gate cannot diverge. The earlier B-105 IDOR fix is
+   * preserved: a session in a PRIVATE project the caller is not a member of
+   * satisfies neither branch and still returns 404.
    */
   async fetchHistory(
     sessionId: string,
@@ -253,9 +263,17 @@ export const sessionsService = {
       });
     }
 
-    // Fail-closed ownership gate. A non-integer / null requester matches nothing
-    // (isParticipant returns false), so anonymous callers are refused here.
-    if (requesterUserId === null || !participantsDb.isParticipant(sessionId, requesterUserId)) {
+    // Fail-closed authorization gate. A null requester is the explicit
+    // "no identity" value and is refused outright; for an authenticated caller,
+    // access requires either session participation/authorship OR visibility of
+    // the owning project (both predicates are themselves fail-closed for a
+    // non-integer id). A refusal is surfaced with the SAME 404 contract as a
+    // missing session so another user's session existence is not disclosed.
+    const isAuthorized =
+      requesterUserId !== null &&
+      (participantsDb.isParticipant(sessionId, requesterUserId) ||
+        projectsDb.isProjectPathVisibleToUser(session.project_path, requesterUserId));
+    if (!isAuthorized) {
       throw new AppError(`Session "${sessionId}" was not found.`, {
         code: 'SESSION_NOT_FOUND',
         statusCode: 404,
