@@ -12,14 +12,26 @@ const UPSTREAM_REPO = 'claudecodeui';
  * (siteboon/claudecodeui) publishes a release newer than the last one the
  * owner acknowledged. Separate from the fork's own update channel
  * (useVersionCheck against Kindi-sa/nassaj-dev).
+ *
+ * Disabled by owner decision (2026-07-01): nassaj is a fork that does not track
+ * upstream automatically, so this notice was confusing noise implying nassaj is
+ * out of date. We keep the component (and hook) but never enable the watch, so
+ * no GitHub releases API call is made and nothing is ever rendered.
  */
+const UPSTREAM_NOTICE_ENABLED = false;
+
 export default function UpstreamReleaseNotice() {
   const { t } = useTranslation('sidebar');
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
-  const { newRelease, acknowledge } = useUpstreamReleaseWatch(UPSTREAM_OWNER, UPSTREAM_REPO, isOwner);
+  // `enabled = false` short-circuits the watch hook before any GitHub fetch.
+  const { newRelease, acknowledge } = useUpstreamReleaseWatch(
+    UPSTREAM_OWNER,
+    UPSTREAM_REPO,
+    UPSTREAM_NOTICE_ENABLED && isOwner,
+  );
 
-  if (!isOwner || !newRelease) {
+  if (!UPSTREAM_NOTICE_ENABLED || !isOwner || !newRelease) {
     return null;
   }
 
