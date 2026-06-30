@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-30T17:37:31.226Z",
+  "updated": "2026-06-30T18:10:28.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -80,6 +80,15 @@
     }
   ],
   "tasks": [
+    {
+      "id": "T-247",
+      "kind": "feature",
+      "phase": "P4",
+      "status": "done",
+      "owner": "frontend-dev",
+      "title": "قصر لغات الواجهة على ar/en (تعطيل عبر المنتقي لا حذف الملفات، السقوط على ar) + نقل زر طيّ الشريط الجانبي من رأس الشريط إلى الشريط العلوي بجانب التابات (RTL).",
+      "note": "طلب المالك 2026-06-30 (اللغات تسبب مشاكل). commit cb6ae56d؛ tsc 0 + build:client + اختبار حيّ de→ar. حيّ على alkindy (يلزم Ctrl+Shift+R لـSW). traventure يحتاج push+pull+build:client. ينتظر تأكيد المالك بصرياً للمنتقي/الشريط العلوي (يحتاجان دخولاً)."
+    },
     {
       "id": "T-243",
       "kind": "bug",
@@ -2821,23 +2830,23 @@
       "id": "B-115",
       "kind": "bug",
       "phase": "P7",
-      "status": "open",
+      "status": "fixed",
       "severity": "high",
       "found": "2026-06-30",
       "title": "حادثة سقوط nassaj.traventure.sa أثناء نشر B-110: runbook وجّه `pm2 start ecosystem.config.cjs` (القالب المحايد) على traventure، لكن لا .env هناك → SERVER_PORT undefined → المنفذ الافتراضي 3001 مشغول → EADDRINUSE → crash loop (26) → 502. ضاعفه: الـcommits لم تُدفع أولاً (pull=Already up-to-date) + pm2 delete قبل التأكد من البديل + refspec تاج-فقط. استُردّ بالتشغيل من ecosystem.nassaj.config.cjs (إعداد العقدة: منفذ 3004 + قاعدة /home/ibrahim/.local/share/nassaj-dev/db.sqlite + JWT ثابت) → 200/200.",
-      "triage": "high → كشف قصوراً في قرار B-110: الأسطول يشغّل من ecosystem.<node>.config.cjs (يولّده bootstrap) لا من .env؛ فالقالب المتعقَّب المحايد لغمٌ كامن لأي عقدة تنفّذ pm2 start عليه. الإصلاح: تحويله إلى .example (اقتراح devops الأصلي) + توسعة B-114 (انجراف ملفات العقد: kill_timeout 5د→24س، إضافة SESSION_REGISTRY_claude/WORKFLOW_RECONCILE). تفاصيل: memory incident_traventure_ecosystem_outage.",
-      "resolved": null
+      "triage": "high → كشف قصوراً في قرار B-110: الأسطول يشغّل من ecosystem.<node>.config.cjs (يولّده bootstrap) لا من .env؛ فالقالب المتعقَّب المحايد لغمٌ كامن لأي عقدة تنفّذ pm2 start عليه. الإصلاح: تحويله إلى .example (اقتراح devops الأصلي) + توسعة B-114 (انجراف ملفات العقد: kill_timeout 5د→24س، إضافة SESSION_REGISTRY_claude/WORKFLOW_RECONCILE). تفاصيل: memory incident_traventure_ecosystem_outage. [محسوم 2026-06-30: حُوِّل القالب إلى ecosystem.config.example.cjs + .gitignore + safe-restart + docs، commit d7fbe078].",
+      "resolved": "2026-06-30"
     },
     {
       "id": "B-114",
       "kind": "bug",
       "phase": "P7",
-      "status": "open",
+      "status": "fixed",
       "severity": "medium",
       "found": "2026-06-30",
       "title": "bootstrap-node.sh في nassaj-core (سطر76) يولّد ecosystem خاصاً بالعقدة بدل استخدام الملف المتعقَّب المحايد، وهو منجرف: kill_timeout=300000 (قيمة B-23 القديمة لا 24h لـB-95) ويفتقد SESSION_REGISTRY_claude وWORKFLOW_RECONCILE. يقوّض «مصدر الحقيقة الأسطولي» الذي يبرّر قرار B-110/ADR-052. كشفه devops أثناء C1.",
-      "triage": "medium → backlog، ريبو nassaj-core (خارج nassaj-dev). لازم لاكتمال B-110: حدّث bootstrap ليكتب .env خاصاً بالعقدة ويستعمل ecosystem.config.cjs المتعقَّب المحايد. مهمة T-246.",
-      "resolved": null
+      "triage": "medium → backlog، ريبو nassaj-core (خارج nassaj-dev). لازم لاكتمال B-110: حدّث bootstrap ليكتب .env خاصاً بالعقدة ويستعمل ecosystem.config.cjs المتعقَّب المحايد. مهمة T-246. [محسوم 2026-06-30: أُصلح مولّد bootstrap-node.sh في nassaj-core (kill_timeout 24س + SESSION_REGISTRY_claude/WORKFLOW_RECONCILE + ALLOWED_ORIGINS + اسم ecosystem.<node>.config.cjs)، commit nassaj-core 6bb09b7. ملف traventure المنجرف يلزمه ترقيع يدوي لاحقاً].",
+      "resolved": "2026-06-30"
     },
     {
       "id": "B-112",
