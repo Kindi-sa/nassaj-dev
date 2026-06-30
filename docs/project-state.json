@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-06-27T15:17:30.437Z",
+  "updated": "2026-06-29T13:00:00.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -2692,6 +2692,67 @@
       "owner": "coordinator",
       "title": "دَين مؤجَّل (فيتو qa-critic): لا تُفعّل مُنتِج WS workflow_reconciled قبل dedup-by-wfId في computeMerged. المسار الفعّال REST؛ المستهلك مُعلّم TODO.",
       "note": "فيتو مشروط من مراجعة B-93 (2026-06-28): مسار WS كود ميّت اليوم (لا مُنتِج خادمي)؛ frontend handler جاهز بـid ثابت reconcile-{wfId}. إن أُضيف مُنتِج لاحقاً (ADR-048 phase-2) دون dedup → بطاقتا reconcile لنفس wfId (REST id عشوائي + WS id ثابت). بوابة قبل أي تفعيل."
+    },
+    {
+      "id": "T-235",
+      "phase": "P4",
+      "kind": "feature",
+      "sprint": "S-2",
+      "status": "in_progress",
+      "owner": "coordinator",
+      "title": "ميزة: توسيع زر الرفع لقبول أي ملف (Excel/PDF/…) وحفظه في inbox المشروع ليقرأه الوكيل",
+      "note": "منجَز كوداً ومُختبَراً وملتزَماً (backend-dev+frontend-dev+tester): endpoint upload-attachments + handleFiles + helpers مستخرجة + زر إرفاق موحّد + بوابة غير-claude تلميحاً. 50 اختبار أمني، الحزمة 137/0 (أُعيد تشغيلها يدوياً). build:server تمّ ودخل dist-server. يبقى للمالك restart (محجوب) ثم build:client للنشر الحيّ + تحقّق. ADR-049."
+    },
+    {
+      "id": "T-236",
+      "kind": "chore",
+      "phase": "P2",
+      "status": "done",
+      "owner": "researcher",
+      "issue": null,
+      "closed": "2026-06-30",
+      "title": "تحليل فجوة upstream siteboon/claudecodeui v1.34.0→v1.35.0 (46 commit) عبر Workflow متعدد الوكلاء (6 عدسات متوازية + تحقّق qa-critic عدائي). الحصيلة: 4 بنود تُؤخَذ، 1 تعارض، سلسلة unified-gateway مرفوضة، كاشف restart-skew خامل.",
+      "note": "منجَز 2026-06-30 (wf_c08f22e9، 20 وكيلاً). أحدث إصدار upstream = v1.35.0 (2026-06-29). التقرير الكامل في مخرجات الـworkflow (tasks/wypiizutq.output). يُؤخَذ: B-100/T-237 (#920)، B-101/T-238 (#903)، B-102/T-239 (#896)، T-240 (#933) — كلها build:client بلا restart. القرار ADR-050. التنفيذ ينتظر إذن المالك لاختيار الموجات."
+    },
+    {
+      "id": "T-237",
+      "kind": "bug",
+      "phase": "P2",
+      "status": "pending",
+      "owner": "frontend-dev",
+      "issue": "B-100",
+      "title": "أخذ تحصين QuestionAnswerContent من upstream #920 (ed4ae311): حارس Array.isArray + تصفية options غير الكائنية + typeof answer قبل split، على src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx.",
+      "note": "موجة 1 (موصى بها أولاً). كيّف الحارس على ملفنا، لا تأخذ ملف اختبار upstream حرفياً؛ شغّل اختبار src يدوياً (npx tsx --test) لأن سكربت npm test يفحص server/** فقط. build:client بلا restart. ينتظر إذن المالك."
+    },
+    {
+      "id": "T-238",
+      "kind": "bug",
+      "phase": "P2",
+      "status": "pending",
+      "owner": "frontend-dev",
+      "issue": "B-101",
+      "title": "أخذ إصلاح regex من upstream #903 (4712431b): قصر نمط مطابقة المسافات في normalizeInlineCodeFences (chatFormatting.ts:14) على مسافة/تبويب فقط بدل أي مسافة بيضاء عبر الأسطر — موضعان داخل regex واحد.",
+      "note": "موجة 2. تافه (تغيير محرف واحد فعلياً). ملفنا مطابق بايتياً لنسخة upstream قبل الإصلاح فلا تعارض. تحقّق على نص عربي RTL متعدّد الأسطر. build:client."
+    },
+    {
+      "id": "T-239",
+      "kind": "bug",
+      "phase": "P2",
+      "status": "pending",
+      "owner": "frontend-dev",
+      "issue": "B-102",
+      "title": "أخذ مفاتيح sidebar.messages الناقصة من upstream #896 (7ca35565): 6 مفاتيح (updateProjectError/refreshError + 4 restore) لكل لغاتنا التسع، مع صياغة ar يدوية وإسقاط شرائح fr/zh-TW (غير موجودة لدينا).",
+      "note": "موجة 2. i18n إضافي بحت. خصّص كل ملفات locale لوكيل واحد وأعد التحقّق من صحّة JSON بعد التعديل (درس سباق الملفات المشتركة B-96/B-97). build:client."
+    },
+    {
+      "id": "T-240",
+      "kind": "feature",
+      "phase": "P2",
+      "status": "pending",
+      "owner": "frontend-dev",
+      "issue": null,
+      "title": "أخذ معاينة الوسائط/الفيديو + معاينة HTML داخل محرّر الكود من upstream #933 (2ebe64f2): ملفان جديدان (CodeEditorMediaPreview.tsx + utils/previewableFile.ts) + تعديلات صغيرة على CodeEditor/Header/useCodeEditorDocument + مفاتيح ar.",
+      "note": "موجة 3 (اختيارية، UX). الخادم جاهز: /api/projects/:id/files/content قائم ومحصّن بـisProjectVisible (آمن multi-user). سطوح XSS مغلقة سلفاً من المؤلّف (magic-bytes للـPDF، حجب فتح SVG، iframe.sandbox بلا allow-same-origin، revokeObjectURL). أضف مفاتيح ar (filePreview.*, actions.previewHtml) بوكيل واحد. build:client."
     }
   ],
   "issues": [
@@ -3581,6 +3642,39 @@
       "resolved": "2026-06-27",
       "triage": "medium → سبرنت S-2 الحالي، أُصلح فوراً عبر T-233.",
       "description": "TokenUsageSummary.tsx كان يعرض التفاصيل عبر سمة title فقط (tooltip بالـhover على سطح المكتب) — ميتة على لمس الجوال؛ لا onClick/state/popover. البيانات موجودة في tooltipLines. الإصلاح: جعل العدّاد trigger قابلاً للنقر/اللمس (role=button، tabIndex، Enter/Space، aria-expanded) + popover عبر createPortal (حوار متمركز لا يُقصّ، RTL، إغلاق بـEscape/نقر خارجي/زر) يعرض نفس بيانات tooltipLines. التتبّع: T-233."
+    },
+    {
+      "id": "B-100",
+      "title": "QuestionAnswerContent ينهار على حمولة AskUserQuestion مشوّهة (قيمة questions صادقة لكن غير-مصفوفة) → ErrorBoundary يُسقط كامل واجهة المحادثة",
+      "status": "open",
+      "severity": "medium",
+      "phase": "P2",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "medium → backlog؛ يُصلَح بأخذ إصلاح upstream #920 عبر T-237. مُكتشَف أثناء تحليل فجوة v1.35.0 (T-236).",
+      "description": "ملفنا src/components/chat/tools/components/ContentRenderers/QuestionAnswerContent.tsx هو النسخة ما-قبل-الإصلاح حرفياً: السطر 18 فحص truthiness فقط (!questions || length===0)، والأسطر 77/113/151 تستدعي q.options.some/.map بلا حارس Array.isArray. toolConfigs.ts:479 defaultOpen:true يرسمه فور تحميل الجلسة؛ حارسا || [] (toolConfigs.ts:482 + ToolRenderer.tsx:241) يحميان من falsy فقط، فقيمة صادقة غير-مصفوفة (نص/كائن من transcript مشوّه أو مزوّد بديل agy/Hermes) تمرّ إلى .map → e.map is not a function. مؤكَّد بالكود (git+grep)."
+    },
+    {
+      "id": "B-101",
+      "title": "regex normalizeInlineCodeFences يبتلع/يحطّم كتل code-fence المتجاورة إلى inline spans في كل رسالة مساعد",
+      "status": "open",
+      "severity": "low",
+      "phase": "P2",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "low → backlog؛ يُصلَح بأخذ #903 عبر T-238. مُكتشَف في T-236.",
+      "description": "src/components/chat/utils/chatFormatting.ts:14 يطابق المسافات البيضاء بفضفاضة تعبر الأسطر، مطابق بايتياً لنسخة upstream قبل الإصلاح. الدالة تُستدعى بلا شرط على كل جسم رسالة مساعد (Markdown.tsx:152). كتلتا code-fence متجاورتان تُحطَّمان إلى inline spans. إصلاح upstream #903 (4712431b) يقصر المطابقة على مسافة/تبويب فقط. مؤكَّد تجريبياً (node)."
+    },
+    {
+      "id": "B-102",
+      "title": "مفاتيح sidebar.messages ناقصة (updateProjectError/refreshError + 4 restore) → سلسلة مفتاح خام أو إنجليزية في الشريط الجانبي RTL عند فشل rename/star/visibility/refresh/restore",
+      "status": "open",
+      "severity": "low",
+      "phase": "P2",
+      "kind": "bug",
+      "found": "2026-06-30",
+      "triage": "low → backlog؛ يُصلَح بأخذ #896 عبر T-239. مُكتشَف في T-236.",
+      "description": "مواقع الاستدعاء في src/components/sidebar/hooks/useSidebarController.ts (updateProjectError L452/479/609/627، refreshError L700) بلا default inline، والمفاتيح غائبة من ar/sidebar.json وen/sidebar.json. عند الفشل يرى مستخدم ar وen السلسلة الخام messages.updateProjectError؛ ومفاتيح restore تتدهور إلى إنجليزية مثبّتة في واجهة ar. الإصلاح #896 (7ca35565) مع مراعاة أن لدينا 9 لغات لا 10 (de موجودة، fr/zh-TW غير موجودتين)."
     }
   ],
   "decisions": [
@@ -3751,6 +3845,20 @@
         "deprovision_runbook": "تعطيل/حذف في Zitadel → back-channel logout → password_changed_at → JWT يُبطل فوراً",
         "secret_strategy": "public client PKCE (لا client_secret) — لا تدوير مطلوب لنسّاج"
       }
+    },
+    {
+      "id": "ADR-049",
+      "title": "تصميم رفع المرفقات للوكيل: endpoint منفصل + inbox مفرد + مسار-فقط بالبرومبت",
+      "status": "accepted",
+      "date": "2026-06-29",
+      "rationale": "qa-critic مرّتين (فيتو ثم رفعه): إعادة استخدام files/upload المشترك كان سيكسر مدير الملفات، والتعقيم المفترض غير موجود عليه. القرار: endpoint منفصل upload-attachments بسياسته (قائمة آمنة + 50MB + تعقيم basename + رفض /^\\.+$/ + realpath guard + حصر inbox + لاحقة تصادم)؛ مسار نسبي فقط للبرومبت عبر handleFiles (no-op، نظير handleImages)؛ inbox مفرد (الترقية سلوك وكيل)؛ بوابة غير-claude تلميحاً؛ اختبارات fixtures واقعية. T-235."
+    },
+    {
+      "id": "ADR-050",
+      "title": "مزامنة upstream v1.35.0 الانتقائية: أخذ 4 بنود منخفضة المخاطر؛ رفض كتالوج Gemini وسلسلة unified-gateway وكاشف restart-skew",
+      "status": "proposed",
+      "date": "2026-06-30",
+      "rationale": "Workflow متعدد الوكلاء (wf_c08f22e9: 6 عدسات + qa-critic عدائي) على فجوة 46 commit بين أساسنا v1.34.0 وأحدث upstream v1.35.0 (2026-06-29). يُؤخَذ (build:client بلا restart): #920 تحصين QuestionAnswerContent (B-100/T-237)، #903 إصلاح regex code-fence (B-101/T-238)، #896 مفاتيح sidebar.messages (B-102/T-239)، #933 معاينة الوسائط في المحرّر (T-240). يُرفض: (1) كتالوج Gemini 3d948217 — تراجع لا ترقية (يحذف نماذج Pro، يخفّض DEFAULT إلى flash) ويمسّ public/modelConstants.js (فيتو agy)، وثلثاه غير قابل للتطبيق (طبقة كاش/معالِج workflow متباعدان)؛ (2) سلسلة unified-gateway f5eac2ec وتوابعها (591b18e9/3bbb42c2/d0adddbb/677d3309/123ae310/9fb2d91b/56b2e140) — إعادة هيكلة بوّابة WS/الجلسات تعتمد chat-run-registry الغائب وتمسّ مرايا الجلسة/drain المخصّصة = إعادة تصميم لا دمج، مرتبط دَين T-234؛ (3) كاشف restart-skew #898 (f6326c80) — يقارن package.json.version الذي لا يتغيّر في سير عملنا (build:client بلا رفع version) فالبانر خامل/راحة زائفة + يُغفل locale عربي؛ الحلّ الصحيح بصمة بناء (hash/SHA) تصميم منفصل يُحال لـarchitect. ALREADY_HAVE: #909 مهارات المزوّدات، #854 تخطّي subagent transcripts. N/A للفورْك: Electron/computer-use/CI/نقل اختبارات. status=proposed: ينتظر اختيار المالك للموجات قبل التنفيذ."
     }
   ],
   "_note_session_51db2a0a": "ملخص جلسة 51db2a0a (2026-06-25): ثلاث مخرجات. (1) مؤشّر «Workflow شغّال» بالواجهة — أُصلح df79c723 (claude-sdk يبثّ pendingWorkflows + useChatRealtimeHandlers يُبقي isLoading)، حيّ. (2) إدارة المستخدمين/مفتاح الوصول «المعطّلة» — لا خلل كودي (الـAPIs الثلاثة تعمل)؛ السبب توكن بائت→401 صامت؛ موثّق T-216. أُصلح في نفس الجلسة معترض 401 (6fa3f66c) وpwd_iat WS (8c3c0c88). (3) الدخول الموحّد — قرار الوكلاء النهائي Zitadel (تغيّر عن Pocket-ID→Authentik→Zitadel، ADR-045/046)؛ خطة P-IDP-0..5 = T-206..T-212؛ كود نسّاج RP منجَز 96c4af44 (T-210)؛ متبقٍّ للمالك: VM Zitadel على ibrahim-proxmox (T-207/P-IDP-1) + TLS Tailscale (T-208). كل إصلاحات الجلسة في integration/publish ومرفوعة."
