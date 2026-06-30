@@ -22,7 +22,8 @@
     "fullscreen": "ملء الشاشة",
     "close": "إغلاق",
     "previewMarkdown": "معاينة Markdown",
-    "editMarkdown": "تحرير Markdown"
+    "editMarkdown": "تحرير Markdown",
+    "previewHtml": "فتح معاينة HTML في تبويب جديد"
   },
   "footer": {
     "lines": "الأسطر:",
@@ -32,5 +33,10 @@
   "binaryFile": {
     "title": "ملف ثنائي",
     "message": "لا يمكن عرض الملف \"{{fileName}}\" في محرر النصوص لأنه ملف ثنائي."
+  },
+  "filePreview": {
+    "loading": "جارٍ تحميل المعاينة...",
+    "error": "تعذّر عرض هذا الملف.",
+    "openInNewTab": "فتح في تبويب جديد"
   }
 }
