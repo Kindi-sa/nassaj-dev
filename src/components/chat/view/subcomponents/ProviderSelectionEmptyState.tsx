@@ -17,6 +17,7 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from "../../../../types/app";
+import { PLACEHOLDER_FALLBACK_MODELS } from "../../../../constants/providerModelFallbacks";
 import type { ProviderAuthStatusMap } from "../../../provider-auth/types";
 import { isProviderVisible, isProviderDisabled } from "../../../provider-auth/providerAuthFilter";
 import { NextTaskBanner } from "../../../task-master";
@@ -283,6 +284,9 @@ export default function ProviderSelectionEmptyState({
       kimi: kimiModel,
       deepseek: deepseekModel,
       glm: glmModel,
+      // sakana has no dedicated state/prop in this component yet; seed with
+      // the placeholder default so Record<LLMProvider, string> is exhaustive.
+      sakana: PLACEHOLDER_FALLBACK_MODELS.DEFAULT,
     }),
     [
       claudeModel,

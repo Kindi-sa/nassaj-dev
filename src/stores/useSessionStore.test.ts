@@ -24,7 +24,7 @@ function msg(
     id,
     sessionId: 'sess-1',
     timestamp,
-    provider: 'anthropic',
+    provider: 'claude',
     kind: 'text',
     role,
     content,

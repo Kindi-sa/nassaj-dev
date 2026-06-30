@@ -10,6 +10,7 @@ import type {
   ProviderModelsDefinition,
 } from '../../../types/app';
 import {
+  FALLBACK_DEFAULT_MODEL,
   PROVIDER_FALLBACK_MODELS,
   sanitizeStoredModel,
   sanitizeStoredProvider,
@@ -34,21 +35,9 @@ function readStoredEngineProvider(): EngineProvider {
     : null;
 }
 
-const FALLBACK_DEFAULT_MODEL: Record<LLMProvider, string> = {
-  claude: 'opus',
-  cursor: 'gpt-5.3-codex',
-  codex: 'gpt-5.4',
-  gemini: 'gemini-3.1-pro-preview',
-  // Antigravity (agy) default preserved from the fork's former
-  // ANTIGRAVITY_MODELS.DEFAULT; see antigravity-models.provider.ts (backend).
-  antigravity: 'auto',
-  opencode: 'anthropic/claude-sonnet-4-5',
-  // Hosted vendor defaults mirror the backend <ID>_FALLBACK_MODELS.DEFAULT in
-  // shared/vendor/vendor-config.ts; the live /v1/models catalog overrides these.
-  kimi: 'kimi-k2.6',
-  deepseek: 'deepseek-v4-pro',
-  glm: 'glm-5.2',
-};
+// FALLBACK_DEFAULT_MODEL is imported from providerModelFallbacks.ts (single
+// source of truth). The former local copy had claude:'opus' which is not a
+// valid Claude model value, and was missing hermes and sakana entries.
 
 const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
   if (provider === 'codex') {
