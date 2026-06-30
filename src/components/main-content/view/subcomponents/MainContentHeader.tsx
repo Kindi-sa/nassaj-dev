@@ -1,13 +1,27 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
-import { PanelTop } from 'lucide-react';
+import { PanelTop, PanelTopDashed, PanelTopClose, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MainContentHeaderProps } from '../../types/types';
 import { Tooltip } from '../../../../shared/view/ui';
-import { useUiPreferences } from '../../../../hooks/useUiPreferences';
+import { useUiPreferences, type TabsDisplayMode } from '../../../../hooks/useUiPreferences';
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
 import HeaderUsageIndicator from './HeaderUsageIndicator';
+
+// Cyclic order of the header tab-display modes: full -> compact -> hidden -> full.
+const NEXT_TABS_MODE: Record<TabsDisplayMode, TabsDisplayMode> = {
+  full: 'compact',
+  compact: 'hidden',
+  hidden: 'full',
+};
+
+// Icon shown on the toggle reflects the *current* mode at a glance.
+const TABS_MODE_ICON: Record<TabsDisplayMode, LucideIcon> = {
+  full: PanelTop,
+  compact: PanelTopDashed,
+  hidden: PanelTopClose,
+};
 
 export default function MainContentHeader({
   activeTab,
@@ -21,29 +35,48 @@ export default function MainContentHeader({
   const { t, i18n } = useTranslation('common');
   const { preferences, setPreference } = useUiPreferences();
 
-  // Quick-access shortcut for the existing "Compact tabs (icons only)" setting
-  // (the `tabsIconOnly` preference, also exposed as a checkbox in the appearance
-  // settings). Toggling here flips the very same synced `uiPreferences` value, so
-  // the button and the settings checkbox are one source of truth — pressing the
-  // button switches the tab pills between icons-only and icons+text, and the
-  // checkbox reflects it (and vice versa) across reloads and instances.
-  const compactTabs = preferences.tabsIconOnly;
+  // Cyclic quick-toggle for the header tab switcher. `tabsDisplayMode` is the
+  // single source of truth (full | compact | hidden); each press advances to the
+  // next mode. The legacy "Compact tabs (icons only)" appearance checkbox writes
+  // the derived `tabsIconOnly` flag, which the preferences reducer keeps in sync
+  // with `tabsDisplayMode` (compact <-> checked), so button and checkbox stay one
+  // source of truth across reloads and instances.
+  const tabsMode = preferences.tabsDisplayMode;
+  const nextMode = NEXT_TABS_MODE[tabsMode];
+  const CurrentModeIcon = TABS_MODE_ICON[tabsMode];
 
-  const toggleCompactTabs = useCallback(() => {
-    setPreference('tabsIconOnly', !compactTabs);
-  }, [setPreference, compactTabs]);
+  const cycleTabsMode = useCallback(() => {
+    setPreference('tabsDisplayMode', NEXT_TABS_MODE[tabsMode]);
+  }, [setPreference, tabsMode]);
 
-  // No dedicated locale key yet (locales are owned elsewhere); supply a correct
-  // per-language default so the control is always meaningful for a11y. A future
-  // translation of `mainContent.compactTabsToggle.*` overrides these automatically.
+  // No dedicated locale keys yet (locales are owned elsewhere); supply correct
+  // per-language defaults so the control is always meaningful for a11y. Future
+  // translations of `mainContent.tabsDisplayToggle.*` override these automatically.
   const isArabic = i18n.language?.startsWith('ar');
-  const toggleLabel = compactTabs
-    ? t('mainContent.compactTabsToggle.expand', {
-        defaultValue: isArabic ? 'توسيع التبويبات (أيقونات + نصوص)' : 'Expand tabs (icons + text)',
-      })
-    : t('mainContent.compactTabsToggle.compact', {
-        defaultValue: isArabic ? 'تبويبات مضغوطة (أيقونات فقط)' : 'Compact tabs (icons only)',
+  const modeName = (mode: TabsDisplayMode): string => {
+    if (mode === 'full') {
+      return t('mainContent.tabsDisplayToggle.full', {
+        defaultValue: isArabic ? 'فرد (أيقونات + نصوص)' : 'Expanded (icons + text)',
       });
+    }
+    if (mode === 'compact') {
+      return t('mainContent.tabsDisplayToggle.compact', {
+        defaultValue: isArabic ? 'ضمّ (أيقونات فقط)' : 'Compact (icons only)',
+      });
+    }
+    return t('mainContent.tabsDisplayToggle.hidden', {
+      defaultValue: isArabic ? 'إخفاء التبويبات' : 'Hidden tabs',
+    });
+  };
+
+  // Tooltip/label states the current mode and the next action on press.
+  const toggleLabel = t('mainContent.tabsDisplayToggle.label', {
+    current: modeName(tabsMode),
+    next: modeName(nextMode),
+    defaultValue: isArabic
+      ? `عرض التبويبات: ${modeName(tabsMode)} — اضغط للانتقال إلى ${modeName(nextMode)}`
+      : `Tabs display: ${modeName(tabsMode)} — press to switch to ${modeName(nextMode)}`,
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -81,47 +114,46 @@ export default function MainContentHeader({
         <HeaderUsageIndicator />
 
         <div className="flex min-w-0 flex-shrink items-center gap-1.5 sm:flex-shrink-0">
-          {/* Quick-access toggle for the "Compact tabs (icons only)" preference
-              (`tabsIconOnly`). It is a shortcut to the same setting exposed as a
-              checkbox in appearance settings — pressed = compact (icons only).
-              The tab group always renders; only the per-tab text labels show or
-              hide based on the preference. */}
+          {/* Tab group renders only when the display mode is not "hidden".
+              When hidden it is not mounted at all (no offscreen DOM). */}
+          {tabsMode !== 'hidden' && (
+            <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
+              {canScrollLeft && (
+                <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-gradient-to-r from-background to-transparent rtl:bg-gradient-to-l" />
+              )}
+              <div
+                ref={scrollRef}
+                onScroll={updateScrollState}
+                className="scrollbar-hide overflow-x-auto"
+              >
+                <MainContentTabSwitcher
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  shouldShowTasksTab={shouldShowTasksTab}
+                />
+              </div>
+              {canScrollRight && (
+                <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-gradient-to-l from-background to-transparent rtl:bg-gradient-to-r" />
+              )}
+            </div>
+          )}
+
+          {/* Cyclic tabs-display toggle (full -> compact -> hidden), pinned to the
+              trailing (inline-end) edge of the header. Small and quiet (ghost):
+              muted by default, gentle accent on hover; the icon reflects the
+              current mode. Sole control bound to `tabsDisplayMode`; the appearance
+              "Compact tabs" checkbox stays consistent via the preferences reducer. */}
           <Tooltip content={toggleLabel} position="bottom">
             <button
               type="button"
-              onClick={toggleCompactTabs}
+              onClick={cycleTabsMode}
               aria-label={toggleLabel}
-              aria-pressed={compactTabs}
               title={toggleLabel}
-              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                compactTabs
-                  ? 'bg-accent/80 text-foreground'
-                  : 'bg-muted/60 text-muted-foreground hover:bg-accent/80 hover:text-foreground'
-              }`}
+              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground/80 transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <PanelTop className="h-4 w-4" aria-hidden="true" />
+              <CurrentModeIcon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
             </button>
           </Tooltip>
-
-          <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
-            {canScrollLeft && (
-              <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-            )}
-            <div
-              ref={scrollRef}
-              onScroll={updateScrollState}
-              className="scrollbar-hide overflow-x-auto"
-            >
-              <MainContentTabSwitcher
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-                shouldShowTasksTab={shouldShowTasksTab}
-              />
-            </div>
-            {canScrollRight && (
-              <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
-            )}
-          </div>
         </div>
       </div>
     </div>

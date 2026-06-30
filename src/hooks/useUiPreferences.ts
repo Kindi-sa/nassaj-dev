@@ -1,6 +1,10 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { onApplyServerPreference } from '../preferences/preferencesSync';
 
+export type TabsDisplayMode = 'full' | 'compact' | 'hidden';
+
+const TABS_DISPLAY_MODES: readonly TabsDisplayMode[] = ['full', 'compact', 'hidden'];
+
 type UiPreferences = {
   autoExpandTools: boolean;
   showRawParameters: boolean;
@@ -9,10 +13,24 @@ type UiPreferences = {
   autoScrollToBottom: boolean;
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
+  // Source of truth for the header tab switcher: full (icons + text),
+  // compact (icons only), or hidden (tab group not rendered).
+  tabsDisplayMode: TabsDisplayMode;
+  // Derived mirror of `tabsDisplayMode === 'compact'`. Kept as a real, synced
+  // preference so legacy consumers (the appearance "Compact tabs (icons only)"
+  // checkbox, HeaderUsageIndicator, MainContentTabSwitcher) keep working with no
+  // changes. The reducer reconciles it on every write so the two never drift.
   tabsIconOnly: boolean;
 };
 
 type UiPreferenceKey = keyof UiPreferences;
+
+const parseTabsDisplayMode = (value: unknown, fallback: TabsDisplayMode): TabsDisplayMode => {
+  if (typeof value === 'string' && (TABS_DISPLAY_MODES as readonly string[]).includes(value)) {
+    return value as TabsDisplayMode;
+  }
+  return fallback;
+};
 
 type SetPreferenceAction = {
   type: 'set';
@@ -43,6 +61,7 @@ const DEFAULTS: UiPreferences = {
   autoScrollToBottom: true,
   sendByCtrlEnter: false,
   sidebarVisible: true,
+  tabsDisplayMode: 'full',
   tabsIconOnly: false,
 };
 
@@ -67,6 +86,33 @@ const parseBoolean = (value: unknown, fallback: boolean): boolean => {
   }
 
   return fallback;
+};
+
+// Parses an arbitrary stored/incoming value for a single key, respecting its
+// type (tabsDisplayMode is a string enum; everything else is boolean).
+const parsePreferenceValue = <K extends UiPreferenceKey>(
+  key: K,
+  value: unknown,
+  fallback: UiPreferences[K],
+): UiPreferences[K] => {
+  if (key === 'tabsDisplayMode') {
+    return parseTabsDisplayMode(value, fallback as TabsDisplayMode) as UiPreferences[K];
+  }
+  return parseBoolean(value, fallback as boolean) as UiPreferences[K];
+};
+
+// Enforces the invariant tabsIconOnly === (tabsDisplayMode === 'compact').
+// `lead` indicates which of the two keys the caller just wrote so the other is
+// brought in line: writing tabsDisplayMode updates tabsIconOnly; toggling the
+// legacy tabsIconOnly checkbox maps true->compact and false->full (never hidden,
+// to preserve the existing two-state checkbox behaviour).
+const reconcileTabsMode = (state: UiPreferences, lead: 'mode' | 'iconOnly'): UiPreferences => {
+  if (lead === 'iconOnly') {
+    const nextMode: TabsDisplayMode = state.tabsIconOnly ? 'compact' : 'full';
+    return state.tabsDisplayMode === nextMode ? state : { ...state, tabsDisplayMode: nextMode };
+  }
+  const nextIconOnly = state.tabsDisplayMode === 'compact';
+  return state.tabsIconOnly === nextIconOnly ? state : { ...state, tabsIconOnly: nextIconOnly };
 };
 
 const readLegacyPreference = (key: UiPreferenceKey, fallback: boolean): boolean => {
@@ -95,20 +141,36 @@ const readInitialPreferences = (storageKey: string): UiPreferences => {
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         const parsedRecord = parsed as Record<string, unknown>;
 
-        return PREFERENCE_KEYS.reduce((acc, key) => {
-          acc[key] = parseBoolean(parsedRecord[key], DEFAULTS[key]);
+        const next = PREFERENCE_KEYS.reduce((acc, key) => {
+          (acc[key] as UiPreferences[typeof key]) = parsePreferenceValue(
+            key,
+            parsedRecord[key],
+            DEFAULTS[key],
+          );
           return acc;
         }, { ...DEFAULTS });
+
+        // Stored value predating tabsDisplayMode carries only tabsIconOnly; let it
+        // lead so the mode is derived. Otherwise the explicit mode is authoritative.
+        const lead = 'tabsDisplayMode' in parsedRecord ? 'mode' : 'iconOnly';
+        return reconcileTabsMode(next, lead);
       }
     }
   } catch {
     // Fall back to legacy keys when unified key is missing or invalid.
   }
 
-  return PREFERENCE_KEYS.reduce((acc, key) => {
-    acc[key] = readLegacyPreference(key, DEFAULTS[key]);
+  const legacy = PREFERENCE_KEYS.reduce((acc, key) => {
+    if (key === 'tabsDisplayMode') {
+      acc.tabsDisplayMode = DEFAULTS.tabsDisplayMode;
+      return acc;
+    }
+    (acc[key] as boolean) = readLegacyPreference(key, DEFAULTS[key] as boolean);
     return acc;
   }, { ...DEFAULTS });
+
+  // No legacy key for the new mode; derive it from the legacy tabsIconOnly flag.
+  return reconcileTabsMode(legacy, 'iconOnly');
 };
 
 function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferences {
@@ -119,12 +181,19 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         return state;
       }
 
-      const nextValue = parseBoolean(value, state[key]);
+      const nextValue = parsePreferenceValue(key, value, state[key]);
       if (state[key] === nextValue) {
         return state;
       }
 
-      return { ...state, [key]: nextValue };
+      const nextState = { ...state, [key]: nextValue };
+      if (key === 'tabsDisplayMode') {
+        return reconcileTabsMode(nextState, 'mode');
+      }
+      if (key === 'tabsIconOnly') {
+        return reconcileTabsMode(nextState, 'iconOnly');
+      }
+      return nextState;
     }
     case 'set_many': {
       const updates = action.value || {};
@@ -135,17 +204,24 @@ function reducer(state: UiPreferences, action: UiPreferencesAction): UiPreferenc
         if (!(key in updates)) continue;
 
         const value = updates[key];
-        const nextValue = parseBoolean(value, state[key]);
+        const nextValue = parsePreferenceValue(key, value, state[key]);
         if (nextState[key] !== nextValue) {
-          nextState[key] = nextValue;
+          (nextState[key] as UiPreferences[typeof key]) = nextValue;
           changed = true;
         }
       }
 
-      return changed ? nextState : state;
+      if (!changed) {
+        return state;
+      }
+
+      // An external payload may carry an explicit mode (authoritative) or only the
+      // legacy flag; let the mode lead when present, otherwise the flag.
+      const lead = 'tabsDisplayMode' in updates ? 'mode' : 'iconOnly';
+      return reconcileTabsMode(nextState, lead);
     }
     case 'reset':
-      return { ...DEFAULTS, ...(action.value || {}) };
+      return reconcileTabsMode({ ...DEFAULTS, ...(action.value || {}) }, 'mode');
     default:
       return state;
   }
