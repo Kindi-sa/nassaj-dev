@@ -448,16 +448,43 @@ _exec_restart_with_injection() {
     _pre_prot+=("$(_pm2_saved_env "$k")")
   done
 
-  # 2) ابنِ وسائط env -i: أساسيات PM2 (HOME/PATH/PM2_HOME) + مفاتيح --set حصراً.
-  #    لا شيء من الشيل الحالي عدا هذه الأساسيات. تحذير أمني: PATH هنا من الشِل
-  #    المُستدعي وقد ينجرف (شِل جلسة Claude يحوي ~/.claude/plugins/cache/...)، لذا
-  #    فحص PROTECTED_KEYS قبل/بعد يرفض (exit 5) لو أزاح الحقنُ قيمةَ PATH/PM2_HOME/
-  #    HOME الحيّة — لا نثق بالقيمة عمياءً، بل نتحقّق أنها لم تُغيِّر البيئة الحيّة.
+  # 2) ابنِ وسائط env -i: أساسيات PM2 (HOME/PATH[/PM2_HOME]) + مفاتيح --set حصراً.
+  #    لا شيء من الشيل الحالي عدا هذه الأساسيات.
+  #
+  #    ⚠️ لماذا لا نأخذ PATH/PM2_HOME من الشِل (كشف qa-critic، مُثبَت ميدانياً على
+  #    pm2 7.0.1 يوم 2026-07-02)؟ لأن `pm2 restart --update-env` يدمج
+  #    `Object.assign({}, process.env)` **إضافياً** فوق pm2_env.env المحفوظة
+  #    (API.js:1367 + God/ActionMethods.js:405). فأي قيمة نحقنها هنا تُكتب فعلاً في
+  #    بيئة العملية الحيّة. وشِل جلسة Claude يحوي PATH ملوَّثاً بمسارات
+  #    ~/.claude/plugins/cache/... (541 محرف مقابل 145 نظيفة محفوظة)، وPM2_HOME
+  #    مصدَّراً (/home/nassaj/.pm2) بينما اللقطة الحيّة absent. حقن هذين الخامين
+  #    يُنتج انجرافاً حقيقياً في PROTECTED_KEYS (PATH نظيف→ملوّث، PM2_HOME
+  #    absent→present) يُكتشف **بعد** فوات الأوان (بعد restart+save، سطر 476/481) →
+  #    exit 5 على عملية أُعيد تشغيلها بالفعل بحالة ملوّثة. غير قابل للتراجع.
+  #
+  #    الحلّ: اشتقّ PATH من **اللقطة الحيّة المحفوظة** (`_pm2_saved_env PATH`) لا من
+  #    $PATH الخام — فتُطابق القيمة المحقونة ما هو محفوظ حرفياً ولا تُنشئ انجرافاً.
+  #    (fallback نظيف لو تعذّرت اللقطة: PATH نظامي أدنى كافٍ لتشغيل pm2 CLI — لا
+  #    نستعمل $PATH الملوّث إطلاقاً.) وحقن PM2_HOME **شرطي**: فقط إن كان حاضراً في
+  #    اللقطة الحيّة (غير ABSENT)؛ وإلا نُسقطه تماماً — لا نحقن قيمة لم تكن موجودة.
+  #    فحص PROTECTED_KEYS قبل/بعد يبقى شبكة أمان أخيرة (exit 5) لأي انجراف متبقٍّ.
+  local _saved_path; _saved_path="$(_pm2_saved_env PATH)"
+  if [ "$_saved_path" = "$_ABSENT_SENTINEL" ] || [ -z "$_saved_path" ]; then
+    # اللقطة لا تحوي PATH صالحاً (نادر): استعمل PATH نظامي أدنى نظيفاً كافياً لـ pm2
+    # CLI — لا $PATH الخام (قد يكون ملوّثاً بمسارات plugins من شِل Claude).
+    _saved_path="/usr/local/bin:/usr/bin:/bin"
+    emit WARN "تعذّر اشتقاق PATH من اللقطة الحيّة — استعمال PATH نظامي أدنى نظيف: $_saved_path"
+  fi
   local -a _env_args=(
     "HOME=${HOME}"
-    "PATH=${PATH}"
-    "PM2_HOME=${PM2_HOME:-$HOME/.pm2}"
+    "PATH=${_saved_path}"
   )
+  # PM2_HOME: حقن شرطي — فقط إن كان حاضراً فعلاً في اللقطة الحيّة (غير ABSENT).
+  # حقنه غير المشروط (absent→present) كان أحد وجهي الانجراف في فيتو qa-critic.
+  local _saved_pm2home; _saved_pm2home="$(_pm2_saved_env PM2_HOME)"
+  if [ "$_saved_pm2home" != "$_ABSENT_SENTINEL" ]; then
+    _env_args+=("PM2_HOME=${_saved_pm2home}")
+  fi
   local i
   for i in "${!SET_KEYS[@]}"; do
     # دفاع في العمق: تجاهُل أي --set لمفتاح محمي (يُبنى من مصدره أعلاه؛ لا يُزاح
