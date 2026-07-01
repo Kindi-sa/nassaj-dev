@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useClaudeUsage } from '../../../quick-settings-panel/hooks/useClaudeUsage';
 import {
@@ -8,39 +7,6 @@ import {
   usageTextColorClass,
 } from '../../../quick-settings-panel/claudeUsageHelpers';
 import type { ClaudeUsage } from '../../../quick-settings-panel/claudeUsageTypes';
-import { useUiPreferences } from '../../../../hooks/useUiPreferences';
-
-// ---------------------------------------------------------------------------
-// useMediaQuery — tiny hook that tracks a CSS media query result reactively.
-// Mirrors the matchMedia listener pattern from src/hooks/useDeviceSettings.ts.
-// ---------------------------------------------------------------------------
-function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia(query).matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return undefined;
-
-    const mq = window.matchMedia(query);
-    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
-
-    // Sync once on mount in case the value changed between render and effect.
-    setMatches(mq.matches);
-
-    if (typeof mq.addEventListener === 'function') {
-      mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
-    }
-
-    // Fallback for older browsers.
-    mq.addListener(handler);
-    return () => mq.removeListener(handler);
-  }, [query]);
-
-  return matches;
-}
 
 // ---------------------------------------------------------------------------
 // Window definitions — order determines display order.
@@ -66,21 +32,23 @@ interface HeaderUsageIndicatorProps {
 
 export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorProps) {
   const { i18n, t } = useTranslation('settings');
-  const { preferences } = useUiPreferences();
 
-  // In icon-only mode the tab bar is narrower, so indicators fit at a lower
-  // breakpoint. In normal mode keep the original xl (1280px) threshold.
-  const minWidth = preferences.tabsIconOnly ? 900 : 1280;
-  const isWide = useMediaQuery(`(min-width: ${minWidth}px)`);
+  // Visible at any viewport width in every mode except "hidden". A previous
+  // version gated this on a 900px/1280px width query to protect room for the
+  // tab bar, but that guard fired regardless of tabsMode — including on
+  // mobile, where the indicator disappeared even though the tab bar itself
+  // scrolls/truncates on narrow screens instead of needing the guard. The tab
+  // bar's own layout (overflow-x-auto) handles narrow viewports; the indicator
+  // no longer needs a width gate of its own.
+  const isWide = tabsMode !== 'hidden';
 
   const usageState = useClaudeUsage(isWide);
 
-  // "hidden" mode suppresses both the tab bar and the usage indicator together.
-  // "minimal" mode hides only the tab bar — the indicator stays visible. All
-  // other modes (full/compact/undefined) follow the normal width-based guard below.
+  // "hidden" mode is the only mode that suppresses the indicator (together
+  // with the tab bar). full/compact/minimal all keep it visible regardless of
+  // viewport width — the tab bar itself scrolls/truncates on narrow screens
+  // instead of the indicator being width-gated.
   if (tabsMode === 'hidden') return null;
-
-  if (!isWide) return null;
 
   // Silent during loading / error — keep the header clean.
   if (usageState.status !== 'success') return null;
@@ -100,8 +68,6 @@ export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorP
 
   return (
     <div
-      // JS guard above is the primary visibility control; inline flex here since
-      // the breakpoint is dynamic (900px or 1280px depending on tabsIconOnly).
       className="flex items-center gap-3 flex-shrink-0 select-none"
       aria-label={t('claudeUsage.title')}
     >
