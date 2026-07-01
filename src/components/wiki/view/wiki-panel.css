@@ -56,3 +56,41 @@
    On desktop (md+) Tailwind's md:transform-none overrides these rules.       */
 [data-wiki-drawer="closed"] { transform: translateX(100%); }
 [data-wiki-drawer="open"]   { transform: translateX(0);    }
+
+/* البند 3: تجاوز [&_svg]:max-w-full الموروثة من MermaidDiagram على الجوال.
+   data-wiki-mermaid يرفع الخصوصية بدون لمس الملف المشترك.
+   على الجوال: الـSVG يُعرض بحجمه الطبيعي داخل حاوية overflow-x-auto.  */
+@media (max-width: 767px) {
+  [data-wiki-mermaid="true"] > div {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  [data-wiki-mermaid="true"] > div svg {
+    max-width: none !important;
+  }
+}
+
+/* البند 3: داخل overlay التكبير — تمرير سلس على الجوال */
+.wiki-mermaid-overlay {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* البند 5: مؤشر تمرير أفقي للجداول العريضة على الجوال.
+   scroll-shadow على الحافة اليسرى (في RTL = نهاية الجدول).
+   الظل يظهر فقط عند وجود overflow فعلي (via background-attachment: local). */
+@media (max-width: 767px) {
+  .wiki-table-scroll {
+    -webkit-overflow-scrolling: touch;
+    background:
+      /* ظل على الحافة اليمنى (بداية الجدول في RTL) */
+      linear-gradient(to left, hsl(var(--border) / 0.4) 0, transparent 24px) left center,
+      /* ظل على الحافة اليسرى (نهاية الجدول في RTL = overflow direction) */
+      linear-gradient(to right, hsl(var(--border) / 0.4) 0, transparent 24px) right center,
+      /* صورة سطح قابلة للتمرير لإلغاء الظل حين لا overflow */
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) left center,
+      linear-gradient(hsl(var(--card)), hsl(var(--card))) right center;
+    background-size: 24px 100%, 24px 100%, 16px 100%, 16px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local, local, scroll, scroll;
+  }
+}

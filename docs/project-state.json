@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-07-01T17:50:09.000Z",
+  "updated": "2026-07-01T20:34:52.000Z",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -81,6 +81,16 @@
   ],
   "tasks": [
     {
+      "id": "T-253",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "done",
+      "owner": "frontend-dev",
+      "issue": "B-119",
+      "title": "ويكي الفريق (/wiki) غير قابل للاستخدام على الجوال: نص متراكب فوق نص وشريط جانبي/TOC يغطّي المحتوى، ومخطط Mermaid مسحوق حتى ~5.6px. بلاغ المالك بلقطات شاشة فعلية 2026-07-01.",
+      "note": "مراجعة شاملة بطلب المالك: design-reviewer + a11y-architect (تشخيص متوازٍ) → qa-critic (اعتماد الخطة بشروط سبعة، صحّح خطأً سببياً: العلّة bg-muted/20 على الـnav نفسه لا غياب backdrop) → frontend-dev (تنفيذ: matchMedia بدل useState(true) الثابتة لدرج الشريط وTOC، focus-trap-react مضاف، تجاوز محلي لمخطط Mermaid دون مسّ المكوّن المشترك مع لوحة المشروع، تباين/لمس محسَّن). الجولة الأولى بدت كافية (بناء+اختبارات+typecheck نظيفة) لكن المالك أبلغ 'لسا نفس المشكلة' مرتين — تحقيق حيّ لاحق (end-user-tester بحساب اختبار عبر رابط دعوة المالك، محاكاة iPhone 13 حقيقية، لأن الويكي محجوب بتسجيل دخول) كشف أن الإصلاح الأول لم يكفِ: الشريط 'المغلق' يترك 110px ظاهراً فعلياً (rect.x=280 على شاشة 390px) لأن <html> بلا dir=\"rtl\" فتُحسم خاصية start-0 المنطقية كـleft:0 لا right:0. إصلاح ثانٍ: start-0→right-0 فيزيائياً صريحاً في WikiPanel.tsx (لا لمس لـwiki-panel.css). تحقّق حيّ نهائي (نفس حساب الاختبار) أكّد: مغلق rect.x=390=innerWidth (خارج الشاشة كلياً)، مفتوح rect.right=390=innerWidth (ملاصق لليمين بلا قصّ). qa-critic البوابة الثانية: إغلاق نهائي بلا فيتو + بندا متابعة B-120/B-121. حساب الاختبار wiki-diag-test (id=7) يحتاج حذفاً يدوياً من المالك (403 على حذف الأدمن الذاتي). اكتُشف عرَضاً B-119 (تسريب هوية محتمل بمعالج إعداد عضو جديد) منفصل تماماً."
+    },
+    {
       "id": "T-252",
       "kind": "doc",
       "phase": "P4",
@@ -106,7 +116,7 @@
       "owner": "architect",
       "issue": "B-117",
       "title": "قرار تصميم لـB-117 (فشل AskUserQuestion/ExitPlanMode بـ«Stream closed») — الخطوة التالية المعتمدة (architect + مراجعة qa-critic نهائية 2026-07-01، مقبول بشروط): تفعيل متغيّر البيئة المدمج في حزمة الـSDK DEBUG_CLAUDE_AGENT_SDK (لا حقن console.log في node_modules — هشّ ويُمحى عند npm install وغير موثَّق كودياً) ليكتب الـSDK تلقائياً سطر '[ProcessTransport] Dropping write to ended stdin stream' وسطر 'First result received for single-turn query, closing stdin' إلى ملف sdk-<pid>.txt؛ لا يتطلب build:server، فقط env + safe-restart.sh --exec (تبعية إذن مالك، يمكن دمجها بنفس نافذة تفعيل T-196 إن رغب المالك، فالتقاط stdin يميّز B-117 عن B-80 حتى لو فُعِّلا معاً في نفس الإعادة). معيار الحسم يشترط ربط session_id+request_id+مسار endInput الفعلي (single-turn مقابل abort) لا مجرد سبق زمني لـsdk-abort/reconnect وسط خلفية مزدحمة. الفيتو على أي إصلاح (streaming-input/تأجيل endInput/حجب الأداتين) يبقى قائماً حتى يُنتج هذا الرصد تسلسلاً حاسماً.",
-      "note": "اكتشفه تحقيق backend-dev+devops، ثم قرار architect، ثم جولتا مراجعة qa-critic عدائية، بطلب المستخدم 2026-07-01. التقرير الكامل: انظر تفاصيل B-117. مراجعة qa-critic الثانية صحّحت: أرقام architect الميدانية الأصلية (stream-orphaned×8/sdk-abort×2/reconnect×71) كانت من ملف سجل يوم واحد بعد تدوير؛ الصحيح عبر عمر العملية الحالي منذ restart 06-30 20:22 UTC هو 37 stream-orphaned / 8 sdk-abort / 684 writer-swap-skipped (writer-swap-applied=0 دائماً) — الاستنتاج (صفر توقيع B-117 رغم حضور أدوات التمييز) يبقى صالحاً بل أقوى. آلية الالتقاط استُبدلت من الحقن اليدوي المقترَح أصلاً إلى متغيّر البيئة المدمج DEBUG_CLAUDE_AGENT_SDK. يحتاج اعتماد المالك على تفعيل env + safe-restart.sh --exec قبل الجدولة."
+      "note": "اكتشفه تحقيق backend-dev+devops، ثم قرار architect، ثم جولتا مراجعة qa-critic عدائية، بطلب المستخدم 2026-07-01. التقرير الكامل: انظر تفاصيل B-117. مراجعة qa-critic الثانية صحّحت: أرقام architect الميدانية الأصلية (stream-orphaned×8/sdk-abort×2/reconnect×71) كانت من ملف سجل يوم واحد بعد تدوير؛ الصحيح عبر عمر العملية الحالي منذ restart 06-30 20:22 UTC هو 37 stream-orphaned / 8 sdk-abort / 684 writer-swap-skipped (writer-swap-applied=0 دائماً) — الاستنتاج (صفر توقيع B-117 رغم حضور أدوات التمييز) يبقى صالحاً بل أقوى. آلية الالتقاط استُبدلت من الحقن اليدوي المقترَح أصلاً إلى متغيّر البيئة المدمج DEBUG_CLAUDE_AGENT_SDK. تنفيذ 2026-07-01 (devops، بتفويض 'افعل ما تراه مناسباً' من المالك): DEBUG_CLAUDE_AGENT_SDK=1 أُضيف في ecosystem.config.example.cjs (commit 9cca60d1) و.env المحلي (gitignored)؛ SESSION_REGISTRY_claude=1 تبيّن أنه مفعَّل حياً بالفعل (لا حاجة فعل لـB-80). **عائق مكتشَف يمنع الإكمال الآلي:** العملية الحيّة بُدئت مباشرة (لا عبر ecosystem)، ولا dotenv يقرأ .env، وbوّابة safe-restart.sh تتعمّد حذف --update-env (درس B-110) فلا تُدخِل متغيّرات env جديدة على الإطلاق — أي bash scripts/safe-restart.sh --exec وحده **لن يُفعِّل** DEBUG_CLAUDE_AGENT_SDK فعلياً رغم كونه الأمر المصرَّح به الوحيد. المنسّق رفض تمرير أي صيغة pm2 restart nassaj-dev مباشرة (بديل اقترحه devops) للمالك التزاماً بالحظر الصارم في CLAUDE.md بصرف النظر عن التبرير التقني؛ ينتظر توجيه المالك لطريقة حَقن آمنة (تعديل موثَّق لـsafe-restart.sh بمراجعة qa-critic، أو قرار المالك الشخصي بطرفيته)."
     },
     {
       "id": "T-249",
@@ -2511,7 +2521,7 @@
       "kind": "bug",
       "issue": "B-80",
       "status": "pending",
-      "title": "تفعيل replay claude (B-80/ADR-041): قرار مالك — ضبط SESSION_REGISTRY_claude=1 + pm2 restart عبر ecosystem (محجوب بحارس العميل، ينفّذه المالك بطرفيته) تحت مراقبة RSS أول ورشة claude طويلة متزامنة. الكود مدموج خلف العلم المطفأ (commit 8a13377)، صفر تغيير سلوك حتى التفعيل؛ عند تجاوز RSS الحدّ فإطفاء العلم آمن (no-op). المرحلة 2 (B-80c: إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة بمراجعة qa-critic مستقلة."
+      "title": "تفعيل replay claude (B-80/ADR-041): تصحيح 2026-07-01 (devops، أثناء تجهيز تشخيص B-117) — SESSION_REGISTRY_claude=1 **مفعَّل بالفعل حياً** في العملية الجارية (مُتحقَّق عبر pm2 jlist، لا حاجة لأي إجراء إضافي لتفعيله). المتبقّي من هذه المهمة فقط: مراقبة RSS الفعلية أول ورشة claude طويلة متزامنة بعد التفعيل (لم تُرصَد بعد بصفتها تجربة موجَّهة) لإغلاق الشرط الذي وضعه qa-critic. عند تجاوز RSS الحدّ فإطفاء العلم آمن (no-op). المرحلة 2 (B-80c: إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة بمراجعة qa-critic مستقلة."
     },
     {
       "id": "T-201",
@@ -2872,6 +2882,42 @@
     }
   ],
   "issues": [
+    {
+      "id": "B-121",
+      "kind": "chore",
+      "phase": "P4",
+      "status": "open",
+      "severity": "medium",
+      "found": "2026-07-01",
+      "title": "تباين حدود العناصر (border-border) في ويكي الفريق لا يبلغ 3:1 (WCAG 1.4.11 non-text) مهما رُفعت العتامة (~1.2:1 أقصى فعلي) — قيد بنيوي في قيمة --border token نفسها (lightness عالية جداً في الفاتح، فرق منخفض عن --background في الداكن)، لا تقصير في تنفيذ إصلاح الويكي (T-253).",
+      "note": "اكتشفه frontend-dev أثناء تنفيذ T-253 (شرط تباين من qa-critic)، أكّده qa-critic في مراجعة البوابة الثانية. حساب يدوي WCAG luminance (لا scripts/a11y-scan.mjs — الملف غير موجود فعلياً في المشروع رغم افتراض qa-critic الأول وجوده).",
+      "triage": "medium → backlog، يخص design-system لا ويكي تحديداً (يؤثر على أي عنصر يعتمد --border في الوضع الداكن). الحل المقترح: إعادة معايرة --border (أو --border-strong جديد) في index.css ليبلغ 3:1. عنصر غير-نصّي زخرفي إلى حدٍّ كبير، لا يمنع القراءة/التنقّل الآن.",
+      "resolved": null
+    },
+    {
+      "id": "B-120",
+      "kind": "chore",
+      "phase": "P4",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-01",
+      "title": "اختبار درج ويكي الفريق (WikiPanel.sidebarState.test.ts) يختبر نسخة موازية معاد تعريفها (getInitialSidebarState) لا الكود الفعلي (useIsDesktop في WikiPanel.tsx) — لا يحرس ضد كسر حقيقي مستقبلي. النسخة الموازية أيضاً لا تغطي فرع window===undefined (الكود الفعلي fallback إلى true، النسخة الموازية لا تختبره). منطق matchMedia('(min-width:768px)') مكرَّر نصّياً في 3 مواضع (WikiPanel.tsx سطور 39، 373، 571).",
+      "note": "اكتشفه qa-critic في مراجعة البوابة الثانية لـT-253؛ لا يمسّ صحة إصلاح T-253 نفسه (مُتحقَّق حيّاً بمعزل عن هذا الاختبار) لكنه دَين انحدار حقيقي في كود عُدِّل للتوّ.",
+      "triage": "high → السبرنت الجاري/التالي. الحل: استخراج useIsDesktop/getInitialSidebarState لوحدة قابلة للتصدير من WikiPanel.tsx (إزالة التكرار الثلاثي)، استيرادها في الاختبار (renderHook أو استيراد الدالة الصرفة)، إضافة حالة اختبار لفرع window===undefined⇒true.",
+      "resolved": null
+    },
+    {
+      "id": "B-119",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-01",
+      "title": "معالج إعداد العضو الجديد بعد قبول دعوة الانضمام (Git Configuration «Required» → Connect Agents → Choose Your Project) يعرض حقول اسم/إيميل Git معبّأة مسبقاً ببيانات مستخدم آخر فعلي (Ibrahim AlRukhaimi / ibrahim@alrukhaimi.com) بدل تركها فارغة أو بيانات الحساب الجديد نفسه — تسريب هوية محتمل بين المستخدمين.",
+      "note": "اكتُشف عرَضاً 2026-07-01 أثناء تشخيص عطل الويكي على الجوال (end-user-tester أنشأ حساب اختبار wiki-diag-test عبر رابط دعوة وواجه هذا المعالج قبل الوصول للويكي). لم يُحقَّق بعد في السبب (قيمة افتراضية ثابتة في الكود بالخطأ؟ أم تسريب فعلي من صف/جلسة مستخدم آخر في القاعدة؟) ولا في نطاق الأثر (هل يظهر لكل عضو جديد أم حالة خاصة). يحتاج تحقيق backend-dev قبل أي حكم نهائي على الخطورة الفعلية.",
+      "triage": "high → يحتاج تحقيق عاجل قبل جدولة إصلاح (لم يُؤكَّد بعد نطاق التسريب). حساب الاختبار الذي كشفه (wiki-diag-test, id=7) يحتاج حذفاً يدوياً من المالك — تعذّر الحذف الذاتي وحذف الأدمن أعاد 403.",
+      "resolved": null
+    },
     {
       "id": "B-118",
       "kind": "doc",
@@ -3749,7 +3795,7 @@
       "found": "2026-06-22",
       "title": "بثّ WS الحيّ لا يُستأنف بعد إعادة اتصال السوكِت أثناء جلسة workflow ثقيلة، فـ«الردود تتوقف حتى تحديث الصفحة» (المستخدم Jazari، مشروع AlKindy BM، جلسة 0625cfbf). السبب الجذري البنيوي (مؤكَّد بقراءة الكود، بانتظار تأكيد تجريبي): عند إغلاق السوكِت أثناء بثّ نشط يصير WebSocketWriter.send عمليةً لاغية صامتة بينما حلقة async generator تستمر بلا abort للـSDK؛ وعند reconnect يمنع فيتو no-swap (isActive=true) إعادة ربط الـwriter فيُسجَّل السوكِت الجديد mirror قراءة-فقط يستقبل المُبثّ مستقبلاً فقط، وما بُثّ بين موت السوكِت وتسجيل المرآة يُفقَد؛ لا نظير لـClaude لآلية الإعادة التفاضلية الموجودة لـantigravity خلف علم SESSION_REGISTRY_agy. الملفات: server/claude-sdk.js (stream loop + reconnectSessionWriter)، chat-websocket.service.ts (check-session-status/no-swap)، websocket-writer.service.ts (fan-out + حارس readyState). استُبعدت بدليل: تلف JSONL، الأنواع الحديثة، المسافة في المسار، maxPayload، OOM، ازدحام watcher→terminate (صفر terminate في السجل).",
       "triage": "high — ضمن S-2 (تصليب الواجهة وطبقة البيانات). instrumentation تشخيصي [WS-DIAG] منفّذ ومبني (4 ملفات مصدر، logging فقط بلا تغيير سلوك). تصحيح 2026-07-01 (qa-critic، أثناء مراجعة B-117): العبارة السابقة 'ينتظر pm2 restart للتأكيد التجريبي' كانت دقيقة وقت كتابتها لكنها تقادمت — العملية الحيّة الحالية (منذ restart 2026-06-30 20:22 UTC) تُشغِّل هذا الترقيم فعلاً وتؤكِّده ميدانياً: 684 حدث writer-swap-skipped (applied=0 دائماً) في عمر العملية الحالي وحده، أي فيتو no-swap يرفض كل محاولة إعادة ربط دون استثناء. رمز إغلاق السوكِت (1006 وسيط مقابل 1001 reload)، سطر stream-orphaned، ومنع writer-swap عند reconnect. الإصلاح المقترَح (يحتاج اعتماداً، غير منفّذ): منح Claude إعادةً تفاضلية (ring-buffer لكل جلسة + إعادة تشغيل seq>lastSeq عند reconnect دون writer swap)، أو السماح بـwriter-swap آمن حين يكون الجري نشطاً لكن ليس وسط tool_use معلّق. تأكيد سلوكي جزئي (سجل restart 2026-06-22 11:12): جلسة 0625cfbf بقيت active وتكتب على القرص حتى 11:15 رغم ظهورها «متوقّفة» بالواجهة — أي البثّ يُتّم (orphaned) والعملية تستمر خلفياً. أثر جانبي مكتشَف: عدم إجهاض الـstream عند انقطاع السوكِت يُبقي الجلسة محسوبة active أبداً (تسريب جلسات شبحية)، فيُبطئ كل pm2 restart بمقدار kill_timeout=5min ما لم تُقتل بإشارة ثانية. تحديث 2026-07-01 (تحقيق devops مستقل بطلب المستخدم بعد ظهور متكرر): 66 حدث stream-orphaned مؤكَّد من سجلات PM2 عبر 06-23→07-01 (الذروة 21 حدثاً في 06-30، يتزامن مع يوم حادثة pm2 restart→drain→502 وعاصفة reconnect~600/يوم)، ما يرفع إلحاح تفعيل T-196. تنبيه: هذا لا يفسّر وحده عطل AskUserQuestion الحرفي «Stream closed» — انظر B-117 (سبب جذري مختلف ميكانيكياً: إغلاق stdin نحو عملية CLI الفرعية عند isSingleUserTurn، لا انقطاع WS)؛ تفعيل T-196 ضروري لكن غير كافٍ لحلّ عرَض B-117.",
-      "fix": "المرحلة 1 منفّذة ومدموجة خلف علم مطفأ (commit 8a13377، ADR-041): مثيل SessionRegistry معزول لـclaude (SESSION_REGISTRY_claude، capacity=500) يسجّل البثّ في ring-buffer، وattachClaudeSDKSession يعيد بثّ seq>lastSeq للسوكِت عند reconnect دون writer-swap (يحترم الفيتو حرفياً)؛ العميل يرسل/يتتبّع lastSeq/sequence. مُراجَع qa-critic: مقبول (شرط خفض السعة مطبّق). اختبارات: خادم 564/0، claude-attach 5/5، عميل 50/50؛ build:server+client موجود محلياً. معلّق على المالك: تفعيل SESSION_REGISTRY_claude=1 + pm2 restart تحت مراقبة RSS (T-196). المرحلة 2 (إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة لاحقاً."
+      "fix": "المرحلة 1 منفّذة ومدموجة خلف علم مطفأ (commit 8a13377، ADR-041): مثيل SessionRegistry معزول لـclaude (SESSION_REGISTRY_claude، capacity=500) يسجّل البثّ في ring-buffer، وattachClaudeSDKSession يعيد بثّ seq>lastSeq للسوكِت عند reconnect دون writer-swap (يحترم الفيتو حرفياً)؛ العميل يرسل/يتتبّع lastSeq/sequence. مُراجَع qa-critic: مقبول (شرط خفض السعة مطبّق). اختبارات: خادم 564/0، claude-attach 5/5، عميل 50/50؛ build:server+client موجود محلياً. تصحيح 2026-07-01: SESSION_REGISTRY_claude=1 **مفعَّل بالفعل حياً** في العملية الجارية (مُتحقَّق devops)؛ المتبقّي فقط مراقبة RSS رسمية (T-196). المرحلة 2 (إجهاض stream عند انعدام المستمعين لإنهاء التسريب الشبحي) منفصلة لاحقاً."
     },
     {
       "id": "B-83",

@@ -179,8 +179,13 @@ export default function WikiSearchField({
           onKeyDown={handleKeyDown}
           placeholder={t('wiki.searchPlaceholder', 'ابحث في الويكي… (/ أو Ctrl+K)')}
           className={[
-            'w-full rounded-md border border-border/60 bg-background py-1.5',
-            'ps-8 pe-7 text-sm text-foreground placeholder:text-muted-foreground/70',
+            'w-full rounded-md py-1.5',
+            // البند 6: border/80 بدل border/60 لرفع تباين الحد (أفضل ما يتيحه الـtoken)
+            'border border-border/80',
+            'bg-background',
+            'ps-8 pe-7 text-sm text-foreground',
+            // البند 6: placeholder بدون عتامة (muted-foreground الكامل = ~4.77:1 على أبيض)
+            'placeholder:text-muted-foreground',
             'outline-none ring-offset-background',
             'focus:border-primary/50 focus:ring-1 focus:ring-primary/30',
             'transition-colors',
@@ -191,9 +196,13 @@ export default function WikiSearchField({
             type="button"
             onClick={onClear}
             aria-label={t('wiki.searchClear', 'مسح البحث')}
-            className="absolute end-1.5 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            className={[
+              'absolute end-1.5 rounded text-muted-foreground hover:text-foreground',
+              // البند 6: هدف لمس ≥24px (مُفضَّل ≥44px كما طُلب)
+              'flex h-[44px] w-[44px] items-center justify-center md:h-6 md:w-6',
+            ].join(' ')}
           >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
+            <X className="h-4 w-4 md:h-3.5 md:w-3.5" aria-hidden="true" />
           </button>
         )}
       </div>
@@ -205,9 +214,12 @@ export default function WikiSearchField({
           role="listbox"
           aria-label={t('wiki.searchResultsAriaLabel', 'نتائج البحث')}
           className={[
-            'absolute start-2 end-2 z-20 mt-1 overflow-y-auto rounded-lg border border-border/60',
+            'absolute start-2 end-2 z-20 mt-1 overflow-y-auto rounded-lg',
+            // البند 6: border/80 بدل border/60
+            'border border-border/80',
             'bg-popover shadow-lg',
-            hasResults ? 'max-h-72' : '',
+            // البند 6: max-h ديناميكية تحترم شاشات الجوال القصيرة
+            hasResults ? 'max-h-[min(18rem,60dvh)]' : '',
           ].join(' ')}
         >
           {!hasResults ? (

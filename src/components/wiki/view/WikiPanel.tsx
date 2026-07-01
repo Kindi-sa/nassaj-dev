@@ -11,6 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
+import FocusTrap from 'focus-trap-react';
 import {
   ChevronRight,
   ChevronLeft,
@@ -26,6 +27,32 @@ import WikiSearchField from '../WikiSearchField';
 import { useWikiSearch, normalizeArabic } from '../useWikiSearch';
 import { slugify, extractToc } from '../wikiUtils';
 import './wiki-panel.css';
+
+// ---------------------------------------------------------------------------
+// Hook: responsive sidebar state — driven by matchMedia to handle rotation
+// ---------------------------------------------------------------------------
+
+/** Returns true while viewport width >= 768px, updates on breakpoint cross. */
+function useIsDesktop(): boolean {
+  const mq =
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)') : null;
+  const [isDesktop, setIsDesktop] = useState<boolean>(() => mq?.matches ?? true);
+
+  useEffect(() => {
+    if (!mq) return;
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    // Modern API
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+    // Legacy
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return isDesktop;
+}
 
 // ---------------------------------------------------------------------------
 // Wiki content loaded at build-time via Vite import.meta.glob (?raw).
@@ -307,18 +334,20 @@ const MARKDOWN_COMPONENTS: Components = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   a: AnchorLink as any,
   table: ({ children }) => (
-    <div className="my-3 overflow-x-auto rounded-lg border border-border">
+    /* البند 5: مؤشر تمرير خفيف (ظل على الحافة اليسرى) على الجوال */
+    <div className="wiki-table-scroll my-3 overflow-x-auto rounded-lg border border-border">
       <table className="min-w-full border-collapse text-sm">{children}</table>
     </div>
   ),
   thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
   th: ({ children }) => (
-    <th className="border-b border-border px-4 py-2 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    /* البند 5: px-2 على الجوال لتقليل فيض الجداول، px-4 على الديسكتوب */
+    <th className="border-b border-border px-2 py-2 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground md:px-4">
       {children}
     </th>
   ),
   td: ({ children }) => (
-    <td className="border-b border-border/40 px-4 py-2 align-top text-start text-foreground/90">
+    <td className="border-b border-border/40 px-2 py-2 align-top text-start text-foreground/90 md:px-4">
       {children}
     </td>
   ),
@@ -338,7 +367,16 @@ function TableOfContents({
   toc: ReturnType<typeof extractToc>;
   scrollContainerRef: React.RefObject<HTMLElement | null>;
 }) {
-  const [open, setOpen] = useState(true);
+  // البند 2: مطويّ افتراضياً على الجوال (<768px)، مفتوح على الديسكتوب
+  const isDesktop = useIsDesktop();
+  const [open, setOpen] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
+  );
+
+  // تحديث عند تغيّر breakpoint (تدوير، تغيير حجم النافذة)
+  useEffect(() => {
+    setOpen(isDesktop);
+  }, [isDesktop]);
   const [activeId, setActiveId] = useState<string>('');
 
   // Scroll spy
@@ -374,7 +412,8 @@ function TableOfContents({
   };
 
   return (
-    <div className="mb-5 rounded-lg border border-border/50 bg-muted/20 text-sm">
+    /* البند 6: border/80 بدل border/50 لأفضل تباين ممكن مع الـtoken الحالي */
+    <div className="mb-5 rounded-lg border border-border/80 bg-muted/20 text-sm">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -526,7 +565,18 @@ function scrollToMatchedTerm(
 export default function WikiPanel() {
   const { t } = useTranslation();
   const [activeFile, setActiveFile] = useState<string>(PAGES[0]?.file ?? '');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // البند 1: مغلق افتراضياً على الجوال (<768px)، مفتوح على الديسكتوب
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true
+  );
+
+  // تحديث sidebarOpen عند تغيّر breakpoint (تدوير الجهاز اللوحي، تغيير حجم النافذة)
+  const isDesktop = useIsDesktop();
+  useEffect(() => {
+    setSidebarOpen(isDesktop);
+  }, [isDesktop]);
+
   const searchInputRef = useRef<HTMLInputElement>(null) as React.RefObject<HTMLInputElement>;
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const articleRef = useRef<HTMLElement | null>(null);
@@ -683,72 +733,91 @@ export default function WikiPanel() {
         {/* ── Sidebar nav ─────────────────────────────────────────────────────
             Desktop (md+): regular flex column — pushes main content.
             Mobile (<md):  fixed drawer from inline-start (right in RTL), overlaid.
+            البند 1: FocusTrap فقط على الجوال حين يكون الدرج مفتوحاً (modal behaviour).
         */}
-        <nav
-          id="wiki-sidebar"
-          aria-label={t('wiki.sidebarAriaLabel', 'فهرس الويكي')}
-          className={[
-            'overflow-y-auto border-e border-border/60 bg-muted/20 transition-all duration-200',
-            // Desktop: normal flex-shrink-0 column, width controlled by sidebarOpen
-            'md:relative md:z-auto md:flex-shrink-0',
-            sidebarOpen ? 'md:w-56 lg:w-64' : 'md:w-0 md:overflow-hidden',
-            // Mobile: fixed drawer, always full height, slides in/out
-            'fixed inset-y-0 start-0 z-40 w-[min(280px,85vw)]',
-            'md:inset-y-auto md:start-auto md:w-auto md:transform-none',
-          ].join(' ')}
-          data-wiki-drawer={sidebarOpen ? 'open' : 'closed'}
+        <FocusTrap
+          active={!isDesktop && sidebarOpen}
+          focusTrapOptions={{
+            allowOutsideClick: true,
+            returnFocusOnDeactivate: false, // نعيد التركيز يدوياً لزر ☰
+            onDeactivate: () => {
+              setSidebarOpen(false);
+              requestAnimationFrame(() => sidebarToggleRef.current?.focus());
+            },
+          }}
         >
-          <WikiSearchField
-            query={query}
-            onQueryChange={setQuery}
-            onClear={clearQuery}
-            results={results}
-            isSearching={isSearching}
-            onSelectResult={handleSelectResult}
-            inputRef={searchInputRef}
-          />
+          <nav
+            id="wiki-sidebar"
+            aria-label={t('wiki.sidebarAriaLabel', 'فهرس الويكي')}
+            aria-modal={!isDesktop && sidebarOpen ? true : undefined}
+            className={[
+              // البند 1: خلفية الـnav — مُصمتة على الجوال، شفافة على الديسكتوب
+              'overflow-y-auto border-e border-border/60 transition-all duration-200',
+              'bg-background md:bg-muted/20',
+              // Desktop: normal flex-shrink-0 column, width controlled by sidebarOpen
+              'md:relative md:z-auto md:flex-shrink-0',
+              sidebarOpen ? 'md:w-56 lg:w-64' : 'md:w-0 md:overflow-hidden',
+              // Mobile: fixed drawer from RIGHT edge (RTL), always full height, slides in/out.
+              // Use physical `right-0` (not `start-0`) because <html> has no dir="rtl" so
+              // logical `start-0` resolves as `left:0` (LTR), placing the drawer on the wrong edge.
+              'fixed inset-y-0 right-0 z-40 w-[min(280px,85vw)]',
+              'md:inset-y-auto md:right-auto md:w-auto md:transform-none',
+            ].join(' ')}
+            data-wiki-drawer={sidebarOpen ? 'open' : 'closed'}
+          >
+            <WikiSearchField
+              query={query}
+              onQueryChange={setQuery}
+              onClear={clearQuery}
+              results={results}
+              isSearching={isSearching}
+              onSelectResult={handleSelectResult}
+              inputRef={searchInputRef}
+            />
 
-          {!isSearching && (
-            <div className="px-2 pb-4">
-              <ul role="list" className="space-y-0.5">
-                {PAGES.map((page) => {
-                  const isActive = page.file === activeFile;
-                  return (
-                    <li key={page.file}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveFile(page.file);
-                          // On mobile, close the drawer after selecting a page
-                          if (window.innerWidth < 768) setSidebarOpen(false);
-                        }}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
-                          isActive
-                            ? 'bg-primary/10 font-medium text-primary'
-                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
-                        }`}
-                      >
-                        {isActive && (
-                          <ChevronRight
-                            className="h-3 w-3 flex-shrink-0 rotate-180"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span className={isActive ? '' : 'ps-5'}>{page.title}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </nav>
+            {!isSearching && (
+              <div className="px-2 pb-4">
+                <ul role="list" className="space-y-0.5">
+                  {PAGES.map((page) => {
+                    const isActive = page.file === activeFile;
+                    return (
+                      <li key={page.file}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveFile(page.file);
+                            // On mobile, close the drawer after selecting a page
+                            if (!isDesktop) setSidebarOpen(false);
+                          }}
+                          aria-current={isActive ? 'page' : undefined}
+                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 font-medium text-primary'
+                              : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                          }`}
+                        >
+                          {isActive && (
+                            <ChevronRight
+                              className="h-3 w-3 flex-shrink-0 rotate-180"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span className={isActive ? '' : 'ps-5'}>{page.title}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+          </nav>
+        </FocusTrap>
 
         {/* Content area */}
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden" aria-label={activeTitle}>
           {/* Toolbar */}
           <div className="flex flex-shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2">
+            {/* البند 4: هدف لمس ≥44×44px على الجوال، مع نص "الفهرس" مرئي تحت md */}
             <button
               ref={sidebarToggleRef}
               type="button"
@@ -761,19 +830,30 @@ export default function WikiPanel() {
               aria-expanded={sidebarOpen}
               aria-controls="wiki-sidebar"
               aria-describedby="wiki-sidebar-hint"
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className={[
+                'flex items-center gap-1.5 rounded-md text-muted-foreground',
+                'hover:bg-accent hover:text-foreground',
+                // الجوال: هدف لمس 44×44px
+                'min-h-[44px] min-w-[44px] justify-center px-2 md:min-h-0 md:min-w-0 md:p-1.5',
+              ].join(' ')}
             >
-              <PanelLeft className="h-4 w-4 rtl:scale-x-[-1]" aria-hidden="true" />
+              <PanelLeft className="h-4 w-4 flex-shrink-0 rtl:scale-x-[-1]" aria-hidden="true" />
+              {/* نص "الفهرس" مرئي على الجوال فقط */}
+              <span className="text-sm font-medium md:hidden">
+                {t('wiki.sidebarLabel', 'الفهرس')}
+              </span>
             </button>
             <span id="wiki-sidebar-hint" className="sr-only">
               {t('wiki.sidebarEscapeHint', 'اضغط Escape لإغلاق الفهرس')}
             </span>
-            <h2 className="truncate text-sm font-semibold text-foreground">{activeTitle}</h2>
+            {/* البند 7: line-clamp-2 بدل truncate لعناوين طويلة */}
+            <h2 className="line-clamp-2 text-sm font-semibold text-foreground">{activeTitle}</h2>
           </div>
 
           {/* Scrollable body */}
+          {/* البند 7: حشوة أفقية px-4 على الجوال، px-6 على الديسكتوب */}
           <div
-            className="flex-1 overflow-y-auto px-6 py-6"
+            className="flex-1 overflow-y-auto px-4 py-6 md:px-6"
             data-wiki-scroll="true"
             ref={(el) => {
               scrollContainerRef.current = el;

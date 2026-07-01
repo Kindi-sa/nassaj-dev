@@ -5,6 +5,11 @@
  * Deliberately isolated inside src/components/wiki/ so MermaidDiagram.tsx
  * (shared with project-board) is never touched.
  *
+ * البند 3: على الجوال (<md):
+ *  - الـSVG يُعرض بحجمه الطبيعي داخل حاوية overflow-x-auto (لا تقليص)
+ *  - زر التكبير ظاهر دائماً بهدف لمس 44×44px
+ *  - داخل الـoverlay: -webkit-overflow-scrolling: touch
+ *
  * The overlay is accessible:
  *  - role="dialog" + aria-modal="true"
  *  - aria-label
@@ -23,9 +28,14 @@ type WikiMermaidDiagramProps = {
 export default function WikiMermaidDiagram({ code }: WikiMermaidDiagramProps) {
   const [zoomed, setZoomed] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const zoomBtnRef = useRef<HTMLButtonElement>(null);
 
   const openZoom = useCallback(() => setZoomed(true), []);
-  const closeZoom = useCallback(() => setZoomed(false), []);
+  const closeZoom = useCallback(() => {
+    setZoomed(false);
+    // إعادة التركيز لزر التكبير عند الإغلاق
+    requestAnimationFrame(() => zoomBtnRef.current?.focus());
+  }, []);
 
   // Move focus to close button when overlay opens
   useEffect(() => {
@@ -51,22 +61,39 @@ export default function WikiMermaidDiagram({ code }: WikiMermaidDiagramProps) {
 
   return (
     <div className="group relative">
-      {/* Normal inline diagram */}
-      <MermaidDiagram code={code} />
+      {/*
+        البند 3: الحاوية الداخلية للـSVG.
+        على الجوال (<md): نتجاوز [&_svg]:max-w-full الموروثة من MermaidDiagram
+        باستخدام data-wiki-mermaid لرفع الخصوصية في wiki-panel.css،
+        فيعرض الـSVG بحجمه الطبيعي داخل حاوية overflow-x-auto.
+        على الديسكتوب (md+): لا تأثير — [&_svg]:max-w-full تعمل كالمعتاد.
+      */}
+      <div data-wiki-mermaid="true">
+        <MermaidDiagram code={code} />
+      </div>
 
-      {/* Zoom button — appears on hover/focus, top-end corner (RTL-safe) */}
+      {/*
+        زر التكبير:
+        - على الجوال: ظاهر دائماً (opacity-100) + هدف لمس 44×44px
+        - على الديسكتوب: سلوكه الأصلي (يظهر عند hover/focus فقط)
+      */}
       <button
+        ref={zoomBtnRef}
         type="button"
         onClick={openZoom}
         aria-label="تكبير المخطط"
         className={[
-          'absolute end-2 top-2 rounded p-1 transition-colors',
+          'absolute end-2 top-2 rounded transition-colors',
           'bg-muted text-muted-foreground',
-          'opacity-0 group-hover:opacity-100 focus:opacity-100',
           'hover:bg-accent hover:text-foreground',
+          // الجوال: ظاهر دائماً + هدف لمس 44×44px
+          'flex items-center justify-center',
+          'h-11 w-11 opacity-100 md:h-auto md:w-auto md:p-1',
+          // الديسكتوب: يظهر عند hover/focus فقط
+          'md:opacity-0 md:group-hover:opacity-100 md:focus:opacity-100',
         ].join(' ')}
       >
-        <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+        <Maximize2 className="h-4 w-4 md:h-3.5 md:w-3.5" aria-hidden="true" />
       </button>
 
       {/* Full-screen overlay */}
@@ -85,7 +112,10 @@ export default function WikiMermaidDiagram({ code }: WikiMermaidDiagramProps) {
           />
 
           {/* Diagram panel */}
-          <div className="relative z-10 max-h-[90dvh] max-w-[95dvw] overflow-auto rounded-xl border border-border bg-card p-6 shadow-2xl">
+          {/* البند 3: overflow-auto مع -webkit-overflow-scrolling: touch للجوال */}
+          <div
+            className="wiki-mermaid-overlay relative z-10 max-h-[90dvh] max-w-[95dvw] overflow-auto rounded-xl border border-border bg-card p-6 shadow-2xl"
+          >
             {/* Close button */}
             <button
               ref={closeButtonRef}
