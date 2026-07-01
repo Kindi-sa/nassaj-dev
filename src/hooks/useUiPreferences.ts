@@ -1,9 +1,9 @@
 import { useEffect, useReducer, useRef } from 'react';
 import { onApplyServerPreference } from '../preferences/preferencesSync';
 
-export type TabsDisplayMode = 'full' | 'compact' | 'hidden';
+export type TabsDisplayMode = 'full' | 'compact' | 'minimal' | 'hidden';
 
-const TABS_DISPLAY_MODES: readonly TabsDisplayMode[] = ['full', 'compact', 'hidden'];
+const TABS_DISPLAY_MODES: readonly TabsDisplayMode[] = ['full', 'compact', 'minimal', 'hidden'];
 
 type UiPreferences = {
   autoExpandTools: boolean;
@@ -14,7 +14,8 @@ type UiPreferences = {
   sendByCtrlEnter: boolean;
   sidebarVisible: boolean;
   // Source of truth for the header tab switcher: full (icons + text),
-  // compact (icons only), or hidden (tab group not rendered).
+  // compact (icons only), minimal (tabs hidden, usage indicator visible),
+  // or hidden (tab group and usage indicator both not rendered).
   tabsDisplayMode: TabsDisplayMode;
   // Derived mirror of `tabsDisplayMode === 'compact'`. Kept as a real, synced
   // preference so legacy consumers (the appearance "Compact tabs (icons only)"
@@ -104,13 +105,17 @@ const parsePreferenceValue = <K extends UiPreferenceKey>(
 // Enforces the invariant tabsIconOnly === (tabsDisplayMode === 'compact').
 // `lead` indicates which of the two keys the caller just wrote so the other is
 // brought in line: writing tabsDisplayMode updates tabsIconOnly; toggling the
-// legacy tabsIconOnly checkbox maps true->compact and false->full (never hidden,
-// to preserve the existing two-state checkbox behaviour).
+// legacy tabsIconOnly checkbox maps true->compact and false->full (never minimal
+// or hidden, to preserve the existing two-state checkbox behaviour).
 const reconcileTabsMode = (state: UiPreferences, lead: 'mode' | 'iconOnly'): UiPreferences => {
   if (lead === 'iconOnly') {
+    // Checkbox: true→compact, false→full. minimal/hidden are unreachable from
+    // the checkbox so the mapping stays a clean two-state toggle.
     const nextMode: TabsDisplayMode = state.tabsIconOnly ? 'compact' : 'full';
     return state.tabsDisplayMode === nextMode ? state : { ...state, tabsDisplayMode: nextMode };
   }
+  // Mode is authoritative: tabsIconOnly mirrors compact only; full/minimal/hidden
+  // all map to iconOnly=false.
   const nextIconOnly = state.tabsDisplayMode === 'compact';
   return state.tabsIconOnly === nextIconOnly ? state : { ...state, tabsIconOnly: nextIconOnly };
 };

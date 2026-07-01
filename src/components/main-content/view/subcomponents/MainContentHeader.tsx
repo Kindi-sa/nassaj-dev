@@ -9,10 +9,11 @@ import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
 import HeaderUsageIndicator from './HeaderUsageIndicator';
 
-// Cyclic order of the header tab-display modes: full -> compact -> hidden -> full.
+// Cyclic order of the header tab-display modes: full -> compact -> minimal -> hidden -> full.
 const NEXT_TABS_MODE: Record<TabsDisplayMode, TabsDisplayMode> = {
   full: 'compact',
-  compact: 'hidden',
+  compact: 'minimal',
+  minimal: 'hidden',
   hidden: 'full',
 };
 
@@ -44,6 +45,7 @@ export default function MainContentHeader({
   // Chevron direction encodes the fold/unfold intent:
   //   full    → pointing toward inline-end (collapse inward)
   //   compact → pointing toward inline-end (collapse further)
+  //   minimal → pointing toward inline-end (collapse further, tabs already gone)
   //   hidden  → pointing toward inline-start (expand outward)
   // We use ChevronRight/ChevronLeft and flip via `dir` on the document so RTL
   // layouts receive the mirrored glyph automatically (ChevronLeft = expand in LTR
@@ -53,7 +55,7 @@ export default function MainContentHeader({
   // browser when we use the logical chevron mapping below.
   const ChevronIcon = tabsMode === 'hidden'
     ? (isRtl ? ChevronRight : ChevronLeft)   // expand: point toward start
-    : (isRtl ? ChevronLeft : ChevronRight);  // collapse: point toward end
+    : (isRtl ? ChevronLeft : ChevronRight);  // collapse: point toward end (full/compact/minimal)
 
   // No dedicated locale keys yet (locales are owned elsewhere); supply correct
   // per-language defaults so the control is always meaningful for a11y. Future
@@ -70,8 +72,13 @@ export default function MainContentHeader({
         defaultValue: isArabic ? 'ضمّ (أيقونات فقط)' : 'Compact (icons only)',
       });
     }
+    if (mode === 'minimal') {
+      return t('mainContent.tabsDisplayToggle.minimal', {
+        defaultValue: isArabic ? 'مصغَّر (تبويبات مخفية، مؤشر الحصص ظاهر)' : 'Minimal (tabs hidden, usage visible)',
+      });
+    }
     return t('mainContent.tabsDisplayToggle.hidden', {
-      defaultValue: isArabic ? 'إخفاء التبويبات' : 'Hidden tabs',
+      defaultValue: isArabic ? 'إخفاء الكل' : 'Hidden all',
     });
   };
 
@@ -120,9 +127,10 @@ export default function MainContentHeader({
         <HeaderUsageIndicator tabsMode={tabsMode} />
 
         <div className="flex min-w-0 flex-shrink items-center gap-1.5 sm:flex-shrink-0">
-          {/* Tab group renders only when the display mode is not "hidden".
-              When hidden it is not mounted at all (no offscreen DOM). */}
-          {tabsMode !== 'hidden' && (
+          {/* Tab group renders only when the display mode is "full" or "compact".
+              In "minimal" and "hidden" it is not mounted at all (no offscreen DOM).
+              "minimal" keeps the usage indicator visible; "hidden" suppresses both. */}
+          {(tabsMode === 'full' || tabsMode === 'compact') && (
             <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
               {canScrollLeft && (
                 <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-gradient-to-r from-background to-transparent rtl:bg-gradient-to-l" />
@@ -144,11 +152,11 @@ export default function MainContentHeader({
             </div>
           )}
 
-          {/* Cyclic tabs-display toggle (full -> compact -> hidden -> full), pinned
-              to the trailing (inline-end) edge of the header. Rendered as a small
-              circular button containing a directional chevron: the chevron points
-              toward inline-end when collapsing (full/compact) and toward inline-start
-              when expanding (hidden), matching RTL layouts automatically. */}
+          {/* Cyclic tabs-display toggle (full -> compact -> minimal -> hidden -> full),
+              pinned to the trailing (inline-end) edge of the header. Rendered as a
+              small circular button containing a directional chevron: the chevron
+              points toward inline-end when collapsing (full/compact/minimal) and
+              toward inline-start when expanding (hidden), matching RTL layouts. */}
           <Tooltip content={toggleLabel} position="bottom">
             <button
               type="button"

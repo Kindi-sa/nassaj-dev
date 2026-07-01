@@ -61,7 +61,7 @@ const WINDOWS: { letter: string; key: WindowKey }[] = [
 // HeaderUsageIndicator
 // ---------------------------------------------------------------------------
 interface HeaderUsageIndicatorProps {
-  tabsMode?: 'full' | 'compact' | 'hidden';
+  tabsMode?: 'full' | 'compact' | 'minimal' | 'hidden';
 }
 
 export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorProps) {
@@ -75,8 +75,9 @@ export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorP
 
   const usageState = useClaudeUsage(isWide);
 
-  // Hidden-tabs mode: conceal the indicator for visual consistency with the
-  // collapsed tab bar. Bail out before any expensive work.
+  // "hidden" mode suppresses both the tab bar and the usage indicator together.
+  // "minimal" mode hides only the tab bar — the indicator stays visible. All
+  // other modes (full/compact/undefined) follow the normal width-based guard below.
   if (tabsMode === 'hidden') return null;
 
   if (!isWide) return null;
