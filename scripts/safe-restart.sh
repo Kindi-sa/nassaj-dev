@@ -110,10 +110,34 @@ SET_KEYS=()
 SET_VALS=()
 
 # قائمة المفاتيح الحسّاسة الممنوع أن يمسّها أي حَقن (تُرفض في --set صراحةً، وتُتحقَّق
-# قبل/بعد التنفيذ أنها لم تنجرف). هذه هي بالضبط مفاتيح انجرافي B-95/B-110:
+# قبل/بعد التنفيذ أنها لم تنجرف). المجموعة الأولى مفاتيح انجرافي B-95/B-110:
 #   PORT (تصادم منفذ) / JWT_SECRET (طرد الجلسات، B-70) / ALLOWED_ORIGINS (عطل CORS
-#   500) / NODE_ENV (تقليم devDeps). لا يُحقَن أيٌّ منها من هنا أبداً.
-SENSITIVE_KEYS=(PORT JWT_SECRET ALLOWED_ORIGINS NODE_ENV)
+#   500) / NODE_ENV (تقليم devDeps).
+# المجموعة الثانية (توسعة qa-critic، مُتحقَّق منها ميدانياً في العملية الحيّة على
+# pm2 7.0.1، 2026-07-02) — كلها حاضرة وحسّاسة تشغيلياً:
+#   SERVER_PORT (المتغيّر الفعلي الذي يقرأه الكود؛ PORT مهمَل — حقنه يزيح المنفذ) /
+#   DATABASE_PATH (يقلب القاعدة الحيّة) / WEBAUTHN_RP_ID·WEBAUTHN_ORIGIN·
+#   WEBAUTHN_RP_NAME (يكسر passkeys) / OIDC_ISSUER_URL·OIDC_CLIENT_ID (يكسر SSO) /
+#   HOST (يزيح ربط الاستماع، قد يقطع النفق). لا يُحقَن أيٌّ منها من هنا أبداً.
+SENSITIVE_KEYS=(
+  PORT JWT_SECRET ALLOWED_ORIGINS NODE_ENV
+  SERVER_PORT DATABASE_PATH
+  WEBAUTHN_RP_ID WEBAUTHN_ORIGIN WEBAUTHN_RP_NAME
+  OIDC_ISSUER_URL OIDC_CLIENT_ID
+  HOST
+)
+
+# مفاتيح البنية التحتية المحقونة قسراً لأجل تشغيل PM2 (HOME/PATH/PM2_HOME) لكن
+# التي **يجب ألا تتغيّر إطلاقاً** في بيئة العملية الحيّة قبل/بعد الحَقن. الخطر
+# (كشفه qa-critic، مُتحقَّق ميدانياً 2026-07-02): PATH في شِل جلسة Claude يحوي مسارات
+# إضافية (~/.claude/plugins/cache/...) غير الموجودة في PATH العملية الحيّة؛ حقن
+# "PATH=${PATH}" حرفياً يُسرّبها، وتنتشر لأبناء PTY/plugins (commandParser.js:288،
+# plugin-process-manager.js:33). وPM2_HOME غائب في العملية الحيّة → إضافته انجراف
+# absent→present. هذه المفاتيح ليست في SENSITIVE_KEYS (فهي محقونة عمداً لا مرفوضة
+# في --set)، لكن تُفحص انجرافها قبل/بعد فيُرفض (exit 5) لو تغيّرت دون طلب صريح.
+# ملاحظة: --set لهذه المفاتيح مرفوض ضمناً — دالة الحقن تبني قيمتها من مصدرها
+# الموثوق وتتجاهل أي --set لها؛ ولأنها في PROTECTED_KEYS فأي انجراف ناتج يُكتشف.
+PROTECTED_KEYS=(HOME PATH PM2_HOME)
 
 # صحّة اسم متغيّر البيئة: يبدأ بحرف/شرطة سفلية ثم [A-Za-z0-9_].
 _valid_env_name() { case "$1" in [A-Za-z_]*) [ -z "${1//[A-Za-z0-9_]/}" ] ;; *) return 1 ;; esac; }
@@ -122,6 +146,14 @@ _valid_env_name() { case "$1" in [A-Za-z_]*) [ -z "${1//[A-Za-z0-9_]/}" ] ;; *) 
 _is_sensitive() {
   local k="$1" s
   for s in "${SENSITIVE_KEYS[@]}"; do [ "$k" = "$s" ] && return 0; done
+  return 1
+}
+
+# _is_protected KEY → 0 إن كان المفتاح ضمن PROTECTED_KEYS (بنية تحتية تُحقَن قسراً
+# لكن يجب ألا تنجرف قيمتها الحيّة). لا يُحقَن أيٌّ منها من المستخدم عبر --set.
+_is_protected() {
+  local k="$1" s
+  for s in "${PROTECTED_KEYS[@]}"; do [ "$k" = "$s" ] && return 0; done
   return 1
 }
 
@@ -402,15 +434,25 @@ _pm2_saved_env() {
 # يبني وينفّذ restart مع حَقن env المُصرَّح به (يُستدعى فقط حين ${#SET_KEYS[@]}>0).
 # fail-closed: يُرجِع رمز خروج غير صفري إن انجرف مفتاح حسّاس أو لم يُطبَّق --set.
 _exec_restart_with_injection() {
-  # 1) لقطة ما-قبل للمفاتيح الحسّاسة (المرجع لكشف الانجراف).
+  # 1) لقطة ما-قبل للمفاتيح الحسّاسة + المحمية (المرجع لكشف الانجراف).
+  #    الحسّاسة: يجب ألا تُحقَن ولا تتغيّر. المحمية (HOME/PATH/PM2_HOME): تُحقَن قسراً
+  #    لتشغيل PM2 لكن قيمتها الحيّة يجب ألا تتغيّر — أي انجراف (مثل PATH مسرَّب من شِل
+  #    Claude، أو PM2_HOME absent→present) يُكتشَف هنا ويُرفَض (exit 5).
   local -a _pre_sens=()
+  local -a _pre_prot=()
   local k
   for k in "${SENSITIVE_KEYS[@]}"; do
     _pre_sens+=("$(_pm2_saved_env "$k")")
   done
+  for k in "${PROTECTED_KEYS[@]}"; do
+    _pre_prot+=("$(_pm2_saved_env "$k")")
+  done
 
-  # 2) ابنِ وسائط env -i: أساسيات PM2 + مفاتيح --set حصراً. لا شيء من الشيل الحالي.
-  #    HOME/PATH/PM2_HOME من مصادر موثوقة (المستخدم الحالي)، لا من قيم منجرفة.
+  # 2) ابنِ وسائط env -i: أساسيات PM2 (HOME/PATH/PM2_HOME) + مفاتيح --set حصراً.
+  #    لا شيء من الشيل الحالي عدا هذه الأساسيات. تحذير أمني: PATH هنا من الشِل
+  #    المُستدعي وقد ينجرف (شِل جلسة Claude يحوي ~/.claude/plugins/cache/...)، لذا
+  #    فحص PROTECTED_KEYS قبل/بعد يرفض (exit 5) لو أزاح الحقنُ قيمةَ PATH/PM2_HOME/
+  #    HOME الحيّة — لا نثق بالقيمة عمياءً، بل نتحقّق أنها لم تُغيِّر البيئة الحيّة.
   local -a _env_args=(
     "HOME=${HOME}"
     "PATH=${PATH}"
@@ -418,6 +460,12 @@ _exec_restart_with_injection() {
   )
   local i
   for i in "${!SET_KEYS[@]}"; do
+    # دفاع في العمق: تجاهُل أي --set لمفتاح محمي (يُبنى من مصدره أعلاه؛ لا يُزاح
+    # بقيمة المستخدم). حتى لو مرّ في التحليل، PROTECTED_KEYS يكشف أي انجراف لاحقاً.
+    if _is_protected "${SET_KEYS[$i]}"; then
+      emit WARN "تجاهُل --set ${SET_KEYS[$i]} — مفتاح بنية تحتية محمي، لا يُحقَن من المستخدم."
+      continue
+    fi
     _env_args+=("${SET_KEYS[$i]}=${SET_VALS[$i]}")
   done
 
@@ -453,8 +501,21 @@ _exec_restart_with_injection() {
       _fail=1
     fi
   done
-  #   (ب) كل مفتاح --set صار حاضراً بقيمته.
+  #   (أ-2) كل مفتاح محمي (HOME/PATH/PM2_HOME) لم يتغيّر عن لقطته. هذا يكشف تسريب
+  #        PATH من شِل جلسة Claude أو إضافة PM2_HOME (absent→present).
+  for i in "${!PROTECTED_KEYS[@]}"; do
+    local _pnow; _pnow="$(_pm2_saved_env "${PROTECTED_KEYS[$i]}")"
+    if [ "$_pnow" != "${_pre_prot[$i]}" ]; then
+      local _pb="${_pre_prot[$i]}"; local _pa="$_pnow"
+      [ "$_pb" = "$_ABSENT_SENTINEL" ] && _pb="(absent)"
+      [ "$_pa" = "$_ABSENT_SENTINEL" ] && _pa="(absent)"
+      emit ERROR "انجراف مفتاح بنية تحتية محمي ${PROTECTED_KEYS[$i]}: قبل=$_pb بعد=$_pa — الحقن أزاح البيئة الحيّة! أعد بناء الحالة من ملف العقدة."
+      _fail=1
+    fi
+  done
+  #   (ب) كل مفتاح --set صار حاضراً بقيمته (نتجاهل المفاتيح المحمية: لا تُحقَن عمداً).
   for i in "${!SET_KEYS[@]}"; do
+    if _is_protected "${SET_KEYS[$i]}"; then continue; fi
     local _got; _got="$(_pm2_saved_env "${SET_KEYS[$i]}")"
     if [ "$_got" != "${SET_VALS[$i]}" ]; then
       emit ERROR "لم يُطبَّق --set ${SET_KEYS[$i]}=${SET_VALS[$i]} (القيمة الآن: ${_got/"$_ABSENT_SENTINEL"/(absent)})."
