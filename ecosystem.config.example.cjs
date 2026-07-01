@@ -116,6 +116,14 @@ module.exports = {
         // الحيّ إلى ما قبل الشريحة بلا فقد بيانات. يُقرأ من process.env عبر getter حيّ.
         SESSION_REGISTRY_claude: '1',
 
+        // B-117 (تشخيصي، مؤقّت): يُفعّل كتابة سجلّات @anthropic-ai/claude-agent-sdk
+        // التلقائية. الـSDK يقرأ process.env.DEBUG_CLAUDE_AGENT_SDK عبر A$() الذي
+        // يقبل 1/true/yes/on (sdk.mjs: yw()/spawnLocalProcess)، فيكتب ملفاً باسم
+        // sdk-<id>.txt تحت <CLAUDE_CONFIG_DIR>/debug/ (المعزول per-user:
+        // ~/.nassaj-users/<userId>/.claude/debug/، أو ~/.claude/debug/ للمشترك).
+        // لازمٌ لحسم زناد B-117. إطفاؤه (حذف السطر) no-op كامل. لا يمسّ node_modules.
+        DEBUG_CLAUDE_AGENT_SDK: '1',
+
         // ADR-048 / B-93: تفعيل reconcile مهام الخلفية بعد restart — خدمة
         // read-only fail-safe تشتقّ تصحيح stopped→completed عند إعادة فتح الجلسة.
         // مُتحقَّق ميدانياً قبل التفعيل: wf_1ea9f41d (7/7 → بطاقة completed)،
