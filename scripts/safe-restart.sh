@@ -39,6 +39,16 @@
 #                                                #   إن وُجد عمل حيّ: امتنع (exit 3).
 #   bash scripts/safe-restart.sh --force --exec  # تجاوز واعٍ: نفّذ restart حتى
 #                                                #   لو وُجد عمل حيّ (يُسجَّل تحذير).
+#   bash scripts/safe-restart.sh --set K=V --exec# حَقن env مُصرَّح به (allowlist)
+#                                                #   ضيّق: يُضيف K=V فقط إلى العملية
+#                                                #   الحيّة عبر بيئة معاد تركيبها
+#                                                #   (env -i) + --update-env، مع عزل
+#                                                #   الشيل الحالي وصون المفاتيح
+#                                                #   الحسّاسة (تحقّق قبل/بعد). --set
+#                                                #   قابل للتكرار. بلا --set: لا حَقن
+#                                                #   والسلوك مطابق تماماً للسابق.
+#                                                #   مثال B-117 (تفعيل تشخيص SDK):
+#                                                #   --set DEBUG_CLAUDE_AGENT_SDK=1 --exec
 #
 # متغيّرات البيئة / Env vars:
 #   PROC_NAME        اسم عملية PM2                 (افتراضي: nassaj-dev)
@@ -59,8 +69,10 @@
 # رمز الخروج / Exit code:
 #   0 = آمن (لا workflow حيّ) — وإن طُلب --exec فالـ restart نجح/طُلب.
 #   3 = عمل حيّ موجود → أُجّل (أو، مع --force --exec، نُفّذ رغمه ثم 0).
-#   2 = خطأ قراءة/إعداد (مثلاً WF_BASE غير موجود).
+#   2 = خطأ قراءة/إعداد (مثلاً WF_BASE غير موجود، أو --set غير صالح/مفتاح حسّاس).
 #   4 = العملية غير مُسجَّلة في PM2 (B-110) → لا restart بالاسم؛ ابدأ من ecosystem.
+#   5 = فشل حَقن --set: تعذّر restart أثناء الحَقن، أو انجراف مفتاح حسّاس بعد
+#       التنفيذ، أو لم يُطبَّق مفتاح --set (fail-closed — B-117).
 # ============================================================================
 set -euo pipefail
 
@@ -91,18 +103,86 @@ fi
 DO_EXEC=0
 FORCE=0
 JSON=0
-for arg in "$@"; do
-  case "$arg" in
+# SET_KEYS/SET_VALS: مصفوفتان متوازيتان تحملان أزواج --set KEY=VALUE المصرَّح بها
+# صراحةً (allowlist ضيّق). فارغتان افتراضياً → لا حَقن env البتّة والسلوك مطابق
+# تماماً للسابق. راجع كتلة «حَقن env المُصرَّح به» أدناه للأمان والتبرير (B-117).
+SET_KEYS=()
+SET_VALS=()
+
+# قائمة المفاتيح الحسّاسة الممنوع أن يمسّها أي حَقن (تُرفض في --set صراحةً، وتُتحقَّق
+# قبل/بعد التنفيذ أنها لم تنجرف). هذه هي بالضبط مفاتيح انجرافي B-95/B-110:
+#   PORT (تصادم منفذ) / JWT_SECRET (طرد الجلسات، B-70) / ALLOWED_ORIGINS (عطل CORS
+#   500) / NODE_ENV (تقليم devDeps). لا يُحقَن أيٌّ منها من هنا أبداً.
+SENSITIVE_KEYS=(PORT JWT_SECRET ALLOWED_ORIGINS NODE_ENV)
+
+# صحّة اسم متغيّر البيئة: يبدأ بحرف/شرطة سفلية ثم [A-Za-z0-9_].
+_valid_env_name() { case "$1" in [A-Za-z_]*) [ -z "${1//[A-Za-z0-9_]/}" ] ;; *) return 1 ;; esac; }
+
+# _is_sensitive KEY → 0 إن كان المفتاح ضمن SENSITIVE_KEYS.
+_is_sensitive() {
+  local k="$1" s
+  for s in "${SENSITIVE_KEYS[@]}"; do [ "$k" = "$s" ] && return 0; done
+  return 1
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --exec)  DO_EXEC=1 ;;
     --force) FORCE=1 ;;
     --json)  JSON=1 ;;
+    --set)
+      # يتطلّب وسيطاً تالياً بصيغة KEY=VALUE.
+      if [ "$#" -lt 2 ]; then
+        echo "safe-restart: --set يتطلّب KEY=VALUE / --set requires KEY=VALUE" >&2
+        exit 2
+      fi
+      shift
+      _pair="$1"
+      _k="${_pair%%=*}"
+      _v="${_pair#*=}"
+      if [ "$_pair" = "$_k" ] || [ -z "$_k" ]; then
+        echo "safe-restart: --set يجب أن يكون KEY=VALUE / must be KEY=VALUE: $_pair" >&2
+        exit 2
+      fi
+      if ! _valid_env_name "$_k"; then
+        echo "safe-restart: اسم متغيّر غير صالح / invalid env name: $_k" >&2
+        exit 2
+      fi
+      if _is_sensitive "$_k"; then
+        echo "safe-restart: المفتاح $_k حسّاس ومحظور في --set (يُدار من ملف العقدة فقط) / sensitive key refused: $_k" >&2
+        exit 2
+      fi
+      SET_KEYS+=("$_k")
+      SET_VALS+=("$_v")
+      ;;
+    --set=*)
+      # صيغة مدمجة --set=KEY=VALUE.
+      _pair="${1#--set=}"
+      _k="${_pair%%=*}"
+      _v="${_pair#*=}"
+      if [ "$_pair" = "$_k" ] || [ -z "$_k" ]; then
+        echo "safe-restart: --set يجب أن يكون KEY=VALUE / must be KEY=VALUE: $_pair" >&2
+        exit 2
+      fi
+      if ! _valid_env_name "$_k"; then
+        echo "safe-restart: اسم متغيّر غير صالح / invalid env name: $_k" >&2
+        exit 2
+      fi
+      if _is_sensitive "$_k"; then
+        echo "safe-restart: المفتاح $_k حسّاس ومحظور في --set / sensitive key refused: $_k" >&2
+        exit 2
+      fi
+      SET_KEYS+=("$_k")
+      SET_VALS+=("$_v")
+      ;;
     -h|--help)
-      sed -n '2,72p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,76p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *)
-      echo "safe-restart: وسيط غير معروف / unknown arg: $arg" >&2
+      echo "safe-restart: وسيط غير معروف / unknown arg: $1" >&2
       exit 2 ;;
   esac
+  shift
 done
 
 ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
@@ -271,6 +351,138 @@ fi
 
 RESTART_CMD="cd $REPO_DIR && env -u PORT pm2 restart $PROC_NAME && pm2 save"
 
+# ── حَقن env المُصرَّح به (allowlist) — B-117 ────────────────────────────────────
+# لماذا يختلف هذا عن انجراف B-110 (الذي سبّب انقطاعي 502)؟
+#
+#   B-110 كان: `pm2 restart ecosystem.config.cjs --update-env` — يُعيد PM2 قراءة
+#   كامل ملف ecosystem (قد يكون منجرفاً/معطوباً) ويطبّق كل كتلة env منه، أو
+#   `--update-env` من شيلٍّ منجرف (cwd خاطئ، PORT مصدَّر، JWT_SECRET مفقود) فيلتقط
+#   `Object.assign({}, process.env)` كل بيئة الشيل الملوّثة ويكتبها في العملية.
+#
+#   هنا: لا ملف ecosystem إطلاقاً، ولا بيئة الشيل الحالية. نبني بيئة **مُعاد
+#   تركيبها من الصفر (`env -i`)** تحتوي حصراً: (1) قيم أساسية لا غنى عنها لـ PM2
+#   (HOME/PATH/PM2_HOME من مصادر موثوقة)، و(2) المفاتيح المُصرَّح بها عبر --set فقط.
+#   ثم `--update-env` (وهو تقنياً الوسيلة الوحيدة لأي حَقن على restart-بالاسم — راجع
+#   pm2 API.js: `restart(name,{env})` يرفض inline env بلا ecosystem، و`_operate`
+#   يطبّق env فقط حين updateEnv=true). دمج God جانبَ الخادم إضافيٌّ لا استبدالي
+#   (Utility.extend في ActionMethods.js): المفاتيح غير المُمرَّرة **تبقى** من
+#   pm2_env المحفوظة كما هي — لذا JWT_SECRET/ALLOWED_ORIGINS/PORT الحاليّة تُصان
+#   تلقائياً ما دمنا لا نمرّرها (وهي محظورة في --set أصلاً).
+#
+#   حارس fail-closed: نلتقط قيم SENSITIVE_KEYS **قبل** التنفيذ من pm2 jlist، ننفّذ،
+#   ثم نتحقّق **بعده** أنها لم تتغيّر (absent يبقى absent، وقيمة تبقى كما هي)
+#   وأن مفاتيح --set صارت حاضرة بقيمها المطلوبة. أي انجراف في مفتاح حسّاس → خطأ صاخب
+#   (exit 5) لا ثقة عمياء.
+
+# السنتينل الدالّ على «المفتاح غير موجود» (نميّزه عن السلسلة الفارغة). لا نستعمل
+# بايت null لأن bash يسقطه في $(...) (يحوّل \x00ABSENT\x00 إلى ABSENT فيكسر المقارنة
+# ويلوّث stderr بتحذيرات) — نعتمد سلسلة خالية من null غير قابلة للتصادم مع قيمة env
+# صالحة (تحوي مسافة، وقيم env تُمرَّر ككلمة واحدة عبر --set فلا تحوي مسافات هكذا).
+_ABSENT_SENTINEL='<<safe-restart:ABSENT>>'
+
+# يقرأ قيمة env محفوظة لمفتاح من عملية PM2 عبر jlist. يطبع القيمة، أو $_ABSENT_SENTINEL
+# إن كان المفتاح غير موجود.
+# ملاحظة حاسمة: في خط الأنابيب `A=v cmd | node`، إسنادات البيئة تخصّ cmd (pm2) لا
+# node — لذا نضع PROC_NAME/KEY/ABSENT على جانب node مباشرةً (وإلا رآها node undefined
+# فطابق x.name===undefined → لا عملية → ABSENT دائماً حتى للمفاتيح الموجودة).
+_pm2_saved_env() {
+  local key="$1"
+  pm2 jlist 2>/dev/null | PROC_NAME="$PROC_NAME" KEY="$key" ABSENT="$_ABSENT_SENTINEL" node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      const ABSENT=process.env.ABSENT;
+      let arr;try{arr=JSON.parse(s)}catch(_){process.stdout.write(ABSENT);return}
+      const p=(arr||[]).find(x=>x&&x.name===process.env.PROC_NAME);
+      const e=(p&&p.pm2_env&&p.pm2_env.env)||{};
+      const k=process.env.KEY;
+      if(!Object.prototype.hasOwnProperty.call(e,k)) process.stdout.write(ABSENT);
+      else process.stdout.write(String(e[k]));
+    })'
+}
+
+# يبني وينفّذ restart مع حَقن env المُصرَّح به (يُستدعى فقط حين ${#SET_KEYS[@]}>0).
+# fail-closed: يُرجِع رمز خروج غير صفري إن انجرف مفتاح حسّاس أو لم يُطبَّق --set.
+_exec_restart_with_injection() {
+  # 1) لقطة ما-قبل للمفاتيح الحسّاسة (المرجع لكشف الانجراف).
+  local -a _pre_sens=()
+  local k
+  for k in "${SENSITIVE_KEYS[@]}"; do
+    _pre_sens+=("$(_pm2_saved_env "$k")")
+  done
+
+  # 2) ابنِ وسائط env -i: أساسيات PM2 + مفاتيح --set حصراً. لا شيء من الشيل الحالي.
+  #    HOME/PATH/PM2_HOME من مصادر موثوقة (المستخدم الحالي)، لا من قيم منجرفة.
+  local -a _env_args=(
+    "HOME=${HOME}"
+    "PATH=${PATH}"
+    "PM2_HOME=${PM2_HOME:-$HOME/.pm2}"
+  )
+  local i
+  for i in "${!SET_KEYS[@]}"; do
+    _env_args+=("${SET_KEYS[$i]}=${SET_VALS[$i]}")
+  done
+
+  emit INFO "حَقن env مُصرَّح به: ${SET_KEYS[*]} (عبر env -i + --update-env، الشيل الحالي معزول)."
+
+  # 3) نفّذ: cwd = REPO_DIR، بيئة معاد تركيبها، restart بالاسم + --update-env، ثم save.
+  #    نبقي env -u PORT حارساً إضافياً ضد أي PORT متسرّب (رغم أن env -i يُسقطه أصلاً).
+  if ! ( cd "$REPO_DIR" && env -i "${_env_args[@]}" env -u PORT pm2 restart "$PROC_NAME" --update-env ); then
+    emit ERROR "فشل pm2 restart أثناء الحَقن. لم يُحفَظ. تحقّق يدوياً من حالة $PROC_NAME."
+    return 5
+  fi
+  # save في بيئة نظيفة أيضاً (لا يكتب env، لكن نُبقي الاتساق).
+  ( env -u PORT pm2 save >/dev/null 2>&1 ) || emit WARN "pm2 save فشل (غير قاطع) — الحالة الحيّة مطبَّقة لكن قد لا تُستعاد بعد reboot."
+
+  # امهل العملية لتُعاد كتابة env المحفوظة قبل التحقّق.
+  local _waited=0
+  while [ "$_waited" -lt 5 ]; do
+    sleep 1
+    _waited=$((_waited+1))
+    [ "$(_pm2_saved_env "${SET_KEYS[0]}")" = "${SET_VALS[0]}" ] && break
+  done
+
+  # 4) تحقّق ما-بعد (fail-closed):
+  local _fail=0
+  #   (أ) كل مفتاح حسّاس لم يتغيّر عن لقطته.
+  for i in "${!SENSITIVE_KEYS[@]}"; do
+    local _now; _now="$(_pm2_saved_env "${SENSITIVE_KEYS[$i]}")"
+    if [ "$_now" != "${_pre_sens[$i]}" ]; then
+      local _b="${_pre_sens[$i]}"; local _a="$_now"
+      [ "$_b" = "$_ABSENT_SENTINEL" ] && _b="(absent)"
+      [ "$_a" = "$_ABSENT_SENTINEL" ] && _a="(absent)"
+      emit ERROR "انجراف مفتاح حسّاس ${SENSITIVE_KEYS[$i]}: قبل=$_b بعد=$_a — إجراء خطر! أعد بناء الحالة من ملف العقدة."
+      _fail=1
+    fi
+  done
+  #   (ب) كل مفتاح --set صار حاضراً بقيمته.
+  for i in "${!SET_KEYS[@]}"; do
+    local _got; _got="$(_pm2_saved_env "${SET_KEYS[$i]}")"
+    if [ "$_got" != "${SET_VALS[$i]}" ]; then
+      emit ERROR "لم يُطبَّق --set ${SET_KEYS[$i]}=${SET_VALS[$i]} (القيمة الآن: ${_got/"$_ABSENT_SENTINEL"/(absent)})."
+      _fail=1
+    else
+      emit INFO "تحقّق: ${SET_KEYS[$i]}=${SET_VALS[$i]} مطبَّق في العملية الحيّة."
+    fi
+  done
+
+  if [ "$_fail" -eq 1 ]; then
+    emit ERROR "الحَقن اكتمل تقنياً لكن التحقّق فشل. راجع أعلاه فوراً."
+    return 5
+  fi
+  emit INFO "الحَقن نجح والمفاتيح الحسّاسة صينت (لا انجراف)."
+  return 0
+}
+
+# run_restart: نقطة تنفيذ موحّدة. بلا --set → السلوك الافتراضي (RESTART_CMD) حرفياً
+# كما كان. مع --set → مسار الحَقن الآمن أعلاه. تُرجِع رمز خروج المسار المختار.
+run_restart() {
+  if [ "${#SET_KEYS[@]}" -gt 0 ]; then
+    _exec_restart_with_injection
+    return $?
+  fi
+  bash -c "$RESTART_CMD"
+  return $?
+}
+
 if [ "$LIVE_COUNT" -gt 0 ]; then
   emit WARN "عُثر على $LIVE_COUNT workflow حيّ (started>result + نشاط خلال ${FRESH_WINDOW_S}s)."
   if [ "$JSON" -eq 0 ]; then
@@ -285,9 +497,13 @@ if [ "$LIVE_COUNT" -gt 0 ]; then
   fi
   if [ "$DO_EXEC" -eq 1 ] && [ "$FORCE" -eq 1 ]; then
     emit WARN "تجاوز واعٍ (--force): تنفيذ restart رغم وجود عمل حيّ. orphans ستُكمل (treekill:false) لكن انفصام الرؤية قد يتكرّر."
-    emit INFO "تنفيذ / running: $RESTART_CMD"
-    bash -c "$RESTART_CMD"
-    exit 0
+    if [ "${#SET_KEYS[@]}" -gt 0 ]; then
+      emit INFO "تنفيذ مع حَقن env مُصرَّح به (${SET_KEYS[*]})."
+    else
+      emit INFO "تنفيذ / running: $RESTART_CMD"
+    fi
+    run_restart
+    exit $?
   fi
   emit WARN "أُجّل restart. للتجاوز الواعي: --force --exec. أو نفّذ يدوياً بعد انتهاء العمل:"
   emit INFO "$RESTART_CMD"
@@ -297,10 +513,20 @@ fi
 # لا عمل حيّ → آمن.
 emit INFO "آمن: لا workflow حيّ (فُحص ${SCAN_JSON:+$(printf '%s' "$SCAN_JSON" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).scanned))}catch(_){process.stdout.write("?")}})')} workflow)."
 if [ "$DO_EXEC" -eq 1 ]; then
-  emit INFO "تنفيذ / running: $RESTART_CMD"
-  bash -c "$RESTART_CMD"
+  if [ "${#SET_KEYS[@]}" -gt 0 ]; then
+    emit INFO "تنفيذ مع حَقن env مُصرَّح به (${SET_KEYS[*]})."
+  else
+    emit INFO "تنفيذ / running: $RESTART_CMD"
+  fi
+  run_restart
+  exit $?
 else
-  emit INFO "وضع الفحص فقط. للتنفيذ: --exec. السطر الجاهز:"
-  emit INFO "$RESTART_CMD"
+  if [ "${#SET_KEYS[@]}" -gt 0 ]; then
+    emit INFO "وضع الفحص فقط. مع --exec سيُحقَن (عبر env -i + --update-env، الشيل معزول): ${SET_KEYS[*]}"
+    emit INFO "المفاتيح الحسّاسة المصانة (لا تُمسّ): ${SENSITIVE_KEYS[*]}"
+  else
+    emit INFO "وضع الفحص فقط. للتنفيذ: --exec. السطر الجاهز:"
+    emit INFO "$RESTART_CMD"
+  fi
 fi
 exit 0
