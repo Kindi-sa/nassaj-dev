@@ -9,6 +9,7 @@ import { providerSecretsService } from '@/modules/providers/services/provider-se
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
+import { workflowStatusService } from '@/modules/providers/services/workflow-status.service.js';
 import { coerceUserId } from '@/modules/projects/index.js';
 import type {
   LLMProvider,
@@ -326,6 +327,24 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const activeModel = await antigravityActiveModelService.getActiveModel();
     res.json(activeModel);
+  }),
+);
+
+// ----------------- Active background workflows (ADR-053, T-53-B3) -----------------
+// Specific path declared BEFORE the generic `/:provider/*` routes so it is not
+// shadowed. Read-only visibility for B-103: the caller's still-running / orphaned
+// background workflows across the sessions they own, with the declared scan cap
+// surfaced in the envelope. Fail-closed — `readRequesterUserId` returns a real DB
+// user id or null; a null caller yields an empty envelope and NO scan, so an
+// unowned session's workflow can never leak. The whole router sits behind
+// authenticateToken (mounted in index.js), so `req.user` is the authenticated
+// caller. Never throws: the service degrades to an empty envelope on any anomaly.
+router.get(
+  '/workflows/active',
+  asyncHandler(async (req: Request, res: Response) => {
+    const userId = readRequesterUserId(req);
+    const result = await workflowStatusService.getActiveWorkflows(userId);
+    res.json(result);
   }),
 );
 

@@ -270,4 +270,43 @@ export const participantsDb = {
       .map((row) => row.projectPath)
       .filter((projectPath): projectPath is string => typeof projectPath === 'string' && projectPath.length > 0);
   },
+
+  /**
+   * Distinct session ids the given user has access to — as a participant/owner
+   * (session_participants) OR as the recorded author of at least one message
+   * (message_authors). This is the per-user, set-based INVERSE of
+   * {@link isParticipant}: the same two-branch access model (B-105), returned as
+   * the full id set instead of a single yes/no. Used by the app-level workflow
+   * status endpoint (T-53-B3) so a caller is only ever shown workflow liveness
+   * for sessions it actually belongs to — an unowned session's id never leaves
+   * this query.
+   *
+   * Fail-closed by construction: a non-integer userId (anonymous / unresolved)
+   * matches nothing and returns []. A different user only ever sees their own
+   * session ids because the `user_id = ?` predicate is bound on BOTH branches —
+   * there is no cross-user leakage. Uses prepared statements only; the UNION
+   * de-duplicates ids that appear in both tables.
+   */
+  getSessionIdsForUser(userId: number): string[] {
+    if (!Number.isInteger(userId)) {
+      return [];
+    }
+
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT sp.session_id AS sessionId
+         FROM session_participants sp
+         WHERE sp.user_id = ?
+         UNION
+         SELECT ma.session_id AS sessionId
+         FROM message_authors ma
+         WHERE ma.user_id = ?`
+      )
+      .all(userId, userId) as Array<{ sessionId: string | null }>;
+
+    return rows
+      .map((row) => row.sessionId)
+      .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0);
+  },
 };

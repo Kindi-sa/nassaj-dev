@@ -64,8 +64,13 @@ const PROVIDER = 'claude';
  * Default quiet window (ms). The reconcile only declares completion once the
  * journal has been idle for at least this long, so a still-running orphan that
  * is mid-write is never prematurely reported as complete.
+ *
+ * EXPORTED (T-53-B1, ADR-053): the workflow liveness classifier reuses the SAME
+ * quiet threshold so the "journal is still being written" judgement is
+ * consistent between the restart-only reconcile path and the B-103 liveness
+ * path. Exporting the constant does not change any reconcile behaviour.
  */
-const DEFAULT_QUIET_MS = 5000;
+export const DEFAULT_QUIET_MS = 5000;
 
 /**
  * Reads the `WORKFLOW_RECONCILE` flag. OFF unless explicitly truthy — mirrors
@@ -125,8 +130,13 @@ export type WorkflowReconcileResult = {
  * Fail-safe per line: a corrupted JSON line is skipped (concurrent-write safe),
  * not fatal. A missing/unreadable journal yields empty sets so the caller
  * treats the workflow as "not complete" rather than erroring.
+ *
+ * EXPORTED (T-53-B1, ADR-053): reused verbatim by the workflow liveness path so
+ * both the restart reconcile and the B-103 liveness read the journal through
+ * ONE parser (single source of the started/result key semantics). Its behaviour
+ * is unchanged — this is a visibility export only.
  */
-async function readJournalKeySets(
+export async function readJournalKeySets(
   journalPath: string,
 ): Promise<{ startedKeys: Set<string>; resultKeys: Set<string> }> {
   const startedKeys = new Set<string>();

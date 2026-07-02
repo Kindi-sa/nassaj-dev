@@ -271,6 +271,29 @@ export const sessionsDb = {
   },
 
   /**
+   * Batched transcript-path lookup for a set of session ids (avoids N+1 in the
+   * workflow-status scan, T-53-B3). Returns one row per session that has a
+   * jsonl_path; sessions without one (or not present) are simply omitted. An
+   * empty input yields [] without touching the database. Prepared statement with
+   * `?`-placeholders per id — no interpolation of caller input.
+   */
+  getSessionFilePathsByIds(sessionIds: string[]): Array<{ session_id: string; jsonl_path: string }> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+    const db = getConnection();
+    const placeholders = sessionIds.map(() => '?').join(', ');
+    return db
+      .prepare(
+        `SELECT session_id, jsonl_path
+         FROM sessions
+         WHERE session_id IN (${placeholders})
+           AND jsonl_path IS NOT NULL`
+      )
+      .all(...sessionIds) as Array<{ session_id: string; jsonl_path: string }>;
+  },
+
+  /**
    * Removes every row indexed from one transcript file and returns the deleted
    * session ids, so watcher `unlink` events can drop ghost sessions immediately.
    */

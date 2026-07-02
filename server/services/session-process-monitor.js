@@ -46,6 +46,11 @@ import {
 } from '../modules/websocket/services/presence.service.js';
 import { createNormalizedMessage } from '../shared/utils.js';
 
+// ADR-053 (T-53-B1): the workflow-liveness registry is independent of this
+// module's presence-coupled `runs` map and survives removeSession, so a
+// coordinator-orphaned workflow (B-103) stays probeable by its child pid.
+import { registerWorkflowPid } from './workflow-liveness.js';
+
 /** Env var injected into spawned provider processes to map pid → session. */
 export const PROCESS_TAG_ENV_VAR = 'CCUI_PROCESS_TAG';
 
@@ -137,9 +142,23 @@ function pollOnce() {
         }
         if (!run.pid) continue; // Unknown yet — UI keeps the initial 'running'.
 
+        // ADR-053 (T-53-B1): hand the resolved child pid to the INDEPENDENT
+        // workflow-liveness registry while the run is still live. That registry
+        // is NOT torn down by removeSession/unregisterSessionProcess, so a
+        // background workflow whose coordinator turn already ended (B-103) can
+        // still be probed for liveness by its child pid — the presence-coupled
+        // `runs` map here is dropped on turn-end and cannot serve that purpose.
+        // Read-only, idempotent; does not touch the frozen-broadcast below.
+        registerWorkflowPid(sessionId, run.pid);
+
         const stat = readProcStat(run.pid);
         if (!stat) continue; // Process gone; the terminal unregister emits 'idle'.
 
+        // T→frozen is the EXISTING mirror-fanned indicator semantic and is left
+        // exactly as-is (ADR-053 "لا تُمَسّ"). Z/X (zombie/dead) exclusion for
+        // the liveness verdict lives in workflow-liveness.js (isPidAlive), not
+        // here, so this broadcast is unchanged: a still-listed dead pid keeps
+        // reporting 'running' to the badge exactly as before until unregister.
         const processState = stat.state === 'T' ? 'frozen' : 'running';
         // Re-broadcast EVERY tick (not only on change) so late-joining viewers
         // (page refresh, extra mirrors) learn the current state — including

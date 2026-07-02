@@ -850,6 +850,15 @@ function removeSession(sessionId) {
   // ADR-042 (B-80c): tear down the lazy ghost sweep once no session remains.
   if (activeSessions.size === 0) stopGhostSweep();
   // Stop process-state monitoring and tell every viewer the session is idle.
+  // ADR-053 (T-53-B1): this ends the PRESENCE/idle lifecycle at turn-end (which
+  // is correct — the user's turn is done), but it deliberately does NOT cancel
+  // WORKFLOW PID tracking. That lives in the independent workflow-liveness
+  // registry (server/services/workflow-liveness.js), which is populated from the
+  // resolved child pid while the run was live and is NOT torn down here, so a
+  // background workflow whose coordinator turn already ended (B-103) stays
+  // probeable by /proc until the child process actually exits. Keeping the pid
+  // survival OUT of this call is the minimal critical-path touch: no line is
+  // added to the query()/for-await hot path that caused the 502 incidents.
   unregisterSessionProcess(sessionId);
   // Mark as recently ended to block writer swaps during the race window
   recentlyEndedSessions.set(sessionId, Date.now() + RECENTLY_ENDED_GRACE_MS);
