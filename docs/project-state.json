@@ -3018,10 +3018,11 @@
    "id": "T-704",
    "kind": "chore",
    "phase": "P6",
-   "status": "todo",
+   "status": "done",
    "owner": "tester",
    "title": "اختبار انحدار لـB-122: فتح درج جوال الويكي يؤكّد عدم الانهيار وصفر أخطاء console ووجود عناصر القائمة",
-   "note": "متطلَب qa-critic لرفع الفيتو نهائياً ومنع تكرار صنف العطل (FocusTrap على حاوية مخفية). الحادثة لم يكشفها التحقّق السابق لأن الدرج لم يُفتح على جوال."
+   "note": "منجَز 2026-07-02. src/components/wiki/view/WikiPanel.b122.regression.test.tsx — 16 اختباراً/4 فئات. الفئة ج تستورد ErrorBoundary الحقيقي (التقاط الخطأ + fallback عربي). الفئة د (6 حرّاس مصدر readFileSync) تحرس الكود الفعلي: fallbackFocus:'#wiki-sidebar' + tabIndex={-1} في WikiPanel.tsx، وتغليف WikiPanel بـErrorBoundary في MainContent.tsx (تفلتر الأسطر التعليقية فلا يخدعها تعليق). الفئتان أ/ب بنيويتان توثيقيتان (mock shell، لا تحرسان الكود الحقيقي — WikiPanel لا يُصيَّر في jsdom بسبب import.meta.glob؛ العطل توقيتي متصفحي لا يُعاد في jsdom). تحقّق سلبي مستقل من المنسّق: حذف tabIndex من WikiPanel.tsx الحقيقي → D-2/D-3 تفشلان فعلاً؛ الاستعادة → 16/16. المجموعة الكاملة 122/122. توصية مؤجَّلة: اختبار e2e/playwright يعيد سلوك FocusTrap الحقيقي (jsdom عاجز عنه).",
+   "closed": "2026-07-02"
   }
  ],
  "issues": [
