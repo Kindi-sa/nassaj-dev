@@ -7,6 +7,8 @@ import {
 type ErrorFallbackProps = FallbackProps & {
   showDetails: boolean;
   componentStack: string | null;
+  fallbackLabel?: string;
+  retryLabel?: string;
 };
 
 type ErrorBoundaryProps = {
@@ -14,6 +16,8 @@ type ErrorBoundaryProps = {
   showDetails?: boolean;
   onRetry?: () => void;
   resetKeys?: unknown[];
+  fallbackLabel?: string;
+  retryLabel?: string;
 };
 
 function formatError(error: unknown): string {
@@ -29,6 +33,8 @@ function ErrorFallback({
   resetErrorBoundary,
   showDetails,
   componentStack,
+  fallbackLabel = 'Something went wrong',
+  retryLabel = 'Try Again',
 }: ErrorFallbackProps) {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -43,10 +49,9 @@ function ErrorFallback({
               />
             </svg>
           </div>
-          <h3 className="ml-3 text-sm font-medium text-red-800">Something went wrong</h3>
+          <h3 className="ms-3 text-sm font-medium text-red-800">{fallbackLabel}</h3>
         </div>
         <div className="text-sm text-red-700">
-          <p className="mb-2">An error occurred while loading the chat interface.</p>
           {showDetails && (
             <details className="mt-4">
               <summary className="cursor-pointer font-mono text-xs">Error Details</summary>
@@ -62,7 +67,7 @@ function ErrorFallback({
             onClick={resetErrorBoundary}
             className="rounded bg-red-600 px-4 py-2 text-sm text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
           >
-            Try Again
+            {retryLabel}
           </button>
         </div>
       </div>
@@ -75,6 +80,8 @@ function ErrorBoundary({
   showDetails = false,
   onRetry = undefined,
   resetKeys = undefined,
+  fallbackLabel = undefined,
+  retryLabel = undefined,
 }: ErrorBoundaryProps) {
   const [componentStack, setComponentStack] = useState<string | null>(null);
 
@@ -96,9 +103,11 @@ function ErrorBoundary({
         resetErrorBoundary={resetErrorBoundary}
         showDetails={showDetails}
         componentStack={componentStack}
+        fallbackLabel={fallbackLabel}
+        retryLabel={retryLabel}
       />
     ),
-    [showDetails, componentStack]
+    [showDetails, componentStack, fallbackLabel, retryLabel]
   );
 
   return (

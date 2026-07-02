@@ -139,7 +139,14 @@ function MainContent({
           </div>
         </div>
         <div className="flex min-h-0 flex-1 overflow-hidden">
-          <WikiPanel />
+          {/* B-122: ErrorBoundary يمنع انهيار الصفحة عند خطأ FocusTrap أو WikiPanel */}
+          <ErrorBoundary
+            showDetails={false}
+            fallbackLabel="تعذّر عرض هذه الصفحة"
+            retryLabel="إعادة تحميل"
+          >
+            <WikiPanel />
+          </ErrorBoundary>
         </div>
       </div>
     );
@@ -230,7 +237,14 @@ function MainContent({
 
           {activeTab === 'wiki' && (
             <div className="h-full overflow-hidden">
-              <WikiPanel />
+              {/* B-122: ErrorBoundary يمنع انهيار الصفحة عند خطأ FocusTrap أو WikiPanel */}
+              <ErrorBoundary
+                showDetails={false}
+                fallbackLabel="تعذّر عرض هذه الصفحة"
+                retryLabel="إعادة تحميل"
+              >
+                <WikiPanel />
+              </ErrorBoundary>
             </div>
           )}
 

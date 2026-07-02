@@ -800,6 +800,7 @@ export default function WikiPanel() {
           focusTrapOptions={{
             allowOutsideClick: true,
             returnFocusOnDeactivate: false, // نعيد التركيز يدوياً لزر ☰
+            fallbackFocus: '#wiki-sidebar', // B-122: يحمي من 0 tabbable nodes قبل reflow
             onDeactivate: () => {
               setSidebarOpen(false);
               requestAnimationFrame(() => sidebarToggleRef.current?.focus());
@@ -808,6 +809,7 @@ export default function WikiPanel() {
         >
           <nav
             id="wiki-sidebar"
+            tabIndex={-1} /* B-122: هدف fallbackFocus يجب أن يكون قابلاً للتركيز */
             aria-label={t('wiki.sidebarAriaLabel', 'فهرس الويكي')}
             aria-modal={!isDesktop && sidebarOpen ? true : undefined}
             className={[
