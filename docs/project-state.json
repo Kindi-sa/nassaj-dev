@@ -3003,6 +3003,25 @@
    "title": "مراجعة وتصحيح شامل لويكي الفريق (محتوى + هيكلة + تصميم + رسومات + شعارات) — 2026-07-02: تشخيص بوكيلين (researcher محتوى + design-reviewer تصميم) ثم تصحيح موزَّع بلا تعارض ملفات، وتحقّق بصري حيّ (فاتح/داكن/جوال).",
    "note": "منجَز 2026-07-02. **محتوى 20 بنداً (6 حرجة مُتحقَّقة ميدانياً من nassaj-ops):** cron 15→10 دقائق + نقطة الدخول minwal-supervisor.sh (لا nassaj-runner.sh)؛ قسم حالة المنوال المتقادم (2026-06-14) أُعيد كتابته → مُفعَّل ويعمل diwan enabled:true + alnuman مجمَّد؛ critique-verdict.json (كان معكوساً)؛ pm2 restart الخام → safe-restart.sh --exec + تحذير 502؛ Sonnet 4.6→5؛ end-to-end→HTTPS؛ Figma→Design Brief نصي؛ anchor مكسور؛ الوكلاء 22→23 وتصنيف 5 فِرَق مطابق INDEX.md؛ 275 passed (تشغيل run-tests.sh فعلياً)؛ ترتيب الفهرس تربوياً. **تصميم (design-reviewer 8.5/10):** خلفية المخطط --card+ظل (كان يذوب)؛ متغيّر فواصل محلي --wiki-border-strong (بلا مسّ index.css العام)؛ هرمية عنوان الصفحة؛ نص المتن foreground كامل؛ أهداف لمس 44px؛ RTL variants مُتحقَّقة. **شعارات:** نسّاج (فاتح/داكن) أعلى الفهرس + الكندي (alkindy-symbol.svg منسوخ من AlKindy BM) أسفله خفيفاً كعلامة مظلة. **بناء:** build:client نظيف (منشور حيّاً على nassaj.alkindy.tech، بلا restart). **تحقّق بصري:** فاتح/داكن/جوال سليمة. ملاحظتان مؤجَّلتان (خارج نطاق تصحيحات الويكي): (1) تباين عناوين h2 ضعيف في الوضع الداكن النقي (نظام ألوان عام)، (2) placeholder البحث إنجليزي Search wiki (i18n). لم يُلتزَم بعد — بانتظار قرار المالك.",
    "closed": "2026-07-02"
+  },
+  {
+   "id": "T-703",
+   "kind": "bug",
+   "phase": "P6",
+   "status": "done",
+   "owner": "frontend-dev",
+   "title": "إصلاح B-122: انهيار درج جوال الويكي — fallbackFocus + ErrorBoundary",
+   "note": "منجَز 2026-07-02، commit 19eceb61. FocusTrap fallbackFocus:'#wiki-sidebar' + tabIndex={-1} على nav id=wiki-sidebar؛ WikiPanel ملفوف بـErrorBoundary (أُعيد استخدام المكوّن القائم) في موضعي MainContent.tsx (~142/241) برسائل عربية. ErrorBoundary.tsx: props اختيارية fallbackLabel/retryLabel + ms-3 بدل ml-3. build:client 8.70s نظيف. تحقّق حيّ فاتح+داكن جوال 390px + ديسكتوب 1280px: لا انهيار، صفر أخطاء console. تحقّق مستقل من المنسّق على الوضع الفاتح.",
+   "closed": "2026-07-02"
+  },
+  {
+   "id": "T-704",
+   "kind": "chore",
+   "phase": "P6",
+   "status": "todo",
+   "owner": "tester",
+   "title": "اختبار انحدار لـB-122: فتح درج جوال الويكي يؤكّد عدم الانهيار وصفر أخطاء console ووجود عناصر القائمة",
+   "note": "متطلَب qa-critic لرفع الفيتو نهائياً ومنع تكرار صنف العطل (FocusTrap على حاوية مخفية). الحادثة لم يكشفها التحقّق السابق لأن الدرج لم يُفتح على جوال."
   }
  ],
  "issues": [
@@ -4141,13 +4160,15 @@
   {
    "id": "B-122",
    "title": "انهيار كامل للصفحة (شاشة بيضاء) عند فتح درج الجوال في ويكي الفريق — FocusTrap يُفعَّل داخل commit والدرج ما يزال visibility:hidden، وغياب ErrorBoundary يُفكِّك جذر React",
-   "status": "open",
+   "status": "resolved",
    "severity": "critical",
    "phase": "P6",
    "kind": "bug",
    "found": "2026-07-02",
    "triage": "critical → يقطع العمل الجاري. عطل إنتاجي حيّ على nassaj.alkindy.tech (جوال). مُثبَت حيّاً بـplaywright تكراراً حتمياً 100% (390px، فاتح) + نصّ خطأ مطابق focus-trap.js:507. الإصلاح المزدوج: (1) fallbackFocus:'#wiki-sidebar' + tabIndex={-1} على nav (أو checkCanFocusTrap async)؛ (2) لفّ WikiPanel بـErrorBoundary في MainContent.tsx:142 و:233 (حاجز مستقل). ثم تحقّق حيّ فاتح+داكن+جوال + اختبار انحدار (tester يفتح الدرج ويؤكّد صفر أخطاء console). كشفه qa-critic (فيتو).",
-   "description": "WikiPanel.tsx:798-808 (تكوين FocusTrap) + wiki-panel.css:132-141 (visibility) + MainContent.tsx:120-145 (غياب ErrorBoundary). السلسلة: setSidebarOpen(true) يُنتج render واحداً يقلب data-wiki-drawer→open وFocusTrap active→true معاً؛ componentDidUpdate يشغّل activate()→updateTabbableNodes متزامناً قبل reflow، فيقرأ العناصر وهي visibility:hidden (0 tabbable) ويرمي «must have at least one container with at least one tabbable node»؛ لغياب fallbackFocus/initialFocus وErrorBoundary ينتشر لجذر React → شاشة بيضاء. دليل: .playwright-mcp/wiki-mobile-drawer-open-BROKEN.png. الديسكتوب سليم (FocusTrap لا يُفعَّل). لم يكشفه التحقّق السابق لأن الدرج لم يُفتح على جوال (تجربة T-WIKI-AUDIT-0702)."
+   "description": "WikiPanel.tsx:798-808 (تكوين FocusTrap) + wiki-panel.css:132-141 (visibility) + MainContent.tsx:120-145 (غياب ErrorBoundary). السلسلة: setSidebarOpen(true) يُنتج render واحداً يقلب data-wiki-drawer→open وFocusTrap active→true معاً؛ componentDidUpdate يشغّل activate()→updateTabbableNodes متزامناً قبل reflow، فيقرأ العناصر وهي visibility:hidden (0 tabbable) ويرمي «must have at least one container with at least one tabbable node»؛ لغياب fallbackFocus/initialFocus وErrorBoundary ينتشر لجذر React → شاشة بيضاء. دليل: .playwright-mcp/wiki-mobile-drawer-open-BROKEN.png. الديسكتوب سليم (FocusTrap لا يُفعَّل). لم يكشفه التحقّق السابق لأن الدرج لم يُفتح على جوال (تجربة T-WIKI-AUDIT-0702).",
+   "resolved": "2026-07-02",
+   "fix": "commit 19eceb61 (fix task T-703). الإصلاح المزدوج: fallbackFocus:#wiki-sidebar + tabIndex={-1} على <nav> (WikiPanel.tsx)، وWikiPanel ملفوف بـErrorBoundary القائم في موضعي MainContent.tsx (142/241). build:client نظيف (8.70s، منشور على nassaj.alkindy.tech). تحقّق حيّ مستقل (المنسّق، playwright 390px): الدرج يُفتح مملوءاً، لا انهيار، console صفر أخطاء (فاتح)؛ frontend-dev أكّد الداكن أيضاً. متبقٍّ: T-704 اختبار انحدار."
   },
   {
    "id": "B-123",
