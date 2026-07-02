@@ -54,6 +54,16 @@ import {
 // blessed seam as participants.service.ts → transcript-parser.js.
 // eslint-disable-next-line boundaries/no-unknown
 import { classifyWorkflowLiveness, isWorkflowProcessAlive } from '@/services/workflow-liveness.js';
+// ADR-053 §ج-2: OPTIONAL scope-liveness precedence for supervisor-launched
+// workflows. buildScopeLivenessResolver returns null when WORKFLOW_SUPERVISOR is
+// off, so the resolver stays `undefined` and this service is byte-identical to
+// its pid-only behavior. When a scope targets a workflow's project, its
+// `systemctl is-active` verdict TAKES PRECEDENCE over the (blind-to-grandchildren)
+// pid classifier — added BESIDE Layer-1, never inside classifyWorkflowLiveness.
+import {
+  buildScopeLivenessResolver,
+  type ScopeLivenessResolver,
+} from '@/modules/workflow-supervisor/index.js';
 
 /**
  * Upper bound on how many of the caller's sessions are scanned per request. A
@@ -119,6 +129,8 @@ async function scanSessionWorkflows(
   workflowsDir: string,
   now: number,
   quietMs: number,
+  projectPath: string | null,
+  scopeResolver: ScopeLivenessResolver | null,
 ): Promise<ActiveWorkflow[]> {
   let entries: string[];
   try {
@@ -131,6 +143,20 @@ async function scanSessionWorkflows(
   // One liveness probe per session: the child pid is the ROOT of the whole
   // workflow process tree, so its state applies to every wf_* under the session.
   const pidAlive = isWorkflowProcessAlive(sessionId);
+
+  // ADR-053 §ج-2: if a supervisor scope targets this project, its is-active
+  // verdict is AUTHORITATIVE for the session's workflows and PRECEDES the pid
+  // classifier (which is blind to a scope grandchild). Null resolver / no scope
+  // => undefined => pid path unchanged.
+  let scopeLiveness: Awaited<ReturnType<ScopeLivenessResolver>> | null = null;
+  if (scopeResolver && projectPath) {
+    try {
+      scopeLiveness = await scopeResolver(projectPath);
+    } catch {
+      scopeLiveness = null; // fail-safe: fall back to pid path
+    }
+  }
+
   const active: ActiveWorkflow[] = [];
 
   for (const entry of entries) {
@@ -160,15 +186,20 @@ async function scanSessionWorkflows(
       }
     }
 
-    const liveness = classifyWorkflowLiveness({
-      pidAlive,
-      startedKeyCount: startedKeys.size,
-      resultKeyCount: resultKeys.size,
-      allStartedResulted,
-      journalMtimeMs,
-      now,
-      quietMs,
-    });
+    // Scope liveness (is-active) PRECEDES the pid classifier for scope-launched
+    // workflows (§ج-2). Only when there is no scope verdict do we fall back to
+    // the unchanged Layer-1 pid path.
+    const liveness =
+      scopeLiveness ??
+      classifyWorkflowLiveness({
+        pidAlive,
+        startedKeyCount: startedKeys.size,
+        resultKeyCount: resultKeys.size,
+        allStartedResulted,
+        journalMtimeMs,
+        now,
+        quietMs,
+      });
 
     if (liveness === 'COMPLETED') {
       continue; // Not "active" — a completed workflow is out of scope here.
@@ -227,20 +258,36 @@ export const workflowStatusService = {
 
       // Batched transcript-path lookup (no N+1) for exactly the capped id set.
       const pathRows = sessionsDb.getSessionFilePathsByIds(toScan);
-      const pathBySession = new Map<string, string>();
+      const jsonlBySession = new Map<string, string>();
+      const projectBySession = new Map<string, string | null>();
       for (const row of pathRows) {
-        pathBySession.set(row.session_id, row.jsonl_path);
+        jsonlBySession.set(row.session_id, row.jsonl_path);
+        projectBySession.set(row.session_id, row.project_path);
       }
+
+      // ADR-053 §ج-2: build the optional scope-liveness resolver ONCE per call.
+      // Null when WORKFLOW_SUPERVISOR is off => scanner stays pid-only (no-op).
+      const scopeResolver = await buildScopeLivenessResolver();
 
       const workflows: ActiveWorkflow[] = [];
       let scanned = 0;
       for (const sessionId of toScan) {
         scanned += 1;
-        const workflowsDir = resolveWorkflowsDir(pathBySession.get(sessionId) ?? null);
+        const workflowsDir = resolveWorkflowsDir(jsonlBySession.get(sessionId) ?? null);
         if (!workflowsDir) {
           continue; // No transcript path => no workflows dir to inspect.
         }
-        const sessionWorkflows = await scanSessionWorkflows(sessionId, workflowsDir, now, quietMs);
+        // The session's real project cwd (== the intent's projectPath) is the
+        // join key to a supervisor scope; null when unknown => pid path only.
+        const projectPath = projectBySession.get(sessionId) ?? null;
+        const sessionWorkflows = await scanSessionWorkflows(
+          sessionId,
+          workflowsDir,
+          now,
+          quietMs,
+          projectPath,
+          scopeResolver,
+        );
         for (const wf of sessionWorkflows) {
           workflows.push(wf);
         }

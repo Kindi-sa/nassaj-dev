@@ -277,20 +277,30 @@ export const sessionsDb = {
    * empty input yields [] without touching the database. Prepared statement with
    * `?`-placeholders per id — no interpolation of caller input.
    */
-  getSessionFilePathsByIds(sessionIds: string[]): Array<{ session_id: string; jsonl_path: string }> {
+  getSessionFilePathsByIds(
+    sessionIds: string[],
+  ): Array<{ session_id: string; jsonl_path: string; project_path: string | null }> {
     if (sessionIds.length === 0) {
       return [];
     }
     const db = getConnection();
     const placeholders = sessionIds.map(() => '?').join(', ');
+    // project_path (the run's real cwd) is returned alongside jsonl_path so the
+    // workflow-status endpoint can match a session to a supervisor scope by its
+    // actual project directory (ADR-053 §ج-2). Existing callers read by field
+    // name, so the extra column is additive and non-breaking.
     return db
       .prepare(
-        `SELECT session_id, jsonl_path
+        `SELECT session_id, jsonl_path, project_path
          FROM sessions
          WHERE session_id IN (${placeholders})
            AND jsonl_path IS NOT NULL`
       )
-      .all(...sessionIds) as Array<{ session_id: string; jsonl_path: string }>;
+      .all(...sessionIds) as Array<{
+      session_id: string;
+      jsonl_path: string;
+      project_path: string | null;
+    }>;
   },
 
   /**

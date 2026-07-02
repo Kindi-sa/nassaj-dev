@@ -411,4 +411,59 @@ export const projectsDb = {
         }
         return row.created_by === userId || row.isMember === 1 || row.isParticipant === 1;
     },
+
+    /**
+     * OWNERSHIP predicate (ADR-053 §ج-3 حرج-2 — the workflow-supervisor GATE2
+     * guard). Answers "does this user OWN or is an explicit MEMBER of the project
+     * at `projectPath`?" — deliberately NOT the visibility question above.
+     *
+     * WHY THIS IS SEPARATE FROM isProjectPathVisibleToUser
+     * ----------------------------------------------------
+     * The visibility predicates return `true` for EVERY `visibility = 'public'`
+     * project for ANY authenticated user (public is readable by the whole team by
+     * design, B-PRIV). Using a visibility predicate to authorize a workflow LAUNCH
+     * would let any user launch a background run — on the OWNER's Claude
+     * subscription (per-user CLAUDE_CONFIG_DIR isolation) — against any public
+     * project, which is a silent subscription-sharing ToS breach
+     * (project_is_platform_shared_sub_risk). The launch guard must therefore be
+     * strict ownership/membership, NOT visibility:
+     *   - `created_by === userId`  (the creator), OR
+     *   - an explicit `project_members` row for the user (any role).
+     * The public bypass AND the session-participation route are intentionally
+     * ABSENT here: neither confers the ownership needed to spend a subscription.
+     *
+     * Fail-closed: a non-integer userId (anonymous/unresolved), an empty path, or
+     * a path with no ACTIVE project row returns false. Prepared statements only —
+     * the caller-supplied path/id is never interpolated.
+     */
+    isProjectPathOwnedOrMemberedBy(projectPath: string | null | undefined, userId: number | null): boolean {
+        if (!Number.isInteger(userId)) {
+            return false;
+        }
+        if (typeof projectPath !== 'string' || projectPath.trim().length === 0) {
+            return false;
+        }
+
+        const db = getConnection();
+        const normalizedProjectPath = normalizeProjectPath(projectPath);
+        const row = db.prepare(`
+            SELECT
+                p.created_by AS created_by,
+                EXISTS (
+                    SELECT 1 FROM project_members pm
+                    WHERE pm.project_id = p.project_id AND pm.user_id = ?
+                ) AS isMember
+            FROM projects p
+            WHERE p.project_path = ?
+              AND p.isArchived = 0
+        `).get(
+            userId,
+            normalizedProjectPath,
+        ) as { created_by: number | null; isMember: number } | undefined;
+
+        if (!row) {
+            return false;
+        }
+        return row.created_by === userId || row.isMember === 1;
+    },
 };
