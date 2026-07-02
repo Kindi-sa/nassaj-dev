@@ -9,6 +9,7 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeRaw from 'rehype-raw';
 import type { Components } from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
@@ -80,7 +81,28 @@ for (const page of PAGES) {
 
 function getPageContent(file: string): string | null {
   const raw = RAW_BY_FILE[file];
-  return typeof raw === 'string' ? raw : null;
+  return typeof raw === 'string' ? collapseHtmlBlocks(raw) : null;
+}
+
+/**
+ * remark treats a blank line inside a raw HTML block as the end of that block,
+ * which causes large multi-line SVGs (that contain blank separator lines) to be
+ * split: only the first chunk is treated as HTML, the rest becomes paragraphs
+ * or code blocks.
+ *
+ * This function collapses blank lines that appear *inside* an SVG element so
+ * remark sees the whole tag as a single contiguous HTML block, and wraps each
+ * SVG in a horizontally-scrollable container so dense diagrams stay legible on
+ * narrow (mobile) viewports instead of shrinking to an unreadable size
+ * (app-wide viewport disables pinch-zoom). It does NOT touch other content.
+ */
+function collapseHtmlBlocks(markdown: string): string {
+  // Collapse blank lines inside <svg>…</svg>, then wrap in a scroll container.
+  return markdown.replace(
+    /(<svg[\s\S]*?<\/svg>)/g,
+    (match) =>
+      `<div class="wiki-diagram-scroll">${match.replace(/\n{2,}/g, '\n')}</div>`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -306,7 +328,7 @@ const MARKDOWN_COMPONENTS: Components = {
   h2: ({ children }) => (
     <HeadingWithId
       level={2}
-      className="mb-3 mt-6 border-b border-border/40 pb-2 text-xl font-semibold text-foreground"
+      className="mb-3 mt-6 border-b pb-2 text-xl font-semibold text-foreground [border-bottom-color:var(--wiki-border-strong,hsl(var(--foreground)/0.18))]"
     >
       {children}
     </HeadingWithId>
@@ -317,13 +339,13 @@ const MARKDOWN_COMPONENTS: Components = {
     </HeadingWithId>
   ),
   p: ({ children }) => (
-    <p className="my-3 leading-relaxed text-foreground/90">{children}</p>
+    <p className="my-3 leading-relaxed text-foreground">{children}</p>
   ),
   ul: ({ children }) => (
-    <ul className="my-2 list-disc space-y-1 ps-6 text-foreground/90">{children}</ul>
+    <ul className="my-2 list-disc space-y-1 ps-6 text-foreground">{children}</ul>
   ),
   ol: ({ children }) => (
-    <ol className="my-2 list-decimal space-y-1 ps-6 text-foreground/90">{children}</ol>
+    <ol className="my-2 list-decimal space-y-1 ps-6 text-foreground">{children}</ol>
   ),
   li: ({ children }) => <li className="leading-relaxed">{children}</li>,
   blockquote: ({ children }) => (
@@ -351,10 +373,16 @@ const MARKDOWN_COMPONENTS: Components = {
       {children}
     </td>
   ),
-  hr: () => <hr className="my-6 border-border/40" />,
+  hr: () => (
+    <hr
+      className="my-6 border-0 border-t"
+      style={{ borderTopColor: 'var(--wiki-border-strong, hsl(var(--foreground) / 0.18))' }}
+    />
+  ),
 };
 
 const REMARK_PLUGINS = [remarkGfm];
+const REHYPE_PLUGINS = [rehypeRaw];
 
 // ---------------------------------------------------------------------------
 // TOC component — P1-A
@@ -765,6 +793,22 @@ export default function WikiPanel() {
             ].join(' ')}
             data-wiki-drawer={sidebarOpen ? 'open' : 'closed'}
           >
+            {/* ── البند 8: شعار نسّاج — بارز أعلى الفهرس ──────────────────── */}
+            <div className="flex items-center px-4 pb-2 pt-3">
+              {/* Light mode */}
+              <img
+                src="/nassaj-logo-on-light.svg"
+                alt="نسّاج"
+                className="h-7 w-auto dark:hidden md:h-8"
+              />
+              {/* Dark mode */}
+              <img
+                src="/nassaj-logo-on-dark.svg"
+                alt="نسّاج"
+                className="hidden h-7 w-auto dark:block md:h-8"
+              />
+            </div>
+
             <WikiSearchField
               query={query}
               onQueryChange={setQuery}
@@ -790,7 +834,7 @@ export default function WikiPanel() {
                             if (!isDesktop) setSidebarOpen(false);
                           }}
                           aria-current={isActive ? 'page' : undefined}
-                          className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors ${
+                          className={`flex min-h-[44px] w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm transition-colors md:min-h-0 ${
                             isActive
                               ? 'bg-primary/10 font-medium text-primary'
                               : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
@@ -808,6 +852,16 @@ export default function WikiPanel() {
                     );
                   })}
                 </ul>
+
+                {/* ── البند 8: شعار الكندي — مظلة خفيفة أسفل الفهرس ──────── */}
+                <div className="mt-4 flex flex-col items-center gap-1 border-t border-border/30 pt-4">
+                  <span className="text-[10px] text-muted-foreground">علامة من دار الكندي</span>
+                  <img
+                    src="/alkindy-symbol.svg"
+                    alt="دار الكندي"
+                    className="h-5 w-auto opacity-70"
+                  />
+                </div>
               </div>
             )}
           </nav>
@@ -846,8 +900,8 @@ export default function WikiPanel() {
             <span id="wiki-sidebar-hint" className="sr-only">
               {t('wiki.sidebarEscapeHint', 'اضغط Escape لإغلاق الفهرس')}
             </span>
-            {/* البند 7: line-clamp-2 بدل truncate لعناوين طويلة */}
-            <h2 className="line-clamp-2 text-sm font-semibold text-foreground">{activeTitle}</h2>
+            {/* البند 3+4: text-base على الجوال / text-sm على الديسكتوب — يبرز عنوان الصفحة كترويسة */}
+            <h2 className="line-clamp-2 text-base font-bold text-foreground md:text-sm md:font-semibold">{activeTitle}</h2>
           </div>
 
           {/* Scrollable body */}
@@ -882,6 +936,7 @@ export default function WikiPanel() {
                 <ReactMarkdown
                   key={activeFile}
                   remarkPlugins={REMARK_PLUGINS}
+                  rehypePlugins={REHYPE_PLUGINS}
                   components={MARKDOWN_COMPONENTS}
                 >
                   {content}

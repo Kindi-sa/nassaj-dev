@@ -114,7 +114,7 @@ export default function WikiMermaidDiagram({ code }: WikiMermaidDiagramProps) {
           {/* Diagram panel */}
           {/* البند 3: overflow-auto مع -webkit-overflow-scrolling: touch للجوال */}
           <div
-            className="wiki-mermaid-overlay relative z-10 max-h-[90dvh] max-w-[95dvw] overflow-auto rounded-xl border border-border bg-card p-6 shadow-2xl"
+            className="wiki-mermaid-overlay relative z-10 max-h-[90dvh] max-w-[95dvw] overflow-auto rounded-lg border border-border bg-card p-6 shadow-2xl"
           >
             {/* Close button */}
             <button

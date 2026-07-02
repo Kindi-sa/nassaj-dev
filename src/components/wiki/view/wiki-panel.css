@@ -1,5 +1,19 @@
 /* ── Wiki Panel — injected styles ─────────────────────────────────────────── */
 
+/* ── متغيّرات محلية للويكي (البند 2: فواصل قوية بدون لمس --border العام) ─── */
+/* نطاق الحاوية الكاملة — light mode */
+[data-wiki-drawer],
+.wiki-article,
+[data-wiki-scroll] {
+  --wiki-border-strong: hsl(var(--foreground) / 0.18);
+}
+/* dark mode — يُرفع التباين قليلاً لأن الخلفيات داكنة */
+.dark [data-wiki-drawer],
+.dark .wiki-article,
+.dark [data-wiki-scroll] {
+  --wiki-border-strong: hsl(var(--foreground) / 0.25);
+}
+
 /* Search match highlight (T-136 B-2)
    Applied by JS: element.classList.add('wiki-search-highlight')
    Removed after 2 seconds.                                                   */
@@ -57,6 +71,19 @@
 [data-wiki-drawer="closed"] { transform: translateX(100%); }
 [data-wiki-drawer="open"]   { transform: translateX(0);    }
 
+/* البند 7 (طفيفة): إخفاء الدرج المغلق بالكامل عن لوحة الوصول والمؤشر على الجوال.
+   على الديسكتوب (md+) الـtransform-none يُلغي الإزاحة فيبقى الـsidebar مرئياً. */
+@media (max-width: 767px) {
+  [data-wiki-drawer="closed"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  [data-wiki-drawer="open"] {
+    visibility: visible;
+    pointer-events: auto;
+  }
+}
+
 /* البند 3: تجاوز [&_svg]:max-w-full الموروثة من MermaidDiagram على الجوال.
    data-wiki-mermaid يرفع الخصوصية بدون لمس الملف المشترك.
    على الجوال: الـSVG يُعرض بحجمه الطبيعي داخل حاوية overflow-x-auto.  */
@@ -73,6 +100,48 @@
 /* البند 3: داخل overlay التكبير — تمرير سلس على الجوال */
 .wiki-mermaid-overlay {
   -webkit-overflow-scrolling: touch;
+}
+
+/* ── Inline SVG diagrams (.wiki-diagram) ──────────────────────────────────────
+   SVGs embedded directly in wiki markdown (class="wiki-diagram").
+   They use CSS custom-property colours (hsl(var(--primary)) etc.) and a
+   viewBox without fixed dimensions, so they scale automatically.              */
+.wiki-article .wiki-diagram {
+  display: block;
+  width: 100%;
+  max-width: 760px;
+  height: auto;
+  margin-inline: auto;
+  margin-block: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  /* البند 1: card بدل background لإبراز المخطط عن سطح الصفحة في الوضعين */
+  background: hsl(var(--card));
+  box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+}
+
+/* Horizontal-scroll container wrapped around every .wiki-diagram at render time.
+   Keeps dense diagrams legible on narrow viewports (pinch-zoom is disabled
+   app-wide) by letting them pan instead of shrinking to an unreadable size. */
+.wiki-article .wiki-diagram-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 767px) {
+  .wiki-article .wiki-diagram {
+    padding: 0.75rem;
+    margin-block: 1rem;
+  }
+  /* Below this width the diagram text would shrink below legibility; keep a
+     readable minimum and let .wiki-diagram-scroll pan horizontally instead. */
+  .wiki-article .wiki-diagram-scroll .wiki-diagram {
+    min-width: 720px;
+    max-width: none;
+    margin-inline: 0;
+  }
 }
 
 /* البند 5: مؤشر تمرير أفقي للجداول العريضة على الجوال.
