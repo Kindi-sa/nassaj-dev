@@ -162,15 +162,41 @@ function CopyButton({ code }: { code: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Code block with copy button
+// Code block with copy button — handles both inline and fenced code
 // ---------------------------------------------------------------------------
 
+/**
+ * react-markdown v10 routes ALL <code> nodes here (via components.code).
+ * It also wraps fenced code blocks in its own <pre> before calling this
+ * component, which would cause <pre>-inside-<pre> nesting if we render
+ * another <pre>.  We break the nesting by also overriding components.pre
+ * (below) to render a transparent pass-through — so the only real <pre>
+ * wrapper lives here, inside CodeBlock.
+ *
+ * Inline detection: a code node is "inline" when it has no language class
+ * AND its text content contains no newline.  Both conditions must hold:
+ *   - language-* class  → always fenced block (explicit language)
+ *   - contains \n       → multi-line → block even without a language tag
+ */
 function CodeBlock({
   className,
   children,
 }: React.HTMLAttributes<HTMLElement> & { inline?: boolean }) {
   const lang = /language-(\w+)/.exec(className ?? '')?.[1] ?? '';
-  const code = String(children).replace(/\n$/, '');
+  const rawText = String(children);
+  const code = rawText.replace(/\n$/, '');
+
+  // Inline: no language class AND no newline in content
+  const isInline = !lang && !rawText.includes('\n');
+
+  if (isInline) {
+    // Render as a styled <code> span — no <pre>, no copy button
+    return (
+      <code className="wiki-inline-code rounded px-1 py-0.5 text-sm font-mono">
+        {children}
+      </code>
+    );
+  }
 
   if (lang === 'mermaid') {
     // Use the wiki-specific wrapper that adds a zoom button
@@ -320,6 +346,12 @@ function AnchorLink({
 const MARKDOWN_COMPONENTS: Components = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   code: CodeBlock as any,
+  // react-markdown wraps fenced code blocks in its own <pre> before handing
+  // them to the `code` renderer.  Without this override the DOM ends up with
+  // <pre (remark)><pre (CodeBlock)>…</pre></pre>.  We dissolve the outer <pre>
+  // by rendering a transparent fragment — CodeBlock owns the only real <pre>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  pre: ({ children }: React.HTMLAttributes<HTMLPreElement>) => <>{children}</>,
   h1: ({ children }) => (
     <HeadingWithId level={1} className="mb-4 mt-0 text-2xl font-bold text-foreground">
       {children}
@@ -446,7 +478,7 @@ function TableOfContents({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-start font-semibold text-foreground transition-colors hover:bg-accent/40"
+        className="flex w-full items-center gap-2 rounded-lg px-4 py-2.5 text-right font-semibold text-foreground transition-colors hover:bg-accent/40"
       >
         <List className="h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="flex-1">في هذه الصفحة</span>
@@ -464,7 +496,7 @@ function TableOfContents({
                 type="button"
                 onClick={() => scrollToId(entry.id)}
                 className={[
-                  'w-full py-1 text-start transition-colors hover:bg-accent/40',
+                  'w-full py-1 text-right transition-colors hover:bg-accent/40',
                   entry.level === 3 ? 'ps-8 text-xs' : 'ps-6 text-sm',
                   activeId === entry.id ? 'font-medium text-primary' : 'text-muted-foreground',
                 ].join(' ')}
@@ -915,7 +947,7 @@ export default function WikiPanel() {
           >
             {content !== null ? (
               <article
-                className="wiki-article prose prose-sm max-w-3xl text-start"
+                className="wiki-article prose prose-sm max-w-3xl"
                 lang="ar"
                 dir="rtl"
                 ref={(el) => {

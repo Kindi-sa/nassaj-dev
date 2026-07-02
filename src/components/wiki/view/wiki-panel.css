@@ -64,6 +64,62 @@
     'Liberation Mono', 'Courier New', monospace;
 }
 
+/* RTL alignment + theme-aware prose colours ─────────────────────────────────
+   Two pre-existing bugs the diagrams inherit context from: (1) the app root is
+   <html dir="ltr"> (B-119), so the logical `text-start` utility resolves to LEFT
+   and the Arabic prose hugs the wrong edge; (2) Tailwind Typography's default
+   bold/link/marker colours are near-black and vanish on the dark background.
+   Fix both here: force physical right alignment and map every prose colour
+   token to the app's theme variables so all text is legible in light AND dark.
+   Code/pre keep LTR + left via their own rule above.
+   Selector is doubled (.wiki-article.prose) so it outranks Tailwind's own
+   `.prose` var defaults and the `.text-start` utility (both specificity 0,1,0),
+   which otherwise win on source order.                                        */
+.wiki-article.prose {
+  text-align: right;
+  --tw-prose-body: hsl(var(--foreground));
+  --tw-prose-headings: hsl(var(--foreground));
+  --tw-prose-bold: hsl(var(--foreground));
+  --tw-prose-links: hsl(var(--primary));
+  --tw-prose-bullets: hsl(var(--muted-foreground));
+  --tw-prose-counters: hsl(var(--muted-foreground));
+  --tw-prose-quotes: hsl(var(--foreground));
+  --tw-prose-quote-borders: hsl(var(--border));
+  --tw-prose-hr: hsl(var(--border));
+  --tw-prose-captions: hsl(var(--muted-foreground));
+  --tw-prose-code: hsl(var(--foreground));
+  /* Tailwind Typography uses --tw-prose-pre-code for <code> inside <pre>.
+     Without this, prose defaults to a light-grey value designed for dark
+     backgrounds and the text becomes invisible on bg-muted/50 in light mode.
+     Pin it to --foreground so it stays legible in both themes.              */
+  --tw-prose-pre-code: hsl(var(--foreground));
+  --tw-prose-pre-bg: transparent;
+  --tw-prose-th-borders: hsl(var(--border));
+  --tw-prose-td-borders: hsl(var(--border));
+}
+
+/* Inline code — rendered as <code class="wiki-inline-code"> (not wrapped in
+   <pre>). Background uses bg-muted/60 equivalent; foreground from theme so
+   contrast ≥4.5:1 in both light and dark.                                   */
+.wiki-article .wiki-inline-code {
+  background-color: hsl(var(--muted) / 0.7);
+  color: hsl(var(--foreground));
+  padding-inline: 0.3em;
+  padding-block: 0.15em;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  /* Keep LTR direction inside RTL prose */
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* Table cells default to left via prose; right-align for the RTL Arabic wiki. */
+.wiki-article.prose :is(th, td) {
+  text-align: right;
+}
+
 /* Mobile drawer RTL slide (T-136 B-1)
    On mobile (<md) the nav is position:fixed and uses translateX to slide.
    data-wiki-drawer attribute drives the open/closed state.
