@@ -165,7 +165,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827m0 3h.01" />
                 </svg>
               </div>
-              <div className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-cyan-400 dark:bg-cyan-500" />
+              <div className="absolute -end-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-cyan-400 dark:bg-cyan-500" />
             </div>
 
             <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -322,7 +322,7 @@ export const AskUserQuestionPanel: React.FC<PermissionPanelProps> = ({
                     placeholder="Type your answer..."
                     className="w-full rounded-lg border-0 bg-gray-50 px-3 py-1.5 text-[13px] text-gray-900 outline-none ring-1 ring-gray-200 transition-shadow duration-200 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-400 dark:bg-gray-900/60 dark:text-gray-100 dark:ring-gray-700 dark:placeholder:text-gray-600 dark:focus:ring-blue-500"
                   />
-                  <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-gray-200 bg-gray-100 px-1 py-0.5 font-mono text-[9px] text-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-600">
+                  <kbd className="absolute end-2 top-1/2 -translate-y-1/2 rounded border border-gray-200 bg-gray-100 px-1 py-0.5 font-mono text-[9px] text-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-600">
                     Enter
                   </kbd>
                 </div>

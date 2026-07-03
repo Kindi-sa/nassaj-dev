@@ -133,7 +133,7 @@ export default function CommitComposer({
                 }
               }}
             />
-            <div className="absolute right-2 top-2 flex gap-1">
+            <div className="absolute end-2 top-2 flex gap-1">
               <button
                 onClick={() => void handleGenerateMessage()}
                 disabled={selectedFileCount === 0 || isGeneratingMessage}

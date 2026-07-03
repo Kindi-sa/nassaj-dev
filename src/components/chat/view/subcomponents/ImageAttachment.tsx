@@ -34,7 +34,7 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }: ImageAttachm
       <button
         type="button"
         onClick={onRemove}
-        className="absolute -right-2 -top-2 rounded-full bg-red-500 p-1 text-white opacity-100 transition-opacity focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+        className="absolute -end-2 -top-2 rounded-full bg-red-500 p-1 text-white opacity-100 transition-opacity focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
         aria-label="Remove image"
       >
         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

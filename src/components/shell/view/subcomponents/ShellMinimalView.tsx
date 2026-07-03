@@ -99,7 +99,7 @@ export default function ShellMinimalView({
       )}
 
       {showMobileAuthPanelToggle && (
-        <div className="absolute bottom-14 right-3 z-20 md:hidden">
+        <div className="absolute bottom-14 end-3 z-20 md:hidden">
           <button
             type="button"
             onClick={() => setIsAuthPanelHidden(false)}

@@ -216,7 +216,7 @@ export default function SidebarHeader({
             {/* Membership filter + archive toggle */}
             {filterToggle}
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/50" />
               <Input
                 type="text"
                 placeholder={searchPlaceholder}
@@ -228,7 +228,7 @@ export default function SidebarHeader({
                 <button
                   onClick={onClearSearchFilter}
                   aria-label={t('tooltips.clearSearch')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 hover:bg-accent"
+                  className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-md p-0.5 hover:bg-accent"
                 >
                   <X className="h-3 w-3 text-muted-foreground" />
                 </button>
@@ -236,7 +236,7 @@ export default function SidebarHeader({
                 <kbd
                   aria-hidden
                   title={t('tooltips.openCommandPalette')}
-                  className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground md:inline-flex"
+                  className="pointer-events-none absolute end-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground md:inline-flex"
                 >
                   {MOD_KEY}
                   <span>K</span>
@@ -292,7 +292,7 @@ export default function SidebarHeader({
           <div className="mt-2.5 space-y-2">
             {filterToggle}
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
+              <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/50" />
               <Input
                 type="text"
                 placeholder={searchPlaceholder}
@@ -304,7 +304,7 @@ export default function SidebarHeader({
                 <button
                   onClick={onClearSearchFilter}
                   aria-label={t('tooltips.clearSearch')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 hover:bg-accent"
+                  className="absolute end-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 hover:bg-accent"
                 >
                   <X className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>

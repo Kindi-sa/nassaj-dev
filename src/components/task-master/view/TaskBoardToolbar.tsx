@@ -92,7 +92,7 @@ export default function TaskBoardToolbar({
     <>
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="relative max-w-md flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
             value={searchTerm}
@@ -185,7 +185,7 @@ export default function TaskBoardToolbar({
                     </button>
 
                     {isPrdDropdownOpen && (
-                      <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                      <div className="absolute end-0 top-full z-30 mt-2 w-56 rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                         <div className="p-2">
                           <button
                             onClick={() => {

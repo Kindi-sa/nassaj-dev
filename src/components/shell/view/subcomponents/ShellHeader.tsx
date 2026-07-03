@@ -101,7 +101,7 @@ export default function ShellHeader({
               <div
                 role="listbox"
                 aria-label="Terminal theme"
-                className="absolute right-0 top-full z-30 mt-1 min-w-[10rem] rounded-md border border-gray-700 bg-gray-800 py-1 shadow-xl"
+                className="absolute end-0 top-full z-30 mt-1 min-w-[10rem] rounded-md border border-gray-700 bg-gray-800 py-1 shadow-xl"
               >
                 {TERMINAL_THEMES.map((entry) => {
                   const isActive = entry.id === terminalThemeId;
