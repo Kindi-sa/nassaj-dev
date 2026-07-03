@@ -3031,7 +3031,7 @@
    "status": "done",
    "owner": "frontend-dev",
    "title": "تنفيذ توحيد سياق RTL في الويكي: حدّ dir=rtl واحد + إزالة الترقيع الفيزيائي القسري واستعادة الثقة بالمنطقي",
-   "note": "قيد التنفيذ 2026-07-02 بوكيل واحد (خطر race على العقد المشترك). بوابة قبول: build + 122+ اختبار أخضر + تحقّق حيّ 4 أوضاع + الحفاظ على B-122.",
+   "note": "منجَز 2026-07-02. توحيد حدّ dir=rtl + إزالة الترقيع الفيزيائي القسري. تحقّق حيّ playwright: محاذاة RTL سليمة في فاتح/داكن/جوال/ديسكتوب.",
    "closed": "2026-07-02"
   },
   {
@@ -3041,7 +3041,7 @@
    "status": "done",
    "owner": "frontend-dev",
    "title": "تفكيك WikiPanel.tsx (989 سطراً) وفق خطة architect P0→P2 إلى ~12 ملفاً + توثيق invariant + اختبار collapseHtmlBlocks",
-   "note": "قيد التنفيذ 2026-07-02 بوكيل واحد (خطر race على العقد المشترك). بوابة قبول: build + 122+ اختبار أخضر + تحقّق حيّ 4 أوضاع + الحفاظ على B-122.",
+   "note": "منجَز 2026-07-02 بوكيل واحد (نجا جزئياً موت الوكيل الخلفي بخروج المنسّق؛ المنسّق أكمل التحقّق والإيداع). WikiPanel 989→255 سطراً/~12 ملفاً. typecheck نظيف، المجموعة الكاملة 129/129، build نظيف منشور. تحقّق حيّ 4 أوضاع صفر أخطاء console + B-122 محفوظ (drawer يعمل) + حرّاس الانحدار أُعيد توجيهها لـWikiSidebar.tsx وتحقّق سلبي مستقل.",
    "closed": "2026-07-02"
   }
  ],
@@ -4202,7 +4202,7 @@
    "triage": "medium → backlog/سبرنت تثبيت. الجذر <html> بلا dir app-wide فتنحلّ utilities المنطقية خطأً فتُجبَر بالفيزيائي (فكل منطقي زخرفة بلا أثر). إصلاح محلي آمن للويكي: توحيد dir=rtl في حاوية جذر اللوحة (WikiPanel.tsx:774)، حذف التكرار على <article> (951)، إزالة text-align:right القسري (wiki-panel.css:78-79,119-121) والثقة بالمنطقي؛ يحلّ 3 نتائج ثانوية تبعاً (WikiSearchField:250، TOC:481/499). جهد S→M. أبقِ عزل LTR للكود/المخططات (unicode-bidi:isolate — صحيح). كشفه architect.",
    "description": "يُحقن dir=rtl يدوياً بموضعين (774 الحاوية، 951 المقالة المكرَّر) ثم يرقّع بـ~45 موضعاً تخلط المحاور: right-0 فيزيائي للدرج (823)، text-align:right قسري (css 78/119)، rtl:rotate-180 للأيقونات. أصل الداء عام (الجذر بلا dir) لكن الإصلاح الجذري app-wide (كتابة documentElement.dir من مبدّل RTL) بند ADR منفصل للمالك — خارج نطاق الويكي.",
    "resolved": "2026-07-02",
-   "fix": "حدّ سياق dir=\"rtl\" واحد على جذر اللوحة (WikiPanel.tsx:145)، حُذف التكرار على <article>، أُزيل text-align:right القسري من wiki-panel.css واعتُمدت الخصائص المنطقية (text-start/end-0)، وWikiSearchField/TOC حُوّلت للمنطقي؛ أُبقي عزل LTR للكود/المخططات. تحقّق حيّ: محاذاة سليمة فاتح/جوال. إصلاح جذر <html dir> app-wide يبقى ADR منفصل."
+   "fix": "توحيد سياق RTL: dir=rtl على حاوية جذر اللوحة فقط + حذف التكرار على <article> + إزالة text-align:right القسري واستعادة الثقة بالمنطقي (text-start). عزل LTR للكود/المخططات مُبقى. تحقّق حيّ: محاذاة سليمة فاتح/داكن/جوال. (جذر <html dir> app-wide يبقى بند ADR منفصل للمالك.)"
   },
   {
    "id": "B-124",
@@ -4215,7 +4215,7 @@
    "triage": "medium → backlog. التفكيك المقترح (architect): P0 صفر مخاطرة — wikiContent.ts (getPageContent+collapseHtmlBlocks، يفتح اختبار وحدة على SVG حقيقي)، useIsDesktop.ts (يوحّد matchMedia المكرّر 3 مرّات)، WikiContext.tsx. P1 — markdown/{CodeBlock,HeadingWithId,AnchorLink,markdownComponents}+domHighlight+TableOfContents. P2 — WikiSidebar+useWikiKeyboard، فيبقى WikiPanel ~150-200 سطراً. قيد: MARKDOWN_COMPONENTS/WikiCtx عقد مشترك = خطر race → وكيل واحد للتفكيك لا توزيع متوازٍ (memory feedback_parallel_subagent_shared_files). كشفه architect. النموذج الناجح: useWikiSearch/WikiMermaidDiagram/wikiUtils مفصولة أصلاً.",
    "description": "9–11 مسؤولية في ملف واحد: useIsDesktop(37-56)، تحميل+collapseHtmlBlocks(61-106)، WikiCtx(108-127)، CopyButton/CodeBlock(133-214)، HeadingWithId(220-274)، AnchorLink(280-340)، MARKDOWN_COMPONENTS(346-417)، TableOfContents(423-512)، PrevNextNav(518-564)، scrollToMatchedTerm(570-619)، WikiPanel(625-989 مع 4 refs+6 states+5 effects). ثانوي: collapseHtmlBlocks regex هشّ (svg متداخل/ذاتي الإغلاق/داخل fence يكسره) — مقبول على المحتوى الحالي، وثّق invariant؛ rehype-raw بلا sanitize مقبول build-time-trusted فقط (خطر XSS لو صار المصدر ديناميكياً) — وثّق invariant + بوابة CI.",
    "resolved": "2026-07-02",
-   "fix": "WikiPanel.tsx 989→256 سطراً. استُخرجت: wikiContent.ts(+test)، useIsDesktop.ts، WikiContext.tsx، domHighlight.ts، markdown/{CodeBlock,HeadingWithId,AnchorLink,markdownComponents}، view/{TableOfContents,PrevNextNav,WikiSidebar}، useWikiKeyboard.ts. FocusTrap+B-122 انتقلا لـWikiSidebar.tsx (حرّاس الانحدار حُدّثت لمساره ومُتحقَّقة سلباً). tsc نظيف، 129 اختباراً أخضر. invariant موثّق لـcollapseHtmlBlocks/rehype-raw + اختبار على SVG حقيقي."
+   "fix": "تفكيك WikiPanel.tsx 989→255 سطراً إلى ~12 ملفاً: wikiContent.ts/.test.ts، useIsDesktop.ts، WikiContext.tsx، domHighlight.ts، markdown/{CodeBlock,HeadingWithId,AnchorLink,markdownComponents}، view/{TableOfContents,PrevNextNav,WikiSidebar}، useWikiKeyboard.ts. FocusTrap+B-122 انتقلا لـWikiSidebar.tsx وحرّاس الانحدار أُعيد توجيهها إليه (تحقّق سلبي مستقل). invariant موثّق لـrehype-raw/collapseHtmlBlocks + اختبار وحدة على SVG حقيقي."
   }
  ],
  "decisions": [
