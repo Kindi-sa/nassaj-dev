@@ -115,7 +115,7 @@ export default function ProviderLoginModal({
                 The Gemini CLI requires an API key to function. Configure it in your terminal first.
               </p>
 
-              <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 text-left shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 text-start shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <ol className="space-y-4">
                   <li className="flex gap-4">
                     <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-sm font-medium text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">

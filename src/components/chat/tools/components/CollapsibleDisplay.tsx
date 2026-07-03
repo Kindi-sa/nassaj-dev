@@ -18,15 +18,15 @@ interface CollapsibleDisplayProps {
 }
 
 const borderColorMap: Record<string, string> = {
-  edit: 'border-l-amber-500 dark:border-l-amber-400',
-  search: 'border-l-muted-foreground/40',
-  bash: 'border-l-green-500 dark:border-l-green-400',
-  todo: 'border-l-violet-500 dark:border-l-violet-400',
-  task: 'border-l-violet-500 dark:border-l-violet-400',
-  agent: 'border-l-purple-500 dark:border-l-purple-400',
-  plan: 'border-l-indigo-500 dark:border-l-indigo-400',
-  question: 'border-l-blue-500 dark:border-l-blue-400',
-  default: 'border-l-border',
+  edit: 'border-s-amber-500 dark:border-s-amber-400',
+  search: 'border-s-muted-foreground/40',
+  bash: 'border-s-green-500 dark:border-s-green-400',
+  todo: 'border-s-violet-500 dark:border-s-violet-400',
+  task: 'border-s-violet-500 dark:border-s-violet-400',
+  agent: 'border-s-purple-500 dark:border-s-purple-400',
+  plan: 'border-s-indigo-500 dark:border-s-indigo-400',
+  question: 'border-s-blue-500 dark:border-s-blue-400',
+  default: 'border-s-border',
 };
 
 export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
@@ -45,7 +45,7 @@ export const CollapsibleDisplay: React.FC<CollapsibleDisplayProps> = ({
   const borderColor = borderColorMap[toolCategory || 'default'] || borderColorMap.default;
 
   return (
-    <div className={`border-l-2 ${borderColor} my-1 py-0.5 pl-3 ${className}`}>
+    <div className={`border-s-2 ${borderColor} my-1 py-0.5 ps-3 ${className}`}>
       <CollapsibleSection
         title={title}
         toolName={toolName}

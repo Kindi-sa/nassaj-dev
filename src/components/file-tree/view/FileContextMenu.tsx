@@ -288,7 +288,7 @@ export default function FileContextMenu({
                   disabled={isLoading || action.isDisabled}
                   onClick={() => runMenuActionAndClose(action.onSelect)}
                   className={cn(
-                    'w-full flex items-center gap-3 px-3 py-2 text-sm text-left rounded-md transition-colors',
+                    'w-full flex items-center gap-3 px-3 py-2 text-sm text-start rounded-md transition-colors',
                     'focus:outline-none focus:bg-accent',
                     action.isDisabled
                       ? 'opacity-50 cursor-not-allowed'

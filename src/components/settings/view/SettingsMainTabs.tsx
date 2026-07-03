@@ -47,7 +47,7 @@ export default function SettingsMainTabs({ activeTab, onChange }: SettingsMainTa
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {Icon && <Icon className="mr-2 inline h-4 w-4" />}
+              {Icon && <Icon className="me-2 inline h-4 w-4" />}
               {tab.labelKey ? t(tab.labelKey) : tab.label}
             </button>
           );

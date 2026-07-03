@@ -56,7 +56,7 @@ function TreeItemIcon({ item, isOpen, renderFileIcon }: TreeItemIconProps) {
     );
   }
 
-  return <span className="ml-[18px] flex flex-shrink-0 items-center">{renderFileIcon(item.name)}</span>;
+  return <span className="ms-[18px] flex flex-shrink-0 items-center">{renderFileIcon(item.name)}</span>;
 }
 
 export default function FileTreeNode({
@@ -159,7 +159,7 @@ export default function FileTreeNode({
             <TreeItemIcon item={item} isOpen={isOpen} renderFileIcon={renderFileIcon} />
             <span className={nameClassName}>{item.name}</span>
           </div>
-          <div className="ml-2 flex flex-shrink-0 items-center gap-3 text-sm text-muted-foreground">
+          <div className="ms-2 flex flex-shrink-0 items-center gap-3 text-sm text-muted-foreground">
             {item.type === 'file' && (
               <>
                 <span className="tabular-nums">{formatFileSize(item.size)}</span>

@@ -262,7 +262,7 @@ export default function SidebarContent({
                         {projectSessions.map((session) => (
                           <button
                             key={String(session.id)}
-                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-accent/40"
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-start transition-colors hover:bg-accent/40"
                             onClick={() => onArchivedSessionClick({
                               sessionId: String(session.id),
                               provider: session.__provider,
@@ -350,7 +350,7 @@ export default function SidebarContent({
                     {group.sessions.map((session) => (
                       <div key={session.sessionId} className="flex items-center gap-2 px-3 py-2.5">
                         <button
-                          className="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-foreground"
+                          className="flex min-w-0 flex-1 items-center gap-2 text-start transition-colors hover:text-foreground"
                           onClick={() => onArchivedSessionClick(session)}
                         >
                           <SessionProviderLogo provider={session.provider} className="h-3.5 w-3.5 flex-shrink-0" />

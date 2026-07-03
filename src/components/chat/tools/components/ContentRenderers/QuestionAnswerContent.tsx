@@ -55,7 +55,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
             <button
               type="button"
               onClick={() => setExpandedIdx(isExpanded ? null : idx)}
-              className="flex w-full items-start gap-2.5 px-3 py-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+              className="flex w-full items-start gap-2.5 px-3 py-2 text-start transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
             >
               <div className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full ${
                 answerLabels.length > 0
@@ -126,7 +126,7 @@ export const QuestionAnswerContent: React.FC<QuestionAnswerContentProps> = ({
 
             {isExpanded && (
               <div className="border-t border-gray-100 px-3 pb-2.5 pt-0.5 dark:border-gray-700/40">
-                <div className="ml-6.5 space-y-1">
+                <div className="ms-[26px] space-y-1">
                   {options.map((opt) => {
                     const wasSelected = answerLabels.includes(opt.label);
                     return (

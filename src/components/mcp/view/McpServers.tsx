@@ -213,7 +213,7 @@ export default function McpServers({ selectedProvider, currentProjects }: McpSer
                 </div>
               </div>
 
-              <div className="ml-4 flex items-center gap-2">
+              <div className="ms-4 flex items-center gap-2">
                 <Button
                   onClick={() => openForm(server)}
                   variant="ghost"

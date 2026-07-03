@@ -154,7 +154,7 @@ export default function GitPanelHeader({
                   <button
                     key={branch}
                     onClick={() => void handleSwitchBranch(branch)}
-                    className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-accent ${
+                    className={`w-full px-4 py-2 text-start text-sm transition-colors hover:bg-accent ${
                       branch === currentBranch ? 'bg-accent/50 text-foreground' : 'text-muted-foreground'
                     }`}
                   >
@@ -171,7 +171,7 @@ export default function GitPanelHeader({
                     setShowNewBranchModal(true);
                     setShowBranchDropdown(false);
                   }}
-                  className="flex w-full items-center space-x-2 px-4 py-2 text-left text-sm transition-colors hover:bg-accent"
+                  className="flex w-full items-center space-x-2 px-4 py-2 text-start text-sm transition-colors hover:bg-accent"
                 >
                   <Plus className="h-3 w-3" />
                   <span>Create new branch</span>

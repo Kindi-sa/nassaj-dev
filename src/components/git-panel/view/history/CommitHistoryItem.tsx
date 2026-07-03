@@ -39,7 +39,7 @@ export default function CommitHistoryItem({
       <button
         type="button"
         aria-expanded={isExpanded}
-        className="flex w-full cursor-pointer items-start border-0 bg-transparent p-3 text-left transition-colors hover:bg-accent/50"
+        className="flex w-full cursor-pointer items-start border-0 bg-transparent p-3 text-start transition-colors hover:bg-accent/50"
         onClick={onToggle}
       >
         <span className="mr-2 mt-1 rounded p-0.5 hover:bg-accent">

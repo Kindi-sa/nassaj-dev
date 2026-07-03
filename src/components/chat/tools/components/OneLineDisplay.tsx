@@ -70,7 +70,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   const renderCopyButton = () => (
     <button
       onClick={handleAction}
-      className="ml-1 flex-shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100"
+      className="ms-1 flex-shrink-0 text-muted-foreground/40 opacity-0 transition-all hover:text-muted-foreground group-hover:opacity-100"
       title="Copy to clipboard"
       aria-label="Copy to clipboard"
     >
@@ -107,7 +107,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
           </div>
         </div>
         {secondary && (
-          <div className="ml-7 mt-1">
+          <div className="ms-7 mt-1">
             <span className="text-[11px] italic text-muted-foreground/60">
               {secondary}
             </span>
@@ -121,7 +121,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   if (action === 'open-file') {
     const displayName = value.split('/').pop() || value;
     return (
-      <div className={`group flex items-center gap-1.5 border-l-2 ${colorScheme.border} my-0.5 py-0.5 pl-3`}>
+      <div className={`group flex items-center gap-1.5 border-s-2 ${colorScheme.border} my-0.5 py-0.5 ps-3`}>
         <span className="flex-shrink-0 text-xs text-muted-foreground">{label || toolName}</span>
         <span className="text-[10px] text-muted-foreground/40">/</span>
         <button
@@ -139,7 +139,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
   // Search / jump-to-results style
   if (action === 'jump-to-results') {
     return (
-      <div className={`group flex items-center gap-1.5 border-l-2 ${colorScheme.border} my-0.5 py-0.5 pl-3`}>
+      <div className={`group flex items-center gap-1.5 border-s-2 ${colorScheme.border} my-0.5 py-0.5 ps-3`}>
         <span className="flex-shrink-0 text-xs text-muted-foreground">{label || toolName}</span>
         <span className="text-[10px] text-muted-foreground/40">/</span>
         <span className={`min-w-0 flex-1 truncate font-mono text-xs ${colorScheme.primary}`}>
@@ -167,7 +167,7 @@ export const OneLineDisplay: React.FC<OneLineDisplayProps> = ({
 
   // Default one-line style
   return (
-    <div className={`group flex items-center gap-1.5 ${colorScheme.background || ''} border-l-2 ${colorScheme.border} my-0.5 py-0.5 pl-3`}>
+    <div className={`group flex items-center gap-1.5 ${colorScheme.background || ''} border-s-2 ${colorScheme.border} my-0.5 py-0.5 ps-3`}>
       {icon && icon !== 'terminal' && (
         <span className={`${colorScheme.icon} flex-shrink-0 text-xs`}>{icon}</span>
       )}

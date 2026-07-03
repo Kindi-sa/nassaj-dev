@@ -242,7 +242,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
                     </span>
 
                     {/* Name + description */}
-                    <div className="min-w-0 flex-1 text-left">
+                    <div className="min-w-0 flex-1 text-start">
                       <div className="flex items-center gap-1.5 leading-none">
                         <span className={cn(
                           'text-sm font-semibold',

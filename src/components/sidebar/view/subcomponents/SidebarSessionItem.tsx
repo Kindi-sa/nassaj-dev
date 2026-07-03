@@ -279,7 +279,7 @@ export default function SidebarSessionItem({
           href={buildSessionUrl(session.id)}
           onClick={handleSessionLinkClick}
           className={cn(
-            'no-underline flex w-full items-center justify-start rounded-md p-2 h-auto text-sm font-normal text-left text-foreground hover:bg-accent/50 transition-colors duration-200',
+            'no-underline flex w-full items-center justify-start rounded-md p-2 h-auto text-sm font-normal text-start text-foreground hover:bg-accent/50 transition-colors duration-200',
             isSelected && 'bg-accent text-accent-foreground',
           )}
         >

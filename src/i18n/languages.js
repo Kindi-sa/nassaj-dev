@@ -7,8 +7,8 @@
  * - label: Display name in English
  * - nativeName: Native language name for display
  * - dir: (optional) preferred text direction hint for this language ('ltr' | 'rtl').
- *        Note: actual UI direction is controlled by the standalone RTL toggle in
- *        Appearance settings — language selection does NOT change direction.
+ *        Note: actual UI direction is controlled automatically by RtlContext based
+ *        on the selected language — Arabic selects RTL, English selects LTR.
  */
 
 // Languages exposed in the UI picker. Restricted to Arabic + English by owner

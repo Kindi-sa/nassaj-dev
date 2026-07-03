@@ -58,7 +58,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
   const title = `Subagent / ${subagentType}: ${description}`;
 
   return (
-    <div className="my-1 border-l-2 border-l-purple-500 py-0.5 pl-3 dark:border-l-purple-400">
+    <div className="my-1 border-s-2 border-s-purple-500 py-0.5 ps-3 dark:border-s-purple-400">
       <CollapsibleSection
         title={title}
         toolName="Task"
@@ -113,7 +113,7 @@ export const SubagentContainer: React.FC<SubagentContainerProps> = ({
               <span>View tool history ({childTools.length})</span>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <div className="mt-1 space-y-0.5 border-l border-border pl-3">
+              <div className="mt-1 space-y-0.5 border-s border-border ps-3">
                 {childTools.map((child, index) => (
                   <div key={child.toolId} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <span className="w-4 flex-shrink-0 text-right text-muted-foreground/60">{index + 1}.</span>

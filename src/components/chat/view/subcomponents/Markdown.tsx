@@ -124,7 +124,7 @@ const markdownComponents = {
   h4: ({ children }: { children?: React.ReactNode }) => <h4 className="mb-1 mt-2 text-base font-semibold" dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</h4>,
   li: ({ children }: { children?: React.ReactNode }) => <li dir="auto" style={{ unicodeBidi: 'plaintext' }}>{children}</li>,
   blockquote: ({ children }: { children?: React.ReactNode }) => (
-    <blockquote className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-600 dark:border-gray-600 dark:text-gray-400" dir="auto" style={{ unicodeBidi: 'plaintext' }}>
+    <blockquote className="my-2 border-s-4 border-gray-300 ps-4 italic text-gray-600 dark:border-gray-600 dark:text-gray-400" dir="auto" style={{ unicodeBidi: 'plaintext' }}>
       {children}
     </blockquote>
   ),
