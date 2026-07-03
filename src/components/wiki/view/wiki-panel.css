@@ -65,18 +65,16 @@
 }
 
 /* RTL alignment + theme-aware prose colours ─────────────────────────────────
-   Two pre-existing bugs the diagrams inherit context from: (1) the app root is
-   <html dir="ltr"> (B-119), so the logical `text-start` utility resolves to LEFT
-   and the Arabic prose hugs the wrong edge; (2) Tailwind Typography's default
-   bold/link/marker colours are near-black and vanish on the dark background.
-   Fix both here: force physical right alignment and map every prose colour
-   token to the app's theme variables so all text is legible in light AND dark.
+   The wiki panel root carries dir="rtl" (WikiPanel.tsx), so logical properties
+   resolve correctly within this boundary — text-align:start = right in RTL.
+   (2) Tailwind Typography's default bold/link/marker colours are near-black and
+   vanish on the dark background — map every prose colour token to the app's
+   theme variables so all text is legible in light AND dark.
    Code/pre keep LTR + left via their own rule above.
    Selector is doubled (.wiki-article.prose) so it outranks Tailwind's own
-   `.prose` var defaults and the `.text-start` utility (both specificity 0,1,0),
-   which otherwise win on source order.                                        */
+   `.prose` var defaults (both specificity 0,1,0 — source-order wins).       */
 .wiki-article.prose {
-  text-align: right;
+  text-align: start;
   --tw-prose-body: hsl(var(--foreground));
   --tw-prose-headings: hsl(var(--foreground));
   --tw-prose-bold: hsl(var(--foreground));
@@ -115,9 +113,9 @@
   unicode-bidi: isolate;
 }
 
-/* Table cells default to left via prose; right-align for the RTL Arabic wiki. */
+/* Table cells: use logical start so RTL dir="rtl" on the wiki root applies. */
 .wiki-article.prose :is(th, td) {
-  text-align: right;
+  text-align: start;
 }
 
 /* Mobile drawer RTL slide (T-136 B-1)

@@ -164,8 +164,11 @@ function BombComponent({ shouldThrow }: { shouldThrow: boolean }) {
 
 describe('D — source-guard: حرّاس الكود الحقيقي (B-122)', () => {
   // القراءة مرة واحدة لكل describe — لا تكلفة في كل اختبار
-  const wikiPanelSrc = readFileSync(
-    resolve(__dirname, 'WikiPanel.tsx'),
+  //
+  // ملاحظة: بعد تفكيك B-124، إصلاح B-122 (FocusTrap + tabIndex) انتقل إلى
+  // WikiSidebar.tsx الذي يحوي الـdrawer. D-1/D-2/D-3 تقرأ WikiSidebar.tsx.
+  const wikiSidebarSrc = readFileSync(
+    resolve(__dirname, 'WikiSidebar.tsx'),
     'utf8',
   );
   const mainContentSrc = readFileSync(
@@ -173,15 +176,15 @@ describe('D — source-guard: حرّاس الكود الحقيقي (B-122)', () 
     'utf8',
   );
 
-  // ── WikiPanel.tsx ─────────────────────────────────────────────────────────
+  // ── WikiSidebar.tsx ───────────────────────────────────────────────────────
 
-  it('D-1: WikiPanel.tsx يحوي fallbackFocus يشير إلى #wiki-sidebar داخل focusTrapOptions (لا تعليق)', () => {
+  it('D-1: WikiSidebar.tsx يحوي fallbackFocus يشير إلى #wiki-sidebar داخل focusTrapOptions (لا تعليق)', () => {
     // نمط متسامح: single أو double quotes، مسافات اختيارية حول ':'
     // يُطابق: fallbackFocus: '#wiki-sidebar'  أو  fallbackFocus:'#wiki-sidebar'
     //      أو: fallbackFocus: "#wiki-sidebar"
     // نفلتر التعليقات لمنع إيجابيات كاذبة من أسطر // أو /* أو *
     const pattern = /fallbackFocus\s*:\s*['"]#wiki-sidebar['"]/;
-    const lines = wikiPanelSrc.split('\n');
+    const lines = wikiSidebarSrc.split('\n');
     const activeFallbackLines = lines.filter((line) => {
       const trimmed = line.trim();
       const isComment = /^(\/\/|\/\*|\*)/.test(trimmed);
@@ -189,15 +192,15 @@ describe('D — source-guard: حرّاس الكود الحقيقي (B-122)', () 
     });
     expect(
       activeFallbackLines.length,
-      `fallbackFocus: '#wiki-sidebar' مفقود كـproperty JSX فعلي في WikiPanel.tsx\n` +
+      `fallbackFocus: '#wiki-sidebar' مفقود كـproperty JSX فعلي في WikiSidebar.tsx\n` +
       `(ظهر في تعليق فقط أو غائب تماماً — focus-trap لن يملك fallback عند 0 tabbable nodes)`,
     ).toBeGreaterThanOrEqual(1);
   });
 
-  it('D-2: WikiPanel.tsx يحوي nav#wiki-sidebar بـtabIndex={-1} كـattribute JSX حقيقي (لا تعليق)', () => {
+  it('D-2: WikiSidebar.tsx يحوي nav#wiki-sidebar بـtabIndex={-1} كـattribute JSX حقيقي (لا تعليق)', () => {
     // نُقسّم الملف على أسطر ونبحث عن سطر يحوي tabIndex={-1}
     // وليس تعليقاً (لا يبدأ بـ// أو * أو /* بعد مسافات بيضاء)
-    const lines = wikiPanelSrc.split('\n');
+    const lines = wikiSidebarSrc.split('\n');
     const activeTabIndexLines = lines.filter((line) => {
       const trimmed = line.trim();
       // سطر تعليق: يبدأ بـ// أو * أو /*
@@ -205,23 +208,23 @@ describe('D — source-guard: حرّاس الكود الحقيقي (B-122)', () 
       return !isComment && /tabIndex=\{-1\}/.test(line);
     });
 
-    const hasNavId = /id=["']wiki-sidebar["']/.test(wikiPanelSrc);
+    const hasNavId = /id=["']wiki-sidebar["']/.test(wikiSidebarSrc);
 
     expect(
       hasNavId,
-      'id="wiki-sidebar" مفقود من nav في WikiPanel.tsx — إصلاح B-122 أُزيل',
+      'id="wiki-sidebar" مفقود من nav في WikiSidebar.tsx — إصلاح B-122 أُزيل',
     ).toBe(true);
     expect(
       activeTabIndexLines.length,
-      `tabIndex={-1} مفقود كـattribute JSX فعلي في WikiPanel.tsx — إصلاح B-122 أُزيل\n` +
+      `tabIndex={-1} مفقود كـattribute JSX فعلي في WikiSidebar.tsx — إصلاح B-122 أُزيل\n` +
       `(ظهر في تعليق فقط أو غائب تماماً — focus-trap لن يجد هدف fallback)`,
     ).toBeGreaterThanOrEqual(1);
   });
 
-  it('D-3: WikiPanel.tsx يحوي كلاً من fallbackFocus وtabIndex={-1} فعليّاً (لا إصلاح جزئي)', () => {
+  it('D-3: WikiSidebar.tsx يحوي كلاً من fallbackFocus وtabIndex={-1} فعليّاً (لا إصلاح جزئي)', () => {
     // يكتشف الإصلاح الجزئي: واحد موجود والآخر غائب
     // كلا الفحصين يستثنيان الأسطر التعليقية لمنع الإيجابيات الكاذبة
-    const lines = wikiPanelSrc.split('\n');
+    const lines = wikiSidebarSrc.split('\n');
     const isCodeLine = (line: string) => !/^\s*(\/\/|\/\*|\*)/.test(line);
     const fallbackPattern = /fallbackFocus\s*:\s*['"]#wiki-sidebar['"]/;
     const tabIndexPattern = /tabIndex=\{-1\}/;

@@ -247,7 +247,7 @@ export default function WikiSearchField({
                     type="button"
                     onClick={() => handleSelect(match.file, match.matchedTerm)}
                     className={[
-                      'flex w-full flex-col gap-0.5 px-3 py-2 text-right',
+                      'flex w-full flex-col gap-0.5 px-3 py-2 text-start',
                       'focus:outline-none transition-colors',
                       'border-b border-border/30 last:border-b-0',
                       isActive
