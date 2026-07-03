@@ -208,10 +208,6 @@
         "name": "표준",
         "description": "effort 매개변수 없음 — 기본 Claude 동작"
       },
-      "auto": {
-        "name": "자동",
-        "description": "모델이 요청 복잡도에 따라 노력 수준을 선택합니다"
-      },
       "low": {
         "name": "낮음",
         "description": "빠르고 가벼운 응답 — 간단한 질문에 최적"

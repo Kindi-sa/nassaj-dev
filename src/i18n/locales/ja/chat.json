@@ -208,10 +208,6 @@
         "name": "標準",
         "description": "effortパラメータなし — Claudeのデフォルト動作"
       },
-      "auto": {
-        "name": "自動",
-        "description": "モデルがリクエストの複雑さに基づいて努力を選択"
-      },
       "low": {
         "name": "低",
         "description": "高速で軽量な応答 — 簡単な質問に最適"

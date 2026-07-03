@@ -208,10 +208,6 @@
         "name": "Standart",
         "description": "effort parametresi yok — varsayılan Claude davranışı"
       },
-      "auto": {
-        "name": "otomatik",
-        "description": "Model, istek karmaşıklığına göre çabayı otomatik seçer"
-      },
       "low": {
         "name": "düşük",
         "description": "Hızlı, hafif yanıtlar — basit sorular için ideal"

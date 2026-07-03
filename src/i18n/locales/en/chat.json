@@ -208,10 +208,6 @@
         "name": "standard",
         "description": "No effort parameter — default behavior"
       },
-      "auto": {
-        "name": "auto",
-        "description": "Model picks effort by request complexity"
-      },
       "low": {
         "name": "low",
         "description": "Fast, light — best for simple questions"

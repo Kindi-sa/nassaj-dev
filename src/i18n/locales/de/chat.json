@@ -208,10 +208,6 @@
         "name": "Standard",
         "description": "Kein Effort-Parameter — Standard-Claude-Verhalten"
       },
-      "auto": {
-        "name": "auto",
-        "description": "Das Modell wählt den Aufwand automatisch basierend auf der Komplexität"
-      },
       "low": {
         "name": "niedrig",
         "description": "Schnelle, leichte Antworten — am besten für einfache Fragen"

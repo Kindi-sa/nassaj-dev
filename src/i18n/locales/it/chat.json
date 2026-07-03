@@ -208,10 +208,6 @@
         "name": "Standard",
         "description": "Nessun parametro effort — comportamento predefinito di Claude"
       },
-      "auto": {
-        "name": "auto",
-        "description": "Il modello sceglie automaticamente l'impegno in base alla complessità"
-      },
       "low": {
         "name": "low",
         "description": "Risposte rapide e leggere — ideale per domande semplici"

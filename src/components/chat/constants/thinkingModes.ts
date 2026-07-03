@@ -7,7 +7,6 @@ import {
   Cpu,
   Layers,
   Sparkles,
-  Wand2,
 } from 'lucide-react';
 
 export type EffortMode = {
@@ -31,16 +30,6 @@ export const effortModes: EffortMode[] = [
     icon: Minus,
     color: 'text-gray-400',
     intensity: 0,
-  },
-  {
-    id: 'auto',
-    /** Empty string = no effort field sent; model decides autonomously. */
-    effortValue: '',
-    name: 'auto',
-    description: '',
-    icon: Wand2,
-    color: 'text-gray-500',
-    intensity: 1,
   },
   {
     id: 'low',

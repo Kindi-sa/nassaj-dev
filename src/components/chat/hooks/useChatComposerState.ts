@@ -268,7 +268,7 @@ export function useChatComposerState({
   const [uploadingFiles, setUploadingFiles] = useState<Map<string, number>>(new Map());
   const [fileErrors, setFileErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
-  const [thinkingMode, setThinkingMode] = useState('auto');
+  const [thinkingMode, setThinkingMode] = useState('none');
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
   // Non-null while a send failed due to WS disconnect; cleared on next attempt or after timeout.
   const [sendError, setSendError] = useState<string | null>(null);
@@ -1061,7 +1061,7 @@ export function useChatComposerState({
       setUploadingFiles(new Map());
       setFileErrors(new Map());
       setIsTextareaExpanded(false);
-      setThinkingMode('auto');
+      setThinkingMode('none');
 
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';

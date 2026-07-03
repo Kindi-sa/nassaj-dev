@@ -208,8 +208,8 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
               const isSelected = mode.id === selectedMode;
               const isUC = mode.id === 'ultracode';
 
-              // Logical separators: after 'auto' (index 1) and after 'max' (index 6)
-              const showSeparatorBefore = index === 2 || index === 7;
+              // Logical separators: after 'none' (index 0) and after 'max' (index 5)
+              const showSeparatorBefore = index === 1 || index === 6;
 
               return (
                 <div key={mode.id}>
@@ -250,7 +250,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
                         )}>
                           {mode.displayName}
                         </span>
-                        {mode.id === 'auto' && (
+                        {mode.id === 'none' && (
                           <span className="shrink-0 rounded border border-blue-300/50 bg-blue-50/60 px-1 py-px text-[9px] font-semibold text-blue-500 dark:border-blue-700/40 dark:bg-blue-900/20 dark:text-blue-400">
                             default
                           </span>

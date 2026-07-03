@@ -208,10 +208,6 @@
         "name": "标准",
         "description": "无 effort 参数 — 默认 Claude 行为"
       },
-      "auto": {
-        "name": "auto",
-        "description": "模型根据请求复杂度自动选择努力级别"
-      },
       "low": {
         "name": "low",
         "description": "快速轻量的响应 — 适合简单问题"

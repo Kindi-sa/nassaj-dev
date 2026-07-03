@@ -208,10 +208,6 @@
         "name": "قياسي",
         "description": "بلا معامل effort — السلوك الافتراضي"
       },
-      "auto": {
-        "name": "auto",
-        "description": "النموذج يختار الجهد بحسب تعقيد الطلب"
-      },
       "low": {
         "name": "low",
         "description": "سريع وخفيف — للأسئلة البسيطة"
