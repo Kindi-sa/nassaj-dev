@@ -1796,6 +1796,11 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // wrapped defensively so a bug here can never break run completion.
     if (pendingWorkflows > 0) {
       try {
+        // B-126 dedup safety belt: when the inline workflow runner is active
+        // (ENABLE_ULTRACODE_WORKFLOWS => CLAUDE_CODE_WORKFLOWS=1) the workflow
+        // already executed in-process this turn, so the bridge must NOT record an
+        // intent — a mistakenly-enabled supervisor would double-execute it.
+        const inlineWorkflowsActive = (process.env.ENABLE_ULTRACODE_WORKFLOWS === 'true' || process.env.ENABLE_ULTRACODE_WORKFLOWS === '1');
         await writeLaunchIntent({
           userId: ws?.userId ?? null,
           projectPath: options.cwd || options.projectPath || null,
@@ -1803,6 +1808,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
           pendingWorkflows,
           model: options.model ?? null,
           effort: options.effort ?? null,
+          inlineWorkflowsActive,
         });
       } catch { /* never break completion on a bridge failure */ }
     }

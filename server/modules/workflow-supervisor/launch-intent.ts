@@ -17,6 +17,19 @@
  * turn (pendingWorkflows === 0): the bridge only records a real, owned, requested
  * launch, and the supervisor re-validates ownership regardless.
  *
+ * DEDUP SAFETY BELT — LAYER 2 IS DECOMMISSIONED (B-126, owner decision ب1 2026-07-03)
+ * ----------------------------------------------------------------------------------
+ * The durable supervisor (ADR-053 Layer 2) is DECOMMISSIONED and MUST NOT be
+ * enabled: it cannot deliver structural durability (the launch-intent is injected
+ * AFTER the for-await loop, downstream of the very process death it was meant to
+ * survive). Only Layer 1 (orphan-workflow VISIBILITY) is kept live. Because the
+ * inline workflow runner already executes the workflow in-process this turn
+ * (ENABLE_ULTRACODE_WORKFLOWS => CLAUDE_CODE_WORKFLOWS=1), an intent written here
+ * would make a mistakenly-enabled supervisor DOUBLE-EXECUTE the same workflow.
+ * The `inlineWorkflowsActive` gate below is a fail-safe: when inline execution
+ * already ran, we write NOTHING even if the flag is somehow ON. Do NOT re-enable
+ * Layer 2; this bridge stays dormant by design.
+ *
  * THE SERVER WRITES INTENT ONLY — IT LAUNCHES NOTHING
  * ---------------------------------------------------
  * Per the (ب) architecture decision, nassaj-dev never runs systemd-run. It drops
@@ -47,6 +60,13 @@ export type WriteIntentInput = {
   model?: string | null;
   effort?: string | null;
   env?: NodeJS.ProcessEnv;
+  /**
+   * B-126 dedup safety belt: true when the inline workflow runner already
+   * executed this workflow in-process this turn (ENABLE_ULTRACODE_WORKFLOWS on).
+   * When set, the bridge writes nothing so a mistakenly-enabled supervisor can
+   * never re-launch and double-execute an already-run workflow.
+   */
+  inlineWorkflowsActive?: boolean;
 };
 
 export type WriteIntentResult =
@@ -69,6 +89,15 @@ export async function writeLaunchIntent(input: WriteIntentInput): Promise<WriteI
   // Master no-op gate: OFF => touch nothing.
   if (!isSupervisorEnabled(env)) {
     return { written: false, reason: 'flag off' };
+  }
+  // B-126 dedup safety belt: if the workflow already ran inline this turn, writing
+  // an intent would let a mistakenly-enabled supervisor re-launch and DOUBLE-EXECUTE
+  // it. Refuse to write before touching disk. (Layer 2 is decommissioned; see header.)
+  if (input.inlineWorkflowsActive) {
+    return {
+      written: false,
+      reason: 'B-126: workflow executed inline (async_launched); supervisor re-launch would double-execute',
+    };
   }
   // Only record a real, requested workflow launch.
   if (!Number.isInteger(input.pendingWorkflows) || input.pendingWorkflows <= 0) {
