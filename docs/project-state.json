@@ -2,7 +2,7 @@
  "$version": 1,
  "$spec": "~/.claude/wiki/project-board.md",
  "project": "nassaj-dev",
- "updated": "2026-07-02",
+ "updated": "2026-07-03",
  "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
  "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
  "phases": [
@@ -3043,6 +3043,24 @@
    "title": "تفكيك WikiPanel.tsx (989 سطراً) وفق خطة architect P0→P2 إلى ~12 ملفاً + توثيق invariant + اختبار collapseHtmlBlocks",
    "note": "منجَز 2026-07-02 بوكيل واحد (نجا جزئياً موت الوكيل الخلفي بخروج المنسّق؛ المنسّق أكمل التحقّق والإيداع). WikiPanel 989→255 سطراً/~12 ملفاً. typecheck نظيف، المجموعة الكاملة 129/129، build نظيف منشور. تحقّق حيّ 4 أوضاع صفر أخطاء console + B-122 محفوظ (drawer يعمل) + حرّاس الانحدار أُعيد توجيهها لـWikiSidebar.tsx وتحقّق سلبي مستقل.",
    "closed": "2026-07-02"
+  },
+  {
+   "id": "T-707",
+   "kind": "chore",
+   "phase": "P6",
+   "status": "done",
+   "owner": "architect",
+   "title": "تصميم إصلاح اتجاهية التطبيق (ADR-054/B-125): أين تُكتب documentElement.dir/lang، ربطها بمبدّل RTL/اللغة، تدقيق نطاق التأثير، قائمة تحقّق متعدّدة الصفحات",
+   "closed": "2026-07-03",
+   "note": "منجَز 2026-07-03. النتيجة قلبت الفرضية: الكاتب موجود (RtlContext.jsx:58) والاتجاه دالة اللغة؛ العطل ~85 موضع ترقيع LTR فيزيائي مصنّفة T1-T7 مع استبعادات (متناظرة/توسيط/chevron رأسي) وخطة 3 طبقات + مصفوفة تحقّق 10 شاشات. تحقّق المنسّق من الكاتب والتركيب وtailwindcss-rtl بنفسه."
+  },
+  {
+   "id": "T-708",
+   "kind": "bug",
+   "phase": "P6",
+   "status": "in-progress",
+   "owner": "frontend-dev",
+   "title": "تنفيذ ترحيل RTL المنطقي (ADR-054/B-125): ~85 موضعاً على 3 طبقات (T4/T5/T6 → T2/T3 → T1/T7) بتحقّق حيّ بعد كل طبقة"
   }
  ],
  "issues": [
@@ -4216,6 +4234,16 @@
    "description": "9–11 مسؤولية في ملف واحد: useIsDesktop(37-56)، تحميل+collapseHtmlBlocks(61-106)، WikiCtx(108-127)، CopyButton/CodeBlock(133-214)، HeadingWithId(220-274)، AnchorLink(280-340)، MARKDOWN_COMPONENTS(346-417)، TableOfContents(423-512)، PrevNextNav(518-564)، scrollToMatchedTerm(570-619)، WikiPanel(625-989 مع 4 refs+6 states+5 effects). ثانوي: collapseHtmlBlocks regex هشّ (svg متداخل/ذاتي الإغلاق/داخل fence يكسره) — مقبول على المحتوى الحالي، وثّق invariant؛ rehype-raw بلا sanitize مقبول build-time-trusted فقط (خطر XSS لو صار المصدر ديناميكياً) — وثّق invariant + بوابة CI.",
    "resolved": "2026-07-02",
    "fix": "تفكيك WikiPanel.tsx 989→255 سطراً إلى ~12 ملفاً: wikiContent.ts/.test.ts، useIsDesktop.ts، WikiContext.tsx، domHighlight.ts، markdown/{CodeBlock,HeadingWithId,AnchorLink,markdownComponents}، view/{TableOfContents,PrevNextNav,WikiSidebar}، useWikiKeyboard.ts. FocusTrap+B-122 انتقلا لـWikiSidebar.tsx وحرّاس الانحدار أُعيد توجيهها إليه (تحقّق سلبي مستقل). invariant موثّق لـrehype-raw/collapseHtmlBlocks + اختبار وحدة على SVG حقيقي."
+  },
+  {
+   "id": "B-125",
+   "status": "in-progress",
+   "severity": "medium",
+   "phase": "P6",
+   "kind": "bug",
+   "found": "2026-07-02",
+   "title": "~85 موضعاً في مكوّنات التطبيق ترقّع الاتجاه فيزيائياً بافتراض LTR فتنكسر بالوضع العربي (تصحيح B-125: آلية الجذر سليمة — ADR-054)",
+   "triage": "medium → معتمد للتنفيذ الكامل (خيار 1، 2026-07-03). 3 طبقات: T4/T5/T6 آلي آمن → T2/T3 absolute/شارات → T1/T7 أدراج/مفاتيح يدوي. تحقّق حيّ RTL/LTR×فاتح/داكن بعد كل طبقة وفق مصفوفة architect (10 شاشات). فرضية «لا كاتب للجذر» أُسقطت."
   }
  ],
  "decisions": [
@@ -4421,6 +4449,13 @@
    "status": "proposed",
    "date": "2026-06-30",
    "rationale": "ورشة architect+qa-critic عدائي (wf_fea564e9، خطة لا تنفيذ). الجذر: ثلاث ساعات لا رابط بينها (backend 32h+، dist لحظي، عملية Claude عابرة). (A) **نفّذ الآن** — بصمة بناء تُختَم في build:server وتُقرأ وقت الإقلاع وتُعرَض في /health + بانر RTL؛ رفض رؤوس HTTP (هشّة خلف نفق Cloudflare) وWS وsemver (#898/ADR-050). حرج B-A2: الختم يُربَط بـpostbuild:server بعد tsc (prebuild:server يمسح dist-server بـrmSync وإلا انتقل الانحراف للثابت المختوم). (B) **رؤية الآن + صمود مؤجَّل** — المرحلة 1 (Sentinel + تسجيل لحظة الإطلاق لا عند complete، إذ العملية تخرج وسط الموجة فلا تبلغ claude-sdk.js:1730 وSIGKILL/قطع ssh لا يُمسَكان) تُنفَّذ؛ المرحلة 2 (auto-resume) خلف **فيتو T-B0**: resumeFromRunId غير مُتحقَّق ميدانياً أن SDK يستأنف من journal — لا سطر صمود قبل إثباته؛ + حسم المضيف (داخل الخادم يخضع لtreekill أم مضيف منفصل دائم) + عزل per-user fail-closed (IS_PLATFORM/ToS). (C) **أجّل، نفّذ البوّابات** — رفض تبنّي بوّابة upstream الموحّدة الآن (40 ملفاً، يقلب الهوية، يدهس 4 طبقات تعمل)؛ الدَّين رؤية-فقط (المعالِج العميلي فرع ميّت ينتظر باعثاً خادمياً، useChatRealtimeHandlers TODO ADR-048 phase-2)؛ بوّابتان T-C0 (ثبات صيغة journal.jsonl على نسخة SDK) + T-C1 (تحقّق على transcript wf_ef5ba242 الفعلي لا fixtures مصطنعة) **مشتركتان مع B** فتُرفَعان مرّة. الأولوية: A → بوّابتا journal → رؤية B + بثّ C على بنية مشتركة → صمود B أخيراً. كشفت B-104 (انحراف حيّ). الخطة الكاملة: tasks/wsnbwr1pv.output. status=proposed: ينتظر إذن المالك."
+  },
+  {
+   "id": "ADR-054",
+   "status": "accepted",
+   "date": "2026-07-02",
+   "title": "ترحيل اتجاهية مكوّنات التطبيق إلى خصائص منطقية (RTL logical properties) — تصحيح: آلية الجذر سليمة، العطل ترقيع LTR فيزيائي",
+   "rationale": "تصحيح فرضية B-123 بعد تدقيق architect المؤسَّس على الكود + تحقّق المنسّق: يوجد كاتب للجذر (RtlContext.jsx:58، منذ 281c4aee) مربوط بـlanguageChanged، والاتجاه دالة اللغة (المبدّل اليدوي أُزيل 2026-06-16؛ تعليق languages.js:10-11 متقادم ويُصحَّح). الجذر ظهر ltr لأن الإنجليزية هي النشطة الافتراضية — لا عطل. العطل الحقيقي: ~85 موضعاً في مكوّنات التطبيق ترقّع فيزيائياً بافتراض LTR (ml/mr, left/right, text-left, أدراج translate-x، مفاتيح toggle) فتنكسر في الوضع العربي. القرار (اعتمده المالك 2026-07-03، خيار 1): ترحيل كامل إلى خصائص منطقية عبر tailwindcss-rtl المركَّب أصلاً، على 3 طبقات قابلة للنشر مستقلة: (1) T4/T5/T6 استبدال منطقي آمن، (2) T2/T3 تموضع absolute وشارات، (3) T1/T7 أدراج ومفاتيح يدوياً بمتغيّر rtl:. لا تُلمس: RtlContext/i18n/index.css/الويكي/المصادقة/الفئة ج (عزل LTR التقني). أثر صفري على الإنجليزية. التراجع: git revert لكل طبقة."
   }
  ],
  "_note_session_51db2a0a": "ملخص جلسة 51db2a0a (2026-06-25): ثلاث مخرجات. (1) مؤشّر «Workflow شغّال» بالواجهة — أُصلح df79c723 (claude-sdk يبثّ pendingWorkflows + useChatRealtimeHandlers يُبقي isLoading)، حيّ. (2) إدارة المستخدمين/مفتاح الوصول «المعطّلة» — لا خلل كودي (الـAPIs الثلاثة تعمل)؛ السبب توكن بائت→401 صامت؛ موثّق T-216. أُصلح في نفس الجلسة معترض 401 (6fa3f66c) وpwd_iat WS (8c3c0c88). (3) الدخول الموحّد — قرار الوكلاء النهائي Zitadel (تغيّر عن Pocket-ID→Authentik→Zitadel، ADR-045/046)؛ خطة P-IDP-0..5 = T-206..T-212؛ كود نسّاج RP منجَز 96c4af44 (T-210)؛ متبقٍّ للمالك: VM Zitadel على ibrahim-proxmox (T-207/P-IDP-1) + TLS Tailscale (T-208). كل إصلاحات الجلسة في integration/publish ومرفوعة."
