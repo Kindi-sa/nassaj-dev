@@ -29,7 +29,7 @@ export default function QuickSettingsHandle({
 }: QuickSettingsHandleProps) {
   const { t } = useTranslation('settings');
 
-  const placementClass = isOpen ? 'right-64' : 'right-0';
+  const placementClass = isOpen ? 'end-64' : 'end-0';
   const borderClass = isDragging
     ? 'border-primary'
     : 'border-border';
@@ -50,7 +50,7 @@ export default function QuickSettingsHandle({
 
   return (
     <div
-      className={`fixed ${placementClass} z-50 ${transitionClass} ${!isOpen && !isDragging ? 'translate-x-[75%] hover:translate-x-0' : ''}`}
+      className={`fixed ${placementClass} z-50 ${transitionClass} ${!isOpen && !isDragging ? 'ltr:translate-x-[75%] rtl:-translate-x-[75%] ltr:hover:translate-x-0 rtl:hover:translate-x-0' : ''}`}
       style={positionStyle}
     >
       <button
@@ -58,7 +58,7 @@ export default function QuickSettingsHandle({
         onClick={onClick}
         onMouseDown={onMouseDown}
         onTouchStart={onTouchStart}
-        className={`border bg-card ${borderClass} rounded-l-md p-2 shadow-lg transition-[colors,transform,opacity] hover:bg-accent ${cursorClass} touch-none`}
+        className={`border bg-card ${borderClass} rounded-s-md p-2 shadow-lg transition-[colors,transform,opacity] hover:bg-accent ${cursorClass} touch-none`}
         style={{
           transform: baseTransform,
           touchAction: 'none',
@@ -71,9 +71,9 @@ export default function QuickSettingsHandle({
         {isDragging ? (
           <GripVertical className="h-5 w-5 text-primary" />
         ) : isOpen ? (
-          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          <ChevronRight className="h-5 w-5 text-muted-foreground rtl:rotate-180" />
         ) : (
-          <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+          <ChevronLeft className="h-5 w-5 text-muted-foreground rtl:rotate-180" />
         )}
       </button>
     </div>
