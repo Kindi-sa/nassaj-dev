@@ -319,6 +319,22 @@
     "doneHint": "Sessione terminata e non ancora aperta",
     "projectDoneHint": "Una sessione in questo progetto è terminata e non è stata ancora aperta"
   },
+  "workflowStatus": {
+    "running": "Workflow in esecuzione",
+    "runningHint": "Un workflow in background è attivamente in esecuzione in questa sessione",
+    "orphanEmpty": "Interrotto — nessun output",
+    "orphanEmptyHint": "Il processo è terminato prima che un agente completasse (0 di N) — riprendibile manualmente",
+    "orphanPartial": "Interrotto — parziale",
+    "orphanPartialHint": "Il processo è terminato dopo che alcuni agenti hanno completato — progresso parziale salvato, riprendibile manualmente",
+    "orphanIncomplete": "Interrotto — incompleto",
+    "orphanIncompleteHint": "Il processo è terminato senza completare; avviati più di quanto prodotto — riprendibile manualmente",
+    "frozen": "Congelato (in pausa)",
+    "frozenHint": "Il processo è sospeso (SIGSTOP), non terminato — riprenderà con CONT",
+    "unknown": "Vitalità sconosciuta",
+    "unknownHint": "Impossibile verificare la vitalità — probabilmente sopravvissuto a un riavvio del server; né vivo né morto confermato",
+    "projectRunningHint": "Un workflow in background è in esecuzione in questo progetto",
+    "projectOrphanHint": "Un workflow in background orfano in questo progetto richiede attenzione"
+  },
   "buildUpdate": {
     "available": "È disponibile una nuova build",
     "reload": "Ricarica",

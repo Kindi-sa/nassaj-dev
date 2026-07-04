@@ -319,6 +319,22 @@
     "doneHint": "会话已完成，尚未打开",
     "projectDoneHint": "此项目中有会话已完成且尚未打开"
   },
+  "workflowStatus": {
+    "running": "工作流运行中",
+    "runningHint": "此会话中有后台工作流正在运行",
+    "orphanEmpty": "已停止 — 无输出",
+    "orphanEmptyHint": "进程在任何代理完成前退出 (0/N) — 可手动恢复",
+    "orphanPartial": "已停止 — 部分完成",
+    "orphanPartialHint": "部分代理完成后进程退出 — 已保存部分进度，可手动恢复",
+    "orphanIncomplete": "已停止 — 不完整",
+    "orphanIncompleteHint": "进程未完成即退出（启动数 > 完成数）— 可手动恢复",
+    "frozen": "已冻结（暂停）",
+    "frozenHint": "进程已暂停 (SIGSTOP)，未终止 — CONT 后将恢复",
+    "unknown": "活跃度未知",
+    "unknownHint": "无法验证活跃度 — 可能在服务器重启后存活；不断言已死或存活",
+    "projectRunningHint": "此项目中有后台工作流正在运行",
+    "projectOrphanHint": "此项目中有需要关注的孤立后台工作流"
+  },
   "buildUpdate": {
     "available": "有新版本可用",
     "reload": "重新加载",

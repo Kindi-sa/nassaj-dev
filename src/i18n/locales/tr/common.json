@@ -319,6 +319,22 @@
     "doneHint": "Oturum bitti ve henüz açılmadı",
     "projectDoneHint": "Bu projedeki bir oturum bitti ve henüz açılmadı"
   },
+  "workflowStatus": {
+    "running": "İş akışı çalışıyor",
+    "runningHint": "Bu oturumda bir arka plan iş akışı etkin olarak çalışıyor",
+    "orphanEmpty": "Durdu — çıktı yok",
+    "orphanEmptyHint": "Herhangi bir ajan tamamlanmadan önce süreç sonlandı (0/N) — manuel olarak sürdürülebilir",
+    "orphanPartial": "Durdu — kısmi",
+    "orphanPartialHint": "Bazı ajanlar tamamlandıktan sonra süreç sonlandı — kısmi ilerleme kaydedildi, manuel sürdürme mümkün",
+    "orphanIncomplete": "Durdu — eksik",
+    "orphanIncompleteHint": "Süreç tamamlanmadan sonlandı (başlatılan > üretilen) — manuel olarak sürdürülebilir",
+    "frozen": "Dondurulmuş (duraklatıldı)",
+    "frozenHint": "Süreç askıya alındı (SIGSTOP), ölü değil — CONT ile devam edecek",
+    "unknown": "Canlılık bilinmiyor",
+    "unknownHint": "Canlılık doğrulanamıyor — sunucu yeniden başlatmasını atlattı olabilir; ne canlı ne ölü iddia edilir",
+    "projectRunningHint": "Bu projede bir arka plan iş akışı çalışıyor",
+    "projectOrphanHint": "Bu projede ilgilenilmesi gereken yetim bir arka plan iş akışı var"
+  },
   "buildUpdate": {
     "available": "Yeni bir yapı mevcut",
     "reload": "Yeniden Yükle",

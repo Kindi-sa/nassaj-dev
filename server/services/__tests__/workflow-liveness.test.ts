@@ -27,6 +27,7 @@ import {
   forgetWorkflowPid,
   isPidAlive,
   isWorkflowProcessAlive,
+  probeWorkflowLiveness,
   registerWorkflowPid,
   resolveWorkflowPid,
   trackedWorkflowPidCount,
@@ -143,13 +144,82 @@ test('registry: an unknown session is not alive (never claim liveness without a 
 });
 
 // ============================================================================
-// classifyWorkflowLiveness — م-3, on REAL journal key sets
+// probeWorkflowLiveness — {known, alive, frozen}; `known` captured BEFORE prune
+// ============================================================================
+
+test('probe: an unknown session => {known:false, alive:false, frozen:false}', () => {
+  forgetWorkflowPid('probe-unknown');
+  assert.deepEqual(probeWorkflowLiveness('probe-unknown'), {
+    known: false,
+    alive: false,
+    frozen: false,
+  });
+});
+
+test('probe: a live pid => known + alive, not frozen', () => {
+  const sid = 'probe-live';
+  forgetWorkflowPid(sid);
+  registerWorkflowPid(sid, process.pid);
+  const p = probeWorkflowLiveness(sid);
+  assert.equal(p.known, true);
+  assert.equal(p.alive, true);
+  assert.equal(p.frozen, false);
+  forgetWorkflowPid(sid);
+});
+
+test('probe (M1): a dead pid reads known:true (captured before prune) + alive:false, then prunes', async () => {
+  // THE M1 guard: a recorded-then-dead pid must remain "known" so the classifier
+  // calls it ORPHAN — distinct from an unregistered survivor (known:false => UNKNOWN).
+  const sid = 'probe-dead';
+  forgetWorkflowPid(sid);
+  const child = spawn(process.execPath, ['-e', 'process.exit(0)'], { stdio: 'ignore' });
+  const pid = child.pid as number;
+  await new Promise<void>((resolve) => child.on('exit', () => resolve()));
+  await new Promise((r) => setTimeout(r, 50));
+
+  registerWorkflowPid(sid, pid);
+  const p = probeWorkflowLiveness(sid);
+  assert.equal(p.known, true, 'a recorded-but-dead pid is still KNOWN (captured before pruning)');
+  assert.equal(p.alive, false, 'the pid is dead');
+  assert.equal(p.frozen, false);
+  assert.equal(resolveWorkflowPid(sid), null, 'the dead pid is pruned after the probe');
+});
+
+test('probe (F1): a SIGSTOP-frozen pid reads frozen:true and is NOT pruned', async () => {
+  // Real /proc verification of the frozen ('T') state, matching the
+  // session-process-monitor badge. Spawn a long-lived child, stop it, probe.
+  const sid = 'probe-frozen';
+  forgetWorkflowPid(sid);
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  const pid = child.pid as number;
+  try {
+    await new Promise((r) => setTimeout(r, 50));
+    registerWorkflowPid(sid, pid);
+    process.kill(pid, 'SIGSTOP');
+    await new Promise((r) => setTimeout(r, 80)); // let the kernel move it to 'T'
+
+    const p = probeWorkflowLiveness(sid);
+    assert.equal(p.frozen, true, 'a SIGSTOP-ed pid is frozen (/proc state T)');
+    assert.equal(p.known, true);
+    assert.equal(p.alive, true, 'a stopped process is still present (not dead)');
+    assert.equal(resolveWorkflowPid(sid), pid, 'a frozen pid is alive => not pruned');
+  } finally {
+    try { process.kill(pid, 'SIGCONT'); } catch { /* ignore */ }
+    child.kill('SIGKILL');
+    forgetWorkflowPid(sid);
+  }
+});
+
+// ============================================================================
+// classifyWorkflowLiveness — م-3 + M1 (known/unknown) + F1 (frozen), REAL keys
 // ============================================================================
 
 test('classify: pid ALIVE => RUNNING regardless of journal state (authoritative)', async () => {
   const incident = await keysFromRealJournal(INCIDENT_JOURNAL_LINES);
   const verdict = classifyWorkflowLiveness({
-    pidAlive: true,
+    alive: true,
+    known: true,
+    frozen: false,
     ...incident,
     journalMtimeMs: QUIET_MTIME_MS, // even quiet + orphaned keys
     now: NOW_MS,
@@ -164,7 +234,9 @@ test('classify (م-3): pid DEAD + journal NOT quiet => RUNNING (no premature COM
   // م-3 forces the conservative RUNNING so completion is never announced early.
   const completed = await keysFromRealJournal(COMPLETED_JOURNAL_LINES);
   const verdict = classifyWorkflowLiveness({
-    pidAlive: false,
+    alive: false,
+    known: true,
+    frozen: false,
     ...completed,
     journalMtimeMs: FRESH_MTIME_MS, // written 1s ago => not quiet
     now: NOW_MS,
@@ -173,44 +245,48 @@ test('classify (م-3): pid DEAD + journal NOT quiet => RUNNING (no premature COM
   assert.equal(verdict, 'RUNNING', 'dead pid but still-writing journal must stay RUNNING (م-3)');
 });
 
-test('classify: pid DEAD + quiet + INCIDENT keys (one orphan) => ORPHAN', async () => {
+test('classify: pid DEAD + known + quiet + INCIDENT keys (one orphan) => ORPHAN', async () => {
   const incident = await keysFromRealJournal(INCIDENT_JOURNAL_LINES);
   assert.equal(incident.startedKeyCount, 16, 'real incident: 16 unique started keys');
   assert.equal(incident.resultKeyCount, 15, 'real incident: 15 unique result keys');
   assert.equal(incident.allStartedResulted, false, 'one started key never resulted (the orphan)');
 
   const verdict = classifyWorkflowLiveness({
-    pidAlive: false,
+    alive: false,
+    known: true, // a pid WAS recorded and died => a real B-103 orphan
+    frozen: false,
     ...incident,
     journalMtimeMs: QUIET_MTIME_MS,
     now: NOW_MS,
     quietMs: QUIET_MS,
   });
-  assert.equal(verdict, 'ORPHAN', 'dead pid, quiet, unfinished => visible orphan');
+  assert.equal(verdict, 'ORPHAN', 'dead+known pid, quiet, unfinished => visible orphan');
 });
 
-test('classify: pid DEAD + quiet + COMPLETED keys (all resulted) => COMPLETED', async () => {
-  const completed = await keysFromRealJournal(COMPLETED_JOURNAL_LINES);
-  assert.equal(completed.startedKeyCount, 7, 'real completed: 7 unique started keys');
-  assert.equal(completed.resultKeyCount, 7, 'real completed: 7 unique result keys');
-  assert.equal(completed.allStartedResulted, true, 'every started key resulted');
-
+test('classify (M1): same INCIDENT keys but UNKNOWN pid (survivor) => UNKNOWN, not a false ORPHAN', async () => {
+  // THE false-orphan fix: identical real key sets to the ORPHAN case above, but no
+  // pid was ever recorded (the restart-survivor shape: in-memory pid Map emptied
+  // on boot). Liveness is unproven => must NOT be declared a death.
+  const incident = await keysFromRealJournal(INCIDENT_JOURNAL_LINES);
   const verdict = classifyWorkflowLiveness({
-    pidAlive: false,
-    ...completed,
+    alive: false,
+    known: false, // no pid ever recorded — cannot claim it died
+    frozen: false,
+    ...incident,
     journalMtimeMs: QUIET_MTIME_MS,
     now: NOW_MS,
     quietMs: QUIET_MS,
   });
-  assert.equal(verdict, 'COMPLETED', 'dead pid, quiet, all resulted => completed');
+  assert.equal(verdict, 'UNKNOWN', 'no recorded pid => unproven liveness, never a false ORPHAN (M1)');
 });
 
-test('classify: pid DEAD + quiet + NO journal (mtime 0) + no keys => ORPHAN', () => {
-  // A workflow folder with no journal at all: mtime 0 is treated as quiet (there
-  // is nothing being written), and with a dead pid and no results it is an
-  // orphan the user must be shown, not a silently swallowed nothing.
+test('classify (M1): restart survivor — no pid, quiet EMPTY journal => UNKNOWN', () => {
+  // A workflow folder that survived a restart with an empty/absent journal and no
+  // recorded pid: unproven, not swallowed, not a false death.
   const verdict = classifyWorkflowLiveness({
-    pidAlive: false,
+    alive: false,
+    known: false,
+    frozen: false,
     startedKeyCount: 0,
     resultKeyCount: 0,
     allStartedResulted: false,
@@ -218,22 +294,88 @@ test('classify: pid DEAD + quiet + NO journal (mtime 0) + no keys => ORPHAN', ()
     now: NOW_MS,
     quietMs: QUIET_MS,
   });
-  assert.equal(verdict, 'ORPHAN', 'dead pid + empty/absent journal => orphan (surfaced, not swallowed)');
+  assert.equal(verdict, 'UNKNOWN');
 });
 
-test('classify: pid DEAD + quiet + results present but a started key unmatched => ORPHAN', () => {
-  // Directly exercises the "output landed yet a subagent hung" boundary with the
-  // real incident shape's essence (started > resulted, some result present).
+test('classify: pid DEAD + quiet + COMPLETED keys (all resulted) => COMPLETED (regardless of known)', async () => {
+  const completed = await keysFromRealJournal(COMPLETED_JOURNAL_LINES);
+  assert.equal(completed.startedKeyCount, 7, 'real completed: 7 unique started keys');
+  assert.equal(completed.resultKeyCount, 7, 'real completed: 7 unique result keys');
+  assert.equal(completed.allStartedResulted, true, 'every started key resulted');
+
+  // COMPLETED must hold whether or not the pid is still known.
+  for (const known of [true, false]) {
+    const verdict = classifyWorkflowLiveness({
+      alive: false,
+      known,
+      frozen: false,
+      ...completed,
+      journalMtimeMs: QUIET_MTIME_MS,
+      now: NOW_MS,
+      quietMs: QUIET_MS,
+    });
+    assert.equal(verdict, 'COMPLETED', `dead pid, quiet, all resulted => completed (known=${known})`);
+  }
+});
+
+test('classify: pid DEAD + known + quiet + NO journal (mtime 0) + no keys => ORPHAN', () => {
+  // A workflow folder with no journal at all but a recorded-then-dead pid: mtime 0
+  // is treated as quiet, and a known-dead pid with no results is a real orphan.
   const verdict = classifyWorkflowLiveness({
-    pidAlive: false,
-    startedKeyCount: 3,
-    resultKeyCount: 2,
+    alive: false,
+    known: true,
+    frozen: false,
+    startedKeyCount: 0,
+    resultKeyCount: 0,
     allStartedResulted: false,
+    journalMtimeMs: 0,
+    now: NOW_MS,
+    quietMs: QUIET_MS,
+  });
+  assert.equal(verdict, 'ORPHAN', 'dead+known pid + empty/absent journal => orphan (surfaced)');
+});
+
+test('classify: pid DEAD + known + quiet + started={A,B}/result={A,C} => partial ORPHAN', async () => {
+  // Partial-orphan shape from REAL incident rows: two started keys {A,B} but the
+  // results cover A and a DIFFERENT key C (B never resulted). agentsTotal>agentsDone.
+  const startedRows = INCIDENT_JOURNAL_LINES.filter((l) => l.type === 'started');
+  const resultRows = INCIDENT_JOURNAL_LINES.filter((l) => l.type === 'result');
+  const A = startedRows[0].key;
+  const B = startedRows[1].key;
+  const aResult = resultRows.find((r) => r.key === A);
+  const cResult = resultRows.find((r) => r.key !== A && r.key !== B); // result for an un-started key
+  assert.ok(aResult && cResult, 'real incident rows must yield an A-result and a distinct C-result');
+
+  const partial = await keysFromRealJournal([startedRows[0], startedRows[1], aResult!, cResult!]);
+  assert.equal(partial.startedKeyCount, 2, 'started {A,B}');
+  assert.equal(partial.resultKeyCount, 2, 'result {A,C}');
+  assert.equal(partial.allStartedResulted, false, 'B never resulted => not clean');
+
+  const verdict = classifyWorkflowLiveness({
+    alive: false,
+    known: true,
+    frozen: false,
+    ...partial,
     journalMtimeMs: QUIET_MTIME_MS,
     now: NOW_MS,
     quietMs: QUIET_MS,
   });
-  assert.equal(verdict, 'ORPHAN');
+  assert.equal(verdict, 'ORPHAN', 'a started key left hanging with a known-dead pid => partial orphan');
+});
+
+test('classify (F1): frozen => FROZEN, taking precedence over alive AND over completed keys', async () => {
+  const completed = await keysFromRealJournal(COMPLETED_JOURNAL_LINES);
+  // Even with all-resulted keys and alive true, a STOPPED ('T') pid surfaces FROZEN.
+  const verdict = classifyWorkflowLiveness({
+    alive: true,
+    known: true,
+    frozen: true,
+    ...completed,
+    journalMtimeMs: QUIET_MTIME_MS,
+    now: NOW_MS,
+    quietMs: QUIET_MS,
+  });
+  assert.equal(verdict, 'FROZEN', 'a frozen pid is reported FROZEN, matching the process badge');
 });
 
 // ============================================================================

@@ -16,6 +16,7 @@ import {
   markSessionFinishedUnopened,
   shouldMarkSessionFinished,
 } from '../../stores/sessionCompletionStore';
+import { useActiveWorkflows } from '../../stores/useActiveWorkflows';
 
 import BuildUpdateBanner from './BuildUpdateBanner';
 
@@ -73,6 +74,10 @@ function AppContentInner() {
     refreshProjects: refreshProjectsSilently,
   });
 
+  // Background-workflow surface (B-103): one driver mounted here behind the
+  // auth gate; any badge subscribes to workflowStatusStore directly.
+  const { scheduleRefetch: scheduleWorkflowRefetch } = useActiveWorkflows(isConnected);
+
   // Frozen-session indicator: route server process_state broadcasts (and
   // terminal events as an idle fallback) into the global per-session store
   // consumed by the sidebar badges, chat header, and status spinner.
@@ -98,8 +103,10 @@ function AppContentInner() {
       setSessionProcessState(msg.sessionId, msg.processState);
     } else if (msg.kind === 'complete' || msg.kind === 'error') {
       setSessionProcessState(msg.sessionId, 'idle');
+      // A session completing may have been a workflow step — refetch sooner.
+      scheduleWorkflowRefetch();
     }
-  }, [latestMessage, selectedSession?.id]);
+  }, [latestMessage, selectedSession?.id, scheduleWorkflowRefetch]);
 
   // Opening a conversation consumes its "finished — not opened yet" mark.
   useEffect(() => {

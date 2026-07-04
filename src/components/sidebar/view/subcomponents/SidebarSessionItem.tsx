@@ -6,6 +6,7 @@ import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip } from '../../../../shared/view/ui';
 import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
+import WorkflowStatusBadge from '../../../../shared/view/WorkflowStatusBadge';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider, SessionOwner } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
@@ -238,6 +239,7 @@ export default function SidebarSessionItem({
                   </Badge>
                 )}
                 <SessionProcessBadge sessionId={session.id} />
+                <WorkflowStatusBadge sessionId={session.id} />
               </div>
             </div>
 
@@ -323,6 +325,7 @@ export default function SidebarSessionItem({
               <div className="mt-0.5 flex items-center gap-1.5">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
                 <SessionProcessBadge sessionId={session.id} />
+                <WorkflowStatusBadge sessionId={session.id} />
               </div>
             </div>
           </div>

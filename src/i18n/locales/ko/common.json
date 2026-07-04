@@ -319,6 +319,22 @@
     "doneHint": "세션이 완료되었으며 아직 열지 않았습니다",
     "projectDoneHint": "이 프로젝트의 세션이 완료되었으며 아직 열지 않았습니다"
   },
+  "workflowStatus": {
+    "running": "워크플로우 실행 중",
+    "runningHint": "백그라운드 워크플로우가 이 세션에서 실행 중입니다",
+    "orphanEmpty": "중지됨 — 출력 없음",
+    "orphanEmptyHint": "에이전트가 완료되기 전에 프로세스가 종료되었습니다 (0/N) — 수동으로 재시작 가능",
+    "orphanPartial": "중지됨 — 부분 완료",
+    "orphanPartialHint": "일부 에이전트 완료 후 프로세스가 종료되었습니다 — 부분 진행 상황 저장됨, 수동 재시작 가능",
+    "orphanIncomplete": "중지됨 — 불완전",
+    "orphanIncompleteHint": "프로세스가 완료되지 않고 종료되었습니다 (시작 > 완료) — 수동으로 재시작 가능",
+    "frozen": "동결됨 (일시 중지)",
+    "frozenHint": "프로세스가 일시 중단됨 (SIGSTOP), 종료 아님 — CONT 시 재개됩니다",
+    "unknown": "활성 상태 알 수 없음",
+    "unknownHint": "활성 상태를 확인할 수 없습니다 — 서버 재시작 후 생존 가능성; 생사를 단정하지 않습니다",
+    "projectRunningHint": "이 프로젝트에서 백그라운드 워크플로우가 실행 중입니다",
+    "projectOrphanHint": "이 프로젝트에 주의가 필요한 고아 백그라운드 워크플로우가 있습니다"
+  },
   "buildUpdate": {
     "available": "새 빌드가 출시되었습니다",
     "reload": "새로고침",

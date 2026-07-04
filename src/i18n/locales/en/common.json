@@ -319,6 +319,22 @@
     "doneHint": "Session finished and has not been opened yet",
     "projectDoneHint": "A session in this project finished and has not been opened yet"
   },
+  "workflowStatus": {
+    "running": "Workflow running",
+    "runningHint": "A background workflow is actively running in this session",
+    "orphanEmpty": "Stopped — no output",
+    "orphanEmptyHint": "Process exited before any agent completed (0 of N) — can be resumed manually",
+    "orphanPartial": "Stopped — partial",
+    "orphanPartialHint": "Process exited after some agents completed — partial progress saved, resumable manually",
+    "orphanIncomplete": "Stopped — incomplete",
+    "orphanIncompleteHint": "Process exited without completing; more started than produced — resumable manually",
+    "frozen": "Frozen (paused)",
+    "frozenHint": "Process is suspended (SIGSTOP), not dead — will resume on CONT",
+    "unknown": "Unknown liveness",
+    "unknownHint": "Could not verify liveness — likely survived a server restart; neither confirmed alive nor dead",
+    "projectRunningHint": "A background workflow is running in this project",
+    "projectOrphanHint": "An orphaned background workflow in this project needs attention"
+  },
   "buildUpdate": {
     "available": "A new build is available",
     "reload": "Reload",

@@ -476,6 +476,11 @@ export const api = {
     // Antigravity (agy) read-only active model. The model is chosen inside agy's
     // own settings; agy ignores any UI selection, so we only display it.
     antigravityActiveModel: () => authenticatedFetch('/api/providers/antigravity/active-model'),
+    // Active background workflows (B-103, ADR-053). Read-only: the caller's
+    // still-running / orphaned workflows across the sessions they own. The
+    // envelope carries the declared scan cap so "no workflow" is distinguishable
+    // from "not scanned". `options` forwards an AbortSignal for unmount cleanup.
+    activeWorkflows: (options = {}) => authenticatedFetch('/api/providers/workflows/active', options),
   },
 
   // Generic GET method for any endpoint

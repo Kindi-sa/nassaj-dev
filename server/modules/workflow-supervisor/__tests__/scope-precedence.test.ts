@@ -232,22 +232,27 @@ test('E2E: an INACTIVE scope makes an ALIVE-pid workflow COMPLETED/dropped (scop
 
 test('NO-OP: with WORKFLOW_SUPERVISOR OFF the resolver is null => pid path decides (byte-identical Layer-1)', async () => {
   // Same shape as the ACTIVE case, but flag OFF: even a real active unit and a
-  // scope record must be IGNORED — a dead pid on a quiet incident journal is an
-  // ORPHAN by the untouched Layer-1 classifier.
+  // scope record must be IGNORED — forgetWorkflowPid('s-off') removes the pid
+  // entry entirely, so probeWorkflowLiveness returns known:false.
+  // classifyWorkflowLiveness (M1): known:false means "no pid was ever recorded"
+  // (the restart-survivor case), which MUST NOT be announced as a death =>
+  // UNKNOWN, not ORPHAN. ORPHAN is reserved for known:true (pid was recorded
+  // and died). The flag-OFF guarantee is therefore: the scope record is ignored
+  // AND the pure pid path returns UNKNOWN (no false orphan).
   const prevFlag = process.env.WORKFLOW_SUPERVISOR;
   await withScopeHarness(async ({ projectDir, createUser, addSession, writeScopeRecord }) => {
     process.env.WORKFLOW_SUPERVISOR = ''; // OFF within the harness (overrides the harness's '1')
     const u = createUser('u1');
     await addSession({ userId: u, sessionId: 's-off', wfId: 'wf_incident' });
-    forgetWorkflowPid('s-off'); // pid DEAD
+    forgetWorkflowPid('s-off'); // no pid ever recorded => known:false
     await writeScopeRecord('launch-off', `wf-would-be-active-${process.pid}.service`, projectDir);
 
     const res = await workflowStatusService.getActiveWorkflows(u, { now: NOW_MS, quietMs: QUIET_MS });
     assert.equal(res.workflows.length, 1, 'workflow surfaces via the untouched pid path');
     assert.equal(
       res.workflows[0].status,
-      'orphan',
-      'flag OFF: scope record ignored; dead pid + quiet incident => ORPHAN (Layer-1 unchanged)',
+      'unknown',
+      'flag OFF: scope record ignored; known:false + quiet incident => UNKNOWN (M1: no false orphan)',
     );
     assert.equal(res.workflows[0].agentsDone, 15, 'real incident progress preserved');
     assert.equal(res.workflows[0].agentsTotal, 16);

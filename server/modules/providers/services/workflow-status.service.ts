@@ -27,8 +27,10 @@
  * carries `scanned`, `eligible`, and `capped` so a caller can tell "we scanned
  * all your sessions and found no active workflow" from "we hit the cap and did
  * NOT scan everything" — the cap never silently swallows an orphan; it is
- * declared. RUNNING/ORPHAN only are returned (a COMPLETED workflow is not
- * "active"), so the payload is small.
+ * declared. Only "active" verdicts are returned — RUNNING, ORPHAN, plus UNKNOWN
+ * (a restart survivor whose liveness is unproven, M1) and FROZEN (a stopped pid);
+ * a COMPLETED workflow is dropped — so the payload is small. The status enum grew
+ * additively: pre-M1 clients that only handle 'running'/'orphan' are unaffected.
  *
  * READ-ONLY / FAIL-SAFE
  * ---------------------
@@ -53,7 +55,7 @@ import {
 // service outside the modules tree, shared with session-process-monitor.js. Same
 // blessed seam as participants.service.ts → transcript-parser.js.
 // eslint-disable-next-line boundaries/no-unknown
-import { classifyWorkflowLiveness, isWorkflowProcessAlive } from '@/services/workflow-liveness.js';
+import { classifyWorkflowLiveness, probeWorkflowLiveness } from '@/services/workflow-liveness.js';
 // ADR-053 §ج-2: OPTIONAL scope-liveness precedence for supervisor-launched
 // workflows. buildScopeLivenessResolver returns null when WORKFLOW_SUPERVISOR is
 // off, so the resolver stays `undefined` and this service is byte-identical to
@@ -73,8 +75,74 @@ import {
  */
 const MAX_SESSIONS_SCANNED = 200;
 
-/** Only RUNNING and ORPHAN are "active" for the endpoint; COMPLETED is dropped. */
-export type ActiveWorkflowStatus = 'running' | 'orphan';
+/**
+ * "Active" workflow states for the endpoint; COMPLETED is dropped.
+ *
+ *   - 'running' — pid alive, or dead-but-still-flushing (conservative).
+ *   - 'orphan'  — a pid was recorded and died with work unfinished (real B-103).
+ *   - 'unknown' — no pid ever recorded (a restart survivor): liveness unproven,
+ *                 NOT a confirmed death (M1). ENUM GROWTH ONLY — a pre-M1 client
+ *                 that only knows 'running'/'orphan' keeps working for those.
+ *   - 'frozen'  — the recorded pid is STOPPED ('T'); mirrors the process badge.
+ */
+export type ActiveWorkflowStatus = 'running' | 'orphan' | 'unknown' | 'frozen';
+
+/**
+ * Maps a liveness verdict to the endpoint's status string, or null for a verdict
+ * that is not "active" (COMPLETED) and must be dropped from the result set.
+ */
+function toActiveStatus(liveness: string): ActiveWorkflowStatus | null {
+  switch (liveness) {
+    case 'RUNNING':
+      return 'running';
+    case 'ORPHAN':
+      return 'orphan';
+    case 'UNKNOWN':
+      return 'unknown';
+    case 'FROZEN':
+      return 'frozen';
+    default:
+      return null; // 'COMPLETED' (or any unexpected verdict) => not active.
+  }
+}
+
+/**
+ * Per-process LRU memo for {@link readJournalKeySets} results (M3), keyed by
+ * `${path}:${mtimeMs}:${size}`. A COMPLETED workflow's journal never changes, so
+ * its key is stable => a permanent cache hit => it is parsed at most once for the
+ * process's life, collapsing per-scan cost to O(active workflows). This wraps the
+ * CALL only — the shared parser is untouched, so the reconcile path stays
+ * byte-identical. Bounded to MAX entries with oldest-first eviction; entries are
+ * read-only Sets the callers never mutate, so sharing the reference is safe.
+ */
+type JournalKeySets = { startedKeys: Set<string>; resultKeys: Set<string> };
+const JOURNAL_KEYSET_CACHE_MAX = 512;
+const journalKeySetCache = new Map<string, JournalKeySets>();
+
+async function readJournalKeySetsCached(
+  journalPath: string,
+  mtimeMs: number,
+  size: number,
+): Promise<JournalKeySets> {
+  const cacheKey = `${journalPath}:${mtimeMs}:${size}`;
+  const hit = journalKeySetCache.get(cacheKey);
+  if (hit) {
+    // LRU touch: re-insert so the most-recently-used key is last (evicted last).
+    journalKeySetCache.delete(cacheKey);
+    journalKeySetCache.set(cacheKey, hit);
+    return hit;
+  }
+
+  const fresh = await readJournalKeySets(journalPath);
+  journalKeySetCache.set(cacheKey, fresh);
+  if (journalKeySetCache.size > JOURNAL_KEYSET_CACHE_MAX) {
+    const oldest = journalKeySetCache.keys().next().value;
+    if (oldest !== undefined) {
+      journalKeySetCache.delete(oldest);
+    }
+  }
+  return fresh;
+}
 
 /** One active (running or orphaned) workflow owned by the caller. */
 export type ActiveWorkflow = {
@@ -142,7 +210,9 @@ async function scanSessionWorkflows(
 
   // One liveness probe per session: the child pid is the ROOT of the whole
   // workflow process tree, so its state applies to every wf_* under the session.
-  const pidAlive = isWorkflowProcessAlive(sessionId);
+  // `known` (a pid was ever recorded) is captured before pruning so the classifier
+  // can tell a confirmed ORPHAN from an unproven UNKNOWN restart survivor (M1).
+  const { alive, known, frozen } = probeWorkflowLiveness(sessionId);
 
   // ADR-053 §ج-2: if a supervisor scope targets this project, its is-active
   // verdict is AUTHORITATIVE for the session's workflows and PRECEDES the pid
@@ -167,17 +237,26 @@ async function scanSessionWorkflows(
     const journalPath = path.join(workflowsDir, entry, 'journal.jsonl');
 
     let journalMtimeMs = 0;
+    let journalSize = -1;
+    let statOk = false;
     try {
       const journalStat: Stats = await fsp.stat(journalPath);
       journalMtimeMs = journalStat.mtimeMs;
+      journalSize = journalStat.size; // M3: part of the memo cache key.
+      statOk = true;
     } catch {
       // No journal yet for this workflow folder. mtime 0 => classifier treats it
-      // as "quiet" (nothing being written); with a dead pid + no keys => ORPHAN,
-      // with a live pid => RUNNING. Either way it is surfaced, not swallowed.
+      // as "quiet" (nothing being written); with a dead+known pid + no keys =>
+      // ORPHAN, unknown pid => UNKNOWN, live pid => RUNNING. Surfaced, not
+      // swallowed. No stat => no memo key => read directly (empty sets, cheap).
       journalMtimeMs = 0;
     }
 
-    const { startedKeys, resultKeys } = await readJournalKeySets(journalPath);
+    // M3: memoize the key-set read on (path, mtime, size). Only when stat
+    // succeeded do we have a valid cache key; otherwise fall back to a direct read.
+    const { startedKeys, resultKeys } = statOk
+      ? await readJournalKeySetsCached(journalPath, journalMtimeMs, journalSize)
+      : await readJournalKeySets(journalPath);
     let allStartedResulted = startedKeys.size >= 1;
     for (const key of startedKeys) {
       if (!resultKeys.has(key)) {
@@ -192,7 +271,9 @@ async function scanSessionWorkflows(
     const liveness =
       scopeLiveness ??
       classifyWorkflowLiveness({
-        pidAlive,
+        alive,
+        known,
+        frozen,
         startedKeyCount: startedKeys.size,
         resultKeyCount: resultKeys.size,
         allStartedResulted,
@@ -201,14 +282,15 @@ async function scanSessionWorkflows(
         quietMs,
       });
 
-    if (liveness === 'COMPLETED') {
-      continue; // Not "active" — a completed workflow is out of scope here.
+    const status = toActiveStatus(liveness);
+    if (status === null) {
+      continue; // Not "active" (COMPLETED) — out of scope for this endpoint.
     }
 
     active.push({
       sessionId,
       wfId: entry,
-      status: liveness === 'RUNNING' ? 'running' : 'orphan',
+      status,
       agentsDone: resultKeys.size,
       agentsTotal: Math.max(startedKeys.size, resultKeys.size),
       updatedAt: journalMtimeMs > 0 ? new Date(journalMtimeMs).toISOString() : null,

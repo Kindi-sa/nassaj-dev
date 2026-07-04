@@ -28,13 +28,17 @@
  * PID + QUIET ARE COMPLEMENTARY, NOT ALTERNATIVES (م-3, the 6th mandatory rule)
  * ---------------------------------------------------------------------------
  *   - PID alive                        => RUNNING (authoritative "still going").
+ *   - PID present but STOPPED ('T')    => FROZEN (matches the process badge).
  *   - PID dead + journal NOT quiet     => RUNNING (conservative): a grandchild
  *     orphan may still be flushing its journal after the root died (the restart
  *     shape). Declaring COMPLETED here would announce completion prematurely.
- *   - PID dead + journal quiet + all started keys resulted => COMPLETED.
- *   - PID dead + journal quiet + output landed but a started key is unmatched,
- *     or nothing landed => ORPHAN (visible "died", user resumes manually).
- * PID decides "alive"; quiet+keys decide "finished cleanly" vs "died mid-flight".
+ *   - not alive + journal quiet + all started keys resulted => COMPLETED.
+ *   - not alive + journal quiet + not cleanly finished, split by `known` (M1):
+ *       · a pid WAS recorded and died  => ORPHAN  (visible "died", resume manual).
+ *       · no pid was EVER recorded      => UNKNOWN (a restart survivor whose pid
+ *         Map was cleared — liveness unproven, must NOT be reported as a death).
+ * PID decides "alive"; quiet+keys decide "finished cleanly"; `known` decides
+ * "died" (ORPHAN) vs merely "unproven" (UNKNOWN).
  *
  * Linux-only by design (/proc). On a platform without /proc, `isPidAlive` falls
  * back to `process.kill(pid, 0)` alone (cannot detect a zombie), which is the
@@ -52,12 +56,22 @@ import fs from 'node:fs';
  * Terminal/liveness verdict for one workflow.
  * - 'RUNNING'   — process alive, OR process gone but the journal is still being
  *                 written (not quiet): treat as in-flight (conservative).
+ * - 'FROZEN'    — the recorded pid is present but STOPPED (`/proc` state 'T', e.g.
+ *                 a `kill -STOP` to reclaim quota). Mirrors the existing
+ *                 session-process-monitor 'frozen' badge; not dead, not running.
  * - 'COMPLETED' — process gone, journal quiet, every started key has a result.
- * - 'ORPHAN'    — process gone, journal quiet, but work did not complete cleanly
- *                 (a started key never resulted, or no result ever landed): the
- *                 workflow died. Surfaced to the user as a visible orphan.
+ * - 'ORPHAN'    — a pid WAS recorded and is now dead, journal quiet, but work did
+ *                 not complete cleanly (a started key never resulted, or no result
+ *                 ever landed): the workflow died. Surfaced as a visible orphan
+ *                 (the real B-103 orphan the user resumes manually).
+ * - 'UNKNOWN'   — NO pid was ever recorded (e.g. a workflow that SURVIVED a server
+ *                 restart: the in-memory pid Map is emptied, so liveness cannot be
+ *                 proven either way), journal quiet, work not cleanly finished.
+ *                 Absence of a pid is absence of EVIDENCE, not evidence of death:
+ *                 this must NOT be reported as a died/orphan (M1 — the false-orphan
+ *                 fix). Distinct from ORPHAN precisely by `known`.
  *
- * @typedef {'RUNNING' | 'COMPLETED' | 'ORPHAN'} WorkflowLiveness
+ * @typedef {'RUNNING' | 'FROZEN' | 'COMPLETED' | 'ORPHAN' | 'UNKNOWN'} WorkflowLiveness
  */
 
 /** sessionId → resolved child CLI pid (root of the workflow process tree). */
@@ -195,6 +209,45 @@ export function isWorkflowProcessAlive(sessionId) {
 }
 
 /**
+ * Read-only liveness probe for a session's workflow root (M1 — distinguishes an
+ * unproven survivor from a confirmed orphan). Returns three orthogonal facts:
+ *
+ *   - `known`  — whether a pid was EVER recorded for this session. Captured from
+ *     `resolveWorkflowPid` BEFORE any pruning, so a recorded-but-dead pid still
+ *     reads `known:true`. This is the decisive bit for M1: after a server restart
+ *     the in-memory pid Map is empty, so a genuine survivor has `known:false` and
+ *     must be classified UNKNOWN, never a false ORPHAN. Were `known` sampled AFTER
+ *     the dead-pid prune, a "known but dead" pid would masquerade as "unknown".
+ *   - `frozen` — the pid is present but STOPPED (`/proc` state 'T'). Mirrors the
+ *     session-process-monitor 'frozen' badge (state === 'T').
+ *   - `alive`  — the pid is genuinely alive (present and not zombie/dead). A
+ *     frozen pid is also "alive" in the /proc sense; the classifier gives `frozen`
+ *     precedence so it surfaces as FROZEN rather than RUNNING.
+ *
+ * Side effect (identical to isWorkflowProcessAlive): when the recorded pid is
+ * dead it is pruned so the registry stays bounded. Never throws.
+ *
+ * @param {string} sessionId
+ * @returns {{ known: boolean, alive: boolean, frozen: boolean }}
+ */
+export function probeWorkflowLiveness(sessionId) {
+  // Capture `known` BEFORE any prune: a recorded-but-dead pid is still "known".
+  const pid = resolveWorkflowPid(sessionId);
+  const known = pid !== null;
+  if (!known) {
+    return { known: false, alive: false, frozen: false };
+  }
+
+  const frozen = readProcState(pid) === 'T';
+  const alive = isPidAlive(pid);
+  if (!alive) {
+    // Dead: prune so the map stays bounded. Safe — a resumed run re-registers.
+    workflowPids.delete(sessionId);
+  }
+  return { known, alive, frozen };
+}
+
+/**
  * Drops a session's recorded workflow pid. NOT called from removeSession (the
  * whole point is survival past turn-end); provided for explicit teardown/tests.
  *
@@ -214,7 +267,11 @@ export function trackedWorkflowPidCount() {
  * with the journal's key sets and freshness to produce the terminal state.
  *
  * @param {Object} input
- * @param {boolean} input.pidAlive        Result of the child-pid liveness probe.
+ * @param {boolean} input.alive           Pid genuinely alive (present, not dead).
+ * @param {boolean} input.known           A pid was EVER recorded for the session
+ *   (captured before pruning). Decides ORPHAN (known, died) vs UNKNOWN (never
+ *   recorded — a restart survivor whose in-memory pid map was cleared).
+ * @param {boolean} input.frozen          Pid present but STOPPED (/proc 'T').
  * @param {number}  input.startedKeyCount Unique `started` keys in the journal.
  * @param {number}  input.resultKeyCount  Unique `result` keys in the journal.
  * @param {boolean} input.allStartedResulted True iff every started key has a
@@ -229,7 +286,9 @@ export function trackedWorkflowPidCount() {
  */
 export function classifyWorkflowLiveness(input) {
   const {
-    pidAlive,
+    alive,
+    known,
+    frozen,
     startedKeyCount,
     resultKeyCount,
     allStartedResulted,
@@ -238,8 +297,15 @@ export function classifyWorkflowLiveness(input) {
     quietMs,
   } = input;
 
+  // 0) Frozen (F1): the pid is present but STOPPED (/proc 'T'). Checked BEFORE
+  // `alive` because a stopped process is still "present" to isPidAlive; it must
+  // surface as FROZEN (matching the process badge), not RUNNING/COMPLETED.
+  if (frozen) {
+    return 'FROZEN';
+  }
+
   // 1) PID alive is authoritative: the workflow tree is still up.
-  if (pidAlive) {
+  if (alive) {
     return 'RUNNING';
   }
 
@@ -255,12 +321,23 @@ export function classifyWorkflowLiveness(input) {
     }
   }
 
-  // 3) PID dead AND journal quiet: the journal now decides finished-vs-died.
-  //    - every started key resulted (and at least one started) => COMPLETED.
-  //    - otherwise (a started key never resulted, or no result at all) => ORPHAN.
+  // 3) Not alive AND journal quiet: the journal now decides finished-vs-not.
+  //    Every started key resulted (and at least one started) => COMPLETED. This
+  //    holds REGARDLESS of `known`: a cleanly finished workflow is complete
+  //    whether or not we still hold its pid.
   if (startedKeyCount >= 1 && resultKeyCount >= 1 && allStartedResulted) {
     return 'COMPLETED';
   }
 
-  return 'ORPHAN';
+  // 4) Not alive, quiet, and NOT cleanly finished. `known` splits the two very
+  //    different meanings of "no live pid" (M1 — the false-orphan fix):
+  //    - known: a pid WAS recorded and is now dead => the workflow genuinely died
+  //      mid-flight => ORPHAN (visible, user resumes manually).
+  //    - !known: no pid was ever recorded — the decisive case is a workflow that
+  //      SURVIVED a server restart (the in-memory pid Map is emptied on boot), so
+  //      liveness is simply unproven. We must NOT announce a death here => UNKNOWN.
+  if (known) {
+    return 'ORPHAN';
+  }
+  return 'UNKNOWN';
 }

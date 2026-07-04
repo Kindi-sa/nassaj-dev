@@ -319,6 +319,22 @@
     "doneHint": "セッションが完了しました（未読）",
     "projectDoneHint": "このプロジェクトのセッションが完了しました（未読）"
   },
+  "workflowStatus": {
+    "running": "ワークフロー実行中",
+    "runningHint": "バックグラウンドワークフローがこのセッションで実行中です",
+    "orphanEmpty": "停止済み — 出力なし",
+    "orphanEmptyHint": "エージェントが完了する前にプロセスが終了しました (0/N) — 手動で再開できます",
+    "orphanPartial": "停止済み — 一部完了",
+    "orphanPartialHint": "一部のエージェントが完了後にプロセスが終了しました — 部分的な進捗が保存済み、手動で再開できます",
+    "orphanIncomplete": "停止済み — 不完全",
+    "orphanIncompleteHint": "プロセスが完了せずに終了しました（開始数 > 完了数）— 手動で再開できます",
+    "frozen": "フリーズ中（一時停止）",
+    "frozenHint": "プロセスは停止中 (SIGSTOP) で終了ではありません — CONT で再開されます",
+    "unknown": "稼働状態不明",
+    "unknownHint": "稼働状態を確認できません — サーバー再起動後も生存している可能性；生死を断定しません",
+    "projectRunningHint": "このプロジェクトでバックグラウンドワークフローが実行中です",
+    "projectOrphanHint": "このプロジェクトに未完了のバックグラウンドワークフローがあります"
+  },
   "buildUpdate": {
     "available": "新しいビルドが利用可能です",
     "reload": "再読み込み",

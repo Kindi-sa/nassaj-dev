@@ -4,6 +4,8 @@ import { Copy, Check } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
+import WorkflowStatusBadge from '../../../../shared/view/WorkflowStatusBadge';
+import { useWorkflowsEnvelope } from '../../../../stores/workflowStatusStore';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 
@@ -104,6 +106,7 @@ export default function MainContentTitle({
 }: MainContentTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
+  const workflowEnvelope = useWorkflowsEnvelope();
 
   const pluginDisplayName = activeTab.startsWith('plugin:')
     ? plugins.find((p) => p.name === activeTab.replace('plugin:', ''))?.displayName
@@ -128,6 +131,17 @@ export default function MainContentTitle({
                 {getSessionTitle(selectedSession)}
               </h2>
               <SessionProcessBadge sessionId={selectedSession.id} />
+              <WorkflowStatusBadge sessionId={selectedSession.id} />
+              {workflowEnvelope.capped && (
+                <span
+                  role="status"
+                  title={t('workflowStatus.unknownHint')}
+                  aria-label={t('workflowStatus.unknown')}
+                  className="inline-flex flex-shrink-0 items-center rounded-full border border-slate-400/30 bg-slate-400/10 px-1.5 py-px text-[10px] text-muted-foreground"
+                >
+                  {t('workflowStatus.unknown')}
+                </span>
+              )}
             </div>
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="truncate text-[11px] leading-tight text-muted-foreground">
