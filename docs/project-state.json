@@ -2,7 +2,7 @@
  "$version": 1,
  "$spec": "~/.claude/wiki/project-board.md",
  "project": "nassaj-dev",
- "updated": "2026-07-03",
+ "updated": "2026-07-06",
  "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
  "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
  "phases": [
@@ -3079,10 +3079,28 @@
    "id": "T-710",
    "kind": "chore",
    "phase": "P6",
-   "status": "in-progress",
+   "status": "done",
    "owner": "architect",
    "title": "خطة إصلاح عنقود الأخطاء المفتوحة (B-35/B-24، B-80، B-86، B-116، B-117 + ملحق نظافة): docs/plans/FIX-PLAN-2026-07-03.md",
-   "note": "الخطة مكتوبة 2026-07-03. تشخيصات مصحّحة: B-86 تشغيلي بحت (بيئة pm2 عالقة، .env يحوي العلم أصلاً)؛ mermaid/cytoscape مقسّمة سلفاً والانتفاخ في غيرها؛ سجلات SDK جاهزة لرصد B-117. قيد المراجعة النقدية لدى qa-critic."
+   "note": "الخطة اعتُمدت بشروط من qa-critic (أخطرها: ادعاء انحراف البيئة خاطئ — الغائب الوحيد ENABLE_ULTRACODE_WORKFLOWS، وتوسيع --set كان سيفشل fail-closed). الشروط السبعة ضُمِّنت نصياً في docs/plans/FIX-PLAN-2026-07-03.md.",
+   "closed": "2026-07-06"
+  },
+  {
+   "id": "T-711",
+   "kind": "chore",
+   "phase": "P6",
+   "status": "in-progress",
+   "owner": "devops",
+   "title": "تنفيذ الشريحة المعتمدة من FIX-PLAN-2026-07-03: تنظيف الجذر+gitignore (ب) + رصد RSS ‏T-196 (هـ) + heap ‏T-167 مُبوَّب بنافذة هدوء (د)"
+  },
+  {
+   "id": "T-712",
+   "kind": "bug",
+   "phase": "P6",
+   "status": "in-progress",
+   "owner": "backend-dev",
+   "issue": "B-117",
+   "title": "تحليل سجلات SDK لتوقيع فشل AskUserQuestion/ExitPlanMode (ج) + إعادة إنتاج موجَّهة بجلسة cwd مؤقت إن غاب التوقيع"
   }
  ],
  "issues": [
