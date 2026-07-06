@@ -226,6 +226,44 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
+// [B117-SIGNATURE] Monitoring only (T-250, docs/plans/B117-DIAGNOSIS.md §1.1 + §5).
+// The literal "Tool permission request failed: Stream closed" is emitted INSIDE
+// the bundled CLI binary (CLI→SDK direction) when it cannot send the can_use_tool
+// control_request over a closed stdin — it is returned to the model as a deny and
+// therefore surfaces in the message STREAM (result text / tool_result content),
+// NOT through the nassaj canUseTool callback. So the callback-level [B117-DENY]
+// probe alone cannot catch this string; this scanner over the read loop is the
+// only nassaj-side point that can. Pure read: it inspects likely carriers and
+// returns the matched text (or null); it never mutates the message or the stream.
+const B117_FAILURE_SIGNATURE = 'Tool permission request failed';
+function scanB117Signature(message) {
+  try {
+    if (typeof message?.result === 'string' && message.result.includes(B117_FAILURE_SIGNATURE)) {
+      return message.result;
+    }
+    const content = message?.message?.content;
+    if (Array.isArray(content)) {
+      for (const block of content) {
+        if (!block) continue;
+        // tool_result blocks: `content` is a string or an array of {type,text}
+        const inner = block.content;
+        if (typeof inner === 'string' && inner.includes(B117_FAILURE_SIGNATURE)) return inner;
+        if (Array.isArray(inner)) {
+          for (const part of inner) {
+            const t = part && typeof part.text === 'string' ? part.text : '';
+            if (t.includes(B117_FAILURE_SIGNATURE)) return t;
+          }
+        }
+        // assistant text narrating the failure
+        if (typeof block.text === 'string' && block.text.includes(B117_FAILURE_SIGNATURE)) {
+          return block.text;
+        }
+      }
+    }
+  } catch { /* monitoring must never break the read loop */ }
+  return null;
+}
+
 /**
  * Detects the Claude Code "stale resume" failure: a `--resume <id>` (SDK
  * `resume` option) request whose conversation no longer exists on disk. The
@@ -1486,6 +1524,27 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     sdkOptions.canUseTool = async (toolName, input, context) => {
       const requiresInteraction = TOOLS_REQUIRING_INTERACTION.has(toolName);
 
+      // [B117-DENY] Monitoring only — zero behaviour change (T-250,
+      // docs/plans/B117-DIAGNOSIS.md §5.2). Every deny this callback returns for
+      // the interactive tools is logged with the session/request id and the raw
+      // socket state so a live B-117 occurrence can be correlated to an
+      // endInput/abort sequence. The returned object is byte-identical to the
+      // former inline literal; logging never mutates the permission decision and
+      // is wrapped so it can never throw into the permission path.
+      const denyWithLog = (denyMessage, reason, requestId = null) => {
+        try {
+          const rawState = ws && ws.ws ? ws.ws.readyState : 'no-ws';
+          console.log(
+            `[B117-DENY] tool=${toolName} requiresInteraction=${requiresInteraction} `
+            + `reason=${reason} session=${capturedSessionId || sessionId || 'NEW'} `
+            + `requestId=${requestId || 'none'} `
+            + `permissionMode=${sdkOptions.permissionMode || 'default'} `
+            + `rawSocketReadyState=${rawState} message=${JSON.stringify(denyMessage)}`
+          );
+        } catch { /* logging must never break the permission path */ }
+        return { behavior: 'deny', message: denyMessage };
+      };
+
       if (!requiresInteraction) {
         if (sdkOptions.permissionMode === 'bypassPermissions') {
           return { behavior: 'allow', updatedInput: input };
@@ -1495,7 +1554,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
           matchesToolPermission(entry, toolName, input)
         );
         if (isDisallowed) {
-          return { behavior: 'deny', message: 'Tool disallowed by settings' };
+          return denyWithLog('Tool disallowed by settings', 'disallowed-by-settings');
         }
 
         const isAllowed = (sdkOptions.allowedTools || []).some(entry =>
@@ -1533,7 +1592,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         }
       });
       if (!decision) {
-        return { behavior: 'deny', message: 'Permission request timed out' };
+        return denyWithLog('Permission request timed out', 'timeout', requestId);
       }
 
       if (decision.cancelled) {
@@ -1541,7 +1600,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         // transient SDK/transport disconnect), NOT from the user denying the
         // request. We keep the { behavior: 'deny', message } contract but return
         // an honest, retryable message instead of implying the user cancelled.
-        return { behavior: 'deny', message: 'Tool use was cancelled by the runtime (not by the user). This is likely a transient SDK/transport abort — the request can be retried.' };
+        return denyWithLog('Tool use was cancelled by the runtime (not by the user). This is likely a transient SDK/transport abort — the request can be retried.', 'runtime-cancelled', requestId);
       }
 
       if (decision.allow) {
@@ -1556,7 +1615,7 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
         return { behavior: 'allow', updatedInput: decision.updatedInput ?? input };
       }
 
-      return { behavior: 'deny', message: decision.message ?? 'User denied tool use' };
+      return denyWithLog(decision.message ?? 'User denied tool use', 'user-denied', requestId);
     };
 
     // Set stream-close timeout for interactive tools (Query constructor reads it synchronously). Claude Agent SDK has a default of 5s and this overrides it
@@ -1654,6 +1713,20 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
           + `note=socket-closed-but-generator-still-running-sends-now-dropped`
         );
       }
+
+      // [B117-SIGNATURE] Live capture of the CLI-internal B-117 deny surfacing in
+      // the stream (see scanB117Signature). Logs the matched text + raw socket
+      // state so the emission can be tied to a session/message; monitoring only.
+      const b117Match = scanB117Signature(message);
+      if (b117Match) {
+        const rawState = ws && ws.ws ? ws.ws.readyState : 'no-ws';
+        console.log(
+          `[B117-SIGNATURE] session=${capturedSessionId || sessionId || 'NEW'} `
+          + `messageType=${message.type} messagesSoFar=${wsDiagMessageCount} `
+          + `rawSocketReadyState=${rawState} matched=${JSON.stringify(b117Match.slice(0, 300))}`
+        );
+      }
+
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 
