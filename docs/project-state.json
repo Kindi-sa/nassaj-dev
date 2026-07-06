@@ -3110,12 +3110,12 @@
    "id": "T-713",
    "kind": "chore",
    "phase": "P6",
-   "status": "pending",
+   "status": "done",
    "owner": "owner",
    "issue": "B-130",
    "sprint": "S-2",
    "title": "تفعيل تحييد B-130 حيّاً (خطوة مالك): pm2 delete+start من ecosystem.alkindy.config.cjs في نافذة خمول + pm2 save + تركيب crontab للحارس كل 3 دقائق",
-   "note": "الأوامر الجاهزة في تقرير devops (جلسة 2026-07-06). التحقق بعده: mmr=undefined، treekill=false، kill_timeout=86400000، http 200، وغياب سطر exceeds --max-memory-restart من pm2.log مستقبلاً. باب مراجعة qa-critic قبل التفعيل قائم (توصية triage) إن رغب المالك."
+   "note": "الأوامر الجاهزة في تقرير devops (جلسة 2026-07-06). التحقق بعده: mmr=undefined، treekill=false، kill_timeout=86400000، http 200، وغياب سطر exceeds --max-memory-restart من pm2.log مستقبلاً. باب مراجعة qa-critic قبل التفعيل قائم (توصية triage) إن رغب المالك. | أُنجزت 2026-07-06: المالك نفّذ الأوامر، التحييد والcrontab مؤكَّدان ميدانياً."
   }
  ],
  "issues": [
@@ -4390,7 +4390,7 @@
   },
   {
    "id": "B-130",
-   "status": "in_progress",
+   "status": "resolved",
    "severity": "high",
    "phase": "P6",
    "kind": "bug",
@@ -4398,7 +4398,7 @@
    "title": "تفاعل سامّ مؤكَّد: max_memory_restart=768MiB + treekill:false + kill_timeout=24h + جلسات حيّة = انقطاع 502 تلقائي متكرر كلما لامست الذاكرة الحدّ أثناء نشاط جلسات — restart يطلقه PM2 داخلياً فيتجاوز بوّابة safe-restart.sh كلياً (لا يمكنها اعتراضه)، والدرين بلا مهلة يحتجز المنفذ 3004 دقائق-ساعات بلا أي تدخل بشري (جذر حادثة B-129: ‏916MB عند 06:57:47 UTC → احتجاز ~18 دقيقة)",
    "triage": "high → جذر جديد منفصل عن incident_pm2_restart_drain_502 (الزناد هناك بشري، هنا حارس PM2 الداخلي). يلزم قرار معماري (architect + مراجعة qa-critic ثم اعتماد المالك) بين: (أ) رفع/إلغاء max_memory_restart لعملية تستضيف جلسات متعددة تبلغ 916MB بسهولة، (ب) مسار إحلال يحرّر المنفذ فوراً (البديلة تستمع على 3004 قبل انتهاء درين الأم) بدل احتجاز 24h، (ج) فصل خدمة الجلسات (ADR-021 المؤجَّل). مترابط مع تسرّب الذاكرة B-35 (~7MB/س، قياس heap T-167 مؤجَّل بإجراء موثَّق). فرضية مساهِمة غير مثبتة تستحق قياساً: DEBUG_CLAUDE_AGENT_SDK=1 (رصد T-250) قد يسرّع النمو نحو الحدّ — لا يُترك مفعَّلاً طويلاً بلا قياس.",
    "_relIssue": "B-129",
-   "note": "الإصلاح منفَّذ وملتزَم (commit 4a454cbd، devops 2026-07-06): تعطيل max_memory_restart في القالب + scripts/memory-guard.sh (حارس cron يقيس RSS، عتبة 850MB، يؤجّل عند جلسات/workflow حيّة وإلا يفوّض safe-restart.sh --exec) + ecosystem.alkindy.config.cjs (host-artifact، gitignored) للتحييد الحيّ. تحقّق المنسّق مستقلاً: commit موجود، syntax OK، تشغيل تجريبي أنتج ok عند 225MB. التفعيل الحيّ معلّق على خطوة المالك (pm2 delete+start من ملف العقدة في نافذة خمول — أمر محجوب بحارس العميل) + تركيب سطر crontab. mmr الحيّ ما زال 768MiB حتى التفعيل."
+   "note": "الإصلاح منفَّذ وملتزَم (commit 4a454cbd، devops 2026-07-06): تعطيل max_memory_restart في القالب + scripts/memory-guard.sh (حارس cron يقيس RSS، عتبة 850MB، يؤجّل عند جلسات/workflow حيّة وإلا يفوّض safe-restart.sh --exec) + ecosystem.alkindy.config.cjs (host-artifact، gitignored) للتحييد الحيّ. تحقّق المنسّق مستقلاً: commit موجود، syntax OK، تشغيل تجريبي أنتج ok عند 225MB. التفعيل الحيّ معلّق على خطوة المالك (pm2 delete+start من ملف العقدة في نافذة خمول — أمر محجوب بحارس العميل) + تركيب سطر crontab. mmr الحيّ ما زال 768MiB حتى التفعيل. | فُعِّل حيّاً 2026-07-06: المالك نفّذ pm2 delete+start من ملف العقدة + pm2 save + crontab. تحقق ميداني: mmr غائب من pm2_env (undefined ✓)، treekill=false، kill_timeout=86400000، المنفذ 3004 على pid الجديد، local/public=200. مسار restart الفعلي للحارس (فوق العتبة + صفر جلسات) غير مختبَر حيّاً — يفوَّض لـsafe-restart المصلّبة."
   }
  ],
  "decisions": [
