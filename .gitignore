@@ -159,3 +159,14 @@ tasks/
 
 # Git worktrees
 .worktrees/
+
+# Transient screenshots / test-artifact PNGs at repo root only
+# (tracked product assets under public/ are unaffected by the root-scoped pattern)
+/*.png
+
+# Build backups and pre-deploy snapshots
+dist.bak-*/
+dist*.predeploy-*/
+
+# Playwright MCP session artifacts
+.playwright-mcp/
