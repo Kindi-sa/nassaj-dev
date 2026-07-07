@@ -461,7 +461,10 @@ export default function ChatComposer({
               </>
             )}
 
-            <TokenUsageSummary usage={tokenBudget} />
+            {/* Only Claude exports live token usage; other providers never
+                populate tokenBudget so the widget shows a zero/empty state
+                that wastes toolbar space and misleads users. (B-92) */}
+            {provider === 'claude' && <TokenUsageSummary usage={tokenBudget} />}
 
             {/* Wrapper span establishes the containing block for the badge.
               * Firefox/Gecko (bug 1392476) does not let a <button> with

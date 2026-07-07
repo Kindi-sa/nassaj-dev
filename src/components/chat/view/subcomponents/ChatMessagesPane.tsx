@@ -68,7 +68,7 @@ interface ChatMessagesPaneProps {
   providerModelsRefreshing: boolean;
   providerAuthStatus: ProviderAuthStatusMap;
   onHardRefreshProviderModels: () => void;
-  onRefreshAuthStatus: () => Promise<void>;
+  onRefreshAuthStatus: (force?: boolean) => Promise<void>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;

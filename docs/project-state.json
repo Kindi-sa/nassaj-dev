@@ -3229,12 +3229,14 @@
       "id": "B-116",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "medium",
       "found": "2026-07-01",
       "title": "زر «تحديث» في نافذة اختيار النماذج لا يُحدِّث القائمة المعروضة (لاحظه المالك تحديداً على نسخة نساج ترافنشر). تحليل متوازٍ frontend-dev+backend-dev كشف 4 أسباب مستقلة متراكبة، كلها نمط واحد: حارس in-flight/TTL/circuit-breaker صُمِّم لمنع تكرار تلقائي غير مقصود لكنه لا يميّز نداءً خاملاً عن ضغطة زر بنيّة صريحة: (1) الأهم — ChatInterface.tsx:146-168 refreshAuthStatus محكومة بسقف 30 ثانية بلا معامل force/bypass، ونفس الدالة تُستدعى من mount وفتح الحوار وزر التحديث معاً، فأي ضغط خلال 30ث من آخر نداء (شائع جداً) يُسقِط شطر auth-status من التحديث بصمت تامة بينما شطر الموديلز ينجح دون أثر مرئي (الفلترة تعتمد على auth status). (2) ProviderSelectionEmptyState.tsx:182-204,477-497 سباق: فتح الحوار يطلق refreshInFlightRef فوراً، وأي ضغط على تحديث أثناءه يُرفض بصمت (return مبكر) والزر لا يعكس ذلك بصرياً (disabled/spin مربوطان بـproviderModelsRefreshing فقط) — أوسع أثراً على عقدة أبطأ/محمَّلة كترافنشر (10 فحوصات CLI متوازية). (3) hermes.provider.ts:54-56 getSupportedModels ثابتة صرفة بلا أي استعلام حيّ إطلاقاً (قرار مؤجَّل موثَّق بالكود) — زر التحديث بلا أثر بنيوي لهذا المزوّد تحديداً. (4) vendor-catalog.client.ts:157-234 (kimi/deepseek/glm): fetchLive تُرجع null بصمت بلا مفتاح API، ومفتاح kimi تحديداً غير مربوط بالمستخدم (kimi-catalog.client.ts:14 يمرّر null حرفياً بدل userId)؛ circuit breaker يفتح 5 دقائق بعد 3 فشلات ولا يُعاد ضبطه بواسطة bypassCache، فتحديث الخادم يتجاوز كاش الخدمة لكن ليس دائرة vendor-catalog. مسار التحميل الأول ومسار زر التحديث في الخادم متطابقان فعلياً (loadProviderModels نفسها بفرق bypassCache) — لا مشكلة كاش/state/render في أي طبقة أخرى. لم يُؤكَّد ميدانياً هل عقدة ترافنشر تفتقد KIMI/DEEPSEEK/GLM_API_KEY فعلاً (يحتاج فحص pm2 env أو ecosystem.<node>.config.cjs هناك عبر Tailscale) — الأسباب 1+2 تفسّر السلوك على أي عقدة بصرف النظر عن المفاتيح.",
       "triage": "medium → backlog (تحليل فقط بطلب المالك، لا إصلاح بعد). يلزم قرار مالك على نطاق الإصلاح قبل الجدولة: (أ) الأهم/الأرخص — force param في refreshAuthStatus + تمرير force:true من زر التحديث فقط (يحل السبب 1)، (ب) ربط disabled/spin بـrefreshInFlightRef أيضاً (يحل 2)، (ج) تعطيل زر التحديث لمزوّد Hermes تحديداً أو تنفيذ القراءة الديناميكية المؤجَّلة (يحل 3)، (د) استهلاك حقل degraded/cache.source الموجود أصلاً في استجابة الخادم لعرض تنبيه صريح + تصفير circuit breaker عند bypassCache صريح + ربط مفتاح kimi بـuserId الفعلي (يحل 4 جزئياً، يحتاج فحص ميداني لمفاتيح ترافنشر أولاً). صفر تغطية اختبار حالياً لهذا الصنف من العلل (providerAuthFilter.test.ts يغطي منطق الفلترة النقي فقط).",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "خياران (أ)+(ب) من FIX-PLAN: force يتجاوز حارس TTL/30s في refreshAuthStatus + حالة isLocalRefreshing للزر (disabled/spin صحيحان). الجذر: النقرة خلال 30s كانت تُسقط نصف العمل (auth) بصمت. ملاحظة: يلزم نشر لاحق على نسخة ترافنشر حيث لاحظه المالك"
     },
     {
       "id": "B-117",
@@ -3317,23 +3319,27 @@
       "id": "B-92",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "low",
       "found": "2026-06-27",
       "title": "TokenUsageSummary (عدّاد توكنز Claude) يُعرض لكل مزوّد دون شرط (ChatComposer.tsx:428) رغم أن هرمز لا يُصدر token_budget (hermes-cli.js يبثّ فقط session_created/stream_delta/stream_end/complete/error) → شارة «0» فارغة مضلِّلة عند هرمز. تشخيص architect 2026-06-27.",
       "triage": "low → T-224/م1 (يُخفى عبر واصِف القدرات tokenMeter.source='none'). مرتبط ADR-047.",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "شرط provider===claude على TokenUsageSummary في ChatComposer — المزوّد الوحيد المُثبَت إصداراً للتوكنز اللحظية"
     },
     {
       "id": "B-91",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "low",
       "found": "2026-06-27",
       "title": "تجربة خطأ هرمز سيئة: server/hermes-cli.js يمرّر stderr الخام لثنائي hermes («hermes -z: no final response was produced» / «agent failed: …») كعنوان «Error» للمستخدم عند exit 1 + stdout فارغ، بدل رسالة عربية واضحة. الحادثة الأصلية (12:34، AlNuman-Booking-Engine، سجل خطآن code 1) سببها تشغيلي لا عيب كود: حصة نموذج Nous المجاني stepfun/step-3.7-flash:free مُستنفَدة (auth list: exhausted 58m + last_status='exhausted'). تشخيص backend-dev: oneshot.py:216 منشأ النص. مرتبط: HermesSessionSynchronizer.synchronize() يُرجع 0 (stub مؤجَّل من T-205) فجلسات هرمز لا تظهر بالقائمة حتى عند النجاح.",
       "triage": "low → backlog. حلّ تشغيلي فوري: انتظار تصفير الحصة أو تبديل model.default عن :free / ضبط fallback_model في ~/.hermes/config.yaml (خارج نسّاج، بلا build). إصلاح كودي اختياري: التقاط أنماط stderr في فرع close(code 1) ورسالة عربية واضحة — يحتاج build:server+restart.",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "mapHermesStderrToFriendlyMessage في server/hermes-cli.js: نفاد الحصة/auth/شبكة برسائل ودّية والخام يُحفظ في السجل"
     },
     {
       "id": "B-89",

@@ -88,7 +88,8 @@ type ProviderSelectionEmptyStateProps = {
   providerModelsRefreshing: boolean;
   providerAuthStatus: ProviderAuthStatusMap;
   onHardRefreshProviderModels: () => void;
-  onRefreshAuthStatus: () => Promise<void>;
+  /** @param force When true, bypasses the 30-second TTL on the caller side. */
+  onRefreshAuthStatus: (force?: boolean) => Promise<void>;
   tasksEnabled: boolean;
   isTaskMasterInstalled: boolean | null;
   onShowAllTasks?: (() => void) | null;
@@ -176,10 +177,15 @@ export default function ProviderSelectionEmptyState({
   // configured API key. Fetch existence only (never the value).
   const { statuses: vendorKeyStatuses } = useVendorKeyStatuses();
 
-  // in-flight guard for the combined refresh button (models + auth status)
+  // Tracks whether this component's own refresh cycle is in progress.
+  // Used to correctly disable the refresh button while both models AND auth
+  // status are fetching (providerModelsRefreshing only covers the models half).
+  const [isLocalRefreshing, setIsLocalRefreshing] = useState(false);
+  // Prevents launching a second concurrent refresh (e.g. rapid double-click).
   const refreshInFlightRef = useRef(false);
 
-  // Trigger a refresh of both models catalog and auth status when the dialog opens.
+  // Trigger a refresh of auth status when the dialog opens (non-forced: TTL
+  // applies here because opening the picker is not an explicit user refresh).
   useEffect(() => {
     if (!dialogOpen) return;
     if (refreshInFlightRef.current) return;
@@ -193,13 +199,19 @@ export default function ProviderSelectionEmptyState({
   const handleRefreshClick = useCallback(async () => {
     if (providerModelsRefreshing || refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
+    setIsLocalRefreshing(true);
     try {
+      // force=true bypasses the 30-second TTL on refreshAuthStatus so an
+      // explicit button press always fetches a fresh auth status, not just
+      // models. Without force the auth part is silently dropped within 30 s of
+      // the dialog open, leaving the provider filter on stale data.
       await Promise.all([
         onHardRefreshProviderModels(),
-        onRefreshAuthStatus(),
+        onRefreshAuthStatus(true),
       ]);
     } finally {
       refreshInFlightRef.current = false;
+      setIsLocalRefreshing(false);
     }
   }, [providerModelsRefreshing, onHardRefreshProviderModels, onRefreshAuthStatus]);
 
@@ -477,21 +489,21 @@ export default function ProviderSelectionEmptyState({
                 <button
                   type="button"
                   onClick={handleRefreshClick}
-                  disabled={providerModelsRefreshing}
+                  disabled={providerModelsRefreshing || isLocalRefreshing}
                   aria-label={
-                    providerModelsRefreshing
+                    (providerModelsRefreshing || isLocalRefreshing)
                       ? t("providerSelection.refresh.refreshing", { defaultValue: "Refreshing…" })
                       : t("providerSelection.refresh.button", { defaultValue: "Refresh models and auth status" })
                   }
                   title={
-                    providerModelsRefreshing
+                    (providerModelsRefreshing || isLocalRefreshing)
                       ? t("providerSelection.refresh.refreshing", { defaultValue: "Refreshing…" })
                       : t("providerSelection.refresh.button", { defaultValue: "Refresh models and auth status" })
                   }
                   className="flex h-7 w-7 items-center justify-center rounded border border-border/50 bg-background/80 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
                 >
                   <RefreshCw
-                    className={["h-3.5 w-3.5", providerModelsRefreshing ? "animate-spin" : ""].join(" ").trim()}
+                    className={["h-3.5 w-3.5", (providerModelsRefreshing || isLocalRefreshing) ? "animate-spin" : ""].join(" ").trim()}
                     aria-hidden="true"
                   />
                 </button>

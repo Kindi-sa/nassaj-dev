@@ -34,6 +34,40 @@ const activeHermesProcesses = new Map();
 const HERMES_NOT_INSTALLED_MESSAGE =
   'Hermes CLI is not installed. Install it and run `hermes setup --portal`.';
 
+/**
+ * Maps well-known Hermes stderr patterns to user-friendly messages.
+ * The raw stderr is always written to the server log by the caller before
+ * this function is invoked, so no diagnostic information is lost.
+ *
+ * @param {string} raw - Raw stderr text from the Hermes CLI process.
+ * @returns {string} A human-friendly error string suitable for display.
+ */
+function mapHermesStderrToFriendlyMessage(raw) {
+  const lower = raw.toLowerCase();
+
+  // B-91: "hermes -z: no final response was..." is emitted when the selected
+  // free-tier model has exhausted its quota. It is NOT a bug in the software —
+  // see memory reference_hermes_environment.md.
+  if (lower.includes('no final response')) {
+    return 'The selected Hermes model returned no response. '
+      + 'This is usually caused by the free-tier quota being exhausted. '
+      + 'Try a different model or upgrade your Nous plan.';
+  }
+
+  // Authentication / token errors.
+  if (lower.includes('unauthorized') || lower.includes('401') || lower.includes('invalid token')) {
+    return 'Hermes authentication failed. Run `hermes setup --portal` to refresh your credentials.';
+  }
+
+  // Generic network connectivity issues.
+  if (lower.includes('econnrefused') || lower.includes('enotfound') || lower.includes('network')) {
+    return 'Could not connect to the Hermes service. Check your network connection and try again.';
+  }
+
+  // Fallback: trim whitespace so multi-line blobs do not spill into the chat.
+  return raw.trim();
+}
+
 async function spawnHermes(command, options = {}, ws) {
   // Mirror opencode B-31: verify the project directory exists before spawning.
   const cwdToCheck = options.cwd || options.projectPath;
@@ -170,9 +204,11 @@ async function spawnHermes(command, options = {}, ws) {
         if (!stderrText.trim()) {
           return;
         }
+        // Always log the raw stderr so operators can diagnose issues.
+        console.error('[hermes] stderr:', stderrText.trimEnd());
         ws.send(createNormalizedMessage({
           kind: 'error',
-          content: stderrText,
+          content: mapHermesStderrToFriendlyMessage(stderrText),
           sessionId: capturedSessionId || sessionId || null,
           provider: 'hermes',
         }));

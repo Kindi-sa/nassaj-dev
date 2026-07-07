@@ -147,10 +147,16 @@ function ChatInterface({
   const lastAuthFetchRef = useRef<number>(0);
   const authFetchInFlightRef = useRef(false);
 
-  const refreshAuthStatus = useCallback(async () => {
+  /**
+   * Refresh provider auth statuses.
+   * @param force When true, skips the 30-second TTL so an explicit user action
+   *   (e.g. the model-picker refresh button) always fetches a fresh status.
+   *   Background/automatic callers omit this to avoid hammering the endpoint.
+   */
+  const refreshAuthStatus = useCallback(async (force?: boolean) => {
     if (authFetchInFlightRef.current) return;
     const now = Date.now();
-    if (now - lastAuthFetchRef.current < 30_000) return;
+    if (!force && now - lastAuthFetchRef.current < 30_000) return;
     authFetchInFlightRef.current = true;
     try {
       await refreshProviderAuthStatuses();

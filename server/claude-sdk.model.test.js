@@ -181,9 +181,13 @@ test('mapCliOptionsToSDK falls back to the static list when no validModelValues 
   assert.equal(dyn.model, DEFAULT, 'without a catalog, a dynamic-only model is rejected (static floor)');
   assert.equal(dyn.warnings.length, 1);
 
-  // claude-fable-5 is an unreleased model removed from the static list (and
-  // hidden from the live catalog). With no catalog backing it, it must be
-  // rejected and coerced to DEFAULT with a non-silent warning.
+  // claude-fable-5 is NOT in the static fallback list. The static list is the
+  // degraded-path floor used when the live probe is unavailable; it must never
+  // offer a model the account might not be entitled to. fable-5 became available
+  // on 2026-07-02, but it surfaces via the LIVE catalog probe (which runs under
+  // the user's real credentials) — NOT via the static list. When no live catalog
+  // is present (this test's scenario), fable-5 must still be rejected and coerce
+  // to DEFAULT with a non-silent warning.
   const fable = mapAndCaptureWarn({ model: 'claude-fable-5' });
   assert.equal(fable.model, DEFAULT, 'fable-5 is not a static-list model and must coerce to default');
   assert.equal(fable.warnings.length, 1, 'rejecting the unreleased fable-5 must warn (non-silent)');
