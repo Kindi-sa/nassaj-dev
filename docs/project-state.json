@@ -4063,38 +4063,46 @@
     {
       "id": "B-76",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-20",
       "title": "[WF w94pxb707] /api/system/stats بلا rate-limit (createRateLimiter متاح وغير مطبّق) ومقروء لأي مستخدم مُصادَق بمن فيهم دور user (نظيره /api/system/update محروس بـrequireRole owner/admin). كشف CPU/RAM تجميعي، side-channel ضعيف لأداة داخلية. system.js:158 / index.js:304.",
       "triage": "backlog (low) — قرار: تطبيق rate-limit و/أو requireRole، أو توثيق الإبقاء مفتوحاً للموثوقين.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "createRateLimiter على /api/system/stats داخل system.js: ‏120/دقيقة/IP (هامش 5-10× فوق استطلاع الواجهة كل 5s) + اختبار 429/Retry-After"
     },
     {
       "id": "B-77",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-20",
       "title": "[WF w94pxb707] دقّة ذاكرة مُهدَرة وغير متّسقة: الباكند يقرّب النسبة round1 والواجهة تُلغيها بـMath.round (صحيح دائماً)، بينما CPU صار خانتين (toFixed(2)) بعد b4956ea؛ والتعليق system.js:9-11 مازال يقول memory 1 decimal خلافاً للمعروض. SystemStats.tsx:75,150.",
       "triage": "backlog (low) — توحيد عقد الدقّة طرفياً (toFixed(1) أو Math.round) + تحديث التعليق.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "الباكند المقرِّب الوحيد (round1) والواجهة تعرض toFixed(1) كما يصل — مطابق لنمط CPU round2/toFixed(2)"
     },
     {
       "id": "B-78",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-20",
       "title": "[WF w94pxb707] فجوات اختبار الباكند: round2/الخانتان (b4956ea) غير مُختبَرة (round2 غير مُصدَّرة)، وround1 للذاكرة، وآلة حالة getCpuPercent (عيّنة أولى/إعادة استخدام/fallback loadavg) غير مُغطّاة؛ وعنوان اختبار «and clamps» مُضلِّل (لا يمارس القَصّ). server/routes/tests/system.test.ts.",
       "triage": "backlog (low) — تصدير round1/round2 واختبار التقريب صراحةً + حقن قارئ عيّنة لـgetCpuPercent.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "round1/round2 صارتا مُصدَّرتين مع اختبارات وحدة + تأكيدا عقد طرفيان على GET /stats"
     },
     {
       "id": "B-79",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-20",
       "title": "[WF w94pxb707] تجميل واجهة/RTL/تدويل: أسبان القيم بلا dir=\"ltr\" فتُعاد ترتيب «RAM x/yGB (z%)» بصرياً تحت العربية؛ الدُّرج المحمول يبقى يستطلع وهو مخفي بـCSS (document.hidden لا يغطّيه)؛ labels (CPU/RAM/GB) ثابتة نصاً؛ formatGb يحسب GiB(1024³) ويعرض «GB». SystemStats.tsx:87-149.",
       "triage": "backlog (low) — تجميلي: dir=ltr للأسبان، prop enabled للدُّرج، GiB بدل GB إن لزمت الدقّة.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "dir=ltr على الأسبان الرقمية الستة — شبكة أمان index.css تمنح unicode-bidi:isolate تلقائياً"
     },
     {
       "id": "B-80",

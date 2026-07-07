@@ -17,7 +17,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { StrictMode } from 'react';
-import { renderHook, act, cleanup } from '@testing-library/react';
+import { renderHook, render, screen, act, cleanup } from '@testing-library/react';
+import type { TFunction } from 'i18next';
 
 // Mock the network boundary. The hook imports it as
 // `../../../../utils/api` → resolves to src/utils/api.js.
@@ -26,7 +27,10 @@ vi.mock('../../../../utils/api', () => ({
   authenticatedFetch: vi.fn(),
 }));
 
-import { useSystemStats } from './SystemStats';
+import { useSystemStats, SystemStatsFooter, SystemStatsCollapsed } from './SystemStats';
+
+/** i18n stub: echo the key (labels are not asserted, only numeric formatting). */
+const tStub = ((key: string) => key) as unknown as TFunction;
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -227,5 +231,60 @@ describe('useSystemStats', () => {
     // The signal passed to fetch must have been aborted by cleanup.
     const passedOptions = fetchMock.mock.calls[0][1] as { signal?: AbortSignal };
     expect(passedOptions.signal?.aborted).toBe(true);
+  });
+});
+
+/**
+ * Display contract for the two rendered variants:
+ *   • B-77 — memory percent is shown verbatim at the one decimal the API ships
+ *     (round1); the old `Math.round` that flattened it to an integer is gone.
+ *   • B-79 — every numeric value span carries dir="ltr", so under `<html dir=
+ *     "rtl">` the Latin/number/paren string ("RAM x/yGB (z%)") is never visually
+ *     reordered by the bidi algorithm (isolation via the index.css safety net).
+ */
+describe('SystemStats display (B-77 precision + B-79 bidi isolation)', () => {
+  /** Fixed payload: memory percent with a non-zero tenth so rounding is visible. */
+  function fixedStats() {
+    return {
+      cpu: { percent: 1.5 },
+      memory: { usedBytes: 4 * 1024 ** 3, totalBytes: 8 * 1024 ** 3, percent: 63.4 },
+    };
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(okResponse(fixedStats()));
+  });
+
+  it('footer keeps the memory tenth and isolates every value span as dir=ltr', async () => {
+    render(<SystemStatsFooter t={tStub} />);
+    await flushMicrotasks();
+
+    // B-77: 63.4% survives — it is NOT collapsed to an integer 63%.
+    const ramSpans = screen.getAllByText(/^RAM .*\(63\.4%\)$/);
+    expect(ramSpans.length).toBeGreaterThan(0);
+    for (const el of ramSpans) {
+      expect(el.textContent).toContain('63.4%');
+      expect(el.textContent).not.toContain('(63%)');
+      expect(el.getAttribute('dir')).toBe('ltr'); // B-79
+    }
+
+    // CPU value spans render (2 decimals) and are likewise isolated.
+    const cpuSpans = screen.getAllByText(/^CPU 1\.50%$/);
+    expect(cpuSpans.length).toBeGreaterThan(0);
+    for (const el of cpuSpans) {
+      expect(el.getAttribute('dir')).toBe('ltr'); // B-79
+    }
+  });
+
+  it('collapsed rail shows one-decimal memory with dir=ltr value spans', async () => {
+    render(<SystemStatsCollapsed t={tStub} />);
+    await flushMicrotasks();
+
+    const ram = screen.getByText('63.4%'); // B-77: one decimal, not "63%"
+    expect(ram.getAttribute('dir')).toBe('ltr'); // B-79
+
+    const cpu = screen.getByText('1.50%');
+    expect(cpu.getAttribute('dir')).toBe('ltr'); // B-79
   });
 });

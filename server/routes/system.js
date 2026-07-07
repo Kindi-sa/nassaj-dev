@@ -34,7 +34,21 @@ import os from 'os';
 
 import express from 'express';
 
+import { createRateLimiter } from '../middleware/rate-limit.js';
+
 const router = express.Router();
+
+// Per-IP rate limit for the polled read endpoint (B-76). The widget polls every
+// 5s per active instance (~12 req/min, up to ~24 with both footer + collapsed
+// mounted), so 120 req/min/IP sits ~5-10x above legitimate use — ample headroom
+// for several tabs behind one NAT/tunnel IP — while still blunting a runaway
+// loop or a deliberate hammer. Reads are cheap, so this is a guard-rail, not a
+// tight quota; the message stays generic (no internals leaked).
+const statsLimiter = createRateLimiter({
+    windowMs: 60_000,
+    max: 120,
+    message: 'Too many requests, please slow down',
+});
 
 // Two CPU samples closer than this reuse the previously computed percent.
 const MIN_SAMPLE_MS = 500;
@@ -91,8 +105,10 @@ export function cpuPercentFromSamples(prev, cur) {
     return Math.min(100, Math.max(0, percent));
 }
 
-const round1 = (n) => Math.round(n * 10) / 10;
-const round2 = (n) => Math.round(n * 100) / 100;
+/** Round to 1 decimal place (memory percent contract). Exported for testing. */
+export const round1 = (n) => Math.round(n * 10) / 10;
+/** Round to 2 decimal places (CPU percent contract, b4956ea). Exported for testing. */
+export const round2 = (n) => Math.round(n * 100) / 100;
 
 async function readCpuSample() {
     const text = await fsPromises.readFile('/proc/stat', 'utf8');
@@ -155,7 +171,7 @@ async function getMemoryStats() {
 }
 
 // GET /api/system/stats — live CPU + memory utilisation of the host.
-router.get('/stats', async (req, res) => {
+router.get('/stats', statsLimiter, async (req, res) => {
     try {
         const [cpuPercent, memory] = await Promise.all([getCpuPercent(), getMemoryStats()]);
         res.json({

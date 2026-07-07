@@ -89,7 +89,7 @@ export function SystemStatsFooter({ t }: { t: TFunction }) {
 
   const cpuText = stats ? `${stats.cpu.percent.toFixed(2)}%` : '—';
   const ramText = stats
-    ? `${formatGb(stats.memory.usedBytes)}/${formatGb(stats.memory.totalBytes)}GB (${Math.round(stats.memory.percent)}%)`
+    ? `${formatGb(stats.memory.usedBytes)}/${formatGb(stats.memory.totalBytes)}GB (${stats.memory.percent.toFixed(1)}%)`
     : '—';
 
   return (
@@ -101,7 +101,7 @@ export function SystemStatsFooter({ t }: { t: TFunction }) {
           title={t('systemStats.cpuUsage')}
         >
           <Cpu className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="truncate text-sm tabular-nums">CPU {cpuText}</span>
+          <span dir="ltr" className="truncate text-sm tabular-nums">CPU {cpuText}</span>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ export function SystemStatsFooter({ t }: { t: TFunction }) {
           title={t('systemStats.memoryUsage')}
         >
           <MemoryStick className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="truncate text-sm tabular-nums">RAM {ramText}</span>
+          <span dir="ltr" className="truncate text-sm tabular-nums">RAM {ramText}</span>
         </div>
       </div>
 
@@ -124,14 +124,14 @@ export function SystemStatsFooter({ t }: { t: TFunction }) {
             title={t('systemStats.cpuUsage')}
           >
             <Cpu className="h-4 w-4 flex-shrink-0" />
-            <span className="text-base tabular-nums">CPU {cpuText}</span>
+            <span dir="ltr" className="text-base tabular-nums">CPU {cpuText}</span>
           </div>
           <div
             className="flex items-center gap-2 text-muted-foreground"
             title={t('systemStats.memoryUsage')}
           >
             <MemoryStick className="h-4 w-4 flex-shrink-0" />
-            <span className="text-base tabular-nums">RAM {ramText}</span>
+            <span dir="ltr" className="text-base tabular-nums">RAM {ramText}</span>
           </div>
         </div>
       </div>
@@ -153,18 +153,18 @@ export function SystemStatsCollapsed({ t }: { t: TFunction }) {
         aria-label={t('systemStats.cpuUsage')}
       >
         <Cpu className="h-3.5 w-3.5" />
-        <span className="text-[9px] leading-none tabular-nums">
+        <span dir="ltr" className="text-[9px] leading-none tabular-nums">
           {stats.cpu.percent.toFixed(2)}%
         </span>
       </div>
       <div
         className="flex flex-col items-center gap-0.5 py-1 text-muted-foreground"
-        title={`${t('systemStats.memoryUsage')}: ${formatGb(stats.memory.usedBytes)}/${formatGb(stats.memory.totalBytes)}GB (${Math.round(stats.memory.percent)}%)`}
+        title={`${t('systemStats.memoryUsage')}: ${formatGb(stats.memory.usedBytes)}/${formatGb(stats.memory.totalBytes)}GB (${stats.memory.percent.toFixed(1)}%)`}
         aria-label={t('systemStats.memoryUsage')}
       >
         <MemoryStick className="h-3.5 w-3.5" />
-        <span className="text-[9px] leading-none tabular-nums">
-          {Math.round(stats.memory.percent)}%
+        <span dir="ltr" className="text-[9px] leading-none tabular-nums">
+          {stats.memory.percent.toFixed(1)}%
         </span>
       </div>
     </>
