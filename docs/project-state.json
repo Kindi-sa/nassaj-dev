@@ -2312,9 +2312,10 @@
       "phase": "P7",
       "kind": "bug",
       "title": "خلل محمولية الأسطول: hooks في settings.json المتزامن تثبّت مسار /home/nassaj/nassaj-core/hooks/... فتفشل على عقد بمستخدم مختلف (ميناء=ibrahim) — حوكمة (zero-rule/لوحة/session-end) لا تعمل + ضجيج خطأ بعد كل جلسة. الإصلاح: ~/.claude/hooks/... محمول. مؤجَّل لحين فراغ settings.json من تعديل جلسة موازية",
-      "status": "open",
+      "status": "done",
       "owner": "backend-dev",
-      "closed": null
+      "closed": "2026-07-07",
+      "resolution": "hooks الستة في settings.json صارت node $HOME/nassaj-core/hooks/... (الأوامر تمر عبر shell فيتوسع $HOME؛ العقد تستنسخ nassaj-core إلى $HOME عبر bootstrap). تحقق ثلاثي: JSON سليم + تشغيل end-to-end للحارسين الحرجين (سماح/حجب صحيحان) + وجود الملفات الهدف. commit ‏e1ab1ae في nassaj-core — push معلق حتى اكتمال دفعة architect على نفس الريبو"
     },
     {
       "id": "T-156",
