@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getInitialSidebarState } from './WikiPanel';
 
 // ---------------------------------------------------------------------------
 // مساعد: محاكاة matchMedia بعرض محدد
@@ -51,17 +52,6 @@ function mockMatchMedia(viewportWidth: number) {
   };
 
   return impl;
-}
-
-// ---------------------------------------------------------------------------
-// المنطق المُختبَر: نسخة منفصلة من getInitialSidebarState
-// ---------------------------------------------------------------------------
-
-/** منطق القيمة الابتدائية — مستخرج من WikiPanel.tsx للاختبار المستقل */
-function getInitialSidebarState(
-  matchMediaFn: (q: string) => { matches: boolean },
-): boolean {
-  return matchMediaFn('(min-width: 768px)').matches;
 }
 
 // ---------------------------------------------------------------------------

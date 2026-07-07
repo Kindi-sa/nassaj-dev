@@ -39,6 +39,27 @@ import PrevNextNav from './PrevNextNav';
 import './wiki-panel.css';
 
 // ---------------------------------------------------------------------------
+// Sidebar initial state helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Computes the initial sidebar open state from the matchMedia API.
+ *
+ * Exported for isolated unit testing (B-120): accepts an optional matchMediaFn
+ * so tests can inject a deterministic mock without touching window.matchMedia.
+ * Production callers omit matchMediaFn; the real window.matchMedia is used.
+ * Returns true (sidebar open) when window is unavailable (SSR / headless env).
+ */
+export function getInitialSidebarState(
+  matchMediaFn?: (q: string) => { matches: boolean },
+): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+  return (matchMediaFn ?? window.matchMedia.bind(window))('(min-width: 768px)').matches;
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -48,9 +69,7 @@ export default function WikiPanel() {
 
   // Sidebar open/closed — closed by default on mobile, open on desktop
   const isDesktop = useIsDesktop();
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
-  );
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => getInitialSidebarState());
 
   // Sync sidebar state when breakpoint changes (device rotation, resize)
   useEffect(() => {

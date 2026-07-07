@@ -167,29 +167,39 @@ test('B-MU-PTY-KEY: same projectPath+sessionId across two users spawns separate 
   spawnCalls.length = 0;
   resolveCalls.length = 0;
 
-  // User A connects and spawns.
-  const wsA = makeFakeWs();
-  handleShellConnection(wsA as never, { user: { id: 'alice' } } as never, deps);
-  wsA.emit('message', initMessage(PROJECT_PATH));
-  assert.equal(spawnCalls.length, 1, 'user A spawned a pty');
+  // Use a temporary directory that is NOT registered in the project DB.
+  // isProjectPathVisibleToUser has a fail-closed guard that rejects non-integer
+  // userIds ('alice', 'bob') for any registered project — even public ones.
+  // A temp path is not registered, so the guard returns true unconditionally
+  // (creation/first-run flow), letting the spawn proceed regardless of userId type.
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pty-key-test-'));
+  try {
+    // User A connects and spawns.
+    const wsA = makeFakeWs();
+    handleShellConnection(wsA as never, { user: { id: 'alice' } } as never, deps);
+    wsA.emit('message', initMessage(tempDir));
+    assert.equal(spawnCalls.length, 1, 'user A spawned a pty');
 
-  // User B connects with the IDENTICAL init (same projectPath, default session).
-  const wsB = makeFakeWs();
-  handleShellConnection(wsB as never, { user: { id: 'bob' } } as never, deps);
-  wsB.emit('message', initMessage(PROJECT_PATH));
+    // User B connects with the IDENTICAL init (same projectPath, default session).
+    const wsB = makeFakeWs();
+    handleShellConnection(wsB as never, { user: { id: 'bob' } } as never, deps);
+    wsB.emit('message', initMessage(tempDir));
 
-  // If the key were NOT user-namespaced, B would reattach to A's session and no
-  // second spawn would occur. A fresh spawn proves the keys are disjoint.
-  assert.equal(spawnCalls.length, 2, 'user B got its OWN pty, never reattached to user A');
-  assert.equal(resolveCalls[1].userId, 'bob', 'user B env resolved under bob, not alice');
+    // If the key were NOT user-namespaced, B would reattach to A's session and no
+    // second spawn would occur. A fresh spawn proves the keys are disjoint.
+    assert.equal(spawnCalls.length, 2, 'user B got its OWN pty, never reattached to user A');
+    assert.equal(resolveCalls[1].userId, 'bob', 'user B env resolved under bob, not alice');
 
-  // And B must not have received the "Reconnected to existing session" banner.
-  const reconnected = wsB.sent.some(
-    (m) => typeof m === 'object' && m !== null && 'data' in m
-      && typeof (m as { data: unknown }).data === 'string'
-      && (m as { data: string }).data.includes('Reconnected')
-  );
-  assert.equal(reconnected, false, 'user B was not reconnected into another session');
+    // And B must not have received the "Reconnected to existing session" banner.
+    const reconnected = wsB.sent.some(
+      (m) => typeof m === 'object' && m !== null && 'data' in m
+        && typeof (m as { data: unknown }).data === 'string'
+        && (m as { data: string }).data.includes('Reconnected')
+    );
+    assert.equal(reconnected, false, 'user B was not reconnected into another session');
+  } finally {
+    fs.rmdirSync(tempDir);
+  }
 });
 
 test('B-MU-PTY-KEY (fail-closed): PTY init with no authenticated user is refused — no spawn, no shared key', () => {

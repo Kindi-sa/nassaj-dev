@@ -3194,13 +3194,15 @@
       "id": "B-120",
       "kind": "chore",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "high",
       "found": "2026-07-01",
       "title": "اختبار درج ويكي الفريق (WikiPanel.sidebarState.test.ts) يختبر نسخة موازية معاد تعريفها (getInitialSidebarState) لا الكود الفعلي (useIsDesktop في WikiPanel.tsx) — لا يحرس ضد كسر حقيقي مستقبلي. النسخة الموازية أيضاً لا تغطي فرع window===undefined (الكود الفعلي fallback إلى true، النسخة الموازية لا تختبره). منطق matchMedia('(min-width:768px)') مكرَّر نصّياً في 3 مواضع (WikiPanel.tsx سطور 39، 373، 571).",
       "note": "اكتشفه qa-critic في مراجعة البوابة الثانية لـT-253؛ لا يمسّ صحة إصلاح T-253 نفسه (مُتحقَّق حيّاً بمعزل عن هذا الاختبار) لكنه دَين انحدار حقيقي في كود عُدِّل للتوّ.",
       "triage": "high → السبرنت الجاري/التالي. الحل: استخراج useIsDesktop/getInitialSidebarState لوحدة قابلة للتصدير من WikiPanel.tsx (إزالة التكرار الثلاثي)، استيرادها في الاختبار (renderHook أو استيراد الدالة الصرفة)، إضافة حالة اختبار لفرع window===undefined⇒true.",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "getInitialSidebarState صارت مُصدَّرة من WikiPanel.tsx (مع حقن matchMediaFn وحارس SSR) والاختبار يستوردها بدل النسخة الموازية — تغيّر السلوك الحقيقي يكسر الاختبار الآن"
     },
     {
       "id": "B-119",
@@ -3275,12 +3277,14 @@
       "id": "B-112",
       "kind": "bug",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "low",
       "found": "2026-06-30",
       "title": "فشلان سابقان في اختبارات السيرفر (مستقلّان عن B-111، أثبت backend-dev استقلالهما بـstash على الأساس النظيف، والمنسّق أكّد عدم مساس ملفاتهما): providerMcpService «global adder» (transports MCP) وB-MU-PTY-KEY (عزل PTY). يظهران في التشغيل الأوسع (330 اختباراً) لا في اختبارات الملكية.",
       "triage": "low → backlog. تشخيص منفصل لاحقاً؛ لم يعيقا commitات اليوم (hook الـpre-commit = lint-staged/eslint لا اختبارات كاملة).",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "انجراف عدّ لا خلل: HermesProvider صار المزوّد العاشر وmcp.test.ts بقي يتوقع 9/4 — حُدّثت التوقعات 10/5 مع hermes في قائمة الفاشلين"
     },
     {
       "id": "B-111",
@@ -3996,11 +4000,13 @@
     {
       "id": "B-67",
       "severity": "medium",
-      "status": "open",
+      "status": "closed",
       "found": "2026-06-16",
       "title": "[WF w06wyxyet 2026-06-16] فشل اختبار runner.routes.role-gate (runner-bridge): تشخيصان متضاربان من وكيلين — أحدهما يزعم import من .JS بينما التصدير في .TS:559، والآخر يزعم أن الاختبار لا يستورد approveApproval أصلاً والسبب مختلف. يلزم تحقيق محايد. انحدار بناء سابق لا يخصّ sync (T-5).",
       "fix": null,
-      "note": "[مطابقة abf770a8 2026-06-16] دحض المنسّق ادعاء «14/14 يمرّ» من وكيل المطابقة: شغّلتُ runner.routes.role-gate.test.ts فعلياً → tests 1/fail 1/exit 1، فشل تحميل عند 1:1 (خطأ وحدة لا تأكيد). الخطأ حقيقي قائم ويحتاج إصلاح تحميل الوحدة. تشخيصا الدفعة السابقة متضاربان — يلزم تحقيق محايد."
+      "note": "[مطابقة abf770a8 2026-06-16] دحض المنسّق ادعاء «14/14 يمرّ» من وكيل المطابقة: شغّلتُ runner.routes.role-gate.test.ts فعلياً → tests 1/fail 1/exit 1، فشل تحميل عند 1:1 (خطأ وحدة لا تأكيد). الخطأ حقيقي قائم ويحتاج إصلاح تحميل الوحدة. تشخيصا الدفعة السابقة متضاربان — يلزم تحقيق محايد.",
+      "fixed": "2026-07-07",
+      "resolution": "غير قابل لإعادة الإنتاج 2026-07-07: runner.routes.role-gate يمرّ 14/14 منفرداً وفي المجموعة الكاملة — التشخيصان المتضاربان السابقان منتهيا الصلاحية"
     },
     {
       "id": "B-68",
@@ -4287,13 +4293,15 @@
     {
       "id": "B-128",
       "title": "أربعة اختبارات عزل PTY (B-90/B-MU) تفشل بنمط 0!==N عند تشغيل مجموعة الخادم الكاملة — shell-websocket.pty-isolation.test.ts؛ غير متعلّقة بالسوبرفايزر لكنها تمسّ عزل الاشتراك متعدد المستخدمين (ToS)",
-      "status": "open",
+      "status": "fixed",
       "severity": "high",
       "phase": "P7",
       "kind": "bug",
       "found": "2026-07-03",
       "triage": "high → يلزم تشغيل معزول لتمييز انحدار حقيقي عن أثر ترتيب المجموعة. حسّاس (يختبر عزل اشتراك ToS: PTY env من resolveProviderEnv، عدم اختطاف PTY بين مستخدمين، عدم تسرّب PATH). كشفه tester مصادفةً وهو يصحّح ادّعاء «281/282 فشل وحيد mcp» → الواقع 684 اختباراً و5 فشل. tester.",
-      "description": "tester 2026-07-03: كامل مجموعة الخادم = 684 اختباراً، 679 ناجح، 5 فاشل، 0 متخطّى (لا 282/281). الفاشل: mcp.test.ts:349 (10!==9 عدّاد transports، سابق وغير متعلّق) + أربعة في shell-websocket.pty-isolation.test.ts:145/-/299/338 (B-MU-PTY-ENV, B-MU-PTY-KEY, B-90 hoist, B-90 isolation) كلها 0!==N (PTY لا يُطلَق عند تشغيل المجموعة الكاملة). لا تقاطع ملفات مع workflow-supervisor (commits السوبرفايزر 841fbca3/4bf9af31 لم تمسّ server/modules/websocket/، وإصلاح B-90 aa08c8cd لم تمسّه commits لاحقة). السوبرفايزر وحده 34/34 صحيح."
+      "description": "tester 2026-07-03: كامل مجموعة الخادم = 684 اختباراً، 679 ناجح، 5 فاشل، 0 متخطّى (لا 282/281). الفاشل: mcp.test.ts:349 (10!==9 عدّاد transports، سابق وغير متعلّق) + أربعة في shell-websocket.pty-isolation.test.ts:145/-/299/338 (B-MU-PTY-ENV, B-MU-PTY-KEY, B-90 hoist, B-90 isolation) كلها 0!==N (PTY لا يُطلَق عند تشغيل المجموعة الكاملة). لا تقاطع ملفات مع workflow-supervisor (commits السوبرفايزر 841fbca3/4bf9af31 لم تمسّ server/modules/websocket/، وإصلاح B-90 aa08c8cd لم تمسّه commits لاحقة). السوبرفايزر وحده 34/34 صحيح.",
+      "fixed": "2026-07-07",
+      "resolution": "الجذر ليس تلوثاً بين الاختبارات: حارس fail-closed (رفض userId غير-integer) في isProjectPathVisibleToUser + كون PROJECT_PATH=cwd مسجلاً في DB الحقيقية → رفض قبل spawn (0!==N). أُصلح اختبار B-MU-PTY-KEY بمسار tempDir غير مسجّل (مسار first-run). ‏baseline 2026-07-07 أظهر فشلاً واحداً لا أربعة. الحصيلة 699/699+137/137+158/158"
     },
     {
       "id": "T-53-M3",
