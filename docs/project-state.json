@@ -3196,13 +3196,15 @@
       "id": "B-121",
       "kind": "chore",
       "phase": "P4",
-      "status": "open",
+      "status": "fixed",
       "severity": "medium",
       "found": "2026-07-01",
       "title": "تباين حدود العناصر (border-border) في ويكي الفريق لا يبلغ 3:1 (WCAG 1.4.11 non-text) مهما رُفعت العتامة (~1.2:1 أقصى فعلي) — قيد بنيوي في قيمة --border token نفسها (lightness عالية جداً في الفاتح، فرق منخفض عن --background في الداكن)، لا تقصير في تنفيذ إصلاح الويكي (T-253).",
       "note": "اكتشفه frontend-dev أثناء تنفيذ T-253 (شرط تباين من qa-critic)، أكّده qa-critic في مراجعة البوابة الثانية. حساب يدوي WCAG luminance (لا scripts/a11y-scan.mjs — الملف غير موجود فعلياً في المشروع رغم افتراض qa-critic الأول وجوده).",
       "triage": "medium → backlog، يخص design-system لا ويكي تحديداً (يؤثر على أي عنصر يعتمد --border في الوضع الداكن). الحل المقترح: إعادة معايرة --border (أو --border-strong جديد) في index.css ليبلغ 3:1. عنصر غير-نصّي زخرفي إلى حدٍّ كبير، لا يمنع القراءة/التنقّل الآن.",
-      "resolved": null
+      "resolved": null,
+      "fixed": "2026-07-07",
+      "resolution": "متغير --wiki-border-ui: hsl(var(--foreground)/0.50) لكل حدود مكونات الويكي: ضوء 3.76:1 وداكن 5.12:1 (كانت 1.23/1.37) — يجتاز WCAG 1.4.11. قيمة واحدة للوضعين لأن foreground يتبدل مع .dark"
     },
     {
       "id": "B-120",
@@ -4039,18 +4041,22 @@
     {
       "id": "B-71",
       "severity": "medium",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-19",
       "title": "ActiveConversationsMenu فرع placement=bottom بلا معالجة تجاوز حافة الشاشة (clamping أفقي + flip لأعلى + قياس أبعاد البوبوفر الفعلية)؛ الموضع الفعلي آمن حالياً (المُطلِق أعلى الشريط الموسَّع) لكن قد يُقصّ في viewport صغير/قائمة طويلة. من مراجعة qa-critic لـcfe0f62.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "updatePosition تقيس أبعاد popover الفعلية في RAF: clamp أفقي للحافتين (8px هامش) + flip لأعلى عند تجاوز أسفل الشاشة"
     },
     {
       "id": "B-72",
       "severity": "low",
-      "status": "open",
+      "status": "fixed",
       "found": "2026-06-19",
       "title": "كود ميت سابق في PresencePanel.tsx (badgeLabel/badgeTooltip يُحسبان ولا يُستهلكان، من commit 716c22f، خارج صفّ الأفاتارات المصون)؛ حذف تنظيفي.",
-      "fix": null
+      "fix": null,
+      "fixed": "2026-07-07",
+      "resolution": "حُذف badgeLabel/badgeTooltip غير المستهلكين (7 أسطر من 716c22f) — لا إشارات خارجية"
     },
     {
       "id": "B-73",
@@ -4487,6 +4493,14 @@
       "triage": "high → جذر جديد منفصل عن incident_pm2_restart_drain_502 (الزناد هناك بشري، هنا حارس PM2 الداخلي). يلزم قرار معماري (architect + مراجعة qa-critic ثم اعتماد المالك) بين: (أ) رفع/إلغاء max_memory_restart لعملية تستضيف جلسات متعددة تبلغ 916MB بسهولة، (ب) مسار إحلال يحرّر المنفذ فوراً (البديلة تستمع على 3004 قبل انتهاء درين الأم) بدل احتجاز 24h، (ج) فصل خدمة الجلسات (ADR-021 المؤجَّل). مترابط مع تسرّب الذاكرة B-35 (~7MB/س، قياس heap T-167 مؤجَّل بإجراء موثَّق). فرضية مساهِمة غير مثبتة تستحق قياساً: DEBUG_CLAUDE_AGENT_SDK=1 (رصد T-250) قد يسرّع النمو نحو الحدّ — لا يُترك مفعَّلاً طويلاً بلا قياس.",
       "_relIssue": "B-129",
       "note": "الإصلاح منفَّذ وملتزَم (commit 4a454cbd، devops 2026-07-06): تعطيل max_memory_restart في القالب + scripts/memory-guard.sh (حارس cron يقيس RSS، عتبة 850MB، يؤجّل عند جلسات/workflow حيّة وإلا يفوّض safe-restart.sh --exec) + ecosystem.alkindy.config.cjs (host-artifact، gitignored) للتحييد الحيّ. تحقّق المنسّق مستقلاً: commit موجود، syntax OK، تشغيل تجريبي أنتج ok عند 225MB. التفعيل الحيّ معلّق على خطوة المالك (pm2 delete+start من ملف العقدة في نافذة خمول — أمر محجوب بحارس العميل) + تركيب سطر crontab. mmr الحيّ ما زال 768MiB حتى التفعيل. | فُعِّل حيّاً 2026-07-06: المالك نفّذ pm2 delete+start من ملف العقدة + pm2 save + crontab. تحقق ميداني: mmr غائب من pm2_env (undefined ✓)، treekill=false، kill_timeout=86400000، المنفذ 3004 على pid الجديد، local/public=200. مسار restart الفعلي للحارس (فوق العتبة + صفر جلسات) غير مختبَر حيّاً — يفوَّض لـsafe-restart المصلّبة."
+    },
+    {
+      "id": "B-132",
+      "severity": "low",
+      "status": "open",
+      "opened": "2026-07-07",
+      "title": "WikiPanel.b122.regression.test.tsx يفشل عند الاستيراد في بيئة vitest/jsdom: ‏import node:path (سطر 34 منذ 2db12300) مُخرَّج للمتصفح — فشل بيئة قائم مسبقاً لا كسر سلوك؛ إما mock/نقل القراءة لسياق node أو نقل الاختبار لمجموعة node",
+      "origin": "اكتُشف أثناء تحقق موجة 2026-07-07"
     }
   ],
   "decisions": [

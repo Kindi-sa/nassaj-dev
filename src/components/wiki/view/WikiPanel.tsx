@@ -160,6 +160,7 @@ export default function WikiPanel() {
   return (
     <WikiCtx.Provider value={wikiCtxValue}>
       <div
+        data-wiki-panel
         className="flex h-full overflow-hidden bg-background"
         dir="rtl"
         lang="ar"

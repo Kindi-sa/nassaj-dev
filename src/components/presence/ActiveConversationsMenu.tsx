@@ -108,16 +108,41 @@ export function ActiveConversationsMenu({
     const rect = trigger.getBoundingClientRect();
     const spacing = 8;
     if (placement === 'bottom') {
-      // Open directly below the (wider) trigger, aligned to its inline-start
-      // edge. getBoundingClientRect().left is the inline-start edge under LTR;
-      // under RTL the rect mirrors with the layout, so anchoring to left keeps
-      // the popover under the trigger in both directions.
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Measure the popover's rendered dimensions.  The portal renders first
+      // with the fallback off-screen style (opacity:0, top/left -9999px), so by
+      // the time this RAF callback fires the element has real offsetWidth/Height.
+      const popover = popoverRef.current;
+      const popoverW = popover?.offsetWidth ?? 288;  // 18rem fallback
+      const popoverH = popover?.offsetHeight ?? 200; // conservative fallback
+
+      // Vertical: open below by default; flip above when there is not enough
+      // space below AND there is room above.
+      let top: number;
+      if (rect.bottom + spacing + popoverH > vh - spacing) {
+        const topIfAbove = rect.top - spacing - popoverH;
+        top = topIfAbove >= spacing
+          ? topIfAbove
+          : Math.max(spacing, vh - popoverH - spacing); // best-effort if neither fits
+      } else {
+        top = rect.bottom + spacing;
+      }
+
+      // Horizontal clamping: getBoundingClientRect() is always in physical
+      // viewport coords, so we clamp using the physical viewport width.  The
+      // logical insetInlineStart is set to the clamped physical-left value,
+      // which keeps the popover anchored below the trigger in LTR; in RTL the
+      // sidebar is on the same side so rect.left stays in the visible area.
+      const left = Math.max(spacing, Math.min(rect.left, vw - popoverW - spacing));
+
       setPopoverStyle({
         position: 'fixed',
-        top: rect.bottom + spacing,
-        insetInlineStart: rect.left,
+        top,
+        insetInlineStart: left,
         zIndex: 9999,
-        maxWidth: 'min(18rem, calc(100vw - 2rem))',
+        maxWidth: `min(18rem, calc(100vw - ${spacing * 2}px))`,
       });
       return;
     }

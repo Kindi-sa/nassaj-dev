@@ -1,18 +1,49 @@
 /* ── Wiki Panel — injected styles ─────────────────────────────────────────── */
 
 /* ── متغيّرات محلية للويكي (البند 2: فواصل قوية بدون لمس --border العام) ─── */
-/* نطاق الحاوية الكاملة — light mode */
+/* نطاق الحاوية الكاملة — light & dark (--foreground يتكيّف آلياً مع الوضعين) */
+[data-wiki-panel],
 [data-wiki-drawer],
 .wiki-article,
 [data-wiki-scroll] {
   --wiki-border-strong: hsl(var(--foreground) / 0.18);
+  /*
+   * B-121 — WCAG 1.4.11 Non-text Contrast ≥3:1
+   * border-border (~1.23:1 light / ~1.37:1 dark) لا يجتاز المعيار.
+   * hsl(foreground / 0.50) محسوب: 3.76:1 ضوء / 5.12:1 داكن.
+   * قيمة واحدة تعمل في الوضعين لأن --foreground نفسه يتغير مع .dark.
+   */
+  --wiki-border-ui: hsl(var(--foreground) / 0.50);
 }
-/* dark mode — يُرفع التباين قليلاً لأن الخلفيات داكنة */
+/* dark mode — يُرفع تباين --wiki-border-strong قليلاً لأن الخلفيات داكنة */
+.dark [data-wiki-panel],
 .dark [data-wiki-drawer],
 .dark .wiki-article,
 .dark [data-wiki-scroll] {
   --wiki-border-strong: hsl(var(--foreground) / 0.25);
 }
+
+/* ── WCAG 1.4.11 — حدود مكوّنات الويكي (B-121) ──────────────────────────── */
+/* تجاوز border-border (~1.2:1) بـ--wiki-border-ui (≥3:1) لجميع الحدود الوظيفية
+   التي تساعد المستخدم على إدراك البنية (جداول، شريط جانبي، شريط أدوات).    */
+
+/* حاوية الجدول الخارجية (border border-border) */
+.wiki-article .wiki-table-scroll { border-color: var(--wiki-border-ui); }
+
+/* الحد السفلي لخلايا الرأس (border-b border-border) */
+.wiki-article th { border-bottom-color: var(--wiki-border-ui); }
+
+/* الحد السفلي لخلايا البيانات (كان border-border/40 → ~1.1:1) */
+.wiki-article td { border-bottom-color: var(--wiki-border-ui); }
+
+/* حد الشريط الجانبي inline-end (border-e border-border/60) */
+[data-wiki-drawer] { border-inline-end-color: var(--wiki-border-ui); }
+
+/* حد شريط الأدوات السفلي (يفصل الشريط عن منطقة المحتوى) */
+[data-wiki-panel] main > div:first-child { border-bottom-color: var(--wiki-border-ui); }
+
+/* حد قسم التذييل في الشريط الجانبي (border-t border-border/30) */
+[data-wiki-footer] { border-top-color: var(--wiki-border-ui); }
 
 /* Search match highlight (T-136 B-2)
    Applied by JS: element.classList.add('wiki-search-highlight')

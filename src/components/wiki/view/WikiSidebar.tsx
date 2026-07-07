@@ -171,7 +171,7 @@ export default function WikiSidebar({
               </ul>
 
               {/* ── Al-Kindy footer ── */}
-              <div className="mt-4 flex flex-col items-center gap-1 border-t border-border/30 pt-4">
+              <div data-wiki-footer className="mt-4 flex flex-col items-center gap-1 border-t border-border/30 pt-4">
                 <span className="text-[10px] text-muted-foreground">علامة من دار الكندي</span>
                 <img
                   src="/alkindy-symbol.svg"

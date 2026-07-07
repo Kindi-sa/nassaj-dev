@@ -121,18 +121,6 @@ export default function PresencePanel({ projects = [], onProjectSelect }: Presen
   const totalConnected = presenceUsers.length;
   const activeCount = presenceUsers.filter((u) => u.active).length;
 
-  const badgeLabel = t('connectedCount', {
-    count: totalConnected,
-    defaultValue: '{{count}} online',
-  });
-  const badgeTooltip = activeCount > 0
-    ? t('connectedUsersAndAgents', {
-        users: totalConnected,
-        agents: activeCount,
-        defaultValue: '{{users}} users · {{agents}} agents',
-      })
-    : t('connectedUsers', { count: totalConnected, defaultValue: '{{count}} users' });
-
   if (presenceUsers.length === 0) {
     return null;
   }

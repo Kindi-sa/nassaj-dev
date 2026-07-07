@@ -170,3 +170,6 @@ dist*.predeploy-*/
 
 # Playwright MCP session artifacts
 .playwright-mcp/
+
+# Transient audit screenshots (wiki contrast audit, etc.)
+wiki-audit/
