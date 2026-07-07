@@ -2004,9 +2004,11 @@
       "kind": "doc",
       "issue": null,
       "title": "تحديث وثائق العلامة في nassaj-core لمطابقة Branded House: وسم ADR-0001 بـSuperseded + مزامنة brand-publishing-policy 1.3 + توثيق OSS كوسم على مخرجات دار الكِندِي",
-      "status": "todo",
+      "status": "done",
       "owner": "scribe",
-      "note": "تناقضات رصدها researcher: nassaj-core/alkindy متقادم (1.2/Endorsed) مقابل AlKindy BM (1.3/Branded). بانتظار قرار المالك على المزامنة"
+      "note": "تناقضات رصدها researcher: nassaj-core/alkindy متقادم (1.2/Endorsed) مقابل AlKindy BM (1.3/Branded). بانتظار قرار المالك على المزامنة",
+      "closed": "2026-07-07",
+      "resolution": "ADR-0001 موسوم Superseded ببانر إحلال + brand-publishing.md وbrand-publishing-policy.md v2.0 (Branded House، جدول الحسابات، <name>.alkindy.tech، شطب أولوية SAIP لنورس الملغاة) + README. ‏commit ‏f7a2191 في nassaj-core — مدفوع. متابعات مفتوحة: قوالب alkindy/templates/*.tpl ما زالت بإسناد نورس، وبريد nawras@alkindy.tech يحتاج مراجعة legal"
     },
     {
       "id": "T-129",
@@ -2377,9 +2379,10 @@
       "phase": "P7",
       "kind": "decision",
       "title": "فجوة مواصفة مقابل واقع (ذاكرة الأسطول): memory-fleet-sync.md ينصّ على metadata.{type,origin,scope} لكن كل ملفات الذاكرة القائمة تستخدم مفاتيح عُليا بلا origin/scope. حالياً السكربتات تتسامح وتفترض الافتراضات (shared للحوكمة/المشاريع، local للحوادث/سيرفر). القرار: مهاجرة الملفات القائمة لإضافة origin/scope صريحَين (نظافة وحسم) أم إبقاء التسامح الافتراضي؟ منخفض العجلة، يُحسم مع/بعد T-161",
-      "status": "open",
+      "status": "done",
       "owner": "scribe",
-      "closed": null
+      "closed": "2026-07-07",
+      "resolution": "قرار architect (موثق داخل wiki/memory-fleet-sync.md): تعديل المواصفة لا ترحيل الملفات — type إلزامي وحده (مسطح أو متداخل)، origin يستنتج من فرع mem/<node> وscope من خريطة type. الدليل: 0/220 ملفاً يحمل origin/scope، ولا مستهلك مبني بعد. commit ‏f123f2d في nassaj-core (شمل أصغر diff في NASSAJ.md:115) — مدفوع"
     },
     {
       "id": "T-163",
@@ -3166,6 +3169,14 @@
       "approved": "2026-07-06 — المالك اعتمد التوصية المركبة كاملة («نفذ قرار الوكلاء»): ب1 أرضية، ب2 مرفوف، بوابة ب3 الكمية مفعَّلة",
       "title": "بوابة ب3 الكمية (مذكرة architect لـADR-053 المحسوم ب1): قياس الفقد العضوي الصرف لـB-103 (خروج منسّق دون restart، من عدّاد طبقة الرؤية/إشعارات reconcile) على خط أساس نظيف بعد استقرار حارس B-130 لمدة 2-3 أسابيع؛ إن تجاوز عتبةً تستحق — تنطلق دراسة جدوى CCR remote_launched (M-BG-3، بحث researcher + legal-compliance-advisor بمعايير kill صريحة قبل أي كود)، وإلا يبقى ب1 كافياً",
       "note": "مقترح مذكرة architect ‏2026-07-06 بعد وفيات الوكيل الثلاث بجلسة نوّاس (كلها عمليات مالك يدوية لا فقد عضوي — لا تغيّر أولوية). اعتمدها المالك في نفس اليوم («نفذ قرار الوكلاء»). **العدّاد مبني ومُتحقَّق (devops، commit b5e231d4):** scripts/b103-loss-meter.js (312 سطراً، قراءة-فقط) — الإشارة [WS-DIAG] stream-orphaned من سجل PM2، والتصنيف عضوي/server-op بالاقتران مع فترات [DRAIN] (مرجع موثوق: كل restart يمر بها حتماً) وسجل memory-guard لوسم السبب. رُفض مصدر reconcile B-93 (يعمل عند الإقلاع فقط — أعمى عن العضوي). حدّ مصرَّح: الإشارة «مقبس يموت» لا «عملية تموت» فالعد العضوي حدّ أعلى/مرشّحون، والتأكيد بترياج (journal بلا نتيجة + غياب pid) — مثال حي: حدث 18:23 هو فصل متصفح حميد (B-80/1001) امتصه تصنيف server-op تحفّظاً. اختبار قبول على بيانات اليوم الفعلية: 5 أحداث كلها server-op (يطابق ground truth المذكرة بما فيها وفيات نوّاس الثلاث)، ومنذ خط الأساس (2026-07-06T15:11Z) organic=0. negative-control على Jun28–Jul2 أثبت أن المسار العضوي غير مثبَّت زوراً (3 مرشّحين/56). تحقّق المنسّق بإعادة التشغيل بنفسه (TOTALS متطابقة). **العتبة المقترحة: ≥2 حدث عضوي مؤكَّد/أسبوع** — دونها يبقى ب1 كافياً. عند الاستحقاق 2026-07-27: node scripts/b103-loss-meter.js ثم ترياج المرشّحين ثم القرار."
+    },
+    {
+      "id": "T-817",
+      "kind": "doc",
+      "status": "todo",
+      "created": "2026-07-07",
+      "title": "متابعة T-128: إعادة توليد قوالب alkindy/templates/*.tpl بإسناد Branded House بدل نورس + حسم بريد nawras@alkindy.tech (legal-compliance)",
+      "origin": "T-128 closure 2026-07-07"
     }
   ],
   "issues": [
