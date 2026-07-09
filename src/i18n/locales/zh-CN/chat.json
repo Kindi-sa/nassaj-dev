@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} 次调用",
     "totalInvocations_other": "{{count}} 次调用",
     "agentSummaryAria": "{{agents}} 个不同智能体 · 共 {{calls}} 次调用",
-    "unknownAuthor": "未知作者",
-    "toggleShow": "显示智能体面板",
-    "toggleHide": "隐藏智能体面板"
+    "unknownAuthor": "未知作者"
   },
   "ws": {
     "statusConnected": "已连接",

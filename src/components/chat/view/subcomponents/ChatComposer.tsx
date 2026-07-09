@@ -11,7 +11,7 @@ import type {
   SetStateAction,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon, UsersIcon, ChevronUpIcon } from 'lucide-react';
+import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
 import FileAttachment from './FileAttachment';
@@ -121,10 +121,6 @@ interface ChatComposerProps {
   isWsConnected?: boolean;
   /** Non-null error message to display when the last send failed (e.g. WS disconnected). */
   sendError?: string | null;
-  /** Whether the participants / agents bar is currently visible. */
-  showParticipants?: boolean;
-  /** Callback to toggle the participants bar visibility. Only rendered when defined. */
-  onToggleParticipants?: () => void;
 }
 
 export default function ChatComposer({
@@ -190,8 +186,6 @@ export default function ChatComposer({
   sendByCtrlEnter,
   isWsConnected = true,
   sendError = null,
-  showParticipants = true,
-  onToggleParticipants,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const textareaRect = textareaRef.current?.getBoundingClientRect();
@@ -495,27 +489,6 @@ export default function ChatComposer({
                 className="sm:No-flex hidden"
               >
                 <XIcon />
-              </PromptInputButton>
-            )}
-
-            {onToggleParticipants && (
-              <PromptInputButton
-                tooltip={{
-                  content: showParticipants
-                    ? t('participants.toggleHide', { defaultValue: 'Hide agents panel' })
-                    : t('participants.toggleShow', { defaultValue: 'Show agents panel' }),
-                  side: 'top',
-                }}
-                onClick={onToggleParticipants}
-                aria-pressed={showParticipants}
-                aria-label={
-                  showParticipants
-                    ? t('participants.toggleHide', { defaultValue: 'Hide agents panel' })
-                    : t('participants.toggleShow', { defaultValue: 'Show agents panel' })
-                }
-                className={showParticipants ? 'text-primary' : ''}
-              >
-                {showParticipants ? <ChevronUpIcon /> : <UsersIcon />}
               </PromptInputButton>
             )}
 

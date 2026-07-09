@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} çağrı",
     "totalInvocations_other": "{{count}} çağrı",
     "agentSummaryAria": "{{agents}} farklı ajan · {{calls}} toplam çağrı",
-    "unknownAuthor": "Bilinmeyen yazar",
-    "toggleShow": "Ajanlar panelini göster",
-    "toggleHide": "Ajanlar panelini gizle"
+    "unknownAuthor": "Bilinmeyen yazar"
   },
   "ws": {
     "statusConnected": "Bağlı",

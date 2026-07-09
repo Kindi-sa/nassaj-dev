@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} chiamata",
     "totalInvocations_other": "{{count}} chiamate",
     "agentSummaryAria": "{{agents}} agenti distinti · {{calls}} chiamate totali",
-    "unknownAuthor": "Autore sconosciuto",
-    "toggleShow": "Mostra pannello agenti",
-    "toggleHide": "Nascondi pannello agenti"
+    "unknownAuthor": "Autore sconosciuto"
   },
   "ws": {
     "statusConnected": "Connesso",

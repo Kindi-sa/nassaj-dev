@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} Aufruf",
     "totalInvocations_other": "{{count}} Aufrufe",
     "agentSummaryAria": "{{agents}} verschiedene Agenten · {{calls}} Aufrufe insgesamt",
-    "unknownAuthor": "Unbekannte:r Autor:in",
-    "toggleShow": "Agenten-Panel anzeigen",
-    "toggleHide": "Agenten-Panel ausblenden"
+    "unknownAuthor": "Unbekannte:r Autor:in"
   },
   "ws": {
     "statusConnected": "Verbunden",

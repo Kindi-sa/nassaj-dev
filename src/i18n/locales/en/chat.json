@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} call",
     "totalInvocations_other": "{{count}} calls",
     "agentSummaryAria": "{{agents}} distinct agents · {{calls}} total calls",
-    "unknownAuthor": "Unknown author",
-    "toggleShow": "Show agents panel",
-    "toggleHide": "Hide agents panel"
+    "unknownAuthor": "Unknown author"
   },
   "ws": {
     "statusConnected": "Connected",

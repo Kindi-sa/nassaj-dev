@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}} вызов",
     "totalInvocations_other": "{{count}} вызовов",
     "agentSummaryAria": "{{agents}} уникальных агентов · {{calls}} вызовов всего",
-    "unknownAuthor": "Неизвестный автор",
-    "toggleShow": "Показать панель агентов",
-    "toggleHide": "Скрыть панель агентов"
+    "unknownAuthor": "Неизвестный автор"
   },
   "ws": {
     "statusConnected": "Подключено",

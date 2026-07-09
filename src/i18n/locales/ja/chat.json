@@ -410,9 +410,7 @@
     "totalInvocations_one": "{{count}}回の呼び出し",
     "totalInvocations_other": "{{count}}回の呼び出し",
     "agentSummaryAria": "{{agents}}種類のエージェント · 合計{{calls}}回の呼び出し",
-    "unknownAuthor": "不明な作者",
-    "toggleShow": "エージェントパネルを表示",
-    "toggleHide": "エージェントパネルを非表示"
+    "unknownAuthor": "不明な作者"
   },
   "ws": {
     "statusConnected": "接続済み",
