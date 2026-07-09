@@ -26,6 +26,53 @@ const clearStoredToken = () => {
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 };
 
+// How often the foreground sweep re-checks the token's age (B-131 gap أ). The
+// heavy lifting is the event-driven checks (focus / visibility / online); this
+// interval is only a floor for a tab left open and focused for a long time. The
+// check is cheap — a local decode — and a network call fires only past half-life.
+// Exported so the timer test drives the exact production value (no drift).
+export const PROACTIVE_REFRESH_INTERVAL_MS = 4 * 60 * 1000;
+
+type TokenTimestamps = { exp?: number; iat?: number };
+
+/**
+ * Decode a JWT's payload segment WITHOUT verifying the signature — used only to
+ * read the non-secret `exp`/`iat` claims so the client can refresh proactively
+ * before expiry. base64url → bytes → UTF-8 so a non-ASCII `username` claim can't
+ * corrupt the parse. Returns null on any malformed input (never throws).
+ */
+const decodeTokenTimestamps = (token: string): TokenTimestamps | null => {
+  try {
+    const segment = token.split('.')[1];
+    if (!segment) return null;
+    const padded = segment + '='.repeat((4 - (segment.length % 4)) % 4);
+    const base64 = padded.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+    const parsed = JSON.parse(new TextDecoder().decode(bytes));
+    return parsed && typeof parsed === 'object' ? (parsed as TokenTimestamps) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** True once the token is past the midpoint of its lifetime — mirrors the
+ * server's own auto-refresh trigger (server/middleware/auth.js). */
+const isPastHalfLife = (claims: TokenTimestamps): boolean => {
+  if (typeof claims.exp !== 'number' || typeof claims.iat !== 'number') return false;
+  const nowSec = Date.now() / 1000;
+  const midpoint = claims.iat + (claims.exp - claims.iat) / 2;
+  return nowSec > midpoint;
+};
+
+/** True when the token is already expired (or carries no exp). Refreshing an
+ * expired token just 401s, so proactive refresh skips it and leaves recovery to
+ * the 401 path. */
+const isTokenExpired = (claims: TokenTimestamps): boolean => {
+  if (typeof claims.exp !== 'number') return true;
+  return Date.now() / 1000 >= claims.exp;
+};
+
 export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) {
@@ -58,6 +105,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     setToken(null);
     clearStoredToken();
+  }, []);
+
+  // Compare-and-clear eviction (B-131 "vortex killer"). An involuntary logout
+  // path (a 401, a mount-time auth check) knows WHICH token was rejected. Before
+  // wiping the session, check what is ACTUALLY in localStorage now:
+  //   - a DIFFERENT (newer) token is present → a parallel tab or our own
+  //     proactive refresh rotated it mid-flight. Adopt it and KEEP the session
+  //     instead of logging the user out on a freshly-minted valid token (the
+  //     observed 313 no_token calls / 5 min: a dead tab evicting a live one).
+  //   - the rejected token is still the current one (or nothing is stored) →
+  //     a genuine rejection: clear React state + localStorage.
+  // Returns true when it actually evicted, false when it adopted a newer token.
+  const evictIfTokenStale = useCallback((rejectedToken: string | null): boolean => {
+    const stored = readStoredToken();
+    if (stored && rejectedToken && stored !== rejectedToken) {
+      // Adopt the newer token WITHOUT rewriting localStorage (it already holds
+      // it). The [token]-keyed WebSocket effect redials on this state change.
+      setToken((current) => (current === stored ? current : stored));
+      return false;
+    }
+    setUser(null);
+    setToken(null);
+    clearStoredToken();
+    return true;
+  }, []);
+
+  // Proactive refresh trigger (B-131 gap أ). Reads the FRESHEST token from
+  // localStorage (never a stale React closure), and — only when it is valid and
+  // past half-life — asks api.js for a fresh one. Single-flight in api.js
+  // coalesces the timer + focus/visibility/online triggers into ONE request; the
+  // new token flows back via `auth:token-refreshed` (adopted by the effect
+  // below). An already-expired token is left to the 401 path (refresh would just
+  // fail). Stable (no deps) so the effect that wires the triggers never churns.
+  const maybeRefreshToken = useCallback(() => {
+    if (IS_PLATFORM) return;
+    const current = readStoredToken();
+    if (!current) return;
+    const claims = decodeTokenTimestamps(current);
+    if (!claims) return;
+    if (isTokenExpired(claims)) return;
+    if (!isPastHalfLife(claims)) return;
+    void api.auth.refresh();
   }, []);
 
   // Re-fetch the authoritative identity after sign-in. The login/invite
@@ -141,9 +230,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!userResponse.ok) {
         // Only clear the session on definitive auth rejection (401/403).
         // Do not clear on transient errors (5xx, network) to avoid logout loops.
+        // Compare-and-clear against the token we validated: a parallel tab may
+        // have written a newer one while this check was in flight (B-131).
         const status = userResponse.status;
         if (status === 401 || status === 403) {
-          clearSession();
+          evictIfTokenStale(token);
         } else {
           console.error('[Auth] Transient error checking auth status, keeping session:', status);
           setError(AUTH_ERROR_MESSAGES.authStatusCheckFailed);
@@ -167,7 +258,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [checkOnboardingStatus, clearSession, hydratePreferences, token]);
+  }, [checkOnboardingStatus, clearSession, evictIfTokenStale, hydratePreferences, token]);
 
   // Listen for 401 responses dispatched by authenticatedFetch (api.js). When
   // any endpoint rejects the token we clear the local session and redirect to
@@ -175,12 +266,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (IS_PLATFORM) return;
 
-    const handleUnauthorized = () => {
-      clearSession();
-      // Defense-in-depth: never hard-redirect to /login if we are already on
-      // it. The session is already cleared above; a second `location.href`
-      // assignment would only force a redundant full-page reload (and could
-      // re-arm a reload loop if any pre-auth fetch still 401s on mount).
+    const handleUnauthorized = (event: Event) => {
+      // The event carries the EXACT token authenticatedFetch had rejected.
+      // Compare-and-clear (B-131): if a newer token has replaced it in the
+      // meantime, adopt it and stay signed in instead of evicting.
+      const rejectedToken = (event as CustomEvent<{ token?: string }>).detail?.token ?? null;
+      if (!evictIfTokenStale(rejectedToken)) return;
+      // Genuinely evicted. Defense-in-depth: never hard-redirect to /login if we
+      // are already on it — a second `location.href` assignment would only force
+      // a redundant full-page reload (and could re-arm a reload loop if a
+      // pre-auth fetch still 401s on mount).
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
@@ -190,7 +285,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
     };
-  }, [clearSession]);
+  }, [evictIfTokenStale]);
 
   // Adopt a server-rotated JWT into React state. `authenticatedFetch` (api.js)
   // and the file-upload XHR persist a refreshed token to localStorage and fire
@@ -216,6 +311,62 @@ export function AuthProvider({ children }: AuthProviderProps) {
       window.removeEventListener('auth:token-refreshed', handleTokenRefreshed);
     };
   }, []);
+
+  // (أ) Proactive refresh — keep a live session from silently dying at the 7-day
+  // TTL. Arms only while signed in and re-checks on a timer AND whenever the app
+  // regains the foreground / network. The proven B-131 failure is a device
+  // asleep (or a throttled PWA) for a full day where timers never fired and zero
+  // refreshes happened; the focus/visibility/online triggers recover the moment
+  // it wakes. maybeRefreshToken reads the freshest localStorage token and only
+  // hits the network past half-life, so these triggers are cheap. Keyed on the
+  // signed-in flag (not the token value) so a routine rotation does not re-arm.
+  const isAuthenticated = Boolean(token);
+  useEffect(() => {
+    if (IS_PLATFORM || !isAuthenticated) return;
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') maybeRefreshToken();
+    };
+
+    const intervalId = window.setInterval(maybeRefreshToken, PROACTIVE_REFRESH_INTERVAL_MS);
+    window.addEventListener('focus', maybeRefreshToken);
+    window.addEventListener('online', maybeRefreshToken);
+    document.addEventListener('visibilitychange', onVisibility);
+
+    // Catch a token already past half-life at arm time (app reopened after hours
+    // asleep — the interval had no chance to fire yet).
+    maybeRefreshToken();
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', maybeRefreshToken);
+      window.removeEventListener('online', maybeRefreshToken);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isAuthenticated, maybeRefreshToken]);
+
+  // Cross-tab sync (B-131, third proven mechanism). React to auth-token changes
+  // made by OTHER tabs — the 'storage' event never fires in the writing tab, so
+  // there is no echo/loop:
+  //   - a new value → adopt it into React state WITHOUT rewriting localStorage
+  //     (it is already there); the [token]-keyed WebSocket effect redials.
+  //   - the key removed → another tab signed out → mirror a unified logout here.
+  useEffect(() => {
+    if (IS_PLATFORM) return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== AUTH_TOKEN_STORAGE_KEY) return;
+      const nextToken = event.newValue;
+      if (!nextToken) {
+        clearSession();
+        return;
+      }
+      setToken((current) => (current === nextToken ? current : nextToken));
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [clearSession]);
 
   useEffect(() => {
     if (IS_PLATFORM) {

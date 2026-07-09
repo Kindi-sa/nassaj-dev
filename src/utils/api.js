@@ -28,14 +28,82 @@ export const applyRefreshedToken = (token) => {
   window.dispatchEvent(new CustomEvent('auth:token-refreshed', { detail: { token } }));
 };
 
-// Utility function for authenticated API calls
-export const authenticatedFetch = (url, options = {}) => {
+// Single-flight guard: the in-flight refresh promise, shared by every caller
+// (the proactive timer / focus-visibility-online checks in AuthContext AND the
+// reactive 401-recovery path below) so concurrent triggers collapse into ONE
+// POST /api/auth/refresh instead of a refresh storm.
+let refreshInFlight = null;
+
+/**
+ * Proactively/reactively exchange the current JWT for a fresh one (B-131).
+ *
+ * Calls POST /api/auth/refresh with the CURRENT stored token via a RAW fetch —
+ * deliberately NOT through authenticatedFetch, so a failed refresh can never
+ * re-enter the 401 handler below (no recursion, no `auth:unauthorized` storm;
+ * the refresh endpoint is the one request that must not retry itself).
+ *
+ * On success it persists + broadcasts the new token through the existing
+ * `applyRefreshedToken` plumbing (localStorage + `auth:token-refreshed`) and
+ * resolves to the token string. On ANY failure (no token, non-2xx, network,
+ * missing token in body) it resolves to `null` — the caller decides whether to
+ * evict. Concurrent callers share the single in-flight request.
+ *
+ * @returns {Promise<string | null>} the fresh token, or null on failure.
+ */
+export const refreshAuthToken = () => {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    if (IS_PLATFORM) return null;
+    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+    if (!token) return null;
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) return null;
+      const data = await response.json().catch(() => null);
+      const nextToken = data && data.token;
+      if (!nextToken) return null;
+      applyRefreshedToken(nextToken);
+      return nextToken;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+};
+
+/**
+ * Utility function for authenticated API calls.
+ *
+ * The explicit `@returns` is load-bearing: this function is now recursive (the
+ * 401-recovery replay calls itself), and without a declared return type TS
+ * infers `Promise<any>` for the self-reference, which silently degrades every
+ * caller's `.then((response) => …)` parameter to implicit `any`.
+ *
+ * @param {string} url
+ * @param {(RequestInit & { __isRetry?: boolean }) | undefined} [options]
+ * @returns {Promise<Response>}
+ */
+export const authenticatedFetch = async (url, options = {}) => {
+  // `__isRetry` is an internal marker (never forwarded to fetch) flagging the
+  // single silent replay that follows a 401-triggered refresh, so a replay that
+  // still 401s cannot loop.
+  const { __isRetry, ...fetchOptions } = options;
   const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 
   const defaultHeaders = {};
 
   // Only set Content-Type for non-FormData requests
-  if (!(options.body instanceof FormData)) {
+  if (!(fetchOptions.body instanceof FormData)) {
     defaultHeaders['Content-Type'] = 'application/json';
   }
 
@@ -43,33 +111,43 @@ export const authenticatedFetch = (url, options = {}) => {
     defaultHeaders['Authorization'] = `Bearer ${token}`;
   }
 
-  return fetch(url, {
-    ...options,
+  const response = await fetch(url, {
+    ...fetchOptions,
     headers: {
       ...defaultHeaders,
-      ...options.headers,
+      ...fetchOptions.headers,
     },
-  }).then((response) => {
-    // Auto-logout on definitive auth rejection. Fires a custom event so
-    // AuthContext can clear the session without a circular import.
-    //
-    // Only treat a 401 as a *session expiry* when a token was actually sent.
-    // A 401 with no token is the expected response for an unauthenticated
-    // visitor (e.g. the login screen eagerly probing /api/plugins or
-    // /api/branding) — firing auth:unauthorized there would trigger a
-    // clearSession + hard redirect to /login on every mount, producing an
-    // infinite full-page reload loop.
-    if (response.status === 401 && token) {
-      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-      return response;
-    }
-
-    const refreshedToken = response.headers.get('X-Refreshed-Token');
-    if (refreshedToken) {
-      applyRefreshedToken(refreshedToken);
-    }
-    return response;
   });
+
+  // 401 handling. Only treat a 401 as a session issue when a token was actually
+  // sent — a 401 with no token is the expected response for an unauthenticated
+  // visitor (e.g. the login screen eagerly probing /api/plugins or /api/branding),
+  // and evicting there would trigger a redirect loop on every mount.
+  if (response.status === 401 && token) {
+    // B-131 gap (د) — 401 recovery. On a long-lived tab a 401 is usually a
+    // silently-expired token (sleeping device / throttled PWA timers) rather
+    // than a real sign-out. Try ONE silent refresh + replay the original
+    // request with the fresh token before giving up. refreshAuthToken uses a
+    // raw fetch (never re-enters here) and `__isRetry` blocks a second refresh,
+    // so there is no loop.
+    if (!IS_PLATFORM && !__isRetry) {
+      const nextToken = await refreshAuthToken();
+      if (nextToken) {
+        return authenticatedFetch(url, { ...fetchOptions, __isRetry: true });
+      }
+    }
+    // Refresh failed / disabled, or the replay still 401'd → definitive
+    // rejection. Carry the EXACT rejected token so AuthContext can
+    // compare-and-clear (never wipe a newer token a parallel tab just wrote).
+    window.dispatchEvent(new CustomEvent('auth:unauthorized', { detail: { token } }));
+    return response;
+  }
+
+  const refreshedToken = response.headers.get('X-Refreshed-Token');
+  if (refreshedToken) {
+    applyRefreshedToken(refreshedToken);
+  }
+  return response;
 };
 
 // API endpoints
@@ -91,6 +169,11 @@ export const api = {
     // Current identity incl. role + status (Phase-MU).
     me: () => authenticatedFetch('/api/auth/me'),
     logout: () => authenticatedFetch('/api/auth/logout', { method: 'POST' }),
+
+    // Proactively mint a fresh JWT before the current one expires (B-131 gap أ).
+    // Single-flight + raw fetch (see refreshAuthToken) so it never recurses
+    // through the 401 handler. Resolves to the new token string, or null.
+    refresh: () => refreshAuthToken(),
 
     // Self-service profile (Phase-MU F-1 / F-2).
     // Change own password — returns a fresh token so the current device stays signed in.
