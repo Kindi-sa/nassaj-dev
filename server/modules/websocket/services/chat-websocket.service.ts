@@ -1,6 +1,11 @@
 import type { WebSocket } from 'ws';
 
-import { projectsDb } from '@/modules/database/index.js';
+// Namespace import (not `import { projectsDb, sessionsDb }`): the realtime
+// visibility gate below reads `sessionsDb`, but some unit tests module-mock this
+// barrel with only the subset they exercise. A namespace binding tolerates a
+// member a mock omits (it is only dereferenced on the gate's own code path),
+// whereas a static named import would fail ESM linking against such a mock.
+import * as databaseModule from '@/modules/database/index.js';
 import { sendOpenSessionsCount } from '@/modules/websocket/services/open-sessions.service.js';
 import {
   presenceConnect,
@@ -211,7 +216,7 @@ export function isProjectPathVisibleToUser(
     return true;
   }
 
-  const projectRow = projectsDb.getProjectPath(trimmedPath);
+  const projectRow = databaseModule.projectsDb.getProjectPath(trimmedPath);
   if (!projectRow) {
     // Path not yet registered as a project — creation/first-run flow.
     return true;
@@ -224,10 +229,53 @@ export function isProjectPathVisibleToUser(
         ? Number.parseInt(userId, 10)
         : null;
 
-  return projectsDb.isProjectVisibleToUser(
+  return databaseModule.projectsDb.isProjectVisibleToUser(
     projectRow.project_id,
     Number.isInteger(numericUserId) ? numericUserId : null
   );
+}
+
+/**
+ * B-137 content-visibility gate for the realtime session paths that take a
+ * client-supplied sessionId and expose a session's LIVE stream to the requesting
+ * socket — the `check-session-status` mirror/attach/reconnect handler and the
+ * `get-active-sessions` listing. Unlike the spawn guard there is no cwd on these
+ * paths, so the session is resolved to its project_path (the sessions table) and
+ * the SAME project-visibility predicate the spawn guard uses
+ * (`isProjectPathVisibleToUser`) is applied: a public project's live session
+ * stays visible to the team (the legitimate refreshed-tab / second-viewer case
+ * the mirror exists for), while a private project's session is only
+ * mirrored/attached/listed for a member (ADR-052).
+ *
+ * Fail-OPEN only when the session resolves to no known project_path — an
+ * unpersisted brand-new session (the run path can outrace the synchronizer) or a
+ * null-path session carries no private-project association to protect, matching
+ * the spawn guard's unregistered-path allowance and the presence layer's
+ * treatment of null-path runs. The lookup is wrapped so a database hiccup never
+ * throws on the realtime path (same discipline as participation tracking): an
+ * unresolved lookup falls through to that unregistered-path allowance. The actual
+ * exploit path — a KNOWN private session whose row resolves — never errors, so
+ * the guarantee against a non-member is not weakened by the fail-open.
+ */
+function isSessionVisibleToUser(
+  sessionId: string,
+  userId: string | number | null
+): boolean {
+  if (!sessionId) {
+    return true;
+  }
+
+  let projectPath = '';
+  try {
+    projectPath = databaseModule.sessionsDb.getSessionById(sessionId)?.project_path ?? '';
+  } catch {
+    return true;
+  }
+
+  // Empty / unregistered project_path defers to the unregistered-path allowance
+  // inside isProjectPathVisibleToUser (returns true); a KNOWN private project is
+  // only visible to its members there.
+  return isProjectPathVisibleToUser(projectPath, userId);
 }
 
 /**
@@ -510,6 +558,23 @@ export function handleChatConnection(
         const sessionId = typeof data.sessionId === 'string' ? data.sessionId : '';
         let isActive = false;
 
+        // B-137: the mirror + attach-replay + writer-reconnect below all expose
+        // this session's live stream (transcript, permission prompts, tool
+        // output) to the requesting socket. Refuse them when the session's
+        // project is not visible to this user — a private project they are not a
+        // member of — returning the same 404-equivalent an unknown/inactive
+        // session would: NO mirror registered, NO buffered payloads replayed, NO
+        // writer swapped, and the activity is never even probed.
+        if (sessionId && !isSessionVisibleToUser(sessionId, presenceUserId)) {
+          writer.send({
+            type: 'session-status',
+            sessionId,
+            provider,
+            isProcessing: false,
+          });
+          return;
+        }
+
         // Realtime mirror (all providers): register this socket as a READ-ONLY
         // copy-receiver of the session's live stream (WebSocketWriter fan-out).
         // A refreshed tab or a second user viewing the same session gets the
@@ -610,16 +675,31 @@ export function handleChatConnection(
       }
 
       if (messageType === 'get-active-sessions') {
+        // B-144: (a) never leak the ids of runs this user cannot see — filter
+        // every provider's active-id list through the SAME visibility predicate
+        // as check-session-status (a private-project run is dropped for a
+        // non-member, an unknown/null-path run stays visible like presence);
+        // (b) surface the kimi/deepseek/glm providers that were silently omitted
+        // from this listing.
+        const visibleIds = (ids: unknown): string[] =>
+          (Array.isArray(ids) ? ids : []).filter(
+            (id): id is string =>
+              typeof id === 'string' && isSessionVisibleToUser(id, presenceUserId)
+          );
+
         writer.send({
           type: 'active-sessions',
           sessions: {
-            claude: dependencies.getActiveClaudeSDKSessions(),
-            cursor: dependencies.getActiveCursorSessions(),
-            codex: dependencies.getActiveCodexSessions(),
-            gemini: dependencies.getActiveGeminiSessions(),
-            antigravity: dependencies.getActiveAntigravitySessions(),
-            opencode: dependencies.getActiveOpenCodeSessions(),
-            hermes: dependencies.getActiveHermesSessions(),
+            claude: visibleIds(dependencies.getActiveClaudeSDKSessions()),
+            cursor: visibleIds(dependencies.getActiveCursorSessions()),
+            codex: visibleIds(dependencies.getActiveCodexSessions()),
+            gemini: visibleIds(dependencies.getActiveGeminiSessions()),
+            antigravity: visibleIds(dependencies.getActiveAntigravitySessions()),
+            opencode: visibleIds(dependencies.getActiveOpenCodeSessions()),
+            hermes: visibleIds(dependencies.getActiveHermesSessions()),
+            kimi: visibleIds(dependencies.getActiveKimiSessions()),
+            deepseek: visibleIds(dependencies.getActiveDeepSeekSessions()),
+            glm: visibleIds(dependencies.getActiveGlmSessions()),
           },
         });
       }
