@@ -35,7 +35,11 @@
  *                  no link and must run `agy` to authenticate. installation_id and
  *                  settings.json are linked too for the owner when present.)
  *     .codex/
- *       (isolated; no shared subtree symlinked yet)
+ *       (isolated credentials; no shared conversation subtree symlinked yet)
+ *       auth.json -> ~/.codex/auth.json  (OWNER ONLY: the bootstrap owner reuses
+ *                  the operator Codex credential so an isolated owner never re-logs
+ *                  in — mirrors .claude/.credentials.json. Non-owners run `codex
+ *                  login` to authenticate their own isolated ~/.codex.)
  *
  * Idempotent: safe to call on every spawn. Existing dirs/symlinks are left
  * untouched. The first creation per user is recorded once in audit_log.
@@ -307,8 +311,20 @@ export function provisionUserDirs(userId) {
       }
     }
 
-    // --- Codex (isolated; no shared subtree mirrored yet) ---
-    ensureDir(path.join(userRoot, '.codex'));
+    // --- Codex (isolated credentials; no shared conversation subtree yet) ---
+    // Since B-136 wired the per-user CODEX_HOME on the spawn path, the bootstrap
+    // owner reuses the operator's real Codex credential (~/.codex/auth.json) so an
+    // isolated owner never has to re-login — mirroring the .claude/.credentials.json
+    // and agy antigravity-oauth-token owner links above. Non-owner isolated users get
+    // NO credential here on purpose: each must run their own `codex login`.
+    const codexDir = path.join(userRoot, '.codex');
+    ensureDir(codexDir);
+    if (isOwnerUser(userId)) {
+      ensureSymlink(
+        path.join(home, '.codex', 'auth.json'),
+        path.join(codexDir, 'auth.json'),
+      );
+    }
 
     // Tighten permissions every pass: mkdir's `mode` is masked by the process
     // umask, so enforce 0700 dirs / 0600 credential files explicitly. Idempotent

@@ -14,6 +14,7 @@
  */
 
 import { Codex } from '@openai/codex-sdk';
+
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
@@ -22,6 +23,7 @@ import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
+import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
@@ -279,8 +281,15 @@ export async function queryCodex(command, options = {}, ws) {
   };
 
   try {
-    // Initialize Codex SDK
-    codex = new Codex();
+    // Per-user credential isolation (B-136 / B-ISO-CODEX): build the child env via
+    // the central resolver so each authenticated user spawns Codex against their own
+    // CODEX_HOME (~/.nassaj-users/<userId>/.codex) instead of inheriting the shared
+    // operator ~/.codex — where auth.json is the owner's OpenAI subscription (ToS
+    // violation) and sessions/ hold other users' transcripts (resumeThread leak).
+    // codex-sdk does NOT inherit process.env once `env` is supplied, so hand it the
+    // FULL resolved env (resolveProviderEnv spreads process.env). Anonymous/single-
+    // user (null userId) returns the base env unchanged — no non-isolated regression.
+    codex = new Codex({ env: resolveProviderEnv(ws?.userId ?? null, 'codex', process.env) });
 
     // Thread options with sandbox and approval settings
     const threadOptions = {
