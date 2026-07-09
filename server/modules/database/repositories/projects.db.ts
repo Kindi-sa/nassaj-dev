@@ -338,6 +338,71 @@ export const projectsDb = {
     },
 
     /**
+     * WRITE authorization predicate (B-138) — the mutating-endpoint sibling of
+     * the READ predicate isProjectVisibleToUser. Answers "may this user MODIFY
+     * files in the project identified by `projectId`?" (save / create / rename /
+     * delete / upload).
+     *
+     * WHY THIS IS SEPARATE FROM isProjectVisibleToUser
+     * ------------------------------------------------
+     * isProjectVisibleToUser returns true for EVERY visibility='public' project
+     * to ANY authenticated user — public projects are readable by the whole team
+     * by design (B-PRIV). Gating a WRITE on that read predicate let any non-member
+     * replace or plant files in another user's public project. The write gate is
+     * therefore membership-based, NOT visibility-based:
+     *   - created_by === userId  (the creator), OR
+     *   - an explicit project_members row (any role), OR
+     *   - an active session participant on the project.
+     * The public bypass is intentionally ABSENT — 'public' confers read, never
+     * write. These three routes are the exact NON-public routes of
+     * isProjectVisibleToUser, so the read and write gates cannot silently diverge.
+     *
+     * Because writable ⊂ visible, a caller who passes this gate always also passed
+     * the visibility gate; a caller who fails it may still SEE the project (public)
+     * but is refused the mutation. Callers answer 404 (not 403) on false so a
+     * PRIVATE project the user cannot see is never disclosed via a write attempt —
+     * the B-PRIV non-disclosure guarantee is preserved on the mutating paths too.
+     *
+     * Fail-closed: a non-integer userId (anonymous/unresolved) or an unknown
+     * projectId returns false. Archived state does NOT affect the answer (matching
+     * isProjectVisibleToUser, so management/restore paths on archived rows are
+     * unaffected). Prepared statements only — the caller id is never interpolated.
+     */
+    isProjectWritableByUser(projectId: string, userId: number | null): boolean {
+        if (!Number.isInteger(userId)) {
+            return false;
+        }
+
+        const db = getConnection();
+        const row = db.prepare(`
+            SELECT
+                p.created_by AS created_by,
+                EXISTS (
+                    SELECT 1 FROM project_members pm
+                    WHERE pm.project_id = p.project_id AND pm.user_id = ?
+                ) AS isMember,
+                EXISTS (
+                    SELECT 1
+                    FROM session_participants sp
+                    JOIN sessions s ON s.session_id = sp.session_id
+                    WHERE sp.user_id = ?
+                      AND s.project_path = p.project_path
+                ) AS isParticipant
+            FROM projects p
+            WHERE p.project_id = ?
+        `).get(
+            userId,
+            userId,
+            projectId,
+        ) as { created_by: number | null; isMember: number; isParticipant: number } | undefined;
+
+        if (!row) {
+            return false;
+        }
+        return row.created_by === userId || row.isMember === 1 || row.isParticipant === 1;
+    },
+
+    /**
      * Whether the project that OWNS a given project_path is visible to the user
      * (B-PRIV guard primitive, path-keyed sibling of isProjectVisibleToUser).
      *

@@ -124,6 +124,8 @@ import { configureWebPush } from './services/vapid-keys.js';
 import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { enforcePlatformIsolationGuard } from './services/platform-isolation-guard.service.js';
+import { userConfigDir } from './services/isolation/provision-user-dirs.js';
+import { isProviderIsolated } from './services/provider-sharing.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole, JWT_SECRET } from './middleware/auth.js';
 import { recordAuthRejection } from './middleware/auth-rejection-audit.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -877,8 +879,10 @@ app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(400).json({ error: 'Content is required' });
         }
 
-        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
-        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+        // B-138 write guard: reject when the caller may not WRITE here (creator /
+        // member / participant — NOT mere public visibility). 404 (not 403) keeps
+        // the B-PRIV non-disclosure guarantee for private projects.
+        if (!projectsDb.isProjectWritableByUser(projectId, coerceUserId(req.user?.id))) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
@@ -1055,8 +1059,10 @@ app.post('/api/projects/:projectId/files/create', authenticateToken, async (req,
             return res.status(400).json({ error: nameValidation.error });
         }
 
-        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
-        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+        // B-138 write guard: reject when the caller may not WRITE here (creator /
+        // member / participant — NOT mere public visibility). 404 (not 403) keeps
+        // the B-PRIV non-disclosure guarantee for private projects.
+        if (!projectsDb.isProjectWritableByUser(projectId, coerceUserId(req.user?.id))) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
@@ -1133,8 +1139,10 @@ app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, 
             return res.status(400).json({ error: nameValidation.error });
         }
 
-        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
-        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+        // B-138 write guard: reject when the caller may not WRITE here (creator /
+        // member / participant — NOT mere public visibility). 404 (not 403) keeps
+        // the B-PRIV non-disclosure guarantee for private projects.
+        if (!projectsDb.isProjectWritableByUser(projectId, coerceUserId(req.user?.id))) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
@@ -1210,8 +1218,11 @@ app.delete('/api/projects/:projectId/files', authenticateToken, async (req, res)
             return res.status(400).json({ error: 'Path is required' });
         }
 
-        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
-        if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+        // B-138 write guard: DELETE is a mutation, so it needs WRITE authorization
+        // (creator / member / participant — NOT mere public visibility). Without
+        // this a non-member could delete files in another user's public project.
+        // 404 (not 403) keeps the B-PRIV non-disclosure guarantee for private ones.
+        if (!projectsDb.isProjectWritableByUser(projectId, coerceUserId(req.user?.id))) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
@@ -1311,10 +1322,12 @@ const uploadFilesHandler = async (req, res) => {
             const { projectId } = req.params;
             const { targetPath, relativePaths, requestedFileCount: requestedFileCountRaw } = req.body;
 
-            // B-PRIV guard: 404 (not 403) when the project is not visible to the
-            // user. Temp uploads land in os.tmpdir(), so rejecting here (before any
-            // write into the project) fully protects a private project.
-            if (!isProjectVisible(projectId, coerceUserId(req.user?.id))) {
+            // B-138 write guard: uploads MUTATE the project tree, so require WRITE
+            // authorization (creator / member / participant — NOT mere public
+            // visibility). Temp uploads land in os.tmpdir(), so rejecting here
+            // (before any write into the project) fully protects the project. 404
+            // (not 403) keeps the B-PRIV non-disclosure guarantee for private ones.
+            if (!projectsDb.isProjectWritableByUser(projectId, coerceUserId(req.user?.id))) {
                 return res.status(404).json({ error: 'Project not found' });
             }
 
@@ -1570,8 +1583,11 @@ const ATTACHMENT_ALLOWED = {
 
 app.post('/api/projects/:projectId/upload-attachments', authenticateToken, async (req, res) => {
     try {
-        // B-PRIV guard: 404 (not 403) when the project is not visible to the user.
-        if (!isProjectVisible(req.params.projectId, coerceUserId(req.user?.id))) {
+        // B-138 write guard: attachment uploads land inside the project tree
+        // (.nassaj-uploads/inbox), so require WRITE authorization (creator /
+        // member / participant — NOT mere public visibility). 404 (not 403) keeps
+        // the B-PRIV non-disclosure guarantee for private projects.
+        if (!projectsDb.isProjectWritableByUser(req.params.projectId, coerceUserId(req.user?.id))) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
@@ -1839,7 +1855,18 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
 
         // Handle Codex sessions
         if (provider === 'codex') {
-            const codexSessionsDir = path.join(homeDir, '.codex', 'sessions');
+            // B-136: the codex SPAWN writes sessions under a per-user CODEX_HOME
+            // (resolveProviderEnv → userConfigDir(userId,'.codex')) whenever codex
+            // is isolated for an authenticated user, so this read/resume path must
+            // look in the SAME tree — otherwise it never finds the caller's own
+            // codex sessions. When codex is admin-marked 'shared' (or the caller is
+            // anonymous) the spawn inherits the operator env, so fall back to the
+            // shared ~/.codex exactly as before. Mirrors the spawn gate precisely.
+            const codexUserId = coerceUserId(req.user?.id);
+            const codexHome = (codexUserId !== null && isProviderIsolated('codex'))
+                ? userConfigDir(codexUserId, '.codex')
+                : path.join(homeDir, '.codex');
+            const codexSessionsDir = path.join(codexHome, 'sessions');
 
             // Find the session file by searching for the session ID
             const findSessionFile = async (dir) => {
@@ -2308,6 +2335,12 @@ async function startServer() {
                 antigravity: getActiveAntigravitySessions().length,
                 opencode: getActiveOpenCodeSessions().length,
                 hermes: getActiveHermesSessions().length,
+                // B-143: count the hosted-vendor runs too, so a restart DRAINS
+                // (waits for) in-flight kimi/deepseek/glm sessions instead of
+                // killing them. Same shape as the CLI providers above.
+                kimi: getActiveKimiSessions().length,
+                deepseek: getActiveDeepSeekSessions().length,
+                glm: getActiveGlmSessions().length,
             }),
             stopAllPlugins,
             exit: (code) => process.exit(code),
