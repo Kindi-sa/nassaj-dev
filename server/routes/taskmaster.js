@@ -32,6 +32,62 @@ async function resolveProjectPathFromId(projectId) {
   return projectsDb.getProjectPathById(projectId);
 }
 
+/**
+ * Reference filename contract for every PRD file the TaskMaster routes touch.
+ * Shared by POST /prd, GET /prd/:projectId/:fileName, POST /parse-prd and
+ * POST /apply-template so a single definition governs what a legal PRD name is.
+ *
+ * Only *.txt / *.md whose stem is word chars, spaces, dots and dashes — the set
+ * deliberately excludes '/' and '\', so no path separator (and therefore no
+ * `..` traversal segment) can ever appear in an accepted name.
+ */
+const PRD_FILENAME_PATTERN = /^[\w\-. ]+\.(txt|md)$/;
+
+/**
+ * Validate a caller-supplied PRD `fileName` and resolve it to an absolute path
+ * that is provably contained inside `<projectPath>/.taskmaster/docs`.
+ *
+ * Two independent guards (defense in depth against path traversal — B-133/135/140):
+ *   1. `fileName` must match PRD_FILENAME_PATTERN. This alone blocks '/', '\'
+ *      and any name that is not a plain *.txt/*.md file, so `..` cannot appear.
+ *      Express decodes `%2f` inside a `:param`, so an encoded
+ *      `..%2f..%2fetc%2fpasswd` arrives here already containing '/' and is rejected.
+ *   2. The resolved absolute path must live strictly *below* the docs dir. Even
+ *      if guard #1 were ever weakened, a resolved path that escapes the sandbox
+ *      is still rejected.
+ *
+ * @param {string} projectPath Absolute project directory (already resolved from the DB).
+ * @param {unknown} fileName   Caller-supplied file name (route param or req.body).
+ * @returns {{ ok: true, docsDir: string, filePath: string }
+ *          | { ok: false, status: number, error: string, message: string }}
+ */
+function resolvePrdFilePath(projectPath, fileName) {
+    if (typeof fileName !== 'string' || !PRD_FILENAME_PATTERN.test(fileName)) {
+        return {
+            ok: false,
+            status: 400,
+            error: 'Invalid filename',
+            message: 'Filename must end with .txt or .md and contain only alphanumeric characters, spaces, dots, and dashes'
+        };
+    }
+
+    const docsDir = path.join(projectPath, '.taskmaster', 'docs');
+    const filePath = path.resolve(docsDir, fileName);
+
+    // Strict containment: the resolved path must be a descendant of docsDir,
+    // never docsDir itself nor a sibling/parent directory.
+    if (!filePath.startsWith(docsDir + path.sep)) {
+        return {
+            ok: false,
+            status: 400,
+            error: 'Invalid filename',
+            message: 'Resolved file path escapes the project docs directory'
+        };
+    }
+
+    return { ok: true, docsDir, filePath };
+}
+
 const router = express.Router();
 
 /**
@@ -352,14 +408,6 @@ router.post('/prd/:projectId', async (req, res) => {
             });
         }
 
-        // Validate filename
-        if (!fileName.match(/^[\w\-. ]+\.(txt|md)$/)) {
-            return res.status(400).json({
-                error: 'Invalid filename',
-                message: 'Filename must end with .txt or .md and contain only alphanumeric characters, spaces, dots, and dashes'
-            });
-        }
-
         // Resolve the project folder through the DB using the projectId param.
         const projectPath = await resolveProjectPathFromId(projectId);
         if (!projectPath) {
@@ -369,8 +417,16 @@ router.post('/prd/:projectId', async (req, res) => {
             });
         }
 
-        const docsPath = path.join(projectPath, '.taskmaster', 'docs');
-        const filePath = path.join(docsPath, fileName);
+        // Validate + contain the filename (shared guard — see resolvePrdFilePath).
+        const prd = resolvePrdFilePath(projectPath, fileName);
+        if (!prd.ok) {
+            return res.status(prd.status).json({
+                error: prd.error,
+                message: prd.message
+            });
+        }
+        const docsPath = prd.docsDir;
+        const filePath = prd.filePath;
 
         // Ensure docs directory exists
         try {
@@ -435,8 +491,18 @@ router.get('/prd/:projectId/:fileName', async (req, res) => {
             });
         }
 
-        const filePath = path.join(projectPath, '.taskmaster', 'docs', fileName);
-        
+        // Validate + contain the filename before any filesystem read (B-133).
+        // `fileName` is a route :param; Express decodes `%2f`, so an encoded
+        // traversal payload reaches here as a plain string and is rejected here.
+        const prd = resolvePrdFilePath(projectPath, fileName);
+        if (!prd.ok) {
+            return res.status(prd.status).json({
+                error: prd.error,
+                message: prd.message
+            });
+        }
+        const filePath = prd.filePath;
+
         // Check if file exists
         try {
             await fsPromises.access(filePath, fs.constants.R_OK);
@@ -812,8 +878,16 @@ router.post('/parse-prd/:projectId', async (req, res) => {
             });
         }
 
-        const prdPath = path.join(projectPath, '.taskmaster', 'docs', fileName);
-        
+        // Validate + contain the filename before any access/spawn (B-140).
+        const prd = resolvePrdFilePath(projectPath, fileName);
+        if (!prd.ok) {
+            return res.status(prd.status).json({
+                error: prd.error,
+                message: prd.message
+            });
+        }
+        const prdPath = prd.filePath;
+
         // Check if PRD file exists
         try {
             await fsPromises.access(prdPath, fs.constants.F_OK);
@@ -1363,6 +1437,17 @@ router.post('/apply-template/:projectId', async (req, res) => {
             });
         }
 
+        // Validate + contain the filename before any filesystem write (B-135).
+        const prd = resolvePrdFilePath(projectPath, fileName);
+        if (!prd.ok) {
+            return res.status(prd.status).json({
+                error: prd.error,
+                message: prd.message
+            });
+        }
+        const docsDir = prd.docsDir;
+        const filePath = prd.filePath;
+
         // Get the template content (this would normally fetch from the templates list)
         const templates = await getAvailableTemplates();
         const template = templates.find(t => t.id === templateId);
@@ -1383,15 +1468,13 @@ router.post('/apply-template/:projectId', async (req, res) => {
             content = content.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'g'), value);
         }
 
-        // Ensure .taskmaster/docs directory exists
-        const docsDir = path.join(projectPath, '.taskmaster', 'docs');
+        // Ensure .taskmaster/docs directory exists (docsDir/filePath were
+        // validated and contained above by resolvePrdFilePath).
         try {
             await fsPromises.mkdir(docsDir, { recursive: true });
         } catch (error) {
             console.error('Failed to create docs directory:', error);
         }
-
-        const filePath = path.join(docsDir, fileName);
 
         // Write the template content to the file
         try {
