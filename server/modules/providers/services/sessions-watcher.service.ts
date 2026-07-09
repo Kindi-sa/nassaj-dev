@@ -5,6 +5,7 @@ import { promises as fsPromises } from 'node:fs';
 import chokidar, { type FSWatcher } from 'chokidar';
 
 import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { resolveCodexHomes } from '@/modules/providers/list/codex/codex-home.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { vendorProviderRoot } from '@/modules/providers/shared/vendor/vendor-transcript.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
@@ -23,6 +24,9 @@ const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> =
     rootPath: path.join(os.homedir(), '.cursor', 'projects'),
   },
   {
+    // Operator baseline only. B-152: at watcher init this single codex entry is
+    // expanded (see resolveEffectiveWatchTargets) into one watch per isolated
+    // user's CODEX_HOME/sessions so an isolated user's live sessions are indexed.
     provider: 'codex',
     rootPath: path.join(os.homedir(), '.codex', 'sessions'),
   },
@@ -331,6 +335,30 @@ function onUnlink(filePath: string, provider: LLMProvider): void {
 }
 
 /**
+ * Expands the static watch list into the concrete set of dirs to watch. Every
+ * provider maps to its single declared root EXCEPT codex, whose entry is fanned
+ * out (B-152) into one watch per relevant CODEX_HOME/sessions — the operator
+ * ~/.codex plus each isolated user's per-user home — so an isolated user's live
+ * sessions trigger the same incremental sync as the operator's. In shared mode
+ * resolveCodexHomes() collapses to just ~/.codex, leaving the original behavior.
+ */
+function resolveEffectiveWatchTargets(): Array<{ provider: LLMProvider; rootPath: string }> {
+  const targets: Array<{ provider: LLMProvider; rootPath: string }> = [];
+
+  for (const entry of PROVIDER_WATCH_PATHS) {
+    if (entry.provider === 'codex') {
+      for (const codexHome of resolveCodexHomes()) {
+        targets.push({ provider: 'codex', rootPath: path.join(codexHome, 'sessions') });
+      }
+      continue;
+    }
+    targets.push(entry);
+  }
+
+  return targets;
+}
+
+/**
  * Starts provider filesystem watchers and performs initial DB synchronization.
  */
 export async function initializeSessionsWatcher(): Promise<void> {
@@ -342,7 +370,7 @@ export async function initializeSessionsWatcher(): Promise<void> {
     failures: initialSync.failures,
   });
 
-  for (const { provider, rootPath } of PROVIDER_WATCH_PATHS) {
+  for (const { provider, rootPath } of resolveEffectiveWatchTargets()) {
     try {
       await fsPromises.mkdir(rootPath, { recursive: true });
 

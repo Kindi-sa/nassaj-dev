@@ -1,9 +1,9 @@
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -18,6 +18,8 @@ import {
   readOptionalString,
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
+
+import { operatorCodexHome } from './codex-home.js';
 
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
@@ -39,8 +41,19 @@ type CodexCachedModel = {
   supported_in_api?: boolean;
 };
 
-const CODEX_MODELS_CACHE_PATH = path.join(os.homedir(), '.codex', 'models_cache.json');
-const CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
+const CODEX_MODELS_CACHE_FILE = 'models_cache.json';
+const CODEX_CONFIG_FILE = 'config.toml';
+
+/**
+ * Resolves the Codex home for the given user via the central B-136 resolver
+ * (B-152). Isolated → ~/.nassaj-users/<userId>/.codex; shared/anonymous → the
+ * operator ~/.codex, so the model catalog reflects THAT user's own cached models
+ * and configured default instead of the operator's.
+ */
+const resolveCodexHome = (userId?: string | number | null): string => {
+  const env = resolveProviderEnv(userId ?? null, 'codex', process.env);
+  return readOptionalString(env.CODEX_HOME) ?? operatorCodexHome();
+};
 
 const isCodexCachedModel = (value: unknown): value is CodexCachedModel => {
   const record = readObjectRecord(value);
@@ -86,9 +99,15 @@ const buildCodexModelsDefinition = (models: CodexCachedModel[]): ProviderModelsD
 };
 
 export class CodexProviderModels implements IProviderModels {
-  async getSupportedModels(): Promise<ProviderModelsDefinition> {
+  /**
+   * Reads the user's cached Codex model catalog. `userId` is resolved through the
+   * central B-136 resolver so an isolated user's OWN models_cache.json is read
+   * (B-152); omitted/null (system/anon/platform) reads the operator ~/.codex —
+   * unchanged from the single-user behavior.
+   */
+  async getSupportedModels(userId?: string | number | null): Promise<ProviderModelsDefinition> {
     try {
-      const raw = await readFile(CODEX_MODELS_CACHE_PATH, 'utf8');
+      const raw = await readFile(path.join(resolveCodexHome(userId), CODEX_MODELS_CACHE_FILE), 'utf8');
       const parsed = readObjectRecord(JSON.parse(raw));
       const models = Array.isArray(parsed?.models)
         ? parsed.models.filter(isCodexCachedModel)
@@ -102,7 +121,10 @@ export class CodexProviderModels implements IProviderModels {
 
   async getCurrentActiveModel(): Promise<ProviderCurrentActiveModel> {
     try {
-      const raw = await readFile(CODEX_CONFIG_PATH, 'utf8');
+      // No userId is carried on the active-model interface, so this reads the
+      // operator config.toml (safe fallback, unchanged pre-B-152 behavior). The
+      // per-user config is honored on getSupportedModels, which the picker uses.
+      const raw = await readFile(path.join(resolveCodexHome(null), CODEX_CONFIG_FILE), 'utf8');
       const parsed = readObjectRecord(TOML.parse(raw));
       const model = readOptionalString(parsed?.model);
       if (!model) {

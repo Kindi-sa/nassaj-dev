@@ -1,4 +1,3 @@
-import os from 'node:os';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
@@ -12,6 +11,8 @@ import {
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 
+import { codexHomeForSessionFile, resolveCodexHomes } from './codex-home.js';
+
 type ParsedSession = {
   sessionId: string;
   projectPath: string;
@@ -23,15 +24,30 @@ type ParsedSession = {
  */
 export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'codex' as const;
-  private readonly codexHome = path.join(os.homedir(), '.codex');
 
   /**
-   * Scans ~/.codex/sessions and upserts discovered sessions into DB.
+   * Scans EVERY relevant Codex home (the operator ~/.codex plus each isolated
+   * user's per-user CODEX_HOME — B-152) and upserts discovered sessions into DB.
+   * The set collapses to just ~/.codex when codex is shared, so shared/single-user
+   * installs keep the original single-tree scan.
    */
   async synchronize(since?: Date): Promise<number> {
-    const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
+    let processed = 0;
+    for (const codexHome of resolveCodexHomes()) {
+      processed += await this.synchronizeHome(codexHome, since);
+    }
+    return processed;
+  }
+
+  /**
+   * Scans one Codex home's `sessions/` tree, resolving session names from that
+   * SAME home's `session_index.jsonl` so an isolated user's names are not looked
+   * up against the operator index.
+   */
+  private async synchronizeHome(codexHome: string, since?: Date): Promise<number> {
+    const nameMap = await buildLookupMap(path.join(codexHome, 'session_index.jsonl'), 'id', 'thread_name');
     const files = await findFilesRecursivelyCreatedAfter(
-      path.join(this.codexHome, 'sessions'),
+      path.join(codexHome, 'sessions'),
       '.jsonl',
       since ?? null
     );
@@ -68,14 +84,17 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
   }
 
   /**
-   * Parses and upserts one Codex session JSONL file.
+   * Parses and upserts one Codex session JSONL file. The owning Codex home is
+   * derived from the file path itself (B-152), so a watcher event fired inside an
+   * isolated user's tree resolves its names from that user's index — not ~/.codex.
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
     if (!filePath.endsWith('.jsonl')) {
       return null;
     }
 
-    const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
+    const codexHome = codexHomeForSessionFile(filePath);
+    const nameMap = await buildLookupMap(path.join(codexHome, 'session_index.jsonl'), 'id', 'thread_name');
     const parsed = await this.processSessionFile(filePath, nameMap);
     if (!parsed) {
       return null;
