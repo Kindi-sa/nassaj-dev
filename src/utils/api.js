@@ -1,8 +1,36 @@
 import { IS_PLATFORM } from "../constants/config";
 
+// localStorage key holding the JWT. Kept in sync with AUTH_TOKEN_STORAGE_KEY
+// (src/components/auth/constants.ts) and the direct readers in
+// WebSocketContext.tsx and shell/utils/socket.ts.
+const AUTH_TOKEN_STORAGE_KEY = 'auth-token';
+
+/**
+ * Persist a server-rotated JWT and broadcast it to the rest of the app.
+ *
+ * The server refreshes the token mid-session via the `X-Refreshed-Token`
+ * response header (server/middleware/auth.js) once it passes half its TTL.
+ * Writing ONLY to localStorage (the old behaviour) left AuthContext's React
+ * state holding the pre-rotation token, so the main WebSocket kept dialing with
+ * a token that expired on day 7 — a permanent `expired` reconnect loop while
+ * REST/shell (which read localStorage) survived (B-131 "random logout").
+ *
+ * This is the single writer for a refreshed token: it updates localStorage AND
+ * fires `auth:token-refreshed` so AuthContext can adopt it into React state
+ * (mirrors the existing `auth:unauthorized` channel). Shared by the fetch path
+ * (api.js) and the XHR path (useFileTreeUpload).
+ *
+ * @param {string | null | undefined} token The rotated JWT (no-op if falsy).
+ */
+export const applyRefreshedToken = (token) => {
+  if (!token) return;
+  localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+  window.dispatchEvent(new CustomEvent('auth:token-refreshed', { detail: { token } }));
+};
+
 // Utility function for authenticated API calls
 export const authenticatedFetch = (url, options = {}) => {
-  const token = localStorage.getItem('auth-token');
+  const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
 
   const defaultHeaders = {};
 
@@ -38,7 +66,7 @@ export const authenticatedFetch = (url, options = {}) => {
 
     const refreshedToken = response.headers.get('X-Refreshed-Token');
     if (refreshedToken) {
-      localStorage.setItem('auth-token', refreshedToken);
+      applyRefreshedToken(refreshedToken);
     }
     return response;
   });
@@ -322,7 +350,7 @@ export const api = {
     });
   },
   searchConversationsUrl: (query, limit = 50) => {
-    const token = localStorage.getItem('auth-token');
+    const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
     const params = new URLSearchParams({ q: query, limit: String(limit) });
     if (token) params.set('token', token);
     return `/api/providers/search/sessions?${params.toString()}`;

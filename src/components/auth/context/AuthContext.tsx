@@ -192,6 +192,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [clearSession]);
 
+  // Adopt a server-rotated JWT into React state. `authenticatedFetch` (api.js)
+  // and the file-upload XHR persist a refreshed token to localStorage and fire
+  // `auth:token-refreshed` (see applyRefreshedToken). Without pulling it into
+  // state, the token-keyed WebSocket effect keeps dialing with the pre-rotation
+  // token until it expires — the B-131 "random logout". Mirrors the
+  // `auth:unauthorized` channel above.
+  useEffect(() => {
+    if (IS_PLATFORM) return;
+
+    const handleTokenRefreshed = (event: Event) => {
+      const nextToken = (event as CustomEvent<{ token?: string }>).detail?.token;
+      if (!nextToken) return;
+      // Persist (idempotent — the dispatcher already wrote it) then adopt into
+      // state so the [token]-keyed WebSocket effect reconnects with the fresh
+      // token. Skip when unchanged to avoid a redundant reconnect.
+      persistToken(nextToken);
+      setToken((current) => (current === nextToken ? current : nextToken));
+    };
+
+    window.addEventListener('auth:token-refreshed', handleTokenRefreshed);
+    return () => {
+      window.removeEventListener('auth:token-refreshed', handleTokenRefreshed);
+    };
+  }, []);
+
   useEffect(() => {
     if (IS_PLATFORM) {
       setUser({ username: 'platform-user' });

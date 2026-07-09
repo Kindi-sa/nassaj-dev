@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
 
 import { IS_PLATFORM } from '../../../constants/config';
+import { applyRefreshedToken } from '../../../utils/api';
 import type { Project } from '../../../types/app';
 import {
   MAX_FILE_UPLOAD_COUNT,
@@ -130,10 +131,8 @@ const uploadFormDataWithProgress = (
     };
 
     xhr.onload = () => {
-      const refreshedToken = xhr.getResponseHeader('X-Refreshed-Token');
-      if (refreshedToken) {
-        localStorage.setItem('auth-token', refreshedToken);
-      }
+      // Persist + broadcast a server-rotated JWT (mirrors authenticatedFetch).
+      applyRefreshedToken(xhr.getResponseHeader('X-Refreshed-Token'));
 
       const payload = parseUploadResponse(xhr);
       if (xhr.status >= 200 && xhr.status < 300) {

@@ -37,6 +37,25 @@ const buildWebSocketUrl = (token: string | null) => {
   return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
 
+// localStorage key holding the JWT. Kept in sync with AUTH_TOKEN_STORAGE_KEY
+// (src/components/auth/constants.ts) and the writer in utils/api.js.
+const AUTH_TOKEN_STORAGE_KEY = 'auth-token';
+
+/**
+ * Resolve the WS URL from the FRESHEST persisted token, exactly like
+ * shell/utils/socket.ts. This is the B-131 fix: the server rotates the JWT
+ * mid-session via `X-Refreshed-Token` and the client persists it to
+ * localStorage, but a backoff reconnect scheduled by `onclose` does NOT re-run
+ * the [token] effect — so reading React state there would keep dialing with the
+ * pre-rotation token until it expired (day 7), an endless `expired` reconnect
+ * loop. Reading localStorage on every (re)connect guarantees the newest token.
+ *
+ * Exported so the reconnect-token behaviour is unit-testable against the exact
+ * code path `connect()` uses (no drift between test and production).
+ */
+export const resolveWebSocketUrl = (): string | null =>
+  buildWebSocketUrl(localStorage.getItem(AUTH_TOKEN_STORAGE_KEY));
+
 // Exponential backoff constants (milliseconds).
 export const RECONNECT_BASE_DELAY_MS = 1000;
 export const RECONNECT_MAX_DELAY_MS = 30000;
@@ -62,11 +81,12 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [openSessionsCount, setOpenSessionsCount] = useState<number | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { token } = useAuth();
-  // Always read the freshest token in the reconnect path so a token rotation
-  // (logout→login, password change) dials with the NEW token, never a stale
-  // closure captured by an earlier `connect` invocation.
-  const tokenRef = useRef<string | null>(token);
-  tokenRef.current = token;
+  // `token` (React auth state) is used ONLY as the effect key below: a rotation
+  // (login/logout, password change, or an `auth:token-refreshed` adoption)
+  // re-runs the effect and reconnects. The socket URL itself is built from the
+  // freshest localStorage value inside connect() (see resolveWebSocketUrl), so
+  // even a backoff reconnect that does not re-run this effect picks up the
+  // newest token.
   // Monotonic connection epoch. Each connect() bumps it; a socket captures its
   // epoch and ignores its own onopen/onclose once a newer connection exists.
   // This is what stops a token rotation's old-socket close from spawning a
@@ -106,8 +126,10 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     const myEpoch = connEpochRef.current + 1;
     connEpochRef.current = myEpoch;
     try {
-      // Construct WebSocket URL — always from the current token.
-      const wsUrl = buildWebSocketUrl(tokenRef.current);
+      // Build from the freshest localStorage token (see resolveWebSocketUrl):
+      // survives a mid-session `X-Refreshed-Token` rotation even on backoff
+      // reconnects that do not re-run the [token] effect.
+      const wsUrl = resolveWebSocketUrl();
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
@@ -192,8 +214,8 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, []); // stable: reads the live token from tokenRef, so the onclose
-  //          reconnect timer never closes over a stale token/closure.
+  }, []); // stable: reads the live token from localStorage on every connect, so
+  //          the onclose reconnect timer never closes over a stale token/closure.
 
   const sendMessage = useCallback((message: any): SendMessageResult => {
     const socket = wsRef.current;
