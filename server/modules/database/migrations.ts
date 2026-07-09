@@ -669,13 +669,15 @@ const migrateStarredSessions = (db: Database): void => {
  * inspecting `PRAGMA foreign_key_list` — a rebuild is only performed when
  * needed, so this function is always safe to call during boot.
  *
- * Data preservation is guaranteed: all existing rows are copied to the new
- * tables before the old ones are dropped. The operation runs under a single
- * transaction so a partial failure leaves the original tables intact.
+ * Data preservation is guaranteed: all existing rows AND columns are copied to
+ * the new tables before the old ones are dropped — including the later-added
+ * `agent_model` column when the source database already carries it (B-148). The
+ * operation runs under a single transaction so a partial failure leaves the
+ * original tables intact.
  *
  * (B-38 / ADR-023.)
  */
-const migrateSessionAgentsCascade = (db: Database): void => {
+export const migrateSessionAgentsCascade = (db: Database): void => {
   type FkListRow = { table: string; on_delete: string };
 
   const cascadeNeededFor = (tableName: string): boolean => {
@@ -702,6 +704,16 @@ const migrateSessionAgentsCascade = (db: Database): void => {
     db.exec('BEGIN TRANSACTION');
 
     if (needsCacheRebuild) {
+      // Preserve agent_model (B-148): the live schema carries an agent_model
+      // column, but databases created before it was added do not. Detect whether
+      // the source table has the column and copy it when present so the rebuild
+      // never silently drops resolved model values. The __new table always
+      // declares agent_model, matching SESSION_AGENTS_CACHE_TABLE_SCHEMA_SQL, so
+      // migrateSessionAgentsModel (which runs next) becomes a no-op afterwards.
+      const cacheHasModel = getTableInfo(db, 'session_agents_cache').some(
+        (col) => col.name === 'agent_model'
+      );
+
       db.exec('DROP TABLE IF EXISTS session_agents_cache__new');
       db.exec(`
         CREATE TABLE session_agents_cache__new (
@@ -709,16 +721,26 @@ const migrateSessionAgentsCascade = (db: Database): void => {
           agent_name TEXT NOT NULL,
           agent_kind TEXT NOT NULL,
           invocation_count INTEGER DEFAULT 1,
+          agent_model TEXT DEFAULT NULL,
           PRIMARY KEY (session_id, agent_name, agent_kind),
           FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
         )
       `);
-      db.exec(`
-        INSERT INTO session_agents_cache__new
-          (session_id, agent_name, agent_kind, invocation_count)
-        SELECT session_id, agent_name, agent_kind, invocation_count
-        FROM session_agents_cache
-      `);
+      if (cacheHasModel) {
+        db.exec(`
+          INSERT INTO session_agents_cache__new
+            (session_id, agent_name, agent_kind, invocation_count, agent_model)
+          SELECT session_id, agent_name, agent_kind, invocation_count, agent_model
+          FROM session_agents_cache
+        `);
+      } else {
+        db.exec(`
+          INSERT INTO session_agents_cache__new
+            (session_id, agent_name, agent_kind, invocation_count)
+          SELECT session_id, agent_name, agent_kind, invocation_count
+          FROM session_agents_cache
+        `);
+      }
       db.exec('DROP TABLE session_agents_cache');
       db.exec('ALTER TABLE session_agents_cache__new RENAME TO session_agents_cache');
       // Recreate the index that normally lives in migrateParticipantsAndAgents.
@@ -897,5 +919,87 @@ export const pruneAuditLog = (db: Database): void => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Failed to prune audit_log (non-fatal)', { error: message });
+  }
+};
+
+/**
+ * Grace window (days) before an orphaned attribution/star row may be pruned
+ * (B-149). `message_authors` and `starred_sessions` intentionally carry NO FK
+ * on session_id — sessions are synchronized lazily, so a freshly created star
+ * or author row may briefly reference a session whose `sessions` row has not
+ * been synced yet (see the schema comments on both tables). Only rows older
+ * than this window are eligible, so a row pending its session's first sync is
+ * never removed — we only ever prune references to sessions that are genuinely
+ * gone (e.g. hard-deleted long ago).
+ */
+const ORPHAN_SESSION_REF_GRACE_DAYS = 7;
+
+/**
+ * Maximum orphan rows deleted per table per run (B-149). Bounds the DELETE so a
+ * large accumulated backlog is cleared across successive boots rather than in a
+ * single oversized transaction.
+ */
+const ORPHAN_SESSION_REF_BATCH_LIMIT = 5000;
+
+/**
+ * Prunes orphaned rows in the two session-reference tables that grow unbounded
+ * because they carry no FK on session_id and are never cleaned when a session is
+ * deleted: `message_authors` and `starred_sessions` (B-149). A row is orphaned
+ * when NO matching row exists in `sessions`. Mirrors pruneAuditLog exactly:
+ * called once at boot after runMigrations (best-effort — a prune failure must
+ * never block startup), parameterized, guarded by tableExists, and bounded by a
+ * per-table batch limit. The `datetime()` wrapper normalizes both the ISO-8601
+ * timestamps written to message_authors and the CURRENT_TIMESTAMP form used by
+ * starred_sessions, and a row with an unparseable timestamp yields NULL (< is
+ * NULL → falsy) so it is conservatively kept rather than deleted.
+ */
+export const pruneOrphanSessionRefs = (db: Database): void => {
+  try {
+    // Without the sessions table every row would look orphaned — refuse to run.
+    if (!tableExists(db, 'sessions')) {
+      return;
+    }
+    const cutoff = `-${ORPHAN_SESSION_REF_GRACE_DAYS} days`;
+
+    if (tableExists(db, 'message_authors')) {
+      const result = db
+        .prepare(
+          `DELETE FROM message_authors
+           WHERE id IN (
+             SELECT id FROM message_authors AS m
+             WHERE NOT EXISTS (
+               SELECT 1 FROM sessions AS s WHERE s.session_id = m.session_id
+             )
+               AND datetime(m.created_at) < datetime('now', ?)
+             LIMIT ?
+           )`
+        )
+        .run(cutoff, ORPHAN_SESSION_REF_BATCH_LIMIT);
+      if (result.changes > 0) {
+        console.log('Pruned orphaned message_authors rows', { deleted: result.changes });
+      }
+    }
+
+    if (tableExists(db, 'starred_sessions')) {
+      const result = db
+        .prepare(
+          `DELETE FROM starred_sessions
+           WHERE rowid IN (
+             SELECT rowid FROM starred_sessions AS ss
+             WHERE NOT EXISTS (
+               SELECT 1 FROM sessions AS s WHERE s.session_id = ss.session_id
+             )
+               AND datetime(ss.created_at) < datetime('now', ?)
+             LIMIT ?
+           )`
+        )
+        .run(cutoff, ORPHAN_SESSION_REF_BATCH_LIMIT);
+      if (result.changes > 0) {
+        console.log('Pruned orphaned starred_sessions rows', { deleted: result.changes });
+      }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Failed to prune orphaned session refs (non-fatal)', { error: message });
   }
 };
