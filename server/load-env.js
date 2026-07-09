@@ -2,6 +2,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 
 const __dirname = getModuleDir(import.meta.url);
@@ -22,7 +23,21 @@ try {
     }
   });
 } catch (e) {
-  console.log('No .env file found or error reading it:', e.message);
+  // A genuinely-missing .env is an optional-config case (env vars may instead be
+  // supplied by the process manager / shell) — preserve the prior behavior: log
+  // and continue. But any OTHER read error (EACCES, EISDIR, a partial/corrupt
+  // read, the wrong cwd, ...) must NOT be swallowed: silently continuing would
+  // let DATABASE_PATH fall through to the ~/.cloudcli/auth.db default below
+  // instead of the live ~/.local/share/nassaj-dev/db.sqlite, booting the backend
+  // on an empty database with a fresh bootstrap-owner window. Fail fast and loud.
+  if (e.code === 'ENOENT') {
+    console.log('No .env file found or error reading it:', e.message);
+  } else {
+    console.error(
+      `FATAL: cannot read .env at ${path.join(APP_ROOT, '.env')}: ${e.message}`
+    );
+    process.exit(1);
+  }
 }
 
 // Keep the default database in a stable user-level location so rebuilding dist-server

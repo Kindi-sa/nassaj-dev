@@ -49,8 +49,14 @@ self.addEventListener('fetch', event => {
       caches.match(event.request).then(cached => {
         if (cached) return cached;
         return fetch(event.request).then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          // Only persist a healthy same-origin asset. A 502 served during the
+          // restart drain window — or any 4xx/5xx / opaque / redirect response —
+          // must never be cached, otherwise the broken body would be served
+          // forever under the immutable hashed URL until a hard refresh.
+          if (response.ok && response.status === 200 && response.type === 'basic') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          }
           return response;
         }).catch(() => Response.error());
       })
