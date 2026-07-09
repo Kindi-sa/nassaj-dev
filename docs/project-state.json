@@ -3181,6 +3181,204 @@
   ],
   "issues": [
     {
+      "id": "B-133",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "critical",
+      "found": "2026-07-09",
+      "title": "اجتياز مسار في TaskMaster GET /prd/:projectId/:fileName → قراءة ملف عشوائي لأي مستخدم مُصادَق (يشمل .env/JWT_SECRET → استيلاء على الحساب)؛ Express 4.22.2 يفكّ %2f داخل :param (مُثبَت) — server/routes/taskmaster.js:438",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-TM438) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "critical → يقطع العمل الجاري. الإصلاح: تحقّق fileName بـ /^[\\w\\-. ]+\\.(txt|md)$/ (كما POST /prd:356) + احتواء المسار المُحلَّل تحت <projectPath>/.taskmaster/docs (path.resolve+realpath+startsWith). بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-134",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "critical",
+      "found": "2026-07-09",
+      "title": "تثبيت الإضافات = RCE على المضيف لأي مستخدم مُصادَق: /api/plugins مركّب بـauthenticateToken فقط (index.js:364) بلا requireRole؛ POST /install يستنسخ ريبو مهاجم ويشغّل npm run build (سكربت الريبو نفسه؛ --ignore-scripts لا يمنع run build) — server/routes/plugins.js:140",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-PLUG140) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "critical → يقطع العمل الجاري. الإصلاح: حصر install/update/enable/uninstall بـrequireRole(\"owner\",\"admin\")؛ إسقاط/عزل خطوة البناء. (بالمقابل /api/system/update وverbs الrunner محميّة صحيحاً). بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-135",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-09",
+      "title": "اجتياز مسار: كتابة ملف عشوائي عبر fileName من body في POST /apply-template بلا تحقّق (path.join+writeFile، بلا حاجة لترميز) → كتابة/استبدال أي ملف على الخادم بمحتوى قالب قابل للحقن الجزئي — server/routes/taskmaster.js:1394",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-TM1394) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "high → السبرنت الجاري/التالي. الإصلاح: تحقّق fileName بنفس regex + احتواء المسار قبل الكتابة. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-136",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-09",
+      "title": "عزل Codex لكل مستخدم غير مُفعَّل: new Codex() بلا {env} وresolveProviderEnv(\"codex\") لا يُستدعى إطلاقاً → كل المستخدمين يتشاركون ~/.codex للمالك (auth.json = مشاركة اشتراك OpenAI صامتة/ToS + sessions = تسرّب نصوص عبر resumeThread)؛ +7 مواقع os.homedir()/.codex مُصلّبة (synchronizer/models/mcp/auth/skills/watcher/index.js:1842) — server/openai-codex.js:283",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-CODEX283) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "high → السبرنت الجاري/التالي. الإصلاح: env: resolveProviderEnv(ws?.userId,\"codex\",process.env) + عزل مواقع القراءة/المزامنة السبعة + اختبار عزل يعكس claude-engine-provider.test.ts. (الأشقّاء claude/gemini/agy موصولون). بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-137",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-09",
+      "title": "check-session-status بلا تحقّق رؤية/عضوية (خارج حارس isSpawnMessage): بمعرّف جلسة من العميل ينفّذ addSessionMirror + attach*Session → أي عضو مُصادَق غير مالك يبثّ حياً جلسة مشروع خاص لآخر (نصوص/أذونات/محتوى ملفات)؛ يتضخّم بـB-144 (get-active-sessions يسرّب المعرّفات) — server/modules/websocket/services/chat-websocket.service.ts:521",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-CHKSESS521) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "high → السبرنت الجاري/التالي. الإصلاح: حلّ sessionId→مالك/مشروع (participantsDb) وبوابة عضوية قبل mirror/attach (لا cwd على هذا المسار فلا يصلح حارس المسار). يجاور B-80 (نفس الملف، بند مختلف). بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-138",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "high",
+      "found": "2026-07-09",
+      "title": "كتابة/رفع ملفات المشاريع العامة تُصرَّح بحارس قراءة فقط: كل نقاط التعديل تعتمد isProjectVisible() الذي يُرجع true لأي مستخدم مُصادَق عند visibility=public (projects.db.ts:334) → أي غير-عضو يستبدل/يزرع ملفات في مشروع عام لآخر (ونسّاج يشغّل CLIs عليها = تأثير كود متقاطع)؛ يشمل PUT /file:901 و/files/upload:1412 و/upload-attachments:1664 و/files/create:1059 و/files/rename:1137 — server/index.js:881",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-PUBWRITE881) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "high → السبرنت الجاري/التالي. الإصلاح: مسند كتابة منفصل (created_by أو عضوية project_members) على المنافذ الخمسة؛ إبقاء isProjectVisible للقراءة فقط. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-139",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "medium",
+      "found": "2026-07-09",
+      "title": "Service worker يخزّن استجابة 502 لـ/assets (فرع cache-first بلا فحص response.ok/status) → أثناء نافذة drain/502 يُخزَّن 502 تحت رابط الأصل المجزّأ ويُخدَم للأبد → كسر دائم حتى Ctrl+Shift+R (يضخّم عَرَض الخروج B-88/Helium) — public/sw.js:51",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-SW51) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "medium → backlog/سبرنت تثبيت. الإصلاح: if(!response.ok) return response; قبل cache.put؛ عدم تخزين 4xx/5xx/opaque. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-140",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "medium",
+      "found": "2026-07-09",
+      "title": "اجتياز مسار في parse-prd: fileName من body بلا تحقّق → path.join ثم تشغيل task-master parse-prd على أي ملف موجود → كشف غير مباشر عبر المهام المولّدة + استنزاف حصة (لا حقن وسائط، المسار مطلق) — server/routes/taskmaster.js:815",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-TM815) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "medium → backlog/سبرنت تثبيت. الإصلاح: نفس regex + احتواء المسار تحت projectPath. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-141",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "medium",
+      "found": "2026-07-09",
+      "title": "load-env يبتلع كل أخطاء قراءة .env (catch يسجّل فقط، لا ENOENT-only) ثم يسقط DATABASE_PATH إلى ~/.cloudcli/auth.db (≠ الحيّة ~/.local/share/nassaj-dev/db.sqlite) → أي فشل عابر في .env يُقلع على قاعدة فارغة/مختلفة + نافذة bootstrap-owner، والفشل مبتلَع (سطر log فقط) — server/load-env.js:24",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-LOADENV24) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "medium → backlog/سبرنت تثبيت. الإصلاح: تمييز ENOENT (اختياري) عن باقي الأخطاء (fail-fast)؛ رفض السقوط الصامت لقاعدة مختلفة في production. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-142",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "تعداد أسماء المستخدمين عبر توقيت argon2: فرع !user في POST /login يعود فوراً بلا decoy hash (التعليق يدّعي مساراً ثابت الزمن لكنه غائب) → دلتا ~20-50ms تميّز الحسابات الحقيقية — server/routes/auth.js:143",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-ARGON143) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: verifyPassword ضد hash وهمي ثابت على فرع !user. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-143",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "drain يُسقط kimi/deepseek/glm من countActiveSessionsByProvider → جلسات SSE الجارية لهذه المزوّدات تُقتل عند كل restart (أثر منخفض؛ SSE قصيرة تُلحق تدريجياً بالtranscript) — server/index.js:2295",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-DRAIN2295) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: إضافة الثلاثة عبر getActiveVendorSessions. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-144",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "get-active-sessions يُسقط kimi/deepseek/glm وبلا فلترة عضوية → يُرجع معرّفات جلسات كل المستخدمين (يبطل سرّية UUID ويضخّم B-137) — server/modules/websocket/services/chat-websocket.service.ts:612",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-ACTSESS612) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog، يُصلَح مع B-137. الإصلاح: إضافة الثلاثة + فلترة عضوية في نفس التغيير. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-145",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "commands يقرأ ملف .claude/commands من projectPath غير مُتحقَّق (اجتياز عام مُستبعَد بحارس isUnder، لكن projectPath مهاجم غير مُتحقَّق → قراءة أوامر أي مشروع/مستخدم على المضيف) — server/routes/commands.js:904",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-CMD904) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: تحقّق projectPath ضمن مشاريع المُستدعي المصرّح بها. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-146",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "push unsubscribe يحذف أي اشتراك بالendpoint بلا تحقّق ملكية (removeSubscription بلا user_id) = IDOR (منخفض: endpoints عالية الإنتروبيا غير قابلة للتعداد) — server/routes/settings.js:629",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-PUSHIDOR629) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: WHERE endpoint=? AND user_id=?. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-147",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "acceptInvite يتخطّى USERNAME_PATTERN (يتحقّق الطول فقط) بينما مطبّق في createOidcUser:177 وتغيير الاسم → أسماء off-pattern (>32، مسافات، homoglyph) عبر مسار إنشاء الحساب الأساسي (التسجيل بالدعوة فقط) — server/services/invite.service.js:104",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-INVITE104) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: تطبيق USERNAME_PATTERN في acceptInvite كما :177. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-148",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "ترحيل session_agents cascade يُسقط عمود agent_model (CREATE+INSERT بـ4 أعمدة فقط) رغم ادّعاء «حفظ البيانات» → فقدان قيم النموذج إن تغيّر ترتيب الترحيل (مُقنَّع حالياً بالترتيب/الحالة الفارغة) — server/modules/database/migrations.ts:706 [غير مُتحقَّق عدائياً]",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-MIG706) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: إضافة agent_model إلى CREATE وINSERT/SELECT مطابقةً للمخطط. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-149",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "message_authors/starred_sessions نمو غير محدود بلا FK جلسة ولا تنظيف عند حذف الجلسة (بخلاف pruneAuditLog) → تسرّب نظافة بطيء (message_authors ينمو مع كل prompt) — server/modules/database/schema.ts:228 [غير مُتحقَّق عدائياً]",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-SCHEMA228) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: تنظيف دوري best-effort (NOT EXISTS على sessions) أو أفق احتفاظ. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
+      "id": "B-150",
+      "kind": "bug",
+      "phase": "P8",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-09",
+      "title": "project-reconcile يؤرشف المشاريع (soft-archive) عند تعذّر FS عابر بلا استرجاع تلقائي → اختفاء مشاريع مؤقت عند وميض FS — server/modules/database/project-reconcile.service.ts:76 [غير مُتحقَّق عدائياً]",
+      "source": "مراجعة نقدية شاملة 2026-07-09 (finding F-RECON76) — مؤكّد بتحقّق عدائي مستقل. الخطة: docs/plans/REVIEW-PLAN-2026-07-09.md",
+      "triage": "low → backlog. الإصلاح: تمييز التعذّر العابر عن الحذف الفعلي + استرجاع تلقائي عند عودة المسار. بانتظار إذن المالك بالتنفيذ."
+    },
+    {
       "id": "B-131",
       "kind": "bug",
       "phase": "P7",
@@ -3190,7 +3388,7 @@
       "renumbered": "كان B-130 — أُعيد ترقيمه 2026-07-06 لفكّ تصادم معرّفات بين جلستين متوازيتين (B-130 محجوز لجذر حادثة B-129: حارس ذاكرة PM2×درين، resolved). أي إشارة لـ«B-130» في سياق طرد الدخول/JWT تعني هذا البند.",
       "title": "طرد للدخول عند تحديث الصفحة/تبويب جديد (عاد العَرَض) — آلية ثالثة غير B-70/B-88: انتهاء JWT فعلي (TTL 7 أيام) مع قصور تغطية التجديد الصامت",
       "description": "تشخيص backend-dev ‏2026-07-06: المستخدم 2 (Jazari) طُرد لأن توكنه انتهى فعلاً — صفر bad_signature في نافذة الحادثة (يستبعد B-70؛ السرّان متطابقان 96 محرفاً head=3ac5) ولا حلقة redirect (يستبعد B-88). الفجوات: (1) التجديد الصامت X-Refreshed-Token يُكتب إلى localStorage فقط (api.js:41) وAuthContext يقرأ التوكن مرة واحدة عند التركيب (AuthContext.tsx:40)؛ (2) الـWebSocket يستعمل توكن حالة React الأصلي فلا يُجدَّد أبداً وينتهي عند دخول+7 أيام (WebSocketContext.tsx:64-68، حلقة expired كل 30 ثانية أكثر من ساعة في السجل)؛ (3) التبويب الخامل لا يُصدر REST فلا يجدَّد توكن localStorage نفسه.",
-      "triage": "high → السبرنت الجاري. إصلاح مقترح: (1) حدث auth:token-refreshed أو مستمع storage يزامن التوكن المجدَّد إلى AuthContext فيعيد WS الاتصال بالجديد، (2) تجديد استباقي على visibilitychange/focus، (3) كفّ WS عن إعادة المحاولة الصامتة عند expired. بانتظار إذن المالك بالتنفيذ."
+      "triage": "high → السبرنت الجاري. إصلاح مقترح: (1) حدث auth:token-refreshed أو مستمع storage يزامن التوكن المجدَّد إلى AuthContext فيعيد WS الاتصال بالجديد، (2) تجديد استباقي على visibilitychange/focus، (3) كفّ WS عن إعادة المحاولة الصامتة عند expired. بانتظار إذن المالك بالتنفيذ. [مراجعة نقدية 2026-07-09: أُعيد تأكيده بدليل حيّ مستقل من audit_log — expired|ws مستمر حتى 2026-07-09 وbad_signature توقّف نهائياً 2026-06-30 (B-70 محسوم، ليس السبب). لا يزال العَرَض قائماً لأن الإصلاح لم يُنفَّذ. المرجع: docs/plans/REVIEW-PLAN-2026-07-09.md وfinding F-API41.]"
     },
     {
       "id": "B-121",
