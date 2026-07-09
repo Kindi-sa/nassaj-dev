@@ -20,8 +20,17 @@ import {
   getPluginPort,
   isPluginRunning,
 } from '../utils/plugin-process-manager.js';
+import { requireRole } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// B-134: this router is mounted with authenticateToken only (server/index.js), so
+// EVERY authenticated user — not just the owner — could reach the lifecycle verbs
+// below. install/update clone+build attacker-suppliable code on the host (RCE),
+// enable/uninstall spawn/stop subprocesses and delete files. Each state-mutating
+// route is therefore gated with requireRole('owner','admin'). Read routes
+// (list / manifest / assets) and the rpc data-plane proxy stay open to any
+// authenticated user (the proxy only reaches plugins an owner already enabled).
 
 // GET / — List all installed plugins (includes server running status)
 router.get('/', (req, res) => {
@@ -97,7 +106,8 @@ router.get('/:name/assets/*', (req, res) => {
 });
 
 // PUT /:name/enable — Toggle plugin enabled/disabled (starts/stops server if applicable)
-router.put('/:name/enable', async (req, res) => {
+// SECURITY (B-134): state-mutating -> spawns/stops a host subprocess; owner/admin only.
+router.put('/:name/enable', requireRole('owner', 'admin'), async (req, res) => {
   try {
     const { enabled } = req.body;
     if (typeof enabled !== 'boolean') {
@@ -137,7 +147,8 @@ router.put('/:name/enable', async (req, res) => {
 });
 
 // POST /install — Install plugin from git URL
-router.post('/install', async (req, res) => {
+// SECURITY (B-134): clones an attacker-supplied git URL + runs its build -> RCE; owner/admin only.
+router.post('/install', requireRole('owner', 'admin'), async (req, res) => {
   try {
     const { url } = req.body;
     if (!url || typeof url !== 'string') {
@@ -170,7 +181,8 @@ router.post('/install', async (req, res) => {
 });
 
 // POST /:name/update — Pull latest from git (restarts server if running)
-router.post('/:name/update', async (req, res) => {
+// SECURITY (B-134): git pull + rebuild of on-disk plugin code -> RCE risk; owner/admin only.
+router.post('/:name/update', requireRole('owner', 'admin'), async (req, res) => {
   try {
     const pluginName = req.params.name;
 
@@ -283,7 +295,8 @@ router.all('/:name/rpc/*', async (req, res) => {
 });
 
 // DELETE /:name — Uninstall plugin (stops server first)
-router.delete('/:name', async (req, res) => {
+// SECURITY (B-134): destructive -> stops subprocess + deletes plugin files; owner/admin only.
+router.delete('/:name', requireRole('owner', 'admin'), async (req, res) => {
   try {
     const pluginName = req.params.name;
 
