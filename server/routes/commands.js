@@ -9,6 +9,7 @@ import { getClaudeBuiltInCommands } from "../claude-sdk.js";
 import { resolveProviderEnv } from "../services/isolation/resolve-provider-env.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
+import { projectsDb } from "../modules/database/index.js";
 
 const __dirname = getModuleDir(import.meta.url);
 // This route reads the top-level package.json for the status command, so it needs the real
@@ -901,9 +902,19 @@ router.post("/execute", async (req, res) => {
       const userBase = path.resolve(
         path.join(os.homedir(), ".claude", "commands"),
       );
-      const projectBase = context?.projectPath
-        ? path.resolve(path.join(context.projectPath, ".claude", "commands"))
-        : null;
+      // B-145: a project's .claude/commands is a valid command source only when
+      // the caller is authorized to see that project. Resolve visibility straight
+      // from the supplied path via the shared predicate (the same gate the
+      // sidebar and session-content layers use). An unknown, archived, or private
+      // project the caller cannot see yields no projectBase — so its command
+      // files stay unreadable through this endpoint even though the path
+      // containment check below would otherwise accept an attacker-supplied path.
+      const userId = req.user?.id ?? null;
+      const projectBase =
+        context?.projectPath &&
+        projectsDb.isProjectPathVisibleToUser(context.projectPath, userId)
+          ? path.resolve(path.join(context.projectPath, ".claude", "commands"))
+          : null;
       const isUnder = (base) => {
         const rel = path.relative(base, resolvedPath);
         return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);

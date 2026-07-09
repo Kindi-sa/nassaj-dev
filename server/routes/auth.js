@@ -19,6 +19,18 @@ import oidcRouter from './oidc.js';
 const MIN_PASSWORD_LENGTH = 8;
 const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
 
+// Constant-time login decoy (B-142). A fixed, valid argon2id hash of an
+// unreachable random secret, produced once (at authoring time) with the SAME
+// parameters real passwords use (services/password.service.js: m=19456, t=2,
+// p=1). The login handler verifies the submitted password against this on the
+// unknown-user branch so that branch performs the same memory-hard work — and
+// therefore takes the same time — as a real password check. Without it the
+// no-user early return is measurably faster, letting an attacker enumerate valid
+// usernames from response timing. The verification result is always discarded;
+// no submitted password can ever be "correct" against this hash.
+const DECOY_PASSWORD_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$EDCm/UT8BUkf/841sKsVBA$ovQxBwQSaiVR9mJzTVt6kcaWVmZzT1PslPE4FjMPxRk';
+
 // Avatar upload (PATCH /me/avatar). Files live under ~/.nassaj-users/<userId>/.
 const AVATARS_ROOT = path.join(os.homedir(), '.nassaj-users');
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -141,6 +153,10 @@ router.post('/login', authLimiter, async (req, res) => {
     const user = userDb.getUserByUsername(username);
     // Always run a verification path; generic error to avoid user enumeration.
     if (!user) {
+      // Constant-time defence (B-142): perform a real argon2id verification
+      // against the fixed decoy hash so this branch costs the same as the
+      // bad-password branch below. Result intentionally discarded.
+      await verifyPassword(DECOY_PASSWORD_HASH, password);
       auditLogDb.record('login_failure', {
         metadata: { reason: 'unknown_user' },
         ipAddress: ip,
@@ -717,5 +733,8 @@ router.post(
     }
   }
 );
+
+// Exported for the constant-time-login test (auth.login-timing.test.ts).
+export { DECOY_PASSWORD_HASH };
 
 export default router;

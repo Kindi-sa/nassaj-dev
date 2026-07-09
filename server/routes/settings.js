@@ -626,7 +626,16 @@ router.post('/push/unsubscribe', async (req, res) => {
     if (!endpoint) {
       return res.status(400).json({ error: 'Missing endpoint' });
     }
-    pushSubscriptionsDb.removeSubscription(endpoint);
+    // B-146: only unsubscribe an endpoint the caller actually owns. The
+    // repository deletes purely by endpoint, so without this ownership gate any
+    // authenticated user could delete another user's subscription by its
+    // endpoint (IDOR). Scope the delete to the caller's own subscription set.
+    const ownsEndpoint = pushSubscriptionsDb
+      .getSubscriptions(req.user.id)
+      .some((sub) => sub.endpoint === endpoint);
+    if (ownsEndpoint) {
+      pushSubscriptionsDb.removeSubscription(endpoint);
+    }
 
     // Disable webPush in preferences to match subscription state
     const currentPrefs = notificationPreferencesDb.getPreferences(req.user.id);

@@ -104,6 +104,13 @@ export async function acceptInvite(input, ipAddress = null) {
   if (!username || username.length < MIN_USERNAME_LENGTH) {
     throw new InviteError(400, `Username must be at least ${MIN_USERNAME_LENGTH} characters`);
   }
+  // B-147: enforce the same username shape createOidcUser applies (see below),
+  // so invite-accepted accounts cannot carry characters the length check alone
+  // would let through (spaces, dots, slashes, control/unicode). Same message for
+  // a consistent client contract across both account-creation paths.
+  if (!USERNAME_PATTERN.test(username)) {
+    throw new InviteError(400, 'Username may contain only letters, digits, and underscores (3–32)');
+  }
   if (!password || password.length < MIN_PASSWORD_LENGTH) {
     throw new InviteError(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
   }
