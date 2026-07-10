@@ -81,6 +81,44 @@ test('sanitizeUntrusted strips control chars and neutralizes the closing tag', (
   assert.ok(s.includes('INJECTED after'), 'benign text preserved');
 })
 
+test('sanitizeUntrusted: Arabic excerpt is BYTE-clamped within budget, not UTF-16 sliced (B-157)', () => {
+  const MAX = 32 * 1024; // RESULT_EXCERPT_MAX
+  // 40000 Arabic letters = 80000 UTF-8 bytes (2 bytes each). The OLD code did
+  // s.slice(0, MAX) on UTF-16 UNITS ⇒ kept 32768 CHARS ≈ 65594 bytes (≈2× the
+  // cap). The fix clamps by real UTF-8 bytes.
+  const arabic = 'ن'.repeat(40000);
+  const out = sanitizeUntrusted(arabic);
+  const bytes = Buffer.byteLength(out, 'utf8');
+  assert.ok(bytes <= MAX, `excerpt must be ≤ ${MAX} bytes, got ${bytes}`);
+  assert.ok(!out.includes('�'), 'no U+FFFD replacement char ⇒ no half code point');
+  const MARKER = '…[مقصوص؛ الكامل في tasks/<id>/result.json]';
+  assert.ok(out.endsWith(MARKER), 'truncation marker appended');
+  const body = out.slice(0, out.length - MARKER.length);
+  assert.ok(arabic.startsWith(body), 'body is an in-order code-point prefix — no corruption');
+  assert.ok(body.length > 0, 'body non-empty');
+});
+
+test('sanitizeUntrusted: a clamp landing MID a multi-byte char backs up to the boundary (B-157)', () => {
+  const MAX = 32 * 1024;
+  // A single leading ASCII byte shifts the Arabic 2-byte pairs so the byte budget
+  // falls in the MIDDLE of a character — the clamp must back up, never bisect it.
+  const input = 'x' + 'ن'.repeat(40000);
+  const out = sanitizeUntrusted(input);
+  assert.ok(Buffer.byteLength(out, 'utf8') <= MAX, 'still within the byte budget');
+  assert.ok(!out.includes('�'), 'mid-char clamp backed up — no half char');
+  const MARKER = '…[مقصوص؛ الكامل في tasks/<id>/result.json]';
+  const body = out.slice(0, out.length - MARKER.length);
+  assert.ok(input.startsWith(body), 'clean prefix even when the budget fell mid-char');
+});
+
+test('sanitizeUntrusted: an ASCII excerpt is also clamped within the byte budget (B-157)', () => {
+  const MAX = 32 * 1024;
+  const ascii = 'a'.repeat(40000);
+  const out = sanitizeUntrusted(ascii);
+  assert.ok(Buffer.byteLength(out, 'utf8') <= MAX, 'ASCII excerpt within the byte budget too');
+  assert.ok(out.endsWith(']'), 'marker present');
+});
+
 test('appendCardLine newline guard: append after a torn (no-newline) line starts fresh', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'ho-nl-'));
   const jsonl = path.join(dir, 'conv.jsonl');

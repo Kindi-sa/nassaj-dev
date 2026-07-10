@@ -52,6 +52,10 @@ const CHUNK = 64;
 /** Untrusted result excerpt byte budget (§هـ-3 sizing). */
 const RESULT_EXCERPT_MAX = 32 * 1024;
 
+/** Appended when an excerpt is clamped. Counted WITHIN RESULT_EXCERPT_MAX so the
+ * whole excerpt (body + marker) never exceeds the byte budget — see B-157. */
+const TRUNCATION_MARKER = '…[مقصوص؛ الكامل في tasks/<id>/result.json]';
+
 /** Terminal outcome the card reports (RUNNING is never delivered). */
 export type DeliverOutcome = Exclude<Classification, 'RUNNING'>;
 
@@ -189,11 +193,30 @@ const OUTCOME_SUMMARY: Record<DeliverOutcome, string> = {
 };
 
 /**
+ * Clamp `s` to at most `maxBytes` UTF-8 bytes WITHOUT splitting a multi-byte code
+ * point. `String.prototype.slice` counts UTF-16 units, so slicing at a BYTE budget
+ * keeps ~2× the bytes for 2-byte scripts (Arabic) and can even bisect a code
+ * point; this measures real UTF-8 bytes (Buffer) and backs up off any trailing
+ * continuation byte (0b10xxxxxx) so the cut lands on a code-point boundary (B-157).
+ */
+function clampUtf8Bytes(s: string, maxBytes: number): string {
+  const buf = Buffer.from(s, 'utf8');
+  if (buf.length <= maxBytes) {
+    return s;
+  }
+  let end = maxBytes;
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) {
+    end--;
+  }
+  return buf.toString('utf8', 0, end);
+}
+
+/**
  * Sanitize an untrusted model-output excerpt before it is wrapped (§هـ-3):
  *  - strip C0 control chars except tab/newline (they corrupt a jsonl line),
  *  - neutralize any embedded closing tag so the payload cannot escape the
  *    untrusted wrapper and smuggle trusted markup,
- *  - clamp to the byte budget with a truncation marker.
+ *  - clamp to the byte budget (byte-precise, code-point-safe) with a marker.
  */
 export function sanitizeUntrusted(raw: string): string {
   let s = Array.from(raw)
@@ -206,7 +229,10 @@ export function sanitizeUntrusted(raw: string): string {
     .join('');
   s = s.replace(/<\/background_task_result/gi, '<\\/background_task_result');
   if (Buffer.byteLength(s, 'utf8') > RESULT_EXCERPT_MAX) {
-    s = s.slice(0, RESULT_EXCERPT_MAX) + '…[مقصوص؛ الكامل في tasks/<id>/result.json]';
+    // Byte-precise, code-point-safe clamp; the marker is counted within the budget
+    // so the whole excerpt stays ≤ RESULT_EXCERPT_MAX bytes (B-157).
+    const budget = RESULT_EXCERPT_MAX - Buffer.byteLength(TRUNCATION_MARKER, 'utf8');
+    s = clampUtf8Bytes(s, budget) + TRUNCATION_MARKER;
   }
   return s;
 }
