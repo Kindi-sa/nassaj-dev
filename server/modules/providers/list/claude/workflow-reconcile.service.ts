@@ -25,6 +25,32 @@ import { createNormalizedMessage } from '@/shared/utils.js';
  * tracking across restart). nassaj cannot patch the SDK; it reconciles in its
  * own layer by READING the on-disk trace the SDK leaves behind (journal.jsonl).
  *
+ * SCOPE BOUNDARY — inline-restart ONLY; NOT the DurableTask authority (T-825)
+ * -------------------------------------------------------------------------
+ * This service is the completion detector for exactly ONE case: an INLINE
+ * `Workflow`-tool run (ultracode, executed inside the coordinator's own query()
+ * process) whose `run.stopped` card was emitted by a server RESTART before its
+ * orphaned journal finished landing on disk. Its whole authority is the
+ * SDK-owned `<sessionDir>/subagents/workflows/wf_<id>/journal.jsonl` trace, and
+ * it fires ONLY when a `run.stopped` notification exists (findLatestStopped...).
+ *
+ * It has NO authority over B-103 DurableTask background tasks (ADR-053). Their
+ * SINGLE completion authority is `result.json` + the `DONE` sentinel under
+ * `<supervisorStateRoot>/tasks/<taskId>/`, read ONLY by the permanent monitor
+ * (`workflow-supervisor/monitor.ts` — looksTerminal / classifyTerminal). The two
+ * detectors read DISJOINT trees AND DISJOINT shapes: reconcile never reads the
+ * supervisor `tasks/` root and never keys off `result.json`/`DONE`; the monitor
+ * never reads a `subagents/workflows/` journal. A DurableTask can therefore never
+ * be claimed here — a property locked by the boundary tests in the sibling
+ * `__tests__/workflow-reconcile.service.test.ts` (the "(ز) authority boundary" set).
+ *
+ * T-825 is a scope RESTRICTION, not a removal. `DEFAULT_QUIET_MS`,
+ * `readJournalKeySets`, and `buildReconcileMessage` are shared EXPORTED surface
+ * with live consumers (workflow-status.service.ts, workflow-liveness.js, and the
+ * B-103 Tier-A card contract). When this inline path is finally retired — AFTER
+ * inline background workflows migrate to DurableTask (T-828) — those symbols are
+ * EXTRACTED to a neutral module, NEVER deleted, so their consumers keep working.
+ *
  * C5 — SETTLED STATE (incident wf_ef5ba242-b4b, 16 started / 15 result):
  * the original completeness gate required `startedKeys ⊆ resultKeys` (every
  * started work item produced a result). That mis-classified the COMMON orphan
@@ -239,6 +265,12 @@ function classifyWorkflowSettlement(
  * Scans the session's `subagents/workflows/` directory and returns one
  * {@link WorkflowReconcileResult} per workflow that is provably settled
  * ('completed' OR 'settled', C5) AND fresh relative to the stopped notification.
+ *
+ * SCOPE (T-825): the ONLY directory read is `<sessionDir>/subagents/workflows/`,
+ * and the ONLY completion signal recognized is a `wf_<id>/journal.jsonl` with
+ * started/result keys. It never reads the supervisor `tasks/` tree nor a
+ * DurableTask `result.json`/`DONE` — so it cannot claim a DurableTask's
+ * completion. See the module header and the "(ز) authority boundary" tests.
  *
  * Freshness (both mandatory, ADR-048):
  *   (a) mtime(journal) > stoppedAt      — last written AFTER the stopped notice

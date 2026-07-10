@@ -180,6 +180,32 @@ DurableTask {
 
 النِّسبة: ~65% مُعاد استخدامه، ~35% جديد يتركّز في أربع وحدات (result-capture، monitor، handoff-injector، chat-lock).
 
+### ب-1-أ. سلطة الاكتمال الواحدة وخطة تقاعد الازدواج (أُضيف T-825، 2026-07-10)
+
+> يوثّق هذا القسم تراتبية سلطة الاكتمال بين المُعاد استخدامه (§ب-1) والجديد، كي لا تُقرأ إعادة استخدام
+> `workflow-reconcile`/`workflow-liveness` إبقاءً دائماً لثلاثة كواشف. لا توسيع بنية — قصر نطاق وتوثيق سلطة فقط.
+> استجابةً لملاحظة qa-critic الملزمة §5-2 على جرد الأنظمة (`…-AUDIT-QA-2026-07-10.md`).
+
+**السلطة الواحدة (المهام الخلفية الصريحة):** المصدر **الوحيد** لاكتمال مهمة DurableTask هو `result.json` (rename
+ذرّي) + خاتم `DONE` تحت `<supervisorStateRoot>/tasks/<taskId>/`، يقرؤه **المراقب الدائم حصراً**
+(`workflow-supervisor/monitor.ts` — `looksTerminal` ثم `classifyTerminal` من `result-capture.ts`، §أ-3/§أ-4). لا
+كاشف آخر يملك حقّ إعلان اكتمال مهمة خلفية صريحة.
+
+**القصر (إرث inline):** `workflow-reconcile.service.ts` مقصور — بحدّ **بنيوي** لا مجرّد عرف — على حالة واحدة: ورشة
+**inline** (أداة Workflow داخل عملية المنسّق) نجت **restart** السيرفر فيُصحَّح بطاقة `run.stopped`. سلطته الوحيدة أثر
+الـSDK ‏`<sessionDir>/subagents/workflows/wf_<id>/journal.jsonl`، ولا يقرأ شجرة `tasks/` ولا `result.json`/`DONE`
+— فلا يدّعي اكتمال DurableTask أبداً (مُثبَت باختبارات «(ز) حدود السلطة» في
+`__tests__/workflow-reconcile.service.test.ts`).
+
+**طبقة الرؤية تحتها:** `workflow-liveness.js` + `workflow-status.service.ts` (pid-based) طبقة **رؤية** لليتيم الحيّ،
+لا سلطة اكتمال؛ تبقى تحت السلطة الواحدة لا بجوارها (تعايش مؤقت لكاشفَي inline حتى هجرة inline، لا سلطة موازية).
+
+**خطة التقاعد (متى — لا الآن):** كاشفا الإرث (reconcile + liveness) يتقاعدان **فقط بعد** هجرة الورشات inline الخلفية
+إلى DurableTask (T-828) + soak إنتاجي (بوابة `B-103-ACTIVATION-GATE`). **التقاعد استخراجٌ لا حذف:** الرموز
+المُصدَّرة المشتركة `DEFAULT_QUIET_MS`/`readJournalKeySets`/`buildReconcileMessage` لها مستهلكون أحياء
+(`workflow-status.service.ts` + `workflow-liveness.js` + عقد بطاقة B-103 من نوع `task_reconcile`) — تُنقَل إلى وحدة
+محايدة، **لا تُحذَف**. تفاصيل ما يُتقاعد ومتى: `docs/plans/B-103-T825-ACCEPTANCE-2026-07-10.md`.
+
 ### ب-2. المراقب الدائم (التوسعة الجوهرية)
 
 الحلقة القائمة (`supervisor.ts:147`) تُطلق فقط. تُوسَّع إلى دورة كاملة:

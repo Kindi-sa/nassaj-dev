@@ -30,6 +30,9 @@
  *  - freshness gates: a journal not newer than the stopped row, or one still
  *    being written (quiet window), yields no correction.
  *  - flag OFF (default) is a byte-for-byte no-op.
+ *  - authority boundary (T-825): a DurableTask-shaped completion (result.json +
+ *    DONE, no journal.jsonl) is NEVER claimed here — that is the permanent
+ *    monitor's authority (workflow-supervisor/monitor.ts), not reconcile's.
  *  - the derived row's contract: kind:'task_reconcile', isTaskNotification:true,
  *    taskStatus:status, content per status, wfId, agentsDone/agentsTotal,
  *    originKind:'task-notification', timestamp = journal mtime, NO `path` field.
@@ -415,6 +418,109 @@ test('(و.3) freshness gates also apply to a COMPLETED journal (not just settled
     const reconciled = await findReconciledWorkflows(sessionDir, STOPPED_AT_MS, { now: NOW_MS });
     assert.equal(reconciled.length, 0, 'a completed-but-stale journal is also skipped');
   });
+});
+
+// ============================================================================
+// (ز) AUTHORITY BOUNDARY (T-825): reconcile is the inline-restart detector ONLY.
+// A B-103 DurableTask completes via `result.json` + `DONE` under the supervisor's
+// `tasks/<taskId>/` tree, read by workflow-supervisor/monitor.ts — NEVER here.
+// These tests lock that reconcile keys off `journal.jsonl` (its authority) and
+// ignores the DurableTask completion markers even under a name/location collision.
+// ============================================================================
+
+/**
+ * Writes a DurableTask-shaped completion artifact (`result.json` + `DONE`, and
+ * deliberately NO `journal.jsonl`) into a `wf_*` folder under a session's
+ * `subagents/workflows/`. This is the adversarial collision case: the folder is
+ * (a) named with the SDK `wf_` prefix AND (b) carries a fully-successful result
+ * with a fresh mtime — so ONLY the shape boundary (missing journal.jsonl) can be
+ * the reason reconcile skips it, proving it keys off its own authority, not the
+ * monitor's `result.json`/`DONE`.
+ */
+async function writeDurableTaskShapedDir(
+  sessionDir: string,
+  taskDirName: string,
+  finalizedAtMs: number,
+): Promise<void> {
+  const dir = path.join(sessionDir, 'subagents', 'workflows', taskDirName);
+  await mkdir(dir, { recursive: true });
+  const resultPath = path.join(dir, 'result.json');
+  const donePath = path.join(dir, 'DONE');
+  await writeFile(
+    resultPath,
+    JSON.stringify({ type: 'result', subtype: 'success', result: 'DurableTask output' }) + '\n',
+    'utf8',
+  );
+  await writeFile(
+    donePath,
+    JSON.stringify({ exit_code: 0, signal: null, finalizedAt: new Date(finalizedAtMs).toISOString() }) +
+      '\n',
+    'utf8',
+  );
+  const secs = finalizedAtMs / 1000;
+  await utimes(resultPath, secs, secs);
+  await utimes(donePath, secs, secs);
+}
+
+test('(ز.1) a DurableTask-shaped completion (result.json + DONE, no journal) is NOT reconciled', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'wf-reconcile-boundary-'));
+  try {
+    const sessionDir = path.join(tempDir, 'sess-1');
+    await mkdir(sessionDir, { recursive: true });
+    // Adversarial: wf_-prefixed name + a successful result, mtime AFTER the stopped
+    // row (freshness WOULD pass). The only reason it is skipped is the SHAPE
+    // boundary — no journal.jsonl — so this is not reconcile's authority.
+    await writeDurableTaskShapedDir(sessionDir, 'wf_durable_task_abc', JOURNAL_DONE_MS);
+
+    const reconciled = await findReconciledWorkflows(sessionDir, STOPPED_AT_MS, { now: NOW_MS });
+    assert.deepEqual(reconciled, [], 'result.json/DONE is the monitor authority — reconcile ignores it');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('(ز.2) an inline journal and a DurableTask-shaped dir coexist ⇒ ONLY the inline one reconciles', async () => {
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'wf-reconcile-boundary-'));
+  try {
+    const sessionDir = path.join(tempDir, 'sess-1');
+    // A real inline SDK workflow (the incident journal) — this MUST still reconcile.
+    const inlineDir = path.join(sessionDir, 'subagents', 'workflows', INCIDENT_WF_ID);
+    await mkdir(inlineDir, { recursive: true });
+    const journalPath = path.join(inlineDir, 'journal.jsonl');
+    await writeFile(journalPath, toJsonl(INCIDENT_JOURNAL_LINES), 'utf8');
+    const secs = JOURNAL_DONE_MS / 1000;
+    await utimes(journalPath, secs, secs);
+    // A sibling DurableTask artifact under the SAME subagents/workflows/ tree.
+    await writeDurableTaskShapedDir(sessionDir, 'wf_durable_task_xyz', JOURNAL_DONE_MS);
+
+    const reconciled = await findReconciledWorkflows(sessionDir, STOPPED_AT_MS, { now: NOW_MS });
+    assert.equal(reconciled.length, 1, 'exactly one correction — never the DurableTask dir');
+    assert.equal(reconciled[0].wfId, INCIDENT_WF_ID, 'the claimed workflow is the inline journal one');
+    assert.equal(reconciled[0].status, 'settled', 'the live inline-restart path is intact');
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('(ز.3) reconcileWorkflowMessages (flag ON) emits NO card for a DurableTask-shaped dir', async () => {
+  const prev = process.env.WORKFLOW_RECONCILE;
+  const tempDir = await mkdtemp(path.join(tmpdir(), 'wf-reconcile-boundary-'));
+  try {
+    process.env.WORKFLOW_RECONCILE = '1';
+    const sessionDir = path.join(tempDir, 'sess-1');
+    await mkdir(sessionDir, { recursive: true });
+    await writeDurableTaskShapedDir(sessionDir, 'wf_durable_task_only', JOURNAL_DONE_MS);
+
+    const messages = await reconcileWorkflowMessages('sess-1', sessionDir, STOPPED_AT_MS, { now: NOW_MS });
+    assert.deepEqual(messages, [], 'a DurableTask completion is delivered by the monitor, never by reconcile');
+  } finally {
+    if (prev === undefined) {
+      delete process.env.WORKFLOW_RECONCILE;
+    } else {
+      process.env.WORKFLOW_RECONCILE = prev;
+    }
+    await rm(tempDir, { recursive: true, force: true });
+  }
 });
 
 // ============================================================================
