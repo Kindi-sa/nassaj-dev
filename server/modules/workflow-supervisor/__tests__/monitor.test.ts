@@ -136,6 +136,52 @@ test('a still-running task is not delivered', async () => {
   }
 });
 
+test('T-822 routing: shouldDeliverTierA=false skips a Tier-B task (no card); card-only still delivered', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'mon-route-'));
+  const env = envFor(root);
+  const jsonl = path.join(root, 'conv1.jsonl');
+  try {
+    // Two terminal tasks: one card-only, one auto-turn (Tier-B).
+    seedTask(root, 'cardTask', {
+      'result.json': '{"ok":true}',
+      DONE: JSON.stringify({ exit_code: 0, signal: null }),
+    });
+    const autoDir = path.join(root, 'tasks', 'autoTask');
+    fs.mkdirSync(autoDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(autoDir, 'task.json'),
+      JSON.stringify({
+        schema_version: '2',
+        taskId: 'autoTask',
+        userId: 1,
+        projectPath: '/p',
+        conversationId: 'conv1',
+        originMessageId: 'm',
+        spec: { scriptOrPrompt: 'x', model: null, effort: null, handoffPolicy: 'auto-turn', leafOnly: true },
+        requestedAt: new Date(0).toISOString(),
+      }),
+    );
+    fs.writeFileSync(path.join(autoDir, 'result.json'), '{"ok":true}');
+    fs.writeFileSync(path.join(autoDir, 'DONE'), JSON.stringify({ exit_code: 0, signal: null }));
+
+    const deps: MonitorDeps = {
+      env,
+      probeUnitState: async () => 'inactive',
+      verifyDeliveryTarget: (): DeliveryTarget => ({ ok: true, jsonlPath: jsonl, projectPath: '/p' }),
+      graceMs: 0,
+      sleep: async () => {},
+      // The routing predicate the supervisor uses when the T-822 flag is on.
+      shouldDeliverTierA: (task) => task.spec.handoffPolicy === 'card-only',
+    };
+    const p = await reconcileAndDeliverOnce(deps);
+    assert.equal(p.delivered, 1, 'only the card-only task delivered a card');
+    assert.equal(validCards(jsonl, handoffId('cardTask')).length, 1);
+    assert.equal(validCards(jsonl, handoffId('autoTask')).length, 0, 'Tier-B task left for the injector pass');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('crashed task (DONE with signal) delivers a settled card exactly once', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'mon-crash-'));
   const env = envFor(root);
