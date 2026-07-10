@@ -2,13 +2,16 @@
 
 > Proof spike for the B-103 async-agent model. **جانب المنتِج** (§و معايير 1-3، التقاط النتيجة)
 > **وجانب المستهلك + المراقب** (§و معايير 4-7، dedup التسليم exactly-once + صمود المراقب + flock)
-> كلاهما مُثبَت هنا. يبقى **soak ميداني حيّ (المعيار 8)** لموجة الحقل. لا شيء هنا يمسّ كود السيرفر
-> الحيّ أو البناء أو PM2.
+> **والموجة الميدانية** (§و معيار 8 soak حيّ + المعيار المضاف 9 كلفة الدور المحقون) — كلها مُثبَتة
+> هنا. لا شيء هنا يمسّ كود السيرفر الحيّ أو البناء أو PM2 أو صفوف قاعدة بيانات التطبيق.
 >
 > المرجع: `docs/plans/B-103-ASYNC-AGENTS-DESIGN-2026-07-10.md` (§أ المخطط/دورة الحياة/الذرّية،
-> §ب-2 المراقب، §ج التدفقات، §و/المرحلة 1) + `docs/plans/B-103-SYSTEMS-CONSOLIDATION-AUDIT-2026-07-10.md`.
+> §ب-2 المراقب، §ج التدفقات، §د الكلفة، §هـ-2 leaf-only، §و/المرحلة 1) +
+> `docs/plans/B-103-SYSTEMS-CONSOLIDATION-AUDIT-2026-07-10.md`. **التقرير الموحّد والحكم على البوابة:**
+> `docs/plans/B-103-T819-SPIKE-REPORT-2026-07-10.md`.
 >
-> الأدلة: `evidence/producer.json` (معايير 1-3) و`evidence/consumer.json` (معايير 4-7).
+> الأدلة: `evidence/producer.json` (معايير 1-3)، `evidence/consumer.json` (معايير 4-7)،
+> `evidence/field.json` (المعيار 8 soak + المعيار 9 الكلفة) + `evidence/soak-transcripts/`.
 
 ## ما يثبته (what it proves)
 
@@ -61,10 +64,16 @@ tests/criterion{1,2,3}-*.sh  معايير المنتِج الثلاثة
 tests/criterion{4,5,6,7}-*.sh معايير المستهلك الأربعة
 tests/run-all.sh           منسّق المنتِج (يكتب evidence/producer.json)
 tests/run-consumer.sh      منسّق المستهلك (يكتب evidence/consumer.json)
+soak/_soak_common.sh       [ميداني] إنشاء محادثة حقيقية + تحديد transcript + فحص الإسناد
+soak/criterion8-soak.sh    [ميداني] المعيار 8: دورة حيّة إطلاق→اكتمال→تسليم على transcripts فعلية
+soak/criterion9-cost.sh    [ميداني] المعيار 9: قياس كلفة الدور المحقون (4 resume حقيقية)
+soak/aggregate-field.mjs   [ميداني] يدمج المعيارين 8+9 → evidence/field.json + حصاد أسطر handoff
 fixtures/t819-succ-*.json  result.json حقيقي مُلتقَط (للمعيار 2)
 fixtures/conversation-*.jsonl  transcript محادثة حقيقي مُحصود (للمعايير 4-6، بلا توليد LLM)
 evidence/producer.json     ملخّص آلي — معايير 1-3
 evidence/consumer.json     ملخّص آلي — معايير 4-7
+evidence/field.json        ملخّص آلي — المعيار 8 (soak) + المعيار 9 (الكلفة)
+evidence/soak-transcripts/ أسطر handoff محقونة حرفياً من transcripts فعلية (المعيار 8)
 ```
 
 ## التشغيل (re-run)

@@ -1,0 +1,527 @@
+{
+  "spike": "B-103 / T-819 — FIELD wave (§و criterion 8 live soak + criterion 9 injected-turn cost)",
+  "generatedAt": "2026-07-10T02:07:25.394Z",
+  "host": "nassaj",
+  "node": "v24.15.0",
+  "claudeVersion": "2.1.206 (Claude Code)",
+  "branch": "fix/security-remediation-2026-07-09",
+  "stateRoot": "/tmp/b103-t819-soak/state",
+  "claudeConfigDir": "/home/nassaj/.nassaj-users/1/.claude",
+  "overallPass": true,
+  "criterion8_field_soak": {
+    "pass": true,
+    "requirement": ">=10 real tasks across 3 classes, full launch→complete→deliver LIVE on REAL transcripts; injected line attributed task-notification (not user); exactly-once; correct per-class semantics",
+    "total": 10,
+    "exactlyOnce": 10,
+    "byClass": {
+      "succ": {
+        "total": 4,
+        "exactlyOnce": 4
+      },
+      "part": {
+        "total": 3,
+        "exactlyOnce": 3
+      },
+      "crash": {
+        "total": 3,
+        "exactlyOnce": 3
+      }
+    },
+    "attributionAllOk": true,
+    "idempotentAllOk": true,
+    "classifierAllOk": true,
+    "transcriptEvidence": [
+      {
+        "k": 1,
+        "sessionId": "71f4e1ee-e04e-443d-b110-97ed3d6ff7f5",
+        "transcript": "/home/nassaj/.nassaj-users/1/.claude/projects/-tmp-b103-t819-soak/71f4e1ee-e04e-443d-b110-97ed3d6ff7f5.jsonl",
+        "baseLines": 10,
+        "finalLines": 11,
+        "allLinesParse": true,
+        "handoffLines": 1,
+        "handoffTaskIds": [
+          "t819-soak-1783648774-3-511"
+        ],
+        "harvestFile": "evidence/soak-transcripts/71f4e1ee-e04e-443d-b110-97ed3d6ff7f5.handoff.jsonl"
+      },
+      {
+        "k": 2,
+        "sessionId": "c4858167-7b12-46b2-b334-9932a4dcc2c9",
+        "transcript": "/home/nassaj/.nassaj-users/1/.claude/projects/-tmp-b103-t819-soak/c4858167-7b12-46b2-b334-9932a4dcc2c9.jsonl",
+        "baseLines": 10,
+        "finalLines": 12,
+        "allLinesParse": true,
+        "handoffLines": 2,
+        "handoffTaskIds": [
+          "t819-soak-1783648774-1-18334",
+          "t819-soak-1783648774-4-18199"
+        ],
+        "harvestFile": "evidence/soak-transcripts/c4858167-7b12-46b2-b334-9932a4dcc2c9.handoff.jsonl"
+      },
+      {
+        "k": 3,
+        "sessionId": "6ca2d957-6611-4c4e-af6e-d19296c05b6e",
+        "transcript": "/home/nassaj/.nassaj-users/1/.claude/projects/-tmp-b103-t819-soak/6ca2d957-6611-4c4e-af6e-d19296c05b6e.jsonl",
+        "baseLines": 10,
+        "finalLines": 11,
+        "allLinesParse": true,
+        "handoffLines": 1,
+        "handoffTaskIds": [
+          "t819-soak-1783648774-2-15711"
+        ],
+        "harvestFile": "evidence/soak-transcripts/6ca2d957-6611-4c4e-af6e-d19296c05b6e.handoff.jsonl"
+      }
+    ],
+    "records": [
+      {
+        "i": 1,
+        "taskId": "t819-soak-1783648774-1-18334",
+        "class": "succ",
+        "expectedClass": "SUCCEEDED",
+        "classification": "SUCCEEDED",
+        "event": "inject+ledger",
+        "pass2Event": "none",
+        "conversationId": "c4858167-7b12-46b2-b334-9932a4dcc2c9",
+        "convK": 2,
+        "handoffId": "d76f508df8dbe988a8e42a8ae0830f0d",
+        "validHandoffLines": 1,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "SUCCEEDED",
+        "injectedLine": {
+          "found": true,
+          "count": 1,
+          "subtype": "background_task_handoff",
+          "userType": "external",
+          "isPlainUser": false,
+          "untrustedWrapped": true,
+          "validParse": true,
+          "attributedToTaskNotification": true
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 2,
+        "taskId": "t819-soak-1783648774-2-15711",
+        "class": "succ",
+        "expectedClass": "SUCCEEDED",
+        "classification": "SUCCEEDED",
+        "event": "inject+ledger",
+        "pass2Event": "none",
+        "conversationId": "6ca2d957-6611-4c4e-af6e-d19296c05b6e",
+        "convK": 3,
+        "handoffId": "29201d704b37bc3c96b5b3a8145a20f4",
+        "validHandoffLines": 1,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "SUCCEEDED",
+        "injectedLine": {
+          "found": true,
+          "count": 1,
+          "subtype": "background_task_handoff",
+          "userType": "external",
+          "isPlainUser": false,
+          "untrustedWrapped": true,
+          "validParse": true,
+          "attributedToTaskNotification": true
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 3,
+        "taskId": "t819-soak-1783648774-3-511",
+        "class": "succ",
+        "expectedClass": "SUCCEEDED",
+        "classification": "SUCCEEDED",
+        "event": "inject+ledger",
+        "pass2Event": "none",
+        "conversationId": "71f4e1ee-e04e-443d-b110-97ed3d6ff7f5",
+        "convK": 1,
+        "handoffId": "2e815816aaee266873b7d4a86aa766b1",
+        "validHandoffLines": 1,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "SUCCEEDED",
+        "injectedLine": {
+          "found": true,
+          "count": 1,
+          "subtype": "background_task_handoff",
+          "userType": "external",
+          "isPlainUser": false,
+          "untrustedWrapped": true,
+          "validParse": true,
+          "attributedToTaskNotification": true
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 4,
+        "taskId": "t819-soak-1783648774-4-18199",
+        "class": "succ",
+        "expectedClass": "SUCCEEDED",
+        "classification": "SUCCEEDED",
+        "event": "inject+ledger",
+        "pass2Event": "none",
+        "conversationId": "c4858167-7b12-46b2-b334-9932a4dcc2c9",
+        "convK": 2,
+        "handoffId": "846aa2338730efce7bdcc9e47420226c",
+        "validHandoffLines": 1,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "SUCCEEDED",
+        "injectedLine": {
+          "found": true,
+          "count": 1,
+          "subtype": "background_task_handoff",
+          "userType": "external",
+          "isPlainUser": false,
+          "untrustedWrapped": true,
+          "validParse": true,
+          "attributedToTaskNotification": true
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 5,
+        "taskId": "t819-soak-1783648774-5-10290",
+        "class": "part",
+        "expectedClass": "PARTIAL",
+        "classification": "PARTIAL",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "6ca2d957-6611-4c4e-af6e-d19296c05b6e",
+        "convK": 3,
+        "handoffId": "ef0fad667be259226d77c48d85dddf95",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "PARTIAL",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 6,
+        "taskId": "t819-soak-1783648774-6-9344",
+        "class": "part",
+        "expectedClass": "PARTIAL",
+        "classification": "PARTIAL",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "71f4e1ee-e04e-443d-b110-97ed3d6ff7f5",
+        "convK": 1,
+        "handoffId": "f35d921bcde0c3787b63f329a3abb62f",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "PARTIAL",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 7,
+        "taskId": "t819-soak-1783648774-7-29793",
+        "class": "part",
+        "expectedClass": "PARTIAL",
+        "classification": "PARTIAL",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "c4858167-7b12-46b2-b334-9932a4dcc2c9",
+        "convK": 2,
+        "handoffId": "00764e31e8f945e811697ac806edbec9",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "PARTIAL",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 8,
+        "taskId": "t819-soak-1783648775-8-30416",
+        "class": "crash",
+        "expectedClass": "CRASHED",
+        "classification": "CRASHED",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "6ca2d957-6611-4c4e-af6e-d19296c05b6e",
+        "convK": 3,
+        "handoffId": "871299932d67caf1421c365f0aec5536",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "CRASHED",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 9,
+        "taskId": "t819-soak-1783648775-9-19323",
+        "class": "crash",
+        "expectedClass": "CRASHED",
+        "classification": "CRASHED",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "71f4e1ee-e04e-443d-b110-97ed3d6ff7f5",
+        "convK": 1,
+        "handoffId": "ffa085e19b27f06c9786a55b95793dd0",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "CRASHED",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      },
+      {
+        "i": 10,
+        "taskId": "t819-soak-1783648775-10-15506",
+        "class": "crash",
+        "expectedClass": "CRASHED",
+        "classification": "CRASHED",
+        "event": "card-only",
+        "pass2Event": "none",
+        "conversationId": "c4858167-7b12-46b2-b334-9932a4dcc2c9",
+        "convK": 2,
+        "handoffId": "dde00db86e27f945069b838feab36121",
+        "validHandoffLines": 0,
+        "ledgerEntries": 1,
+        "ledgerOutcome": "CRASHED",
+        "injectedLine": {
+          "found": false,
+          "count": 0,
+          "subtype": null,
+          "userType": null,
+          "isPlainUser": null,
+          "untrustedWrapped": false,
+          "validParse": false,
+          "attributedToTaskNotification": false
+        },
+        "classOk": true,
+        "eventOk": true,
+        "validOk": true,
+        "ledgerOk": true,
+        "idempotentOk": true,
+        "attributionOk": true,
+        "exactlyOnce": true
+      }
+    ]
+  },
+  "criterion9_injected_turn_cost": {
+    "requirement": "4 real leaf-only resume turns (short/long conv ×2) capturing input/cache/output tokens + duration",
+    "measurements": [
+      {
+        "label": "short-run1",
+        "conv": "short",
+        "run": 1,
+        "sessionId": "2924aedf-da9a-481e-a9a9-cc0b17b4ac65",
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 18091,
+        "cache_read_input_tokens": 13078,
+        "output_tokens": 128,
+        "total_read": 31179,
+        "duration_ms": 3068,
+        "total_cost_usd": 0.0381398,
+        "is_error": false
+      },
+      {
+        "label": "short-run2",
+        "conv": "short",
+        "run": 2,
+        "sessionId": "2924aedf-da9a-481e-a9a9-cc0b17b4ac65",
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 1432,
+        "cache_read_input_tokens": 31169,
+        "output_tokens": 84,
+        "total_read": 32611,
+        "duration_ms": 2441,
+        "total_cost_usd": 0.0064109,
+        "is_error": false
+      },
+      {
+        "label": "long-run1",
+        "conv": "long",
+        "run": 1,
+        "sessionId": "48481e55-dd8a-4f9b-8015-cbef530edb00",
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 45039,
+        "cache_read_input_tokens": 13078,
+        "output_tokens": 120,
+        "total_read": 58127,
+        "duration_ms": 3479,
+        "total_cost_usd": 0.0919958,
+        "is_error": false
+      },
+      {
+        "label": "long-run2",
+        "conv": "long",
+        "run": 2,
+        "sessionId": "48481e55-dd8a-4f9b-8015-cbef530edb00",
+        "input_tokens": 10,
+        "cache_creation_input_tokens": 1313,
+        "cache_read_input_tokens": 58117,
+        "output_tokens": 87,
+        "total_read": 59440,
+        "duration_ms": 2633,
+        "total_cost_usd": 0.0088827,
+        "is_error": false
+      }
+    ],
+    "costAnalysis": {
+      "cardOnlyModelTokens": 0,
+      "designEstimatePerTurn": 73000,
+      "short": {
+        "cold": {
+          "totalRead": 31179,
+          "cache_creation": 18091,
+          "cache_read": 13078,
+          "output": 128,
+          "usd": 0.0381398,
+          "ms": 3068
+        },
+        "warm": {
+          "totalRead": 32611,
+          "cache_creation": 1432,
+          "cache_read": 31169,
+          "output": 84,
+          "usd": 0.0064109,
+          "ms": 2441
+        },
+        "warmVsColdUsdRatio": 5.95
+      },
+      "long": {
+        "cold": {
+          "totalRead": 58127,
+          "cache_creation": 45039,
+          "cache_read": 13078,
+          "output": 120,
+          "usd": 0.0919958,
+          "ms": 3479
+        },
+        "warm": {
+          "totalRead": 59440,
+          "cache_creation": 1313,
+          "cache_read": 58117,
+          "output": 87,
+          "usd": 0.0088827,
+          "ms": 2633
+        },
+        "warmVsColdUsdRatio": 10.36
+      },
+      "perTurnTokenWeightRange": {
+        "shortHistory": 31179,
+        "longHistory": 58127
+      },
+      "longVsDesignRatio": 0.8,
+      "interpretation": {
+        "baselineSystemMemoryTokens": "≈17k cached system+memory context carried by EVERY turn (measured on a 3-word turn)",
+        "quotaCharge": "each auto-turn processes tens of thousands of input+cache tokens against the 5h session budget",
+        "cacheEffect": "cold→warm collapses cache_creation into cache_read → ~6–10× cheaper $ on the 2nd turn within cache TTL",
+        "coalescingImplication": "auto-turn is only affordable if coalesced: 2nd+ deliveries in the cache window are ~10× cheaper; cold deliveries each pay the full history re-read",
+        "cardVsAuto": "card-only ≈ 0 model tokens vs auto-turn 31179–58127+ tokens/turn"
+      }
+    },
+    "sessions": {
+      "short": "2924aedf-da9a-481e-a9a9-cc0b17b4ac65",
+      "long": "48481e55-dd8a-4f9b-8015-cbef530edb00"
+    }
+  },
+  "soakArtifact": {
+    "note": "Deliberate: soak conversations surface as temp projects in the nassaj-dev UI via the inherited CLAUDE_CONFIG_DIR. No server code, app DB rows, build, or PM2 touched. Cleaned after T-819 closes.",
+    "baseDir": "/tmp/b103-t819-soak",
+    "projectGlob": "/home/nassaj/.nassaj-users/1/.claude/projects/-tmp-b103-t819-soak*",
+    "cleanup": "rm -rf /tmp/b103-t819-soak; rm -rf <CLAUDE_CONFIG_DIR>/projects/-tmp-b103-t819-soak*; systemctl --user reset-failed 'wf-t819-soak-*'"
+  },
+  "rerun": {
+    "criterion8": "NSUCC=4 NPART=3 NCRASH=3 NCONV=3 bash spikes/b103-t819/soak/criterion8-soak.sh",
+    "criterion9": "bash spikes/b103-t819/soak/criterion9-cost.sh"
+  }
+}
