@@ -220,6 +220,56 @@ done
 ts() { date '+%Y-%m-%dT%H:%M:%S%z'; }
 emit() { echo "$(ts) [$1] $2" >&2; }   # السجل إلى stderr كي يبقى stdout نظيفاً لـ --json
 
+# ── رؤية المهام الخلفية الحية (wf-*.service) — B-103/T-823، قراءة-فقط ──────────
+# الغرض: أن يرى المُشغِّل المهامَّ الخلفية الحيّة قبل أي restart. هذه الكتلة
+# **قراءة-فقط** بحتة: تسرد الوحدات فقط (systemctl list-units)، ولا تلمس منطق الدرين/
+# العد/الإيقاف إطلاقاً، ولا تغيّر أي رمز خروج أو قرار (تُستدعى كبيان مستقل يُرجِع 0
+# دائماً). الوحدات wf-*.service خدمات systemd عابرة يملكها مدير المستخدم و**تنجو من
+# restart** بالتصميم (§ج-6)، فالعرض إعلاميٌّ لا يؤجِّل ولا يحجب.
+#
+# محروسة بالعلم WORKFLOW_SUPERVISOR: **OFF ⇒ لا سطر جديد إطلاقاً** (سلوك مطابق
+# للسابق). نستنبط العلم من: (1) بيئة هذا الشِل صراحةً، أو (2) بيئة عملية PM2 الحيّة
+# (jlist، قراءة-فقط). إن تعذّر الحسم أو كان مطفأً ⇒ صمت تام.
+_truthy() { case "$(printf '%s' "${1:-}" | tr 'A-Z' 'a-z')" in 1|true|yes|on) return 0 ;; *) return 1 ;; esac; }
+
+_wf_supervisor_flag_on() {
+  # (1) علم صريح على هذا الشِل.
+  _truthy "${WORKFLOW_SUPERVISOR:-}" && return 0
+  # (2) بيئة عملية PM2 الحيّة (قراءة-فقط عبر jlist؛ لا يحجبها حارس العميل).
+  if command -v pm2 >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
+    local v
+    v="$(pm2 jlist 2>/dev/null | PROC_NAME="$PROC_NAME" node -e '
+      let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+        let arr;try{arr=JSON.parse(s)}catch(_){process.stdout.write("");return}
+        const p=(arr||[]).find(x=>x&&x.name===process.env.PROC_NAME);
+        const val=p&&p.pm2_env&&p.pm2_env.env&&p.pm2_env.env.WORKFLOW_SUPERVISOR;
+        process.stdout.write(String(val==null?"":val));
+      })' 2>/dev/null || true)"
+    _truthy "$v" && return 0
+  fi
+  return 1
+}
+
+# يعرض المهامَّ الخلفية الحيّة (قراءة-فقط). يُرجِع 0 دائماً — لا يؤثّر في أي قرار.
+show_live_wf_units() {
+  _wf_supervisor_flag_on || return 0            # العلم OFF ⇒ لا سطر جديد
+  command -v systemctl >/dev/null 2>&1 || return 0
+  local units n=0 u desc
+  units="$(systemctl --user list-units --type=service --state=active,activating \
+             --no-legend --plain 'wf-*.service' 2>/dev/null \
+             | awk '{print $1}' | grep -E '^wf-.*\.service$' || true)"
+  [ -n "$units" ] && n="$(printf '%s\n' "$units" | grep -cE '^wf-' || true)"
+  emit INFO "المهام الخلفية الحيّة (wf-*.service): $n — تنجو من restart (وحدات عابرة)، للعرض فقط لا تؤجّل الدرين."
+  if [ "$n" -gt 0 ] 2>/dev/null; then
+    while IFS= read -r u; do
+      [ -n "$u" ] || continue
+      desc="$(systemctl --user show -p Description --value "$u" 2>/dev/null || true)"
+      emit INFO "  • $u${desc:+  ($desc)}"
+    done <<< "$units"
+  fi
+  return 0
+}
+
 # ── فحص توفّر القراءة ───────────────────────────────────────────────────────
 if [ ! -d "$WF_BASE" ]; then
   emit ERR "WF_BASE غير موجود / not found: $WF_BASE"
@@ -322,6 +372,10 @@ fi
 if [ "$JSON" -eq 1 ]; then
   printf '%s\n' "$SCAN_JSON"
 fi
+
+# رؤية قراءة-فقط للمهام الخلفية الحيّة (wf-*.service) — B-103/T-823. محروسة بالعلم
+# (OFF ⇒ لا سطر)، إعلامية بحتة: لا تغيّر رمز الخروج ولا قرار الدرين/الإيقاف.
+show_live_wf_units
 
 # السطر الجاهز للّصق.
 # B-110/2 (حادثة الصفحة البيضاء): نستهدف العملية بالاسم ($PROC_NAME) لا ملف
