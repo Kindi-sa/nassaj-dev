@@ -194,6 +194,7 @@ export async function deliverTierBOnce(deps: TierBDeps): Promise<TierBPassResult
     );
     if (r.event === 'delivered') {
       result.injected += r.injected.length;
+      result.cards += r.overflowCarded.length; // oversize overflow surfaced as cards (B-156)
     } else if (r.event === 'card-fallback') {
       result.fallback += r.injected.length;
     } else if (r.event === 'deferred') {

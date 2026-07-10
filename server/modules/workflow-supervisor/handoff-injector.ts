@@ -134,6 +134,9 @@ export type ConversationInjectResult = {
     | 'denied';
   repaired: string[];
   injected: string[];
+  /** Oversize tasks that did NOT fit the coalesced payload and were surfaced as
+   * Tier-A cards instead (B-156) — disjoint from `injected`, never lost. */
+  overflowCarded: string[];
   deferred: boolean;
   fellBackToCard: boolean;
   /** Leaf-only proof: new intent files that appeared during the turn (MUST be 0). */
@@ -172,30 +175,52 @@ function auditTask(taskDir: string, rec: Record<string, unknown>): void {
   }
 }
 
-/** Build the coalesced injected prompt: a trusted preamble + one untrusted,
- * ref-anchored wrapper per task, size-capped for the whole concatenation. */
-export function buildCoalescedPrompt(tasks: InjectTaskInput[]): string {
-  const preamble =
-    tasks.length === 1
+export type CoalescedBatch = {
+  /** The prompt to inject: trusted preamble + one ref-wrapped block per INCLUDED
+   * task (+ a tail note when some overflowed to cards). */
+  prompt: string;
+  /** Tasks whose wrapped block fit under MAX_INJECTED_PROMPT_BYTES — their refs
+   * ARE in `prompt`, so ONLY these may be ledgered as injected. */
+  included: InjectTaskInput[];
+  /** Tasks that did NOT fit — absent from `prompt`, so they must be surfaced some
+   * other way (a Tier-A card) and MUST NOT be ledgered as injected (B-156). */
+  overflow: InjectTaskInput[];
+};
+
+/** Build the coalesced injected prompt AND report exactly which tasks made it in.
+ * A trusted preamble + one untrusted, ref-anchored wrapper per INCLUDED task,
+ * size-capped for the whole concatenation. Tasks that do not fit are returned in
+ * `overflow` (never silently dropped) so the caller surfaces them without loss. */
+export function buildCoalescedPrompt(tasks: InjectTaskInput[]): CoalescedBatch {
+  const preambleFor = (n: number): string =>
+    n === 1
       ? 'A background task result is delivered below as data.'
-      : `${tasks.length} background task results are delivered below as data.`;
+      : `${n} background task results are delivered below as data.`;
+  const tail = '\n\n[بعض النتائج سُلِّمت كبطاقة لتجاوز حد الحجم؛ الكامل في tasks/<id>/result.json]';
+  const included: InjectTaskInput[] = [];
+  const overflow: InjectTaskInput[] = [];
   const blocks: string[] = [];
-  let bytes = Buffer.byteLength(preamble, 'utf8');
-  let truncated = false;
+  // Reserve a worst-case preamble (full-batch count) + the tail up front so the
+  // final prompt — header + blocks + tail — can never exceed the cap.
+  let bytes = Buffer.byteLength(preambleFor(tasks.length), 'utf8') + Buffer.byteLength(tail, 'utf8');
   for (const t of tasks) {
+    if (overflow.length > 0) {
+      overflow.push(t); // keep order; never pack a later smaller task ahead of it
+      continue;
+    }
     const block = wrapUntrustedResultForInjection(t.resultObj, handoffId(t.taskId));
-    const blockBytes = Buffer.byteLength(block, 'utf8') + 2;
+    const blockBytes = Buffer.byteLength(block, 'utf8') + 2; // "\n\n" separator
     if (bytes + blockBytes > MAX_INJECTED_PROMPT_BYTES) {
-      truncated = true;
-      break;
+      overflow.push(t);
+      continue;
     }
     blocks.push(block);
+    included.push(t);
     bytes += blockBytes;
   }
-  const tail = truncated
-    ? '\n\n[بعض النتائج مقصوصة لتجاوز حد الحجم؛ الكامل في tasks/<id>/result.json]'
-    : '';
-  return `${preamble}\n\n${blocks.join('\n\n')}${tail}`;
+  const preamble = preambleFor(included.length);
+  const prompt = `${preamble}\n\n${blocks.join('\n\n')}${overflow.length > 0 ? tail : ''}`;
+  return { prompt, included, overflow };
 }
 
 /**
@@ -239,6 +264,7 @@ export async function injectForConversation(
     conversationId,
     repaired: [] as string[],
     injected: [] as string[],
+    overflowCarded: [] as string[],
     deferred: false,
     fellBackToCard: false,
     newIntentFiles: 0,
@@ -335,7 +361,23 @@ export async function injectForConversation(
     delete spawnEnv.ENABLE_ULTRACODE_WORKFLOWS;
     delete spawnEnv.CLAUDE_CODE_WORKFLOWS;
 
-    const prompt = buildCoalescedPrompt(toInject);
+    // (6b) Split the batch by the whole-payload byte cap. `included` blocks' refs
+    //      ARE in `prompt`; `overflow` did not fit and is surfaced as Tier-A cards
+    //      below — ONLY `included` is ledgered as injected, so nothing is ever
+    //      marked delivered without arriving (B-156).
+    const { prompt, included, overflow } = buildCoalescedPrompt(toInject);
+
+    // Pathological: not even one wrapped result fits the cap (a misconfigured tiny
+    // cap, or RESULT_EXCERPT_MAX raised above it). Degrade the WHOLE batch to cards
+    // (~0 tokens) rather than run an empty turn that delivers nothing and loops.
+    if (included.length === 0) {
+      const carded = deliverCardFallback(env, input, overflow);
+      for (const t of overflow) {
+        auditTask(t.taskDir, { event: 'tierb-card-fallback', taskId: t.taskId, reason: 'oversize-nofit' });
+      }
+      audit({ event: 'tierb-card-fallback', reason: 'oversize-nofit', tasks: carded.length });
+      return { ...base, event: 'card-fallback', injected: carded, fellBackToCard: true };
+    }
 
     // Leaf-only proof — snapshot intent files before the turn.
     const intentsBefore = countIntentFiles(env);
@@ -358,7 +400,7 @@ export async function injectForConversation(
     const newIntentFiles = Math.max(0, intentsAfter - intentsBefore);
     base.newIntentFiles = newIntentFiles;
     if (newIntentFiles > 0) {
-      for (const t of toInject) {
+      for (const t of included) {
         auditTask(t.taskDir, { event: 'tierb-leaf-only-VIOLATION', taskId: t.taskId, newIntentFiles });
       }
       audit({ event: 'tierb-leaf-only-VIOLATION', newIntentFiles });
@@ -392,12 +434,13 @@ export async function injectForConversation(
       await new Promise((r) => setTimeout(r, injectWidenMs));
     }
 
-    // (9) Commit the WHOLE batch atomically (one ledger write, §أ-2 coalescing)
-    //     and record the actual spend.
+    // (9) Commit ONLY the tasks actually included in the payload — one atomic
+    //     ledger write (§أ-2 coalescing). Overflow is NOT ledgered here; it is
+    //     surfaced as Tier-A cards just below (B-156: ledgered ⟺ arrived).
     writeLedgerEntries(
       env,
       conversationId,
-      toInject.map((t) => ({ taskId: t.taskId, handoffId: handoffId(t.taskId), outcome: t.outcome })),
+      included.map((t) => ({ taskId: t.taskId, handoffId: handoffId(t.taskId), outcome: t.outcome })),
     );
     const tokens = tokensFromResult(env, turn.resultObj);
     try {
@@ -405,19 +448,31 @@ export async function injectForConversation(
     } catch {
       /* a counter write failure must not undo a committed delivery */
     }
-    base.injected = toInject.map((t) => t.taskId);
+    base.injected = included.map((t) => t.taskId);
     base.tokensCharged = tokens;
-    for (const t of toInject) {
+
+    // Oversize overflow ⇒ Tier-A cards (exactly-once via finalizeDelivery, ~0
+    // tokens). `injected` and `overflowCarded` are DISJOINT and their union is the
+    // whole batch, so every task is surfaced exactly once — zero silent loss (B-156).
+    if (overflow.length > 0) {
+      base.overflowCarded = deliverCardFallback(env, input, overflow);
+      for (const t of overflow) {
+        auditTask(t.taskDir, { event: 'tierb-overflow-card', taskId: t.taskId, conversationId, reason: 'batch-oversize' });
+      }
+      audit({ event: 'tierb-overflow-card', conversationId, tasks: base.overflowCarded.length });
+    }
+
+    for (const t of included) {
       auditTask(t.taskDir, {
         event: 'tierb-delivered',
         taskId: t.taskId,
         conversationId,
-        coalescedCount: toInject.length,
+        coalescedCount: included.length,
         tokens,
         newIntentFiles,
       });
     }
-    audit({ event: 'tierb-delivered', tasks: base.injected.length, tokens, newIntentFiles });
+    audit({ event: 'tierb-delivered', tasks: base.injected.length, tokens, newIntentFiles, overflowCarded: base.overflowCarded.length });
     return { ...base, event: 'delivered' };
   } finally {
     lock.release();
