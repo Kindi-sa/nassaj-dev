@@ -28,8 +28,7 @@ import {
 } from '../../../../shared/view/ui';
 
 import CommandMenu from './CommandMenu';
-import ClaudeStatus from './ClaudeStatus';
-import AgentActivityStrip from './AgentActivityStrip';
+import AgentStatusCard from './AgentStatusCard';
 import ImageAttachment from './ImageAttachment';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import ThinkingModeSelector from './ThinkingModeSelector';
@@ -208,34 +207,22 @@ export default function ChatComposer({
 
   return (
     <div className="flex-shrink-0 p-2 pb-2 sm:p-4 sm:pb-4 md:p-4 md:pb-6">
-      {!hasPendingPermissions && (() => {
-        // When one or more sub-agents are delegated this run, the per-agent strip
-        // renders ABOVE the status row to show the live per-agent activity — but
-        // ClaudeStatus is ALWAYS kept mounted below it so the STOP button, ESC
-        // hint, elapsed timer and task counter never disappear at the longest
-        // waiting moment. `suppressActionWord` then hides only ClaudeStatus's
-        // spinning action word (the strip already conveys "working"), leaving the
-        // entire control/metrics row intact. `useRunProgress` empties `agents` on
-        // !isLoading, so a non-empty list already implies a live run; the strip
-        // therefore appears with the reply and disappears when it ends, and the
-        // no-agents path is byte-for-byte the previous ClaudeStatus behaviour.
-        const hasAgents = (runProgress?.agents?.length ?? 0) > 0;
-        return (
-          <>
-            {hasAgents && <AgentActivityStrip agents={runProgress!.agents} frozen={isSessionFrozen} />}
-            <ClaudeStatus
-              status={claudeStatus}
-              isLoading={isLoading}
-              frozen={isSessionFrozen}
-              onAbort={onAbortSession}
-              provider={displayProvider}
-              runStartedAt={runStartedAt}
-              progress={runProgress}
-              suppressActionWord={hasAgents}
-            />
-          </>
-        );
-      })()}
+      {!hasPendingPermissions && (
+        // AgentStatusCard يدمج بطاقة نشاط الوكلاء وشريط CLAUDE في عنصر واحد:
+        // — حين لا وكلاء (agents=[]): يُفوَّض لـ ClaudeStatus مباشرةً (سلوك سابق)
+        // — حين يوجد وكلاء: يُعرض رأس واحد يجمع الشعار والمؤقت وزر STOP
+        //   وملخّص الوكلاء وchevron الطيّ، مع صفوف الوكلاء في جزء قابل للطيّ.
+        <AgentStatusCard
+          agents={runProgress?.agents ?? []}
+          status={claudeStatus}
+          isLoading={isLoading}
+          frozen={isSessionFrozen}
+          onAbort={onAbortSession}
+          provider={displayProvider}
+          runStartedAt={runStartedAt}
+          progress={runProgress}
+        />
+      )}
 
       {pendingPermissionRequests.length > 0 && (
         <div className="mx-auto mb-3 max-w-4xl">
