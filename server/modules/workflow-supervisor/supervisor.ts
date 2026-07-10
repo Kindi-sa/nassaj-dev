@@ -27,6 +27,7 @@ import { resolveProviderEnvStrict } from '@/services/isolation/resolve-provider-
 import {
   isSupervisorEnabled,
   isChatTurnLockEnabled,
+  validateChatLockConfig,
   intentsDir,
   scopeStateDir,
   taskArtifactDir,
@@ -45,7 +46,12 @@ import {
   systemctlShowState,
 } from './systemd.js';
 import { acquireSingleOwnerLock } from './supervisor-lock.js';
-import { reconcileAndDeliverOnce, type DeliveryTarget, type MonitorDeps } from './monitor.js';
+import {
+  reconcileAndDeliverOnce,
+  reportRebootOrphansOnce,
+  type DeliveryTarget,
+  type MonitorDeps,
+} from './monitor.js';
 import { deliverTierBOnce, type TierBDeps } from './tierb-pass.js';
 import { sweepStaleIntents, QueuedRetryTracker } from './queue-guard.js';
 
@@ -323,6 +329,39 @@ export async function runSupervisor(): Promise<void> {
     return;
   }
 
+  // (0) T-823 condition 3 — chat-lock timing invariant, asserted at boot. Only
+  //     matters when the sub-flag is on (the injector is the sole lock holder, and
+  //     it runs ONLY in this process). A broken invariant means a human turn could
+  //     time out fail-OPEN while the injector still holds the lock ⇒ concurrent
+  //     jsonl append (the exact race the seam prevents). FAIL-CLOSED: refuse to
+  //     start (exit 1) so no injection ever runs against a misconfigured wait
+  //     ceiling — no supervisor ⇒ no injector ⇒ no race. When the sub-flag is off
+  //     this is skipped entirely (no-op).
+  if (isChatTurnLockEnabled()) {
+    const verdict = validateChatLockConfig();
+    if (!verdict.ok) {
+      console.error(
+        JSON.stringify({
+          level: 'error',
+          msg: 'workflow supervisor: chat-lock timing invariant BROKEN — refusing to start (fail-closed)',
+          holdMs: verdict.holdMs,
+          waitMs: verdict.waitMs,
+          problems: verdict.problems,
+          fix: 'raise WORKFLOW_SUPERVISOR_CHAT_LOCK_WAIT_MS or lower WORKFLOW_SUPERVISOR_HANDOFF_MAX_HOLD_MS so wait ≥ hold + grace and both are under their ceilings',
+        }),
+      );
+      process.exit(1);
+    }
+    console.info(
+      JSON.stringify({
+        level: 'info',
+        msg: 'chat-lock timing invariant OK',
+        holdMs: verdict.holdMs,
+        waitMs: verdict.waitMs,
+      }),
+    );
+  }
+
   // (1) Single-owner flock — a second monitor exits quietly (الشرط 5).
   const lock = acquireSingleOwnerLock(supervisorLockPath());
   if (!lock) {
@@ -333,7 +372,21 @@ export async function runSupervisor(): Promise<void> {
   const retry = new QueuedRetryTracker(queuedRetryBackoffMs());
   console.info(JSON.stringify({ level: 'info', msg: 'workflow supervisor started', intentsDir: intentsDir(), pollMs: POLL_INTERVAL_MS, lockFd: lock.fd }));
 
-  // (2) reconcile-on-boot: deliver anything that finished while we were dead.
+  // (2a) reboot-orphan report (§و م5): surface any task whose transient unit did
+  //      NOT survive a reboot (terminal/gone + no DONE + undelivered) as a VISIBLE
+  //      incomplete orphan — launches NOTHING, no auto-resume. Runs BEFORE reconcile
+  //      so the "orphaned, not resumed" audit precedes the CRASHED/PARTIAL card that
+  //      reconcile then delivers for it.
+  try {
+    const orphans = await reportRebootOrphansOnce(monitorDeps);
+    if (orphans.orphans > 0) {
+      console.info(JSON.stringify({ level: 'info', msg: 'reboot orphans surfaced (visible, NOT auto-resumed)', ...orphans }));
+    }
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'error', msg: 'reboot-orphan report failed', error: error instanceof Error ? error.message : String(error) }));
+  }
+
+  // (2b) reconcile-on-boot: deliver anything that finished while we were dead.
   try {
     const boot = await reconcileAndDeliverOnce(monitorDeps);
     console.info(JSON.stringify({ level: 'info', msg: 'reconcile-on-boot done', ...boot }));

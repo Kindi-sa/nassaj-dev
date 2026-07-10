@@ -33,9 +33,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { tasksDir, reconcileGraceMs, scopeUnitName } from './config.js';
-import { classifyTerminal, type UnitStateProbe } from './result-capture.js';
+import { classifyTerminal, type UnitStateProbe, type UnitState } from './result-capture.js';
 import {
   finalizeDelivery,
+  readLedger,
+  ledgerHasTask,
   type DeliverOutcome,
   type FinalizeAction,
   type FinalizeHooks,
@@ -268,4 +270,69 @@ export async function reconcileAndDeliverOnce(deps: MonitorDeps): Promise<Monito
     }
   }
   return { allDelivered, pending, delivered };
+}
+
+export type OrphanReport = {
+  scanned: number;
+  orphans: number;
+  /** taskIds surfaced as reboot orphans this pass (for the caller's log/test). */
+  taskIds: string[];
+};
+
+/**
+ * REBOOT SEMANTICS (§ج-4 / §و م5, condition "reboot ⇒ visible-orphan"). A
+ * transient `wf-<taskId>.service` does NOT survive a reboot and is NEVER auto-
+ * resumed (consistent with the rejected resumeFromRunId auto-resume). This pass —
+ * run once at supervisor boot, BEFORE reconcile — makes that VISIBLE: it finds
+ * every launched task that was INTERRUPTED (its unit is terminal/gone AND it has
+ * no DONE AND it was not already delivered) and writes a `reboot-orphan` audit line
+ * marking it surfaced-not-resumed. It LAUNCHES NOTHING: reconcileAndDeliverOnce
+ * (which runs right after) delivers each as a CRASHED/PARTIAL "did not complete"
+ * card. Pure visibility; the "no auto-restart" property is structural (the monitor
+ * has no launch path) and this pass makes it observable + testable. Never throws.
+ */
+export async function reportRebootOrphansOnce(deps: MonitorDeps): Promise<OrphanReport> {
+  const env = deps.env ?? process.env;
+  const report: OrphanReport = { scanned: 0, orphans: 0, taskIds: [] };
+  for (const taskDir of listTaskDirs(env)) {
+    const task = readTaskRecord(taskDir);
+    if (!task || task.schema_version !== '2') {
+      continue;
+    }
+    report.scanned++;
+    // DONE present ⇒ the task actually finished (deliver normally, not an orphan).
+    if (fs.existsSync(path.join(taskDir, 'DONE'))) {
+      continue;
+    }
+    // Already delivered on a prior boot ⇒ not pending.
+    if (ledgerHasTask(readLedger(env, task.conversationId), task.taskId)) {
+      continue;
+    }
+    const unit = scopeUnitName(task.taskId);
+    let state: UnitState;
+    try {
+      state = await deps.probeUnitState(unit);
+    } catch {
+      state = 'gone'; // probe blip ⇒ treat as gone (decisive), never a hang
+    }
+    // active/activating ⇒ a genuinely still-running task (NOT a reboot orphan) —
+    // reboot kills transient units, so post-reboot this is only ever terminal/gone.
+    if (state === 'active' || state === 'activating') {
+      continue;
+    }
+    // Interrupted with no DONE and no delivery ⇒ a reboot orphan. Surface it
+    // (audit), do NOT relaunch.
+    report.orphans++;
+    report.taskIds.push(task.taskId);
+    auditLine(taskDir, {
+      event: 'reboot-orphan',
+      taskId: task.taskId,
+      userId: task.userId,
+      conversationId: task.conversationId,
+      unitState: state,
+      resumed: false,
+      note: 'transient unit did not survive reboot; surfaced as incomplete, NOT auto-resumed',
+    });
+  }
+  return report;
 }
