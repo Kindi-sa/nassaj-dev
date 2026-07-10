@@ -33,8 +33,16 @@ import express, { type Request, type Response } from 'express';
 import { projectsDb } from '@/modules/database/index.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
-import { isSupervisorEnabled } from './config.js';
+// Reuse the AUDITED shared limiter rather than duplicating security-sensitive
+// code; server/middleware is a cross-cutting infra dir not enumerated in the
+// boundaries elements (the route layer imports it the same way).
+// eslint-disable-next-line boundaries/no-unknown
+import { createRateLimiter } from '../../middleware/rate-limit.js';
+
+import { isSupervisorEnabled, maxPendingIntentsPerUser } from './config.js';
 import { writeDurableTask } from './durable-task.js';
+import { countPendingIntents } from './queue-guard.js';
+import { countBackgroundTasks } from './background-tasks-watcher.service.js';
 import { HANDOFF_POLICIES, type HandoffPolicy } from './intent.js';
 
 const router = express.Router();
@@ -43,6 +51,46 @@ const router = express.Router();
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 /** Cap the prompt so the web surface cannot be used to write an unbounded file. */
 const MAX_PROMPT_BYTES = 64 * 1024;
+
+/**
+ * C1 (T-820 audit) — per-IP rate limit on the launch endpoint. The audit flagged
+ * that the mount had NO limiter, so a flood of launches could amplify into
+ * host-wide systemctl/DB probes. A conservative fixed window blunts that at the
+ * edge (the per-user PENDING cap below bounds the standing queue).
+ */
+const launchRateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  message: 'Too many background-task launches, slow down.',
+});
+
+/**
+ * C1 (T-820 audit) — reject a projectPath carrying `..`/NUL/control chars at the
+ * edge with a clean 400 (the disk validator hardens it again, defense in depth).
+ */
+function assertSafeProjectPath(projectPath: string): void {
+  if (!projectPath.startsWith('/')) {
+    throw new AppError('projectPath must be absolute.', {
+      code: 'INVALID_INPUT',
+      statusCode: 400,
+    });
+  }
+  for (const ch of projectPath) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c < 0x20 || c === 0x7f) {
+      throw new AppError('projectPath contains control characters.', {
+        code: 'INVALID_INPUT',
+        statusCode: 400,
+      });
+    }
+  }
+  if (projectPath.split('/').some((seg) => seg === '..')) {
+    throw new AppError('projectPath must not contain "..".', {
+      code: 'INVALID_INPUT',
+      statusCode: 400,
+    });
+  }
+}
 
 function requireString(value: unknown, field: string, max = 4096): string {
   const raw = typeof value === 'string' ? value : '';
@@ -101,6 +149,7 @@ function authUserId(req: Request): number {
 
 router.post(
   '/launch',
+  launchRateLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     // Master no-op: OFF => the route is effectively absent (criterion 4).
     if (!isSupervisorEnabled(process.env)) {
@@ -111,12 +160,7 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
 
     const projectPath = requireString(body.projectPath, 'projectPath');
-    if (!projectPath.startsWith('/')) {
-      throw new AppError('projectPath must be absolute.', {
-        code: 'INVALID_INPUT',
-        statusCode: 400,
-      });
-    }
+    assertSafeProjectPath(projectPath);
     const scriptOrPrompt = requireString(body.scriptOrPrompt, 'scriptOrPrompt', MAX_PROMPT_BYTES);
     const conversationId = requireId(body.conversationId, 'conversationId');
     const originMessageId = requireId(body.originMessageId, 'originMessageId');
@@ -136,6 +180,18 @@ router.post(
       throw new AppError('You do not own this project.', {
         code: 'FORBIDDEN',
         statusCode: 403,
+      });
+    }
+
+    // C1 (T-820 audit) — per-user PENDING-intent cap. Reject an (N+1)th launch
+    // with 429 BEFORE writing, so a single owner cannot flood the intents dir
+    // (each queued intent costs a GATE2 + systemctl probe every tick). The count
+    // fails CLOSED on a read error (treated as full).
+    const pending = countPendingIntents(userId, process.env);
+    if (pending >= maxPendingIntentsPerUser(process.env)) {
+      throw new AppError('Too many pending background tasks; wait for some to finish.', {
+        code: 'RATE_LIMITED',
+        statusCode: 429,
       });
     }
 
@@ -161,6 +217,24 @@ router.post(
     res.status(202).json(
       createApiSuccessResponse({ taskId: result.taskId, status: 'queued-for-launch' }),
     );
+  }),
+);
+
+/**
+ * GET /background-tasks/count — the badge's refetch target (paired with the
+ * `background-tasks-updated` WS signal, runner-watcher pattern). 404 when the
+ * flag is OFF. Server-only for now; the client badge that consumes it is deferred
+ * to a later wave (build:client is out of scope here).
+ */
+router.get(
+  '/background-tasks/count',
+  asyncHandler(async (req: Request, res: Response) => {
+    if (!isSupervisorEnabled(process.env)) {
+      throw new AppError('Not found.', { code: 'NOT_FOUND', statusCode: 404 });
+    }
+    authUserId(req); // authenticated callers only (identity unused for the count)
+    const counts = countBackgroundTasks(process.env);
+    res.json(createApiSuccessResponse(counts));
   }),
 );
 

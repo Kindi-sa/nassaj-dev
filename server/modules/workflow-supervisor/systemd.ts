@@ -22,6 +22,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { scopeUnitName } from './config.js';
+import type { UnitState } from './result-capture.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -91,6 +92,51 @@ export async function systemctlIsActive(unit: string): Promise<string> {
         : '';
     return stdout.trim() || 'inactive';
   }
+}
+
+/**
+ * Probe a transient unit's terminal ActiveState for the classifier (§أ-3). Maps
+ * `systemctl --user show <unit>` to one of active|activating|inactive|failed|gone
+ * ('gone' = the manager GC'd a clean transient service, LoadState=not-found). A
+ * show failure ⇒ 'gone' (decisive terminal, never a hang). Never throws.
+ */
+export async function systemctlShowState(unit: string): Promise<UnitState> {
+  if (!unit) {
+    return 'gone';
+  }
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync('systemctl', [
+      '--user',
+      'show',
+      unit,
+      '--property=ActiveState',
+      '--property=Result',
+      '--property=LoadState',
+    ]));
+  } catch {
+    return 'gone';
+  }
+  const kv: Record<string, string> = {};
+  for (const line of stdout.trim().split('\n')) {
+    const j = line.indexOf('=');
+    if (j > 0) {
+      kv[line.slice(0, j)] = line.slice(j + 1);
+    }
+  }
+  if (kv.LoadState === 'not-found') {
+    return 'gone';
+  }
+  const s = kv.ActiveState || 'unknown';
+  if (
+    s === 'active' ||
+    s === 'activating' ||
+    s === 'inactive' ||
+    s === 'failed'
+  ) {
+    return s;
+  }
+  return 'unknown';
 }
 
 /**

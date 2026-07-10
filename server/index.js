@@ -118,6 +118,7 @@ import systemRoutes from './routes/system.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
 import workflowSupervisorLaunchRoutes from './modules/workflow-supervisor/launch.route.js';
+import { ensureBackgroundTasksWatcher } from './modules/workflow-supervisor/background-tasks-watcher.service.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
 import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
@@ -237,6 +238,17 @@ const wss = createWebSocketServer(server, {
 
 // Make WebSocket server available to routes
 app.locals.wss = wss;
+
+// B-103 (ADR-053, T-821): background-task badge watcher. FLAG-GATED — a no-op
+// when WORKFLOW_SUPERVISOR is OFF, so this is byte-identical to before until the
+// flag is set. Mirrors the runner-watcher pattern: the app watches the (separate)
+// supervisor's on-disk state and fans a `background-tasks-updated` signal to WS
+// clients. Fail-safe: never throws into boot.
+try {
+    ensureBackgroundTasksWatcher(wss);
+} catch (backgroundTasksWatcherError) {
+    console.error('background-tasks watcher init failed:', backgroundTasksWatcherError);
+}
 
 // CORS — restrict to known production and development origins.
 // Set ALLOWED_ORIGINS (comma-separated) in .env to add further origins without

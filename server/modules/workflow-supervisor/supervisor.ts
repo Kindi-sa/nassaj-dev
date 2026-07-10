@@ -21,7 +21,7 @@
 import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 
-import { projectsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { resolveProviderEnvStrict } from '@/services/isolation/resolve-provider-env-strict.js';
 
 import {
@@ -29,6 +29,10 @@ import {
   intentsDir,
   scopeStateDir,
   taskArtifactDir,
+  supervisorLockPath,
+  intentSweepMaxAgeMs,
+  intentSweepIntervalMs,
+  queuedRetryBackoffMs,
 } from './config.js';
 import type { DurableTask } from './intent.js';
 import { processIntent, type SupervisorRecord } from './supervisor-core.js';
@@ -37,13 +41,65 @@ import {
   launchScope,
   listActiveUserScopes,
   listAllActiveScopes,
+  systemctlShowState,
 } from './systemd.js';
+import { acquireSingleOwnerLock } from './supervisor-lock.js';
+import { reconcileAndDeliverOnce, type DeliveryTarget } from './monitor.js';
+import { sweepStaleIntents, QueuedRetryTracker } from './queue-guard.js';
 
 const CLAUDE_BIN = process.env.WORKFLOW_SUPERVISOR_CLAUDE_BIN || 'claude';
 const POLL_INTERVAL_MS = Number.parseInt(
   process.env.WORKFLOW_SUPERVISOR_POLL_MS ?? '',
   10,
 ) || 2000;
+
+/**
+ * C2 (T-820 audit) — the real delivery-target ownership gate. Resolves the
+ * conversation from the DB by its id, verifies the owning project is
+ * OWNED/MEMBERED by the task's userId, and returns the AUTHORITATIVE jsonl path
+ * FROM THE DB (never a path built from the web-supplied conversationId). A
+ * conversation the user does not own, or one with no transcript path, is refused.
+ * Never throws — a DB blip fails CLOSED (refuse delivery).
+ */
+function verifyDeliveryTarget(conversationId: string, userId: number): DeliveryTarget {
+  try {
+    const row = sessionsDb.getSessionById(conversationId);
+    if (!row) {
+      return { ok: false, reason: 'no such conversation' };
+    }
+    if (row.provider && row.provider !== 'claude') {
+      return { ok: false, reason: `unsupported provider ${row.provider}` };
+    }
+    if (!row.jsonl_path || !row.project_path) {
+      return { ok: false, reason: 'conversation missing transcript/project path' };
+    }
+    if (!projectsDb.isProjectPathOwnedOrMemberedBy(row.project_path, userId)) {
+      return { ok: false, reason: 'conversation not owned/membered by requester' };
+    }
+    return { ok: true, jsonlPath: row.jsonl_path, projectPath: row.project_path };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `ownership check failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * DOCUMENTED TEST-ONLY hook (mirrors the T-819 spike's HANDOFF_WIDEN_MS): widen
+ * the append→ledger gap so a harness can kill -9 the monitor PRECISELY inside the
+ * crash window and prove exactly-once re-delivery on restart. Unset/0 in
+ * production ⇒ no delay, no behavior change. Read once at process start.
+ */
+const HANDOFF_WIDEN_MS =
+  Number.parseInt(process.env.WORKFLOW_SUPERVISOR_HANDOFF_WIDEN_MS ?? '', 10) || 0;
+
+/** Shared monitor deps (real adapters). Reused by boot reconcile + each tick. */
+const monitorDeps = {
+  probeUnitState: systemctlShowState,
+  verifyDeliveryTarget,
+  ...(HANDOFF_WIDEN_MS > 0 ? { finalizeHooks: { widenMs: HANDOFF_WIDEN_MS } } : {}),
+};
 
 /** Atomic JSON write (tmp + rename) — same contract as the bridge. */
 async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {
@@ -73,16 +129,19 @@ async function writeTaskRecord(taskId: string, task: DurableTask): Promise<void>
 /**
  * Handle one intent file: read → processIntent (GATE2 → concurrency → launch).
  * On a terminal outcome (launched/denied/error) the intent file is consumed
- * (deleted). On `queued` it is LEFT on disk for a later tick.
+ * (deleted). On `queued` it is LEFT on disk for a later tick. Returns the outcome
+ * status so the poll loop can apply the C1 back-off to a queued intent.
  */
-async function handleIntentFile(filePath: string): Promise<void> {
+async function handleIntentFile(
+  filePath: string,
+): Promise<'launched' | 'denied' | 'queued' | 'error' | 'skip'> {
   let raw: unknown;
   try {
     raw = JSON.parse(await fsp.readFile(filePath, 'utf8'));
   } catch {
     // Unreadable/half-written (rename should prevent the latter) — skip; a
     // corrupt file that never becomes valid is cleaned by the sweep timer.
-    return;
+    return 'skip';
   }
 
   const outcome = await processIntent(raw, {
@@ -127,7 +186,7 @@ async function handleIntentFile(filePath: string): Promise<void> {
   if (outcome.status === 'queued') {
     // Leave the intent for a later tick (capacity may free up).
     console.info(JSON.stringify({ level: 'info', msg: 'workflow intent queued', file: path.basename(filePath), reason: outcome.reason }));
-    return;
+    return 'queued';
   }
 
   // launched / denied / error: consume the intent so it is not reprocessed.
@@ -141,10 +200,17 @@ async function handleIntentFile(filePath: string): Promise<void> {
       ...('unit' in outcome ? { unit: outcome.unit } : {}),
     }),
   );
+  return outcome.status;
 }
 
-/** One poll pass over every user's intents dir. */
-async function pollOnce(): Promise<void> {
+/**
+ * One poll pass over every user's intents dir. The C1 back-off tracker collapses
+ * the audit's amplification: a QUEUED intent is re-processed at most once per
+ * back-off interval instead of on EVERY tick (a queued intent otherwise re-runs
+ * GATE2 + a systemctl probe each tick). A consumed intent is forgotten; keys no
+ * longer on disk are pruned so the tracker cannot grow unbounded.
+ */
+async function pollOnce(retry: QueuedRetryTracker): Promise<void> {
   const root = intentsDir();
   let userDirs: string[];
   try {
@@ -152,6 +218,7 @@ async function pollOnce(): Promise<void> {
   } catch {
     return; // no intents yet
   }
+  const liveKeys = new Set<string>();
   for (const userDir of userDirs) {
     const dir = path.join(root, userDir);
     let files: string[];
@@ -164,28 +231,90 @@ async function pollOnce(): Promise<void> {
       if (!file.endsWith('.json') || file.includes('.tmp-')) {
         continue;
       }
+      const full = path.join(dir, file);
+      liveKeys.add(full);
+      // Back-off: skip a still-queued intent until its retry interval elapses.
+      if (!retry.shouldAttempt(full)) {
+        continue;
+      }
       try {
-        await handleIntentFile(path.join(dir, file));
+        const status = await handleIntentFile(full);
+        if (status === 'queued') {
+          retry.markAttempt(full); // wait a full back-off before the next probe
+        } else {
+          retry.forget(full); // consumed/terminal — drop the key
+        }
       } catch (error) {
+        retry.markAttempt(full); // a crashing intent also backs off
         console.error(
           JSON.stringify({ level: 'error', msg: 'intent handler crashed', file, error: error instanceof Error ? error.message : String(error) }),
         );
       }
     }
   }
+  // Prune tracked keys whose intent files are gone (consumed elsewhere/swept).
+  retry.retain(liveKeys);
 }
 
-/** Start the poll loop. No-op (never loops) when the flag is off. */
+/**
+ * Start the full supervisor cycle. No-op (never loops) when the flag is off.
+ *
+ * BOOT (§ب-2):
+ *   1. Acquire the single-owner flock (الشرط 5). If another instance holds it,
+ *      exit QUIETLY — one monitor at a time. flock is released by the kernel on
+ *      any death (incl. kill -9), so a restart re-acquires with no stale lock.
+ *   2. reconcile-on-boot: one immediate monitor pass re-binds and delivers any
+ *      task that finished while the monitor was dead (§و/م3 crash-safety).
+ *
+ * LOOP each tick:
+ *   a. pollOnce   — launch new intents (GATE2 → concurrency → launchScope), with
+ *                   the C1 back-off on queued intents.
+ *   b. monitor    — reconcileAndDeliverOnce: classify terminals + deliver cards
+ *                   exactly-once (§أ-3/§أ-4).
+ *   c. sweep      — on a slower cadence, delete stale/corrupt intents (C1-د).
+ */
 export async function runSupervisor(): Promise<void> {
   if (!isSupervisorEnabled()) {
     console.info(JSON.stringify({ level: 'info', msg: 'WORKFLOW_SUPERVISOR off — supervisor is a no-op, exiting' }));
     return;
   }
-  console.info(JSON.stringify({ level: 'info', msg: 'workflow supervisor started', intentsDir: intentsDir(), pollMs: POLL_INTERVAL_MS }));
-  // Simple sequential poll loop; the runner pattern favors cron/timer, but a
-  // long-lived poller is equivalent and self-contained for the scope of B-103.
+
+  // (1) Single-owner flock — a second monitor exits quietly (الشرط 5).
+  const lock = acquireSingleOwnerLock(supervisorLockPath());
+  if (!lock) {
+    console.info(JSON.stringify({ level: 'info', msg: 'workflow supervisor: another instance holds the lock — exiting quietly' }));
+    return;
+  }
+
+  const retry = new QueuedRetryTracker(queuedRetryBackoffMs());
+  console.info(JSON.stringify({ level: 'info', msg: 'workflow supervisor started', intentsDir: intentsDir(), pollMs: POLL_INTERVAL_MS, lockFd: lock.fd }));
+
+  // (2) reconcile-on-boot: deliver anything that finished while we were dead.
+  try {
+    const boot = await reconcileAndDeliverOnce(monitorDeps);
+    console.info(JSON.stringify({ level: 'info', msg: 'reconcile-on-boot done', ...boot }));
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'error', msg: 'reconcile-on-boot failed', error: error instanceof Error ? error.message : String(error) }));
+  }
+
+  let lastSweep = 0;
+  // Sequential cycle; a long-lived poller is equivalent to the runner's timer and
+  // self-contained for B-103's scope.
   while (true) {
-    await pollOnce();
+    await pollOnce(retry);
+    try {
+      await reconcileAndDeliverOnce(monitorDeps);
+    } catch (error) {
+      console.error(JSON.stringify({ level: 'error', msg: 'monitor pass failed', error: error instanceof Error ? error.message : String(error) }));
+    }
+    const now = Date.now();
+    if (now - lastSweep >= intentSweepIntervalMs()) {
+      lastSweep = now;
+      const swept = sweepStaleIntents(process.env, intentSweepMaxAgeMs(), now);
+      if (swept.deleted > 0) {
+        console.info(JSON.stringify({ level: 'info', msg: 'swept stale intents', ...swept }));
+      }
+    }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 }

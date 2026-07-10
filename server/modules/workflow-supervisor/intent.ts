@@ -95,6 +95,42 @@ export type IntentValidation =
  * path AND a systemd unit name (no traversal, no unit-name injection). */
 const WF_LAUNCH_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
 
+/** Size caps for the DISK validator (C5 — do not rely on the route's caps for a
+ * tampered on-disk intent). Mirrors the route's MAX_PROMPT_BYTES / 128. */
+const MAX_PROMPT_BYTES = 64 * 1024;
+const MAX_OPT_STRING = 128;
+const MAX_PROJECT_PATH = 4096;
+
+/**
+ * C5 (T-820 audit) — HARDENED absolute-path check for the DISK validator, so it
+ * does NOT lean on GATE2's path normalization or Node's spawn to reject a hostile
+ * projectPath. Rejects: non-absolute, `..` traversal segments, NUL bytes, C0/DEL
+ * control chars, and over-long paths. `projectPath` is not a web id field (it has
+ * no strict charset), so these explicit rejections are its own defense.
+ */
+function isHardenedAbsolutePath(p: unknown): p is string {
+  if (typeof p !== 'string') {
+    return false;
+  }
+  const s = p.trim();
+  if (s.length === 0 || s.length > MAX_PROJECT_PATH || !s.startsWith('/')) {
+    return false;
+  }
+  // Reject NUL/C0 control chars and DEL without a literal-control regex.
+  for (const ch of s) {
+    const c = ch.codePointAt(0) ?? 0;
+    if (c < 0x20 || c === 0x7f) {
+      return false;
+    }
+  }
+  // Reject any `..` path segment (traversal), regardless of position.
+  const segments = s.split('/');
+  if (segments.some((seg) => seg === '..')) {
+    return false;
+  }
+  return true;
+}
+
 /** Allowed top-level keys of a v2 DurableTask; any extra key ⇒ reject (§أ-1). */
 const DURABLE_TASK_KEYS = new Set([
   'schema_version',
@@ -205,8 +241,11 @@ function validateDurableTask(o: Record<string, unknown>): IntentValidation {
     }
   }
 
-  if (!Number.isInteger(o.userId)) {
-    return { ok: false, reason: 'userId is not an integer' };
+  // C5 (T-820 audit): the disk validator itself enforces `userId > 0`, unifying
+  // its contract with the strict env-resolver's ("integer POSITIVE"); a 0/-5 id
+  // no longer slips through the syntactic gate to lean on GATE2/the wrapper.
+  if (!Number.isInteger(o.userId) || (o.userId as number) <= 0) {
+    return { ok: false, reason: 'userId is not a positive integer' };
   }
   const userId = o.userId as number;
 
@@ -214,12 +253,9 @@ function validateDurableTask(o: Record<string, unknown>): IntentValidation {
     return { ok: false, reason: 'taskId missing or invalid charset' };
   }
 
-  if (
-    typeof o.projectPath !== 'string' ||
-    o.projectPath.trim().length === 0 ||
-    !o.projectPath.startsWith('/')
-  ) {
-    return { ok: false, reason: 'projectPath missing or not absolute' };
+  // C5: HARDENED projectPath — reject `..`/NUL/control chars, not just non-absolute.
+  if (!isHardenedAbsolutePath(o.projectPath)) {
+    return { ok: false, reason: 'projectPath missing, not absolute, or unsafe' };
   }
 
   // conversationId/originMessageId build a real jsonl path downstream — strict.
@@ -242,6 +278,19 @@ function validateDurableTask(o: Record<string, unknown>): IntentValidation {
 
   if (typeof spec.scriptOrPrompt !== 'string' || spec.scriptOrPrompt.trim().length === 0) {
     return { ok: false, reason: 'spec.scriptOrPrompt missing or empty' };
+  }
+  // C5: byte cap in the DISK validator too (a tampered file must not carry an
+  // unbounded prompt just because it skipped the route's cap).
+  if (Buffer.byteLength(spec.scriptOrPrompt, 'utf8') > MAX_PROMPT_BYTES) {
+    return { ok: false, reason: 'spec.scriptOrPrompt too large' };
+  }
+  // C5: size caps on optional string fields (reject rather than silently coerce a
+  // huge value to null — a tampered file should be refused, not normalized).
+  if (typeof spec.model === 'string' && spec.model.length > MAX_OPT_STRING) {
+    return { ok: false, reason: 'spec.model too large' };
+  }
+  if (typeof spec.effort === 'string' && spec.effort.length > MAX_OPT_STRING) {
+    return { ok: false, reason: 'spec.effort too large' };
   }
 
   // handoffPolicy: default card-only when absent; a PRESENT value must be in the

@@ -115,6 +115,79 @@ export function taskArtifactDir(taskId: string, env: NodeJS.ProcessEnv = process
 }
 
 /**
+ * Per-conversation exactly-once delivery ledger dir (§أ-2). The monitor writes
+ * `<conversationId>.done` here (atomic, batch-level) as the PRIMARY exactly-once
+ * key for card delivery. Kept 0700 like the rest of the web-originated tree.
+ */
+export function handoffsDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'handoffs');
+}
+
+/**
+ * The single-owner flock file for the permanent monitor (الشرط 5, §ب-0/§ب-2).
+ * runSupervisor acquires an advisory flock(2) on this path at boot; a second
+ * instance fails to acquire and exits quietly. flock(2) is released by the kernel
+ * on ANY death (including kill -9), so a restart re-acquires with no stale lock —
+ * the property that makes the crash-safety criteria sound.
+ */
+export function supervisorLockPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'supervisor.lock');
+}
+
+/**
+ * Grace window (ms) for the DONE-absent reconciliation rule (§أ-3). When a unit
+ * is terminal but `DONE` is missing, the classifier waits this long and re-checks
+ * before deciding PARTIAL-untrusted/CRASHED — closing the race where is-active
+ * flips terminal a few ms before the wrapper writes DONE. Design ~10s, tunable.
+ */
+export function reconcileGraceMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_RECONCILE_GRACE_MS ?? '', 10);
+  return Number.isInteger(raw) && raw >= 0 ? raw : 10_000;
+}
+
+/**
+ * C1 (T-820 audit) — cap on the number of PENDING (queued-on-disk) intents a
+ * single user may hold. The route rejects a launch with 429 over this cap so a
+ * malicious owner cannot flood the intents dir (each queued intent costs a
+ * GATE2 + systemctl probe every tick). Defaults to a generous-but-bounded 50.
+ */
+export function maxPendingIntentsPerUser(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_MAX_PENDING_PER_USER ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 50;
+}
+
+/**
+ * C1 (T-820 audit) — TTL for a stuck intent. The monitor's periodic sweep
+ * deletes an intent file older than this (a queued intent that never admitted, or
+ * a corrupt file that never parses) so the disk queue cannot grow unbounded.
+ * Defaults to 24h.
+ */
+export function intentSweepMaxAgeMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_INTENT_TTL_MS ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 24 * 60 * 60 * 1000;
+}
+
+/**
+ * C1 (T-820 audit) — back-off between re-processing attempts for a SINGLE queued
+ * intent. Without it, every queued intent re-runs GATE2 + a full systemctl probe
+ * on EVERY poll tick (the amplification the audit flagged). With it, a queued
+ * intent is retried at most once per this interval. Defaults to 30s.
+ */
+export function queuedRetryBackoffMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_QUEUE_BACKOFF_MS ?? '', 10);
+  return Number.isInteger(raw) && raw >= 0 ? raw : 30_000;
+}
+
+/**
+ * Interval (ms) between the monitor's stale-intent sweeps (C1). The sweep is far
+ * cheaper than the poll, so it runs on its own slower cadence. Defaults to 5min.
+ */
+export function intentSweepIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_SWEEP_INTERVAL_MS ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 5 * 60 * 1000;
+}
+
+/**
  * The systemd UNIT name for a launch id. Kept in one place so the bridge,
  * supervisor, liveness source, and force-stop all agree on the exact name.
  *
