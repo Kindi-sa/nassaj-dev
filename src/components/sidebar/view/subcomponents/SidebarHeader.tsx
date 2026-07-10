@@ -1,6 +1,6 @@
 import { Archive, BookOpen, FolderPlus, Plus, Search, X, PanelLeftClose } from 'lucide-react';
 import type { TFunction } from 'i18next';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { Button, Input, Tooltip } from '../../../../shared/view/ui';
 import { IS_PLATFORM } from '../../../../constants/config';
@@ -53,8 +53,7 @@ export default function SidebarHeader({
   onCollapseSidebar,
   t,
 }: SidebarHeaderProps) {
-  const navigate = useNavigate();
-  const { title: brandingTitle, logoUrl, logoDarkUrl, logoOnly: brandingLogoOnly } = useBranding();
+  const { title: brandingTitle, logoUrl, logoDarkUrl, logoOnly: brandingLogoOnly, nodeIconDataUri, nodeIconPosition } = useBranding();
   const { isDarkMode } = useTheme();
   // Dark theme prefers the dedicated dark logo and falls back to the main one.
   const brandingLogoUrl = isDarkMode ? (logoDarkUrl ?? logoUrl) : logoUrl;
@@ -119,6 +118,16 @@ export default function SidebarHeader({
     </div>
   );
 
+  // Small server-identity badge shown next to the logo (null = hidden).
+  const NodeIcon = nodeIconDataUri ? (
+    <img
+      src={nodeIconDataUri}
+      alt=""
+      aria-hidden="true"
+      className="h-5 w-5 flex-shrink-0 rounded-sm object-contain"
+    />
+  ) : null;
+
   // Wordmark mode: a single uploaded logo replaces the icon + title pair. The
   // title still reaches assistive tech through the img alt text.
   const LogoBlock = () => (brandingLogoOnly && brandingLogoUrl) ? (
@@ -158,23 +167,30 @@ export default function SidebarHeader({
       >
         <div className="flex items-center justify-between gap-2">
           {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock />
-            </a>
+            <div className="flex min-w-0 items-center gap-1">
+              {nodeIconPosition === 'start' && NodeIcon}
+              <a
+                href="https://cloudcli.ai/dashboard"
+                className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
+                title={t('tooltips.viewEnvironments')}
+              >
+                <LogoBlock />
+              </a>
+              {nodeIconPosition === 'end' && NodeIcon}
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-              aria-label={t('tooltips.goHome', displayTitle)}
-              title={t('tooltips.goHome', displayTitle)}
-            >
-              <LogoBlock />
-            </button>
+            <div className="flex min-w-0 items-center gap-1">
+              {nodeIconPosition === 'start' && NodeIcon}
+              <Link
+                to="/"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                aria-label={t('tooltips.goHome', displayTitle)}
+                title={t('tooltips.goHome', displayTitle)}
+              >
+                <LogoBlock />
+              </Link>
+              {nodeIconPosition === 'end' && NodeIcon}
+            </div>
           )}
 
           <div className="flex flex-shrink-0 items-center gap-0.5">
@@ -257,23 +273,30 @@ export default function SidebarHeader({
       >
         <div className="flex items-center justify-between">
           {IS_PLATFORM ? (
-            <a
-              href="https://cloudcli.ai/dashboard"
-              className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
-              title={t('tooltips.viewEnvironments')}
-            >
-              <LogoBlock />
-            </a>
+            <div className="flex min-w-0 items-center gap-1">
+              {nodeIconPosition === 'start' && NodeIcon}
+              <a
+                href="https://cloudcli.ai/dashboard"
+                className="flex min-w-0 items-center gap-2.5 transition-opacity active:opacity-70"
+                title={t('tooltips.viewEnvironments')}
+              >
+                <LogoBlock />
+              </a>
+              {nodeIconPosition === 'end' && NodeIcon}
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => navigate('/')}
-              className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-              aria-label={t('tooltips.goHome', displayTitle)}
-              title={t('tooltips.goHome', displayTitle)}
-            >
-              <LogoBlock />
-            </button>
+            <div className="flex min-w-0 items-center gap-1">
+              {nodeIconPosition === 'start' && NodeIcon}
+              <Link
+                to="/"
+                className="flex min-w-0 items-center gap-2.5 rounded-lg transition-opacity active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                aria-label={t('tooltips.goHome', displayTitle)}
+                title={t('tooltips.goHome', displayTitle)}
+              >
+                <LogoBlock />
+              </Link>
+              {nodeIconPosition === 'end' && NodeIcon}
+            </div>
           )}
 
           <div className="flex flex-shrink-0 gap-1.5">

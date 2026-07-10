@@ -436,6 +436,33 @@
         "label": "Font Size",
         "description": "Editor font size in pixels"
       }
+    },
+    "branding": {
+      "title": "Server identity",
+      "description": "Add a small icon next to the sidebar logo to identify this server to all users.",
+      "nodeIcon": {
+        "label": "Server icon",
+        "description": "A small badge image shown next to the logo (≤ 48 KB). PNG, JPG, WebP, or SVG.",
+        "upload": "Upload icon",
+        "change": "Change icon",
+        "clear": "Remove",
+        "save": "Save",
+        "saving": "Saving…",
+        "preview": "Icon preview",
+        "success": "Server icon saved",
+        "cleared": "Server icon removed",
+        "position": {
+          "label": "Icon position",
+          "description": "Where to show the icon relative to the logo",
+          "start": "Before logo",
+          "end": "After logo"
+        },
+        "errors": {
+          "tooBig": "Image exceeds the 48 KB limit",
+          "unsupported": "Unsupported file type. Use PNG, JPG, WebP, or SVG.",
+          "saveFailed": "Could not save. Please try again."
+        }
+      }
     }
   },
   "mcpForm": {

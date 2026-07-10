@@ -21,6 +21,18 @@ export type Branding = {
   logoOnly: boolean;
   /** Hide the app title on the splash/loading screen and show only the logo. */
   splashHideTitle: boolean;
+  /**
+   * Optional small server-identity badge shown next to the sidebar logo.
+   * Stored as a base64 data-URI (≤ 64 KB) so no extra static route is needed.
+   * When null the badge is hidden.
+   */
+  nodeIconDataUri: string | null;
+  /**
+   * Where to show the node icon relative to the logo, using CSS logical-
+   * property conventions ('start' = before in reading order, 'end' = after).
+   * Defaults to 'end' when unset.
+   */
+  nodeIconPosition: 'start' | 'end';
 };
 
 type BrandingContextValue = Branding & {
@@ -41,7 +53,7 @@ export const useBranding = (): BrandingContextValue => {
 };
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
-  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null, logoDarkUrl: null, logoOnly: false, splashHideTitle: false });
+  const [branding, setBranding] = useState<Branding>({ title: null, logoUrl: null, logoDarkUrl: null, logoOnly: false, splashHideTitle: false, nodeIconDataUri: null, nodeIconPosition: 'end' });
   const [isLoading, setIsLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -57,6 +69,11 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
         logoDarkUrl: typeof data?.logoDarkUrl === 'string' && data.logoDarkUrl.length > 0 ? data.logoDarkUrl : null,
         logoOnly: data?.logoOnly === true,
         splashHideTitle: data?.splashHideTitle === true,
+        nodeIconDataUri:
+          typeof data?.nodeIconDataUri === 'string' && data.nodeIconDataUri.length > 0
+            ? data.nodeIconDataUri
+            : null,
+        nodeIconPosition: data?.nodeIconPosition === 'start' ? 'start' : 'end',
       });
     } catch {
       // Network/parse failure: keep defaults so the header still renders.

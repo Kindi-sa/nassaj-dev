@@ -1,11 +1,14 @@
 import { useTranslation } from 'react-i18next';
+
 import { DarkModeToggle, ThemeModeSelector } from '../../../../shared/view/ui';
-import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import LanguageSelector from '../../../../shared/view/ui/LanguageSelector';
+import type { CodeEditorSettingsState, ProjectSortOrder } from '../../types/types';
 import SettingsCard from '../SettingsCard';
 import SettingsRow from '../SettingsRow';
 import SettingsSection from '../SettingsSection';
 import SettingsToggle from '../SettingsToggle';
+
+import BrandingSettingsSection from './BrandingSettingsSection';
 import ThemePresetPicker from './ThemePresetPicker';
 
 type AppearanceSettingsTabProps = {
@@ -33,6 +36,9 @@ export default function AppearanceSettingsTab({
 
   return (
     <div className="space-y-8">
+      {/* Server identity — owner-only; component renders null for non-owners */}
+      <BrandingSettingsSection />
+
       <SettingsSection title={t('appearanceSettings.themeMode.sectionTitle')}>
         <SettingsCard>
           <SettingsRow

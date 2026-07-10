@@ -315,6 +315,20 @@ export const api = {
       authenticatedFetch(`/api/settings/branding/logo?variant=${encodeURIComponent(variant)}`, {
         method: 'DELETE',
       }),
+    // Node icon: a small server-identity badge stored as a base64 data-URI in
+    // app_config. `nodeIconDataUri` may be a data-URI string (to set/replace) or
+    // null (to clear). `nodeIconPosition` persists independently so position is
+    // remembered when the icon is re-uploaded after being cleared.
+    updateNodeIcon: (nodeIconDataUri, nodeIconPosition) =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ nodeIconDataUri, nodeIconPosition }),
+      }),
+    clearNodeIcon: () =>
+      authenticatedFetch('/api/settings/branding', {
+        method: 'PUT',
+        body: JSON.stringify({ nodeIconDataUri: null }),
+      }),
   },
 
   // Admin-only: per-provider credential sharing mode (shared vs isolated).

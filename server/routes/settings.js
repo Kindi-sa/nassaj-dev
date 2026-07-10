@@ -39,6 +39,18 @@ const BRANDING_LOGO_ONLY_KEY = 'branding.logo_only';
 // main logo on dark theme when this one is absent.
 const BRANDING_LOGO_DARK_PATH_KEY = 'branding.logo_dark_path';
 const BRANDING_LOGO_DARK_VERSION_KEY = 'branding.logo_dark_version';
+// Node icon: a small base64 data-URI stored directly in app_config (no file on
+// disk, no static route needed). Kept ≤ 64 KB so it stays fast over WebSocket
+// and does not bloat the branding payload.
+const BRANDING_NODE_ICON_KEY = 'branding.node_icon_data_uri';
+// Position of the node icon relative to the sidebar logo: 'start' (before) or
+// 'end' (after), following CSS logical-property conventions so RTL layouts work
+// without special-casing.
+const BRANDING_NODE_ICON_POSITION_KEY = 'branding.node_icon_position';
+const BRANDING_NODE_ICON_MAX_LENGTH = 65536; // 64 KB as base64 data-URI string
+const BRANDING_NODE_ICON_ALLOWED_MIME = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
+]);
 
 const BRANDING_TITLE_MAX_LENGTH = 60;
 
@@ -184,12 +196,16 @@ function brandingVariantConfig(variant) {
 export async function getBrandingHandler(req, res) {
   try {
     const title = appConfigDb.get(BRANDING_TITLE_KEY);
+    const nodeIconRaw = appConfigDb.get(BRANDING_NODE_ICON_KEY);
+    const nodeIconPosition = appConfigDb.get(BRANDING_NODE_ICON_POSITION_KEY);
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
       logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
       splashHideTitle: appConfigDb.get(BRANDING_SPLASH_HIDE_TITLE_KEY) === '1',
+      nodeIconDataUri: nodeIconRaw && nodeIconRaw.length > 0 ? nodeIconRaw : null,
+      nodeIconPosition: nodeIconPosition === 'start' ? 'start' : 'end',
     });
   } catch (error) {
     console.error('Error fetching branding:', error);
@@ -229,13 +245,48 @@ router.put('/branding', requireRole('owner'), async (req, res) => {
       appConfigDb.set(BRANDING_SPLASH_HIDE_TITLE_KEY, req.body.splashHideTitle ? '1' : '0');
     }
 
+    // Node icon: store as a base64 data-URI directly in app_config.
+    // A null or empty value clears the icon; a non-empty string must be a
+    // valid data:image/<allowed-type>;base64,… URI within the size limit.
+    if ('nodeIconDataUri' in (req.body ?? {})) {
+      const dataUri = req.body.nodeIconDataUri;
+      if (dataUri === null || dataUri === '') {
+        appConfigDb.set(BRANDING_NODE_ICON_KEY, '');
+      } else if (typeof dataUri === 'string') {
+        if (dataUri.length > BRANDING_NODE_ICON_MAX_LENGTH) {
+          return res.status(400).json({ error: 'Icon exceeds the 64 KB limit' });
+        }
+        // Extract the declared MIME type from the data-URI prefix and validate
+        // it against the allowed set. The actual pixel content is not validated
+        // server-side (no decoder needed; browsers handle malformed images
+        // gracefully and the value never leaves the same-origin context).
+        const mimeMatch = dataUri.match(/^data:([^;]+);base64,/);
+        if (!mimeMatch || !BRANDING_NODE_ICON_ALLOWED_MIME.has(mimeMatch[1])) {
+          return res.status(400).json({ error: 'Invalid or unsupported icon type' });
+        }
+        appConfigDb.set(BRANDING_NODE_ICON_KEY, dataUri);
+      }
+    }
+
+    // Icon position: 'start' = before the logo in reading order, 'end' = after.
+    if (typeof req.body?.nodeIconPosition === 'string') {
+      const pos = req.body.nodeIconPosition;
+      if (pos === 'start' || pos === 'end') {
+        appConfigDb.set(BRANDING_NODE_ICON_POSITION_KEY, pos);
+      }
+    }
+
     const title = appConfigDb.get(BRANDING_TITLE_KEY);
+    const nodeIconRaw = appConfigDb.get(BRANDING_NODE_ICON_KEY);
+    const nodeIconPosition = appConfigDb.get(BRANDING_NODE_ICON_POSITION_KEY);
     res.json({
       title: title && title.length > 0 ? title : null,
       logoUrl: getBrandingLogoUrl(),
       logoDarkUrl: getBrandingLogoUrl('dark'),
       logoOnly: appConfigDb.get(BRANDING_LOGO_ONLY_KEY) === '1',
       splashHideTitle: appConfigDb.get(BRANDING_SPLASH_HIDE_TITLE_KEY) === '1',
+      nodeIconDataUri: nodeIconRaw && nodeIconRaw.length > 0 ? nodeIconRaw : null,
+      nodeIconPosition: nodeIconPosition === 'start' ? 'start' : 'end',
     });
   } catch (error) {
     console.error('Error updating branding:', error);
