@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../../lib/utils';
@@ -183,8 +183,29 @@ function AgentRow({ agent, frozen }: { agent: RunAgent; frozen: boolean }) {
   );
 }
 
+const AGENT_ACTIVITY_STORAGE_KEY = 'nassaj-agent-activity-expanded';
+
 export default function AgentActivityStrip({ agents, frozen = false }: AgentActivityStripProps) {
   const { t } = useTranslation('chat');
+
+  // Persisted collapse preference: default expanded, survives refresh and sessions.
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    try {
+      const stored = localStorage.getItem(AGENT_ACTIVITY_STORAGE_KEY);
+      return stored !== null ? stored !== 'false' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggle = useCallback(() => {
+    setIsExpanded(prev => {
+      const next = !prev;
+      try { localStorage.setItem(AGENT_ACTIVITY_STORAGE_KEY, String(next)); } catch { /* storage unavailable */ }
+      return next;
+    });
+  }, []);
+
   if (agents.length === 0) return null;
 
   const runningCount = agents.reduce((n, a) => (a.status === 'running' ? n + 1 : n), 0);
@@ -192,25 +213,48 @@ export default function AgentActivityStrip({ agents, frozen = false }: AgentActi
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 mb-3 w-full duration-500">
       <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-border/50 bg-slate-100 px-3 py-2 shadow-sm backdrop-blur-md dark:bg-slate-900">
-        {/* Header: strip title + running/total summary. */}
-        <div className="mb-1 flex items-center justify-between gap-2 px-1.5">
+        {/* Header: full-width clickable button. Title + counter always visible.
+            Collapses the agent list to a single header row on narrow screens. */}
+        <button
+          type="button"
+          className="mb-1 flex w-full items-center justify-between gap-2 rounded-md px-1.5 py-0.5 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          onClick={toggle}
+          aria-expanded={isExpanded}
+        >
           <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
             {t('agentActivity.title', { defaultValue: 'Agent activity' })}
           </span>
-          <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground/60">
-            {t('agentActivity.summary', {
-              running: runningCount,
-              total: agents.length,
-              defaultValue: '{{running}}/{{total}} running',
-            })}
-          </span>
-        </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className="text-[10px] font-medium tabular-nums text-muted-foreground/60">
+              {t('agentActivity.summary', {
+                running: runningCount,
+                total: agents.length,
+                defaultValue: '{{running}}/{{total}} running',
+              })}
+            </span>
+            {/* Chevron: ▼ when expanded, ▶ LTR / ◀ RTL when collapsed. */}
+            <svg
+              className={cn(
+                'h-3 w-3 shrink-0 text-muted-foreground/50 transition-transform duration-150',
+                isExpanded ? 'rotate-0' : '-rotate-90 rtl:rotate-90',
+              )}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </button>
 
-        <div className="flex flex-col gap-0.5">
-          {agents.map((agent) => (
-            <AgentRow key={agent.id} agent={agent} frozen={frozen} />
-          ))}
-        </div>
+        {isExpanded && (
+          <div className="flex flex-col gap-0.5">
+            {agents.map((agent) => (
+              <AgentRow key={agent.id} agent={agent} frozen={frozen} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
