@@ -1,0 +1,965 @@
+{
+  "spike": "B-103 / T-819 — consumer + supervisor side (§و criteria 4, 5, 6, 7)",
+  "generatedAt": "2026-07-10T01:34:52.910Z",
+  "host": "nassaj",
+  "node": "v24.15.0",
+  "claudeVersion": "2.1.206 (Claude Code)",
+  "branch": "fix/security-remediation-2026-07-09",
+  "stateRoot": "/tmp/b103-consumer",
+  "overallPass": true,
+  "atomicWritePath": "lib/capture-writer.mjs::writeFileAtomic (same tmp→fsync→rename→fsync-dir that seal() uses for DONE)",
+  "criteria": {
+    "4_delivery_idempotency": {
+      "pass": true,
+      "requirement": "repeat finalize N>=5 on one task folder ⇒ exactly one handoffId (one valid line, one ledger entry, one injection)",
+      "tasks": 6,
+      "repeatsPerTask": 8,
+      "exactlyOneHandoff": 6,
+      "doubles": 0,
+      "lost": 0
+    },
+    "5_torn_jsonl_dedup": {
+      "pass": true,
+      "requirement": "half-written handoffId line in a REAL <conversationId>.jsonl ⇒ JSON.parse (not regex) treats it \"not delivered\" + idempotent ledger retry ⇒ 0 double, 0 lost; regex control MUST lose",
+      "iterations": 24,
+      "tornDerivedFromRealTranscripts": true,
+      "tornStatesValid": 24,
+      "jsonRecoveredExactlyOnce": 24,
+      "jsonDoubles": 0,
+      "jsonLost": 0,
+      "regexLostCount": 24,
+      "offsetSpread": {
+        "min": 110,
+        "max": 409
+      },
+      "note": "regexLostCount === iterations proves the design's JSON.parse-not-regex rule is load-bearing (reconcile 6.5% analog)."
+    },
+    "6_supervisor_resilience": {
+      "pass": true,
+      "requirement": ">=10 real runs: kill -9 supervisor at random offsets (+ targeted inject→ledger gap) then restart ⇒ re-bind + deliver exactly once, 0 double/0 lost",
+      "attempts": 15,
+      "restarts": 15,
+      "deliveredExactlyOnce": 15,
+      "doubles": 0,
+      "lost": 0,
+      "injectLedgerGapKills": 5,
+      "killWindowDistribution": {
+        "pre-done": 3,
+        "post-ledger": 7,
+        "in-inject-ledger-gap": 5
+      },
+      "note": "ground truth of delivery count = valid handoff lines in jsonl (a supervisor killed inside the gap injects the line but dies before logging its action)."
+    },
+    "7_single_owner_flock": {
+      "pass": true,
+      "requirement": "two concurrent supervisors ⇒ one runs, the other exits quietly; lock freed on death (kill -9)",
+      "firstAcquired": true,
+      "secondQuietExit": true,
+      "secondExitCode": 0,
+      "secondRanLoop": false,
+      "reacquireAfterDeath": true
+    }
+  },
+  "fixtures": {
+    "conversationDir": "spikes/b103-t819/fixtures",
+    "conversationCount": 2,
+    "conversationFiles": [
+      "conversation-a.jsonl",
+      "conversation-b.jsonl"
+    ]
+  },
+  "rerun": {
+    "criterion4_offline_no_llm": "STATE_ROOT=/tmp/b103-verify-c4 bash spikes/b103-t819/tests/criterion4-idempotency.sh",
+    "criterion5_offline_no_llm": "STATE_ROOT=/tmp/b103-verify-c5 bash spikes/b103-t819/tests/criterion5-torn-jsonl.sh",
+    "criterion6_real_llm": "STATE_ROOT=/tmp/b103-verify-c6 bash spikes/b103-t819/tests/criterion6-supervisor-resilience.sh",
+    "criterion7_offline_no_llm": "STATE_ROOT=/tmp/b103-verify-c7 bash spikes/b103-t819/tests/criterion7-flock.sh",
+    "full": "bash spikes/b103-t819/tests/run-consumer.sh"
+  },
+  "records": {
+    "criterion4": [
+      {
+        "taskId": "t819-c4-1783647278-1-4531",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      },
+      {
+        "taskId": "t819-c4-1783647279-2-9391",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      },
+      {
+        "taskId": "t819-c4-1783647279-3-25233",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      },
+      {
+        "taskId": "t819-c4-1783647280-4-23055",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      },
+      {
+        "taskId": "t819-c4-1783647280-5-21705",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      },
+      {
+        "taskId": "t819-c4-1783647281-6-23241",
+        "repeats": 8,
+        "injectEvents": 1,
+        "validMatchCount": 1,
+        "ledgerEntries": 1,
+        "tornLines": 0,
+        "events": [
+          "inject+ledger",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit",
+          "skip-ledger-hit"
+        ],
+        "pass": true
+      }
+    ],
+    "criterion5": [
+      {
+        "it": 1,
+        "base": "conversation-a.jsonl",
+        "offset": 313,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 2,
+        "base": "conversation-b.jsonl",
+        "offset": 405,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 3,
+        "base": "conversation-a.jsonl",
+        "offset": 208,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 4,
+        "base": "conversation-b.jsonl",
+        "offset": 149,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 5,
+        "base": "conversation-a.jsonl",
+        "offset": 232,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 6,
+        "base": "conversation-a.jsonl",
+        "offset": 154,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 7,
+        "base": "conversation-a.jsonl",
+        "offset": 147,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 8,
+        "base": "conversation-b.jsonl",
+        "offset": 160,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 9,
+        "base": "conversation-a.jsonl",
+        "offset": 391,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 10,
+        "base": "conversation-b.jsonl",
+        "offset": 356,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 11,
+        "base": "conversation-b.jsonl",
+        "offset": 244,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 12,
+        "base": "conversation-b.jsonl",
+        "offset": 170,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 13,
+        "base": "conversation-b.jsonl",
+        "offset": 115,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 14,
+        "base": "conversation-b.jsonl",
+        "offset": 403,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 15,
+        "base": "conversation-a.jsonl",
+        "offset": 121,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 16,
+        "base": "conversation-a.jsonl",
+        "offset": 409,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 17,
+        "base": "conversation-a.jsonl",
+        "offset": 268,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 18,
+        "base": "conversation-b.jsonl",
+        "offset": 110,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 19,
+        "base": "conversation-a.jsonl",
+        "offset": 312,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 20,
+        "base": "conversation-b.jsonl",
+        "offset": 131,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 21,
+        "base": "conversation-a.jsonl",
+        "offset": 178,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 22,
+        "base": "conversation-a.jsonl",
+        "offset": 277,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 23,
+        "base": "conversation-a.jsonl",
+        "offset": 383,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      },
+      {
+        "it": 24,
+        "base": "conversation-b.jsonl",
+        "offset": 112,
+        "tornOk": true,
+        "afterTear": {
+          "valid": 0,
+          "regex": 1,
+          "torn": 1
+        },
+        "jsonEvents": [
+          "inject+ledger",
+          "skip-ledger-hit"
+        ],
+        "jsonValidAfter": 1,
+        "jsonOk": true,
+        "regexEvent": "ledger-repair",
+        "regexValidAfter": 0,
+        "regexLost": true
+      }
+    ],
+    "criterion6": [
+      {
+        "i": 1,
+        "mode": "random",
+        "taskId": "t819-c6-1783647117-1-10304",
+        "unit": "wf-t819-c6-1783647117-1-10304.service",
+        "killWindow": "pre-done",
+        "offset": "2956ms",
+        "ledgerAtKill": "no",
+        "validAtKill": 0,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 2,
+        "mode": "random",
+        "taskId": "t819-c6-1783647121-2-6266",
+        "unit": "wf-t819-c6-1783647121-2-6266.service",
+        "killWindow": "post-ledger",
+        "offset": "4583ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 3,
+        "mode": "random",
+        "taskId": "t819-c6-1783647126-3-28167",
+        "unit": "wf-t819-c6-1783647126-3-28167.service",
+        "killWindow": "pre-done",
+        "offset": "1158ms",
+        "ledgerAtKill": "no",
+        "validAtKill": 0,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 4,
+        "mode": "random",
+        "taskId": "t819-c6-1783647130-4-24086",
+        "unit": "wf-t819-c6-1783647130-4-24086.service",
+        "killWindow": "post-ledger",
+        "offset": "5534ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 5,
+        "mode": "random",
+        "taskId": "t819-c6-1783647136-5-7184",
+        "unit": "wf-t819-c6-1783647136-5-7184.service",
+        "killWindow": "pre-done",
+        "offset": "3356ms",
+        "ledgerAtKill": "no",
+        "validAtKill": 0,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 6,
+        "mode": "random",
+        "taskId": "t819-c6-1783647147-6-16138",
+        "unit": "wf-t819-c6-1783647147-6-16138.service",
+        "killWindow": "post-ledger",
+        "offset": "6008ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 7,
+        "mode": "random",
+        "taskId": "t819-c6-1783647153-7-18383",
+        "unit": "wf-t819-c6-1783647153-7-18383.service",
+        "killWindow": "post-ledger",
+        "offset": "5915ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 8,
+        "mode": "random",
+        "taskId": "t819-c6-1783647160-8-15702",
+        "unit": "wf-t819-c6-1783647160-8-15702.service",
+        "killWindow": "post-ledger",
+        "offset": "4290ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 9,
+        "mode": "random",
+        "taskId": "t819-c6-1783647164-9-7565",
+        "unit": "wf-t819-c6-1783647164-9-7565.service",
+        "killWindow": "post-ledger",
+        "offset": "5574ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 10,
+        "mode": "random",
+        "taskId": "t819-c6-1783647170-10-19309",
+        "unit": "wf-t819-c6-1783647170-10-19309.service",
+        "killWindow": "post-ledger",
+        "offset": "4638ms",
+        "ledgerAtKill": "yes",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 1,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 11,
+        "mode": "window",
+        "taskId": "t819-c6-1783647182-11-24294",
+        "unit": "wf-t819-c6-1783647182-11-24294.service",
+        "killWindow": "in-inject-ledger-gap",
+        "offset": "marker",
+        "ledgerAtKill": "no",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 0,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 12,
+        "mode": "window",
+        "taskId": "t819-c6-1783647188-12-16917",
+        "unit": "wf-t819-c6-1783647188-12-16917.service",
+        "killWindow": "in-inject-ledger-gap",
+        "offset": "marker",
+        "ledgerAtKill": "no",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 0,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 13,
+        "mode": "window",
+        "taskId": "t819-c6-1783647192-13-6195",
+        "unit": "wf-t819-c6-1783647192-13-6195.service",
+        "killWindow": "in-inject-ledger-gap",
+        "offset": "marker",
+        "ledgerAtKill": "no",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 0,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 14,
+        "mode": "window",
+        "taskId": "t819-c6-1783647198-14-6119",
+        "unit": "wf-t819-c6-1783647198-14-6119.service",
+        "killWindow": "in-inject-ledger-gap",
+        "offset": "marker",
+        "ledgerAtKill": "no",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 0,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      },
+      {
+        "i": 15,
+        "mode": "window",
+        "taskId": "t819-c6-1783647203-15-7595",
+        "unit": "wf-t819-c6-1783647203-15-7595.service",
+        "killWindow": "in-inject-ledger-gap",
+        "offset": "marker",
+        "ledgerAtKill": "no",
+        "validAtKill": 1,
+        "restartRc": 0,
+        "classification": "SUCCEEDED",
+        "injectEvents": 0,
+        "finalValid": 1,
+        "finalTorn": 0,
+        "ledgerEntries": 1,
+        "exactlyOnce": true,
+        "doubles": false,
+        "lost": false
+      }
+    ]
+  }
+}

@@ -31,6 +31,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const PARTIAL = 'result.json.partial';
 const RESULT = 'result.json';
@@ -59,13 +60,18 @@ function parseArgs(argv) {
 }
 
 /** fsync a directory entry so a rename into it is durable. */
-function fsyncDir(dir) {
+export function fsyncDir(dir) {
   const fd = fs.openSync(dir, 'r');
   try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
 }
 
-/** atomic file create: tmp → fsync → rename → fsync(dir). */
-function writeFileAtomic(dir, name, buf) {
+/*
+ * atomic file create: tmp → fsync → rename → fsync(dir).
+ * EXPORTED so the consumer wave (lib/handoff.mjs) writes the exactly-once delivery
+ * ledger through the SAME proven atomic path seal() uses for DONE — one primitive,
+ * one durability guarantee (T-819 §و consumer, "استعمله نفسه لكتابة ledger التسليم").
+ */
+export function writeFileAtomic(dir, name, buf) {
   const tmp = path.join(dir, `.${name}.tmp-${process.pid}-${Date.now()}`);
   const fd = fs.openSync(tmp, 'w', 0o600);
   try { fs.writeSync(fd, buf); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
@@ -84,7 +90,7 @@ function sleepMs(ms) {
  * THE SHARED SEAL PATH. Both --finalize and --replay reach result.json ONLY through
  * here, so the atomicity guarantee is one code path proven once.
  */
-function seal(outdir, exitCode, { widenWindowMs = 0, skipDone = false, signal = null } = {}) {
+export function seal(outdir, exitCode, { widenWindowMs = 0, skipDone = false, signal = null } = {}) {
   const partialPath = path.join(outdir, PARTIAL);
   const resultPath = path.join(outdir, RESULT);
 
@@ -163,4 +169,6 @@ function main() {
   });
 }
 
-main();
+// Run the CLI ONLY on direct invocation. When imported (lib/handoff.mjs reuses
+// writeFileAtomic), main() must NOT fire — byte-identical live/test behavior preserved.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
