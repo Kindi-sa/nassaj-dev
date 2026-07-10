@@ -21,6 +21,7 @@
  * ENABLE_ULTRACODE_WORKFLOWS / WORKFLOW_RECONCILE flags for consistency.
  */
 
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
@@ -203,3 +204,144 @@ export function intentSweepIntervalMs(env: NodeJS.ProcessEnv = process.env): num
 export function scopeUnitName(wfLaunchId: string): string {
   return `wf-${wfLaunchId}.service`;
 }
+
+// ===========================================================================
+// T-822 (المرحلة 4) — Tier-B injector + per-conversation chat lock + cost
+// governance. EVERYTHING below is DOUBLY gated: the master WORKFLOW_SUPERVISOR
+// flag AND the dedicated sub-flag WORKFLOW_SUPERVISOR_CHAT_LOCK. The sub-flag is
+// the single switch that couples the two lock takers (the live chat seam in
+// claude-sdk.js AND the injector) — they engage together or not at all, so the
+// injector never writes a resumed turn into a jsonl the chat is not also
+// serializing. Both default OFF: with them off, the critical path is
+// byte-identical to T-821 (no lock, no Tier-B, cards only).
+// ===========================================================================
+
+/**
+ * The T-822 sub-flag. Gates BOTH the critical-path chat lock (claude-sdk.js) and
+ * the Tier-B injector. Requires the master flag too (fail-closed on either off).
+ * Kept SEPARATE from the master so a deployment can run the whole T-821 delivery
+ * (cards, monitor) with ZERO critical-path touch, and only opt into the 502-risk
+ * seam by flipping THIS flag explicitly (§ح-3 mitigation, defense in depth).
+ */
+export function isChatTurnLockEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (!isSupervisorEnabled(env)) {
+    return false;
+  }
+  const raw = env.WORKFLOW_SUPERVISOR_CHAT_LOCK;
+  return typeof raw === 'string' && TRUTHY.has(raw.trim().toLowerCase());
+}
+
+/** Per-conversation advisory-lock dir (§ج-4). BOTH the live chat path and the
+ * injector flock `<conversationId>.lock` here to serialize jsonl appends. 0700. */
+export function chatLocksDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'chat-locks');
+}
+
+/**
+ * Ceiling (ms) the LIVE chat path waits for the per-conversation lock when it
+ * finds it held by an injector (the rare case: an injection started just before
+ * a human turn). DEFAULT is `injectorMaxHoldMs + 5s` so it is ALWAYS ≥ the
+ * injector's own hold cap — under normal + capped operation the injector always
+ * releases FIRST and the human acquires cleanly (zero concurrent append, §ج-4
+ * criterion). A genuine timeout past this ceiling means the injector exceeded
+ * even its own hard cap (a bug) ⇒ the chat proceeds fail-OPEN for the human
+ * (§ح-3) with an audit line — never an infinite block on the critical path.
+ */
+export function chatLockWaitMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_CHAT_LOCK_WAIT_MS ?? '', 10);
+  if (Number.isInteger(raw) && raw >= 0) {
+    return raw;
+  }
+  return injectorMaxHoldMs(env) + 5_000;
+}
+
+/**
+ * Hard cap (ms) the injector may HOLD the per-conversation lock for one Tier-B
+ * turn (§ج-4 constraint 3). A leaf-only turn (consume a ≤32KB result + a short
+ * reply, no subagents/tools) is short in practice; this bounds a hung turn: at
+ * the cap the injector kills its `claude` child and releases the lock (the task
+ * stays handoff-pending, retried later — never lost). So the injector never
+ * holds the lock "minutes open" and the human is never starved.
+ */
+export function injectorMaxHoldMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_HANDOFF_MAX_HOLD_MS ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 90_000;
+}
+
+/** Per-conversation budget dir (§د). Daily token/turn counters, atomic. 0700. */
+export function budgetDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'budget');
+}
+
+/**
+ * §د cost governance — the per-conversation daily token ceiling. Over it, a
+ * Tier-B delivery for that conversation DEGRADES to a card-only notification (no
+ * LLM turn) with an audit line. ≈ 3–4 coalesced deliveries/day for one chat.
+ */
+export function handoffTokensPerConversationMax(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_HANDOFF_TOKENS_CONV_MAX ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 300_000;
+}
+
+/** §د — the per-user daily token ceiling across ALL their conversations. */
+export function handoffTokensPerUserMax(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_HANDOFF_TOKENS_USER_MAX ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 1_000_000;
+}
+
+/**
+ * §د — the pre-charge token estimate for ONE injected turn, used by the BEFORE
+ * check (we cannot know the real cost until the turn runs). Conservative by
+ * design (rounds a delivery UP so the budget trips slightly early rather than
+ * overspending). The reference cold-turn cost from T-819 was ~31–58k; the design
+ * quotes ~73k for a full turn — we default to the higher end for safety.
+ */
+export function handoffTurnTokenEstimate(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_HANDOFF_TURN_TOKEN_ESTIMATE ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 73_000;
+}
+
+/** §هـ-3 — kill file: presence disables ALL Tier-B injection immediately
+ * (degrade to card-only). A file, so an operator can flip it without a restart. */
+export function injectKillFilePath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'HANDOFF_KILL');
+}
+
+/**
+ * §هـ-3 kill switch — true when EITHER the env flag WORKFLOW_SUPERVISOR_HANDOFF_KILL
+ * is truthy OR the kill file exists. Checked LIVE before every injection so the
+ * operator can stop the cost surface instantly. Never throws (an fs error reads
+ * as "not killed" — the env flag remains the hard switch).
+ */
+export function isInjectKillSwitchOn(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.WORKFLOW_SUPERVISOR_HANDOFF_KILL;
+  if (typeof raw === 'string' && TRUTHY.has(raw.trim().toLowerCase())) {
+    return true;
+  }
+  try {
+    return existsSync(injectKillFilePath(env));
+  } catch {
+    return false;
+  }
+}
+
+/** Optional model for the leaf handoff turn (a cheap/fast model is ideal). Null
+ * ⇒ the CLI default. Override via WORKFLOW_SUPERVISOR_HANDOFF_MODEL. */
+export function injectorModel(env: NodeJS.ProcessEnv = process.env): string | null {
+  const raw = env.WORKFLOW_SUPERVISOR_HANDOFF_MODEL;
+  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+}
+
+/** Audit log for the LIVE chat-lock seam (app process side), kept next to the
+ * per-task audit.log tree. Best-effort; never on the hot path when the flag is off. */
+export function chatLockAuditPath(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'chat-lock-audit.log');
+}
+
+/**
+ * The tools a Tier-B turn is FORBIDDEN to use (الشرط 2, leaf-only). Task/Workflow
+ * are the background-spawning tools; forbidding them (plus stripping the workflow
+ * env in the injector) makes an injected turn structurally single-turn — it
+ * cannot re-enter B-103 by launching more background work.
+ */
+export const LEAF_ONLY_DISALLOWED_TOOLS = ['Task', 'Workflow'] as const;

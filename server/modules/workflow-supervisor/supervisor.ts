@@ -26,6 +26,7 @@ import { resolveProviderEnvStrict } from '@/services/isolation/resolve-provider-
 
 import {
   isSupervisorEnabled,
+  isChatTurnLockEnabled,
   intentsDir,
   scopeStateDir,
   taskArtifactDir,
@@ -44,7 +45,8 @@ import {
   systemctlShowState,
 } from './systemd.js';
 import { acquireSingleOwnerLock } from './supervisor-lock.js';
-import { reconcileAndDeliverOnce, type DeliveryTarget } from './monitor.js';
+import { reconcileAndDeliverOnce, type DeliveryTarget, type MonitorDeps } from './monitor.js';
+import { deliverTierBOnce, type TierBDeps } from './tierb-pass.js';
 import { sweepStaleIntents, QueuedRetryTracker } from './queue-guard.js';
 
 const CLAUDE_BIN = process.env.WORKFLOW_SUPERVISOR_CLAUDE_BIN || 'claude';
@@ -94,12 +96,54 @@ function verifyDeliveryTarget(conversationId: string, userId: number): DeliveryT
 const HANDOFF_WIDEN_MS =
   Number.parseInt(process.env.WORKFLOW_SUPERVISOR_HANDOFF_WIDEN_MS ?? '', 10) || 0;
 
-/** Shared monitor deps (real adapters). Reused by boot reconcile + each tick. */
-const monitorDeps = {
+/**
+ * T-822 sub-flag, read once at start (like the other flags). When OFF, the
+ * supervisor behaves EXACTLY as T-821: every terminal task gets a Tier-A card,
+ * NO Tier-B pass, NO chat-lock coupling. When ON, card-only tasks still get
+ * cards while auto-turn/on-demand tasks are routed to the Tier-B injector pass.
+ */
+const CHAT_LOCK_ON = isChatTurnLockEnabled();
+
+/** Shared monitor deps (real adapters). Reused by boot reconcile + each tick.
+ * `shouldDeliverTierA` is added ONLY when the T-822 flag is on, so the Tier-A
+ * pass keeps delivering card-only tasks and leaves Tier-B tasks to the injector. */
+const monitorDeps: MonitorDeps = {
   probeUnitState: systemctlShowState,
   verifyDeliveryTarget,
   ...(HANDOFF_WIDEN_MS > 0 ? { finalizeHooks: { widenMs: HANDOFF_WIDEN_MS } } : {}),
+  ...(CHAT_LOCK_ON
+    ? { shouldDeliverTierA: (task: DurableTask) => task.spec.handoffPolicy === 'card-only' }
+    : {}),
 };
+
+/** Tier-B pass deps (real adapters). Only used when CHAT_LOCK_ON. */
+const tierBDeps: TierBDeps = {
+  probeUnitState: systemctlShowState,
+  verifyDeliveryTarget,
+  onAudit: (rec) => console.info(JSON.stringify({ level: 'info', msg: 'tierb', ...rec })),
+};
+
+/** Run the Tier-B injector pass when the T-822 flag is on (no-op otherwise). */
+async function maybeTierBPass(where: string): Promise<void> {
+  if (!CHAT_LOCK_ON) {
+    return;
+  }
+  try {
+    const r = await deliverTierBOnce(tierBDeps);
+    if (r.injected > 0 || r.cards > 0 || r.deferred > 0 || r.fallback > 0 || r.denied > 0) {
+      console.info(JSON.stringify({ level: 'info', msg: `tierb pass (${where})`, ...r }));
+    }
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        msg: 'tierb pass failed',
+        where,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+  }
+}
 
 /** Atomic JSON write (tmp + rename) — same contract as the bridge. */
 async function atomicWriteJson(filePath: string, value: unknown): Promise<void> {
@@ -296,6 +340,9 @@ export async function runSupervisor(): Promise<void> {
   } catch (error) {
     console.error(JSON.stringify({ level: 'error', msg: 'reconcile-on-boot failed', error: error instanceof Error ? error.message : String(error) }));
   }
+  // Tier-B (T-822): coalesced injected turns for auto-turn/on-demand tasks that
+  // finished while we were dead (no-op unless the chat-lock sub-flag is on).
+  await maybeTierBPass('boot');
 
   let lastSweep = 0;
   // Sequential cycle; a long-lived poller is equivalent to the runner's timer and
@@ -307,6 +354,7 @@ export async function runSupervisor(): Promise<void> {
     } catch (error) {
       console.error(JSON.stringify({ level: 'error', msg: 'monitor pass failed', error: error instanceof Error ? error.message : String(error) }));
     }
+    await maybeTierBPass('tick');
     const now = Date.now();
     if (now - lastSweep >= intentSweepIntervalMs()) {
       lastSweep = now;

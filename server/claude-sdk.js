@@ -42,6 +42,13 @@ import { buildVendorDelegateMcp } from './modules/providers/shared/vendor/vendor
 // and is invoked ONLY after the for-await loop closes (never inside it). It never
 // throws into the completion path (all errors resolve to written:false).
 import { writeLaunchIntent } from './modules/workflow-supervisor/launch-intent.js';
+// T-822 (§ج-4): the per-conversation chat-turn lock. BOTH imports are
+// side-effect-free (pure function/flag modules — no top-level I/O/timers). The
+// lock is engaged ONLY when isChatTurnLockEnabled() (master + the dedicated
+// WORKFLOW_SUPERVISOR_CHAT_LOCK sub-flag) is true AND this is a resume; otherwise
+// the seam below is a synchronous no-op (byte-identical critical path).
+import { isChatTurnLockEnabled } from './modules/workflow-supervisor/config.js';
+import { acquireChatTurnLockForLiveTurn } from './modules/workflow-supervisor/chat-turn-lock.js';
 import { buildGitAuthorEnv } from './utils/gitIdentity.js';
 import {
   PROCESS_TAG_ENV_VAR,
@@ -1334,6 +1341,11 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     });
   };
 
+  // T-822 (§ج-4): held across query()+for-await, released in the finally on EVERY
+  // exit path. Declared here (not in the try) so the finally can see it. Stays
+  // null unless the seam below engages the lock.
+  let chatTurnLock = null;
+
   try {
     const resolvedModel = await providerModelsService.resolveResumeModel(
       'claude',
@@ -1617,6 +1629,18 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
 
       return denyWithLog(decision.message ?? 'User denied tool use', 'user-denied', requestId);
     };
+
+    // T-822 (§ج-4) — the ONLY critical-path touch, GATED at the line start. When
+    // the sub-flag is off (default) OR this is a NEW session (no resume target,
+    // so nothing an injector can collide with), the whole expression short-
+    // circuits to null WITHOUT evaluating the await — no fs, no spawn, no async
+    // suspension, no env-var-timing shift ⇒ byte-identical path. When on AND
+    // resuming, take the per-conversation lock so this live turn's `<sid>.jsonl`
+    // appends never interleave with a Tier-B injection. Bounded wait; fail-OPEN
+    // for the human on timeout (§ح-3); released in the finally below.
+    chatTurnLock = (isChatTurnLockEnabled() && sessionId)
+      ? await acquireChatTurnLockForLiveTurn(sessionId, ws?.userId ?? null)
+      : null;
 
     // Set stream-close timeout for interactive tools (Query constructor reads it synchronously). Claude Agent SDK has a default of 5s and this overrides it
     const prevStreamTimeout = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
@@ -1980,6 +2004,13 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
       error
     });
     return { ok: false };
+  } finally {
+    // T-822 (§ج-4): release the per-conversation chat-turn lock on EVERY exit
+    // (success, error, any return in the loop). No-op when the seam left it null
+    // (flag off / new session / fail-open) so it is inert on the default path.
+    if (chatTurnLock) {
+      chatTurnLock.release();
+    }
   }
 }
 

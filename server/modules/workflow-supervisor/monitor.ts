@@ -61,6 +61,14 @@ export type MonitorDeps = {
   onAction?: (action: FinalizeAction, task: DurableTask) => void;
   /** Test-only passthrough to finalizeDelivery (tear/widen/marker/matcher). */
   finalizeHooks?: FinalizeHooks;
+  /**
+   * T-822 Tier-A/Tier-B routing (OPTIONAL — undefined preserves T-821 behavior
+   * byte-for-byte: every terminal task gets a card). When provided, a task for
+   * which this returns FALSE is left for the Tier-B injector pass (auto-turn/
+   * on-demand) instead of being delivered as a card here. The two passes share
+   * ONE ledger keyed by taskId, so each task is delivered by exactly one tier.
+   */
+  shouldDeliverTierA?: (task: DurableTask) => boolean;
 };
 
 const realSleep = (ms: number): Promise<void> =>
@@ -91,7 +99,7 @@ export function readTaskRecord(taskDir: string): DurableTask | null {
 }
 
 /** Cheap, non-blocking terminal check: DONE present, or unit no longer active. */
-async function looksTerminal(taskDir: string, unit: string, probe: UnitStateProbe): Promise<boolean> {
+export async function looksTerminal(taskDir: string, unit: string, probe: UnitStateProbe): Promise<boolean> {
   if (fs.existsSync(path.join(taskDir, 'DONE'))) {
     return true;
   }
@@ -108,7 +116,7 @@ async function looksTerminal(taskDir: string, unit: string, probe: UnitStateProb
 }
 
 /** Read the raw result.json for the untrusted payload, or a classification note. */
-function readResultObj(taskDir: string, classification: DeliverOutcome): unknown {
+export function readResultObj(taskDir: string, classification: DeliverOutcome): unknown {
   const p = path.join(taskDir, 'result.json');
   if (fs.existsSync(p)) {
     try {
@@ -145,6 +153,7 @@ export type DeliverResult =
   | 'running'
   | 'error'
   | 'denied-ownership'
+  | 'skipped-tierb'
   | FinalizeAction['event'];
 
 /**
@@ -158,6 +167,12 @@ export async function deliverIfTerminal(
 ): Promise<DeliverResult> {
   const env = deps.env ?? process.env;
   const unit = scopeUnitName(task.taskId);
+
+  // T-822 routing: a Tier-B-policy task is owned by the injector pass, not the
+  // card path. Checked BEFORE the (possibly graced) classify so it costs nothing.
+  if (deps.shouldDeliverTierA && !deps.shouldDeliverTierA(task)) {
+    return 'skipped-tierb';
+  }
 
   if (!(await looksTerminal(taskDir, unit, deps.probeUnitState))) {
     return 'running';

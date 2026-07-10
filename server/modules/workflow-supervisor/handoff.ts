@@ -324,22 +324,104 @@ export function writeLedgerEntry(
   conversationId: string,
   entry: { taskId: string; handoffId: string; outcome: string },
 ): void {
+  writeLedgerEntries(env, conversationId, [entry]);
+}
+
+/**
+ * Merge SEVERAL delivery entries into the per-conversation batch ledger in ONE
+ * atomic tmp→rename (§أ-2 coalescing: a coalesced Tier-B turn commits ALL its
+ * taskIds together — no ledger-per-task, so there is no partial-commit window
+ * that could re-deliver some of the batch). Idempotent: an entry whose taskId is
+ * already present is not duplicated. `writeLedgerEntry` is the size-1 case.
+ */
+export function writeLedgerEntries(
+  env: NodeJS.ProcessEnv,
+  conversationId: string,
+  newEntries: Array<{ taskId: string; handoffId: string; outcome: string }>,
+): void {
   const dir = handoffsDir(env);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   fs.chmodSync(dir, 0o700);
   const prev = readLedger(env, conversationId);
   const entries =
     prev && !prev._unparsable && Array.isArray(prev.entries) ? prev.entries.slice() : [];
-  if (!entries.some((e) => e.taskId === entry.taskId)) {
-    entries.push({ ...entry, committedAt: new Date().toISOString() } as never);
+  const now = new Date().toISOString();
+  for (const entry of newEntries) {
+    if (!entries.some((e) => e.taskId === entry.taskId)) {
+      entries.push({ ...entry, committedAt: now } as never);
+    }
   }
   const doc = {
     schema: 't821-handoff-ledger-1',
     conversationId,
     entries,
-    committedAt: new Date().toISOString(),
+    committedAt: now,
   };
   writeFileAtomic(dir, `${conversationId}.done`, Buffer.from(JSON.stringify(doc) + '\n'));
+}
+
+/**
+ * T-822 Tier-B exactly-once anchor. A `--resume` turn does NOT let us author the
+ * jsonl line shape (the CLI writes it), so the handoffId cannot ride as a
+ * top-level field the way a Tier-A card does. Instead the injector embeds a
+ * unique, collision-free ref token INSIDE the untrusted data wrapper it sends as
+ * the prompt (see wrapUntrustedResultForInjection); the CLI then persists that
+ * token verbatim inside the resumed USER line's message.content. This builds that
+ * token so the producer (injector) and the consumer (this scan) agree on it.
+ */
+export function injectionRefToken(hId: string): string {
+  return `bgtaskref-${hId}`;
+}
+
+/**
+ * Wrap an untrusted result for the INJECTED prompt (§هـ-3), carrying the ref
+ * token in the OPENING tag (which we author, before the sanitized body — the
+ * body can never rewrite it). Same sanitize/size discipline as the Tier-A card.
+ */
+export function wrapUntrustedResultForInjection(resultObj: unknown, hId: string): string {
+  const body = typeof resultObj === 'string' ? resultObj : JSON.stringify(resultObj);
+  const ref = injectionRefToken(hId);
+  return `<background_task_result untrusted="true" ref="${ref}">${sanitizeUntrusted(body)}</background_task_result>`;
+}
+
+/**
+ * Scan the conversation jsonl for a COMMITTED injected turn carrying `ref`. Same
+ * loss-free discipline as scanJsonl: only a fully JSON.parse-able line counts (a
+ * torn/half-written resume line does NOT parse ⇒ ignored ⇒ treated "not
+ * delivered", so the injector re-tries rather than skipping — never a LOSS). On a
+ * parseable line the unique 40-char ref token is matched as a substring (it is
+ * ours and collision-free). Returns {found, matchCount, tornLines, totalLines}.
+ */
+export function scanJsonlForInjectedRef(
+  jsonlPath: string,
+  ref: string,
+): { found: boolean; matchCount: number; tornLines: number; totalLines: number } {
+  const res = { found: false, matchCount: 0, tornLines: 0, totalLines: 0 };
+  if (!fs.existsSync(jsonlPath)) {
+    return res;
+  }
+  const lines = fs.readFileSync(jsonlPath, 'utf8').split('\n');
+  for (const line of lines) {
+    if (line === '') {
+      continue;
+    }
+    res.totalLines++;
+    let ok = true;
+    try {
+      JSON.parse(line);
+    } catch {
+      ok = false;
+    }
+    if (!ok) {
+      res.tornLines++;
+      continue; // torn line ignored (loss-free) — the 6.5% lesson
+    }
+    if (line.includes(ref)) {
+      res.found = true;
+      res.matchCount++;
+    }
+  }
+  return res;
 }
 
 export type FinalizeInput = {
