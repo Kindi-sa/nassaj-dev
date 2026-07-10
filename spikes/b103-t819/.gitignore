@@ -1,0 +1,7 @@
+# All transient run artifacts (claude cwd, task dirs, transient units, logs) live under
+# a STATE_ROOT in /tmp — never here. Only code, committed REAL fixtures, and the evidence
+# summary are versioned. This guards against accidentally committing local run output.
+runs/
+state/
+*.log
+tmp/
