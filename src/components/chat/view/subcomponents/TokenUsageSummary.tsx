@@ -319,9 +319,10 @@ export default function TokenUsageSummary({ usage }: TokenUsageSummaryProps) {
           <ActivityIcon className="h-3.5 w-3.5" />
         </span>
 
-        {/* Progress bar — flex fill mirrors automatically under RTL/LTR. */}
+        {/* Progress bar: hidden on mobile to prevent the row from wrapping on
+            narrow screens; visible from sm breakpoint (640 px) upward. */}
         <div
-          className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-border/60 sm:w-20"
+          className="hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-border/60 sm:block"
           role="progressbar"
           aria-hidden="true"
           aria-valuenow={Math.round(percentValue)}
