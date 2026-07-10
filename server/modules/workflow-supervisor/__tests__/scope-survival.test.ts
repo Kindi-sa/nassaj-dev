@@ -58,9 +58,10 @@ test('launchScope returns immediately (does NOT block for the run) and the unit 
     wfLaunchId,
     userId: 4242,
     cwd: '/tmp',
-    claudeBin: '/bin/sleep', // stand-in "claude": the wrapper runs `timeout … /bin/sleep -p <arg>`
-    scriptOrPrompt: '30', // -> effectively a long sleep; the point is it does NOT block us
+    claudeBin: '/bin/sleep', // stand-in "claude": the in-unit node wrapper spawns `/bin/sleep …`
+    scriptOrPrompt: '30', // -> the wrapper passes it as the prompt; the point is it does NOT block us
     setenv: { CLAUDE_CONFIG_DIR: '/home/nassaj/.nassaj-users/4242/.claude' },
+    resultDir: `/tmp/wf-surv-${process.pid}`,
     timeoutSeconds: 30,
   }).catch((e) => {
     // /bin/sleep -p 30 exits non-zero (bad flag) but the UNIT still starts; we only
