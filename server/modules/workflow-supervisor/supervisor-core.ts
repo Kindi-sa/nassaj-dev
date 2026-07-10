@@ -24,9 +24,14 @@
  */
 
 import { authorizeLaunch, type AuthorizeDeps } from './ownership-guard.js';
-import { admitLaunch, type ActiveScopeLister } from './concurrency.js';
+import {
+  admitLaunch,
+  admitLaunchGlobal,
+  type ActiveScopeLister,
+  type AllActiveScopeLister,
+} from './concurrency.js';
 import { scopeUnitName } from './config.js';
-import type { LaunchIntent } from './intent.js';
+import type { DurableTask, LaunchIntent } from './intent.js';
 
 /** supervisor.json written at the moment of launch. UI reads this via the watcher. */
 export type SupervisorRecord = {
@@ -54,11 +59,26 @@ export type SupervisorRecordWriter = (
   record: SupervisorRecord,
 ) => Promise<void>;
 
+/** Injected writer: persists the full DurableTask (delivery context) at launch. */
+export type TaskRecordWriter = (taskId: string, task: DurableTask) => Promise<void>;
+
 export type ProcessIntentDeps = {
   authorize: AuthorizeDeps;
   listActiveScopes: ActiveScopeLister;
   launchScope: ScopeLauncher;
   writeRecord: SupervisorRecordWriter;
+  /**
+   * OPTIONAL host-wide scope lister for the global concurrency gate (§ج-5). When
+   * omitted the global gate is skipped (only the per-user cap applies) — keeps
+   * the pure unit tests deterministic without a systemd stub.
+   */
+  listAllActiveScopes?: AllActiveScopeLister;
+  /**
+   * OPTIONAL persister for the full DurableTask (schema_version "2") at the
+   * moment of launch, so a later monitor can deliver to the requesting
+   * conversation. No-op for legacy v1 intents (no task present).
+   */
+  writeTaskRecord?: TaskRecordWriter;
   now?: () => number;
   env?: NodeJS.ProcessEnv;
 };
@@ -84,13 +104,23 @@ export async function processIntent(
   if (!auth.allow) {
     return { status: 'denied', reason: auth.reason };
   }
-  const { intent, env } = auth;
+  const { intent, env, task } = auth;
 
   // 2) Per-user concurrency cap. Over cap => queued (caller leaves the intent on
   //    disk for a later tick), never an OOM launch.
   const admission = await admitLaunch(intent.userId, deps.listActiveScopes, deps.env ?? process.env);
   if (!admission.admit) {
     return { status: 'queued', reason: admission.reason };
+  }
+
+  // 2b) HOST-WIDE cap (§ج-5, الشرط 7) — the second gate that bounds TOTAL host
+  //     memory across all users. Applied AFTER the per-user gate; over it =>
+  //     queued (never OOM). Skipped when no host-wide lister is injected.
+  if (deps.listAllActiveScopes) {
+    const global = await admitLaunchGlobal(deps.listAllActiveScopes, deps.env ?? process.env);
+    if (!global.admit) {
+      return { status: 'queued', reason: global.reason };
+    }
   }
 
   // 3) Launch under a systemd user scope with the ISOLATED env (GATE2 built it).
@@ -130,6 +160,23 @@ export async function processIntent(
         error instanceof Error ? error.message : String(error)
       }`,
     };
+  }
+
+  // Persist the full DurableTask (delivery context) at launch for a v2 task, so a
+  // later monitor can deliver to the requesting conversation. Best-effort: a
+  // failure here is a visibility loss for the FUTURE delivery, not a launch
+  // failure — the scope is already running and result-capture is independent.
+  if (task && deps.writeTaskRecord) {
+    try {
+      await deps.writeTaskRecord(intent.wfLaunchId, task);
+    } catch (error) {
+      return {
+        status: 'error',
+        reason: `launched but task.json write failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      };
+    }
   }
 
   return { status: 'launched', wfLaunchId: intent.wfLaunchId, unit: record.session.unit };

@@ -117,6 +117,7 @@ import githubRoutes from './routes/github.js';
 import systemRoutes from './routes/system.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import participantsRoutes from './modules/providers/participants.routes.js';
+import workflowSupervisorLaunchRoutes from './modules/workflow-supervisor/launch.route.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionsDb, appConfigDb } from './modules/database/index.js';
 import { isProjectVisible, coerceUserId } from './modules/projects/index.js';
@@ -339,6 +340,13 @@ app.use('/api/project-board', authenticateToken, projectBoardRoutes);
 // here to keep the module router free of a direct middleware import.
 setRunnerControlGuard(requireRole('owner', 'admin'));
 app.use('/api/runner', authenticateToken, runnerRoutes);
+
+// Workflow-supervisor explicit launch (protected) — B-103 async-task launcher
+// (ADR-053 §ب-1). HARD NO-OP when WORKFLOW_SUPERVISOR is off: every verb returns
+// 404 and touches nothing. Writes a DurableTask intent only; the standalone
+// supervisor owns the privileged launch. userId is taken from the JWT, never the
+// body; a non-owner is denied (403) with zero intent written.
+app.use('/api/workflow-supervisor', authenticateToken, workflowSupervisorLaunchRoutes);
 
 // MCP utilities
 app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);

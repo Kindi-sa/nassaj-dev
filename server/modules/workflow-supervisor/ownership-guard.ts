@@ -33,7 +33,7 @@
  * the security decision pure and deterministic.
  */
 
-import { validateIntent, type LaunchIntent } from './intent.js';
+import { validateIntent, type DurableTask, type LaunchIntent } from './intent.js';
 
 /** Predicate: does `userId` own or is a member of the project at `projectPath`? */
 export type OwnershipPredicate = (projectPath: string, userId: number) => boolean;
@@ -54,9 +54,11 @@ export type AuthorizeDeps = {
 /**
  * Authorization outcome. On ALLOW the isolated `env` and the validated `intent`
  * are returned; on DENY only a machine-stable `reason` (never launch on deny).
+ * `task` is the full DurableTask when the intent was a schema_version "2" blob
+ * (so the caller can persist the delivery context); undefined for legacy v1.
  */
 export type AuthorizeResult =
-  | { allow: true; intent: LaunchIntent; env: NodeJS.ProcessEnv }
+  | { allow: true; intent: LaunchIntent; env: NodeJS.ProcessEnv; task?: DurableTask }
   | { allow: false; reason: string };
 
 /**
@@ -72,6 +74,7 @@ export function authorizeLaunch(raw: unknown, deps: AuthorizeDeps): AuthorizeRes
     return { allow: false, reason: `invalid intent: ${validation.reason}` };
   }
   const intent = validation.intent;
+  const task = validation.task;
 
   // 2) Redundant explicit integer gate (validateIntent already enforced it) —
   //    keeps the ToS-critical invariant visible at the security boundary.
@@ -95,7 +98,20 @@ export function authorizeLaunch(raw: unknown, deps: AuthorizeDeps): AuthorizeRes
 
   // ALLOW: build the isolated env via the same seam every provider spawn uses.
   // CLAUDE_CONFIG_DIR is set to the per-user tree; nothing is unset, nothing
-  // falls back to the owner/system credentials.
-  const env = deps.resolveEnv(intent.userId, 'claude', deps.baseEnv ?? process.env);
-  return { allow: true, intent, env };
+  // falls back to the owner/system credentials. A THROWING resolver (e.g. the
+  // fail-closed strict wrapper on a bad id) maps to DENY — never launch on a
+  // resolver failure. (validateIntent already guaranteed an integer userId, so
+  // the strict wrapper does not throw on this path; this is defense-in-depth.)
+  let env: NodeJS.ProcessEnv;
+  try {
+    env = deps.resolveEnv(intent.userId, 'claude', deps.baseEnv ?? process.env);
+  } catch (error) {
+    return {
+      allow: false,
+      reason: `env resolution failed (fail-closed deny): ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    };
+  }
+  return { allow: true, intent, env, task };
 }

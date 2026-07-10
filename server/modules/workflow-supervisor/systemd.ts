@@ -17,11 +17,18 @@
  */
 
 import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { scopeUnitName } from './config.js';
 
 const execFileAsync = promisify(execFile);
+
+/** Absolute path to the compiled in-unit result-capture wrapper (sibling file). */
+function taskRunnerPath(): string {
+  return path.join(path.dirname(fileURLToPath(import.meta.url)), 'task-runner.js');
+}
 
 /**
  * The env keys the per-user isolation seam (resolveProviderEnv) sets to redirect
@@ -139,6 +146,32 @@ export async function listActiveUserScopes(userId: number): Promise<string[]> {
 }
 
 /**
+ * List ALL active `wf-*.service` units host-wide (every user), for the global
+ * concurrency gate (§ج-5, الشرط 7). Unlike listActiveUserScopes it does NOT
+ * filter by owner — the total count is what bounds host memory. Re-throws on a
+ * hard enumeration failure so the global gate fails CLOSED (treated as at-cap).
+ */
+export async function listAllActiveScopes(): Promise<string[]> {
+  const { stdout } = await execFileAsync('systemctl', [
+    '--user',
+    'list-units',
+    '--type=service',
+    '--state=active',
+    '--no-legend',
+    '--plain',
+    'wf-*.service',
+  ]);
+
+  return stdout
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/)[0])
+    .filter(
+      (u): u is string =>
+        typeof u === 'string' && u.startsWith('wf-') && u.endsWith('.service'),
+    );
+}
+
+/**
  * Launch a workflow as a TRANSIENT systemd user SERVICE (not --scope). Returns
  * the unit name immediately after `systemd-run` forks the unit — it does NOT
  * block until the workflow finishes (a --scope launch would block, breaking the
@@ -162,13 +195,21 @@ export async function launchScope(params: {
   claudeBin: string;
   scriptOrPrompt: string;
   setenv: Record<string, string>;
+  /** Task artifact dir (result.json[.partial] + DONE land here — §أ-2/§أ-4). */
+  resultDir: string;
   model?: string | null;
   memoryMax?: string;
   timeoutSeconds?: number;
+  /** Absolute node binary for the in-unit wrapper (defaults to this process's). */
+  nodeBin?: string;
+  /** Env to read PATH / optional unit HOME from (defaults to process.env). */
+  baseEnv?: NodeJS.ProcessEnv;
 }): Promise<string> {
   const unit = scopeUnitName(params.wfLaunchId);
   const memMax = params.memoryMax ?? '2G';
   const timeoutS = params.timeoutSeconds ?? 7200;
+  const nodeBin = params.nodeBin ?? process.execPath;
+  const baseEnv = params.baseEnv ?? process.env;
 
   // Transient service: --unit=wf-*.service (NO --scope). systemd-run returns as
   // soon as the manager accepts the unit; the run continues detached.
@@ -181,10 +222,11 @@ export async function launchScope(params: {
     `MemoryMax=${memMax}`,
     '-p',
     'MemorySwapMax=0',
-    // Bound the run at the unit level too, belt-and-braces with the `timeout`
-    // wrapper below (a service that overruns is killed by systemd).
+    // Hard bound at the unit level. The in-unit wrapper bounds `claude` itself
+    // with an internal SIGTERM timer (so it survives to seal a DONE); this is
+    // the ultimate belt if the wrapper itself hangs.
     '-p',
-    `RuntimeMaxSec=${timeoutS + 120}`,
+    `RuntimeMaxSec=${timeoutS + 180}`,
   ];
 
   // Isolated env via --setenv (never inheritance). CLAUDE_CONFIG_DIR is the
@@ -193,15 +235,47 @@ export async function launchScope(params: {
     args.push(`--setenv=${key}=${value}`);
   }
 
+  // Forward PATH so `claude`'s own grandchildren resolve inside the unit (a
+  // transient user unit otherwise inherits only the manager's minimal PATH).
+  // The wrapper itself is invoked by ABSOLUTE nodeBin, so it never needs PATH.
+  if (typeof baseEnv.PATH === 'string' && baseEnv.PATH.length > 0) {
+    args.push(`--setenv=PATH=${baseEnv.PATH}`);
+  }
+  // Optional explicit unit HOME (WORKFLOW_SUPERVISOR_UNIT_HOME): unset in prod
+  // (the unit inherits the operator HOME — correct for claude, whose isolation
+  // is CLAUDE_CONFIG_DIR only). Set only by the isolated shadow harness so no
+  // claude write can escape to the real home.
+  const unitHome = baseEnv.WORKFLOW_SUPERVISOR_UNIT_HOME;
+  if (typeof unitHome === 'string' && unitHome.length > 0) {
+    args.push(`--setenv=HOME=${unitHome}`);
+  }
+
   // Working directory for the unit (the project cwd for `claude -p`).
   args.push(`--working-directory=${params.cwd}`);
 
-  // The command: timeout wraps claude -p so a hung run is bounded.
-  args.push('--', 'timeout', '--signal=TERM', '--kill-after=60', `${timeoutS}s`, params.claudeBin, '-p');
+  // The command: the in-unit result-capture wrapper (NOT `claude` directly). The
+  // wrapper runs `claude -p ... --output-format json`, streams stdout to
+  // result.json.partial, then seals atomically (rename → DONE). It must survive
+  // claude's death to seal, so it is NOT wrapped in an outer `timeout`.
+  args.push(
+    '--',
+    nodeBin,
+    taskRunnerPath(),
+    '--task-dir',
+    params.resultDir,
+    '--claude-bin',
+    params.claudeBin,
+    '--output-format',
+    'json',
+    '--claude-timeout-sec',
+    String(timeoutS),
+  );
   if (params.model) {
     args.push('--model', params.model);
   }
-  args.push(params.scriptOrPrompt);
+  // Prompt LAST and as a single argv element (parameterized — no shell, no
+  // injection possible regardless of prompt content).
+  args.push('--prompt', params.scriptOrPrompt);
 
   await execFileAsync('systemd-run', args);
   return unit;

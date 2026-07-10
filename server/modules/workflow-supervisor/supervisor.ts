@@ -22,15 +22,22 @@ import { promises as fsp } from 'node:fs';
 import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
-import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
+import { resolveProviderEnvStrict } from '@/services/isolation/resolve-provider-env-strict.js';
 
 import {
   isSupervisorEnabled,
   intentsDir,
   scopeStateDir,
+  taskArtifactDir,
 } from './config.js';
+import type { DurableTask } from './intent.js';
 import { processIntent, type SupervisorRecord } from './supervisor-core.js';
-import { computeIsolationSetenv, launchScope, listActiveUserScopes } from './systemd.js';
+import {
+  computeIsolationSetenv,
+  launchScope,
+  listActiveUserScopes,
+  listAllActiveScopes,
+} from './systemd.js';
 
 const CLAUDE_BIN = process.env.WORKFLOW_SUPERVISOR_CLAUDE_BIN || 'claude';
 const POLL_INTERVAL_MS = Number.parseInt(
@@ -49,6 +56,18 @@ async function atomicWriteJson(filePath: string, value: unknown): Promise<void> 
 /** Persist supervisor.json under the per-scope state dir (UI reads via watcher). */
 async function writeSupervisorRecord(wfLaunchId: string, record: SupervisorRecord): Promise<void> {
   await atomicWriteJson(path.join(scopeStateDir(wfLaunchId), 'supervisor.json'), record);
+}
+
+/**
+ * Persist the full DurableTask (delivery context) under the task artifact dir at
+ * the moment of launch, so a later monitor can deliver to the requesting
+ * conversation. The dir is 0700 (web-originated context — §هـ-4).
+ */
+async function writeTaskRecord(taskId: string, task: DurableTask): Promise<void> {
+  const dir = taskArtifactDir(taskId);
+  await fsp.mkdir(dir, { recursive: true, mode: 0o700 });
+  await fsp.chmod(dir, 0o700).catch(() => {});
+  await atomicWriteJson(path.join(dir, 'task.json'), task);
 }
 
 /**
@@ -71,14 +90,25 @@ async function handleIntentFile(filePath: string): Promise<void> {
       // STRICT ownership predicate — NOT visibility (§ج-3 حرج-2).
       isOwnedOrMembered: (projectPath, userId) =>
         projectsDb.isProjectPathOwnedOrMemberedBy(projectPath, userId),
-      resolveEnv: (userId, provider, baseEnv) => resolveProviderEnv(userId, provider, baseEnv),
+      // FAIL-CLOSED env resolver (§هـ-1): a non-integer id THROWS here instead
+      // of falling open to the owner subscription. GATE2 already guarantees an
+      // integer id before this runs, so it never throws on the happy path — this
+      // is the belt over the fail-open resolveProviderEnv the critic flagged.
+      resolveEnv: (userId, provider, baseEnv) =>
+        resolveProviderEnvStrict(userId, provider, baseEnv),
     },
     listActiveScopes: listActiveUserScopes,
+    // HOST-WIDE gate source (§ج-5) — bounds total memory across all users.
+    listAllActiveScopes,
     launchScope: async ({ intent, env }) => {
       // Forward the isolation keys (esp. the ToS-critical CLAUDE_CONFIG_DIR)
       // deterministically — a transient unit inherits NOTHING, so a dropped key
       // would silently fall back to the owner/default credentials.
       const setenv = computeIsolationSetenv(env, process.env);
+      // Task artifact dir (result.json[.partial] + DONE land here — §أ-2/§أ-4).
+      const resultDir = taskArtifactDir(intent.wfLaunchId);
+      await fsp.mkdir(resultDir, { recursive: true, mode: 0o700 });
+      await fsp.chmod(resultDir, 0o700).catch(() => {});
       return launchScope({
         wfLaunchId: intent.wfLaunchId,
         userId: intent.userId,
@@ -87,9 +117,11 @@ async function handleIntentFile(filePath: string): Promise<void> {
         scriptOrPrompt: intent.scriptOrPrompt,
         model: intent.model,
         setenv,
+        resultDir,
       });
     },
     writeRecord: writeSupervisorRecord,
+    writeTaskRecord,
   });
 
   if (outcome.status === 'queued') {

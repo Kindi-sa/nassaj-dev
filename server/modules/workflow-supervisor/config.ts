@@ -49,6 +49,19 @@ export function maxConcurrentPerUser(env: NodeJS.ProcessEnv = process.env): numb
 }
 
 /**
+ * HOST-WIDE cap on concurrently running workflow scopes across ALL users (§ج-5,
+ * الشرط 7). The per-user cap alone cannot bound total memory when many users
+ * launch at once (the 2026-06-06 OOM lesson): N users × per-user cap could still
+ * exhaust the host. This global cap is the second gate — over it, an (N+1)th
+ * launch is QUEUED on disk (never OOM, never a silent drop). Overridable via
+ * WORKFLOW_SUPERVISOR_MAX_GLOBAL; defaults to a conservative 8.
+ */
+export function maxConcurrentGlobal(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = Number.parseInt(env.WORKFLOW_SUPERVISOR_MAX_GLOBAL ?? '', 10);
+  return Number.isInteger(raw) && raw > 0 ? raw : 8;
+}
+
+/**
  * Root of the control-file tree the chat bridge writes intents into and the
  * supervisor reads them from. Mirrors the runner-bridge's file-only contract
  * (ADR-RUNNER-BRIDGE-001): the two processes share ONLY these files, never a
@@ -82,6 +95,23 @@ export function userIntentDir(userId: number, env: NodeJS.ProcessEnv = process.e
 /** Per-scope state directory: <root>/scopes/<wfLaunchId>. */
 export function scopeStateDir(wfLaunchId: string, env: NodeJS.ProcessEnv = process.env): string {
   return path.join(scopesDir(env), wfLaunchId);
+}
+
+/**
+ * Root of the per-task ARTIFACT tree (§أ-2). The transient unit's result-capture
+ * wrapper writes result.json[.partial] + DONE here, and the durable task record
+ * (task.json) is persisted alongside for the later monitor. Kept SEPARATE from
+ * `scopes/` (which holds supervisor.json/pause) in phase 2 to avoid touching the
+ * shipped scope-status/lifecycle read paths; phase 3 may consolidate under
+ * `tasks/` per the design's exact layout. Overridable via the shared state root.
+ */
+export function tasksDir(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(supervisorStateRoot(env), 'tasks');
+}
+
+/** Per-task artifact directory: <root>/tasks/<taskId>. taskId === wfLaunchId. */
+export function taskArtifactDir(taskId: string, env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(tasksDir(env), taskId);
 }
 
 /**

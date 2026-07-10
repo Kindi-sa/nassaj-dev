@@ -19,10 +19,13 @@
  * a monitoring failure must not open the floodgate.
  */
 
-import { maxConcurrentPerUser } from './config.js';
+import { maxConcurrentPerUser, maxConcurrentGlobal } from './config.js';
 
 /** Returns the set of active `wf-*.scope` unit names owned by `userId`. */
 export type ActiveScopeLister = (userId: number) => Promise<string[]>;
+
+/** Returns the set of ALL active `wf-*.service` unit names (host-wide). */
+export type AllActiveScopeLister = () => Promise<string[]>;
 
 export type AdmissionResult =
   | { admit: true; active: number; cap: number }
@@ -67,5 +70,46 @@ export async function admitLaunch(
     active,
     cap,
     reason: `per-user concurrency cap reached (${active}/${cap})`,
+  };
+}
+
+/**
+ * HOST-WIDE admission gate (§ج-5, الشرط 7). Applied AFTER the per-user gate so a
+ * launch that is fine for the user but would exceed the host's total capacity is
+ * QUEUED rather than launched into OOM. ALLOW when the total active scope count
+ * is strictly below the global cap; DENY otherwise. Fail-closed: a throwing
+ * lister yields DENY (treated as at-capacity), never an accidental ALLOW.
+ *
+ * @param listAllActive injected live host-wide scope lister
+ * @param env           for reading the cap (test seam)
+ */
+export async function admitLaunchGlobal(
+  listAllActive: AllActiveScopeLister,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<AdmissionResult> {
+  const cap = maxConcurrentGlobal(env);
+
+  let active: number;
+  try {
+    const units = await listAllActive();
+    active = units.length;
+  } catch {
+    // Cannot enumerate => assume saturated. Never launch into an unknown state.
+    return {
+      admit: false,
+      active: cap,
+      cap,
+      reason: 'could not enumerate host-wide active scopes (fail-closed deny)',
+    };
+  }
+
+  if (active < cap) {
+    return { admit: true, active, cap };
+  }
+  return {
+    admit: false,
+    active,
+    cap,
+    reason: `global concurrency cap reached (${active}/${cap})`,
   };
 }
