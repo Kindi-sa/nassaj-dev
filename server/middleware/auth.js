@@ -77,9 +77,22 @@ const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-  // Also check query param for SSE endpoints (EventSource can't set headers)
+  // Also accept the token via query param, but ONLY for EventSource/SSE requests
+  // — the sole legitimate case, since EventSource cannot set an Authorization
+  // header. Those requests are identifiable by their spec-mandated
+  // `Accept: text/event-stream`. Refusing a query token everywhere else (B-160)
+  // keeps JWTs out of ordinary request URLs, where they leak into browser
+  // history, referrers and logs, and where (pre-B-158) a `?token=` on a
+  // byte-serving route could ride a top-level navigation into a stored-XSS. This
+  // does NOT affect authenticated media preview: ImageViewer /
+  // CodeEditorMediaPreview send the token in the Authorization header (XHR+blob),
+  // not the query string. The WebSocket path authenticates separately and is
+  // unaffected.
   if (!token && req.query.token) {
-    token = req.query.token;
+    const accept = req.headers['accept'] || '';
+    if (accept.includes('text/event-stream')) {
+      token = req.query.token;
+    }
   }
 
   const ip = clientIp(req);

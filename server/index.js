@@ -23,6 +23,8 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import { clientIp } from './utils/client-ip.js';
 import { sanitizeAttachmentName, resolveCollisionFreeDest } from './utils/attachment-helpers.js';
+import { resolveReadPathInProject, isResolvedPathInsideRootReal } from './utils/path-guard.js';
+import { sanitizeSvg } from './services/svg-sanitizer.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
@@ -146,6 +148,20 @@ const MAX_FILE_UPLOAD_COUNT = 20;
 // affecting the file-manager upload path.
 const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024;
 const MAX_ATTACHMENT_COUNT = 20;
+
+// Content types a browser renders as an ACTIVE document (can execute embedded
+// script/markup) when navigated to directly. When the raw-bytes endpoint serves
+// one of these, it forces a download disposition so a direct navigation can
+// never execute stored script — the SVG/HTML stored-XSS vector (B-158 / T-844).
+// Raster images/video/audio/pdf are intentionally absent: they render inline and
+// carry no script, and the media preview fetches them via XHR+blob regardless.
+const RENDERABLE_XSS_TYPES = new Set([
+    'image/svg+xml',
+    'text/html',
+    'application/xhtml+xml',
+    'application/xml',
+    'text/xml',
+]);
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
@@ -797,17 +813,23 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        // Handle both absolute and relative paths
-        const resolved = path.isAbsolute(filePath)
-            ? path.resolve(filePath)
-            : path.resolve(projectRoot, filePath);
-        const normalizedRoot = path.resolve(projectRoot) + path.sep;
-        if (!resolved.startsWith(normalizedRoot)) {
+        // Resolve + canonicalize (follows symlinks) via the shared read guard so
+        // a symlink inside the tree pointing outside it cannot leak an arbitrary
+        // file (B-159). Open only the verified real path.
+        const guard = await resolveReadPathInProject(projectRoot, filePath);
+        if (!guard.valid) {
+            if (guard.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
             return res.status(403).json({ error: 'Path must be under project root' });
         }
 
-        const content = await fsPromises.readFile(resolved, 'utf8');
-        res.json({ content, path: resolved });
+        // Defense in depth: this route returns JSON (never raw renderable bytes),
+        // but forbid MIME sniffing anyway so the response can never be coerced
+        // into an active document.
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        const content = await fsPromises.readFile(guard.realResolved, 'utf8');
+        res.json({ content, path: guard.resolved });
     } catch (error) {
         console.error('Error reading file:', error);
         if (error.code === 'ENOENT') {
@@ -843,29 +865,39 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        // Match the text reader endpoint so callers can pass either project-relative
-        // or absolute paths without changing how the bytes are served.
-        const resolved = path.isAbsolute(filePath)
-            ? path.resolve(filePath)
-            : path.resolve(projectRoot, filePath);
-        const normalizedRoot = path.resolve(projectRoot) + path.sep;
-        if (!resolved.startsWith(normalizedRoot)) {
+        // Resolve + canonicalize (follows symlinks) via the shared read guard.
+        // path.resolve + startsWith alone is lexical and would let a symlink
+        // inside the tree pointing outside it stream an arbitrary file (B-159).
+        // The realpath check runs BEFORE the file is opened; we then stream only
+        // the verified real path. A missing file/component surfaces as ENOENT.
+        const guard = await resolveReadPathInProject(projectRoot, filePath);
+        if (!guard.valid) {
+            if (guard.code === 'ENOENT') {
+                return res.status(404).json({ error: 'File not found' });
+            }
             return res.status(403).json({ error: 'Path must be under project root' });
         }
 
-        // Check if file exists
-        try {
-            await fsPromises.access(resolved);
-        } catch (error) {
-            return res.status(404).json({ error: 'File not found' });
-        }
-
-        // Get file extension and set appropriate content type
-        const mimeType = mime.lookup(resolved) || 'application/octet-stream';
+        // Content type from the requested name's extension.
+        const mimeType = mime.lookup(guard.resolved) || 'application/octet-stream';
         res.setHeader('Content-Type', mimeType);
 
-        // Stream the file
-        const fileStream = fs.createReadStream(resolved);
+        // B-158 hardening for direct navigation to the raw bytes:
+        //  - nosniff on every response so a stored file can never be re-sniffed
+        //    into an active type regardless of its bytes.
+        //  - For types a browser renders as an active document (SVG/HTML/XML),
+        //    force a download disposition so an embedded <script> cannot execute
+        //    on direct navigation (stored XSS). Inline media preview is unaffected:
+        //    ImageViewer / CodeEditorMediaPreview fetch via XHR and build a blob
+        //    URL, and Content-Disposition never influences an <img>/fetch load.
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        if (RENDERABLE_XSS_TYPES.has(String(mimeType).toLowerCase())) {
+            res.setHeader('Content-Disposition', 'attachment');
+        }
+
+        // Stream the verified real path (not the lexical one) to avoid a
+        // symlink swap between the check and the open.
+        const fileStream = fs.createReadStream(guard.realResolved);
         fileStream.pipe(res);
 
         fileStream.on('error', (error) => {
@@ -1028,6 +1060,14 @@ function validatePathInProject(projectRoot, targetPath) {
         : path.resolve(projectRoot, targetPath);
     const normalizedRoot = path.resolve(projectRoot) + path.sep;
     if (!resolved.startsWith(normalizedRoot)) {
+        return { valid: false, error: 'Path must be under project root' };
+    }
+    // B-159: the check above is purely lexical. Canonicalize the deepest existing
+    // ancestor (the target may not exist yet on write/rename) and reject if it
+    // escapes the project root — a symlink planted inside the tree (e.g. shipped
+    // in a cloned repo) pointing outside would otherwise let a write/delete land
+    // on an arbitrary path.
+    if (!isResolvedPathInsideRootReal(projectRoot, resolved)) {
         return { valid: false, error: 'Path must be under project root' };
     }
     return { valid: true, resolved };
@@ -1543,16 +1583,33 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
                     req.files.map(async (file) => {
                         // Read file and convert to base64
                         const buffer = await fs.readFile(file.path);
-                        const base64 = buffer.toString('base64');
                         const mimeType = file.mimetype;
 
                         // Clean up temp file immediately
                         await fs.unlink(file.path);
 
+                        // B-158: never emit an unsanitized SVG. An SVG can carry
+                        // <script>/on* handlers that run when the data: URL is
+                        // opened as a document, so strip active content server-side
+                        // (the same DOMPurify SVG profile the branding path uses)
+                        // and reject anything that isn't a real SVG once cleaned.
+                        let outBuffer = buffer;
+                        const isSvg = mimeType === 'image/svg+xml'
+                            || path.extname(file.originalname || '').toLowerCase() === '.svg';
+                        if (isSvg) {
+                            const sanitized = sanitizeSvg(buffer.toString('utf8'));
+                            if (!sanitized) {
+                                const svgErr = new Error('Invalid SVG file');
+                                svgErr.code = 'INVALID_SVG';
+                                throw svgErr;
+                            }
+                            outBuffer = Buffer.from(sanitized, 'utf8');
+                        }
+
                         return {
                             name: file.originalname,
-                            data: `data:${mimeType};base64,${base64}`,
-                            size: file.size,
+                            data: `data:${mimeType};base64,${outBuffer.toString('base64')}`,
+                            size: outBuffer.length,
                             mimeType: mimeType
                         };
                     })
@@ -1563,6 +1620,9 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
                 console.error('Error processing images:', error);
                 // Clean up any remaining files
                 await Promise.all(req.files.map(f => fs.unlink(f.path).catch(() => { })));
+                if (error && error.code === 'INVALID_SVG') {
+                    return res.status(400).json({ error: 'Invalid SVG file' });
+                }
                 res.status(500).json({ error: 'Failed to process images' });
             }
         });
@@ -1697,14 +1757,32 @@ app.post('/api/projects/:projectId/upload-attachments', authenticateToken, async
                         return res.status(400).json({ error: destValidation.error });
                     }
 
-                    await fsPromises.copyFile(file.path, destPath);
+                    // B-158: SVG attachments are sanitized server-side before they
+                    // land in the project tree — an SVG can carry <script>/on*
+                    // handlers that would execute if the stored file is later opened
+                    // as a document. Everything else is copied verbatim. Reuse the
+                    // branding path's DOMPurify SVG profile; reject an SVG that is
+                    // not valid once cleaned.
+                    const isSvg = path.extname(destPath).toLowerCase() === '.svg';
+                    let writtenSize = file.size;
+                    if (isSvg) {
+                        const sanitized = sanitizeSvg(await fsPromises.readFile(file.path, 'utf8'));
+                        if (!sanitized) {
+                            await cleanupTemps();
+                            return res.status(400).json({ error: `Invalid SVG file: ${file.originalname}` });
+                        }
+                        await fsPromises.writeFile(destPath, sanitized, 'utf8');
+                        writtenSize = Buffer.byteLength(sanitized, 'utf8');
+                    } else {
+                        await fsPromises.copyFile(file.path, destPath);
+                    }
                     await fsPromises.unlink(file.path);
 
                     savedFiles.push({
                         name: path.basename(destPath),
                         path: destPath,
                         relPath: path.relative(projectRoot, destPath),
-                        size: file.size,
+                        size: writtenSize,
                         mimeType: file.mimetype
                     });
                 }
