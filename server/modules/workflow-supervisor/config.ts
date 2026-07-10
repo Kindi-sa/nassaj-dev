@@ -6,7 +6,7 @@
  * -------------------------------
  * The ENTIRE feature is gated behind this single env flag. It defaults OFF, and
  * when OFF every entry point in this module is a hard no-op:
- *   - the chat→intent bridge (launch-intent) writes NOTHING,
+ *   - the durable-task intent writer (durable-task) writes NOTHING,
  *   - the standalone supervisor loop refuses to start,
  *   - the scope-liveness source is never consulted (the pid path is unchanged).
  * There is therefore ZERO behavior change on the critical path while the flag is

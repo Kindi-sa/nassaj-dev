@@ -37,11 +37,6 @@ import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './servi
 import { applyClaudeEngineProviderEnv } from './services/isolation/apply-claude-engine-provider-env.js';
 import { collectSettingsBaseUrls } from './services/isolation/collect-settings-base-urls.js';
 import { buildVendorDelegateMcp } from './modules/providers/shared/vendor/vendor-delegate-mcp.js';
-// ADR-053 (M-BG-2-CODE): the chat→launch-intent bridge for the durable workflow
-// supervisor. writeLaunchIntent is a HARD NO-OP unless WORKFLOW_SUPERVISOR is on,
-// and is invoked ONLY after the for-await loop closes (never inside it). It never
-// throws into the completion path (all errors resolve to written:false).
-import { writeLaunchIntent } from './modules/workflow-supervisor/launch-intent.js';
 // T-822 (§ج-4): the per-conversation chat-turn lock. BOTH imports are
 // side-effect-free (pure function/flag modules — no top-level I/O/timers). The
 // lock is engaged ONLY when isChatTurnLockEnabled() (master + the dedicated
@@ -1883,31 +1878,6 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // Clean up session on completion
     if (capturedSessionId) {
       removeSession(capturedSessionId);
-    }
-
-    // ADR-053 (M-BG-2-CODE §ج-1): AFTER the for-await loop has closed — beside
-    // removeSession, NEVER inside the loop (:1635-1770, a 502 risk) — record a
-    // launch intent for the durable supervisor IF this turn requested a workflow.
-    // HARD NO-OP when WORKFLOW_SUPERVISOR is off; the server writes an intent
-    // file ONLY, it never launches anything. Non-throwing by contract, but
-    // wrapped defensively so a bug here can never break run completion.
-    if (pendingWorkflows > 0) {
-      try {
-        // B-126 dedup safety belt: when the inline workflow runner is active
-        // (ENABLE_ULTRACODE_WORKFLOWS => CLAUDE_CODE_WORKFLOWS=1) the workflow
-        // already executed in-process this turn, so the bridge must NOT record an
-        // intent — a mistakenly-enabled supervisor would double-execute it.
-        const inlineWorkflowsActive = (process.env.ENABLE_ULTRACODE_WORKFLOWS === 'true' || process.env.ENABLE_ULTRACODE_WORKFLOWS === '1');
-        await writeLaunchIntent({
-          userId: ws?.userId ?? null,
-          projectPath: options.cwd || options.projectPath || null,
-          scriptOrPrompt: command,
-          pendingWorkflows,
-          model: options.model ?? null,
-          effort: options.effort ?? null,
-          inlineWorkflowsActive,
-        });
-      } catch { /* never break completion on a bridge failure */ }
     }
 
     // Clean up temporary image files

@@ -1,6 +1,6 @@
 /**
- * ADR-053 §ج-1..ج-4 — the full supervisor gauntlet (processIntent), the
- * isolation --setenv computation, and the chat→intent bridge no-op.
+ * ADR-053 §ج-1..ج-4 — the full supervisor gauntlet (processIntent) and the
+ * isolation --setenv computation.
  *
  * processIntent runs GATE2 (ownership) BEFORE concurrency BEFORE launch, so an
  * unauthorized intent never consumes a concurrency probe and NOTHING privileged
@@ -9,14 +9,10 @@
  */
 
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
 import test from 'node:test';
 
 import { processIntent, type ProcessIntentDeps } from '@/modules/workflow-supervisor/supervisor-core.js';
 import { computeIsolationSetenv } from '@/modules/workflow-supervisor/systemd.js';
-import { writeLaunchIntent } from '@/modules/workflow-supervisor/launch-intent.js';
 
 function baseDeps(over: Partial<ProcessIntentDeps> = {}): {
   deps: ProcessIntentDeps;
@@ -129,89 +125,4 @@ test('computeIsolationSetenv: forwards a changed isolation key and any other dif
   assert.equal(setenv.EXTRA, 'x', 'a differing key is forwarded (future isolation key safety)');
   assert.equal(setenv.PATH, undefined, 'unchanged bulk env not forwarded');
   assert.equal('HOME' in setenv, false, 'base-only key not forwarded');
-});
-
-// --- chat → intent bridge no-op (master flag OFF) ------------------------------
-
-test('writeLaunchIntent: HARD NO-OP when WORKFLOW_SUPERVISOR is off (writes nothing)', async () => {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), 'wf-bridge-off-'));
-  try {
-    const res = await writeLaunchIntent({
-      userId: 3,
-      projectPath: '/tmp/proj',
-      scriptOrPrompt: 'work',
-      pendingWorkflows: 2,
-      env: { WORKFLOW_SUPERVISOR_STATE_DIR: tempRoot }, // flag intentionally ABSENT => off
-    });
-    assert.equal(res.written, false);
-    if (!res.written) assert.match(res.reason, /flag off/);
-    // Nothing at all should have been created under the state dir.
-    const entries = await readdir(tempRoot).catch(() => []);
-    assert.deepEqual(entries, [], 'no intent file written while the flag is off');
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('writeLaunchIntent: no-op when no workflow was requested this turn (pendingWorkflows=0) even with the flag ON', async () => {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), 'wf-bridge-nowf-'));
-  try {
-    const res = await writeLaunchIntent({
-      userId: 3,
-      projectPath: '/tmp/proj',
-      scriptOrPrompt: 'work',
-      pendingWorkflows: 0,
-      env: { WORKFLOW_SUPERVISOR: '1', WORKFLOW_SUPERVISOR_STATE_DIR: tempRoot },
-    });
-    assert.equal(res.written, false);
-    if (!res.written) assert.match(res.reason, /no workflow requested/);
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('writeLaunchIntent: with the flag ON + a requested workflow, writes a VALID atomic intent', async () => {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), 'wf-bridge-on-'));
-  try {
-    const res = await writeLaunchIntent({
-      userId: 8,
-      projectPath: '/tmp/proj',
-      scriptOrPrompt: 'run the workflow',
-      pendingWorkflows: 1,
-      model: 'opus',
-      env: { WORKFLOW_SUPERVISOR: '1', WORKFLOW_SUPERVISOR_STATE_DIR: tempRoot },
-    });
-    assert.equal(res.written, true);
-    if (res.written) {
-      const blob = JSON.parse(await readFile(res.path, 'utf8'));
-      assert.equal(blob.userId, 8);
-      assert.equal(blob.projectPath, '/tmp/proj');
-      assert.equal(blob.model, 'opus');
-      assert.equal(typeof blob.wfLaunchId, 'string');
-      // The intent lives under intents/<userId>/.
-      assert.match(res.path, /\/intents\/8\/.+\.json$/);
-      // No leftover tmp file (atomic rename).
-      const files = await readdir(path.dirname(res.path));
-      assert.ok(files.every((f) => !f.includes('.tmp-')), 'no .tmp- file lingers after atomic write');
-    }
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
-});
-
-test('writeLaunchIntent: a non-integer userId is a no-op (fail-closed) even with the flag ON', async () => {
-  const tempRoot = await mkdtemp(path.join(tmpdir(), 'wf-bridge-badid-'));
-  try {
-    const res = await writeLaunchIntent({
-      userId: undefined,
-      projectPath: '/tmp/proj',
-      scriptOrPrompt: 'work',
-      pendingWorkflows: 1,
-      env: { WORKFLOW_SUPERVISOR: '1', WORKFLOW_SUPERVISOR_STATE_DIR: tempRoot },
-    });
-    assert.equal(res.written, false);
-    if (!res.written) assert.match(res.reason, /no authenticated integer userId/);
-  } finally {
-    await rm(tempRoot, { recursive: true, force: true });
-  }
 });
