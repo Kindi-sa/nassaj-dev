@@ -20,11 +20,14 @@
 import { spawn } from 'node:child_process';
 
 import type { ResumeTurnParams, ResumeTurnResult } from './handoff-injector.js';
+import { INJECTOR_SIGKILL_GRACE_MS } from './config.js';
 
 /** Cap the captured stdout so a runaway turn cannot balloon memory. */
 const MAX_STDOUT_BYTES = 8 * 1024 * 1024;
-/** Grace between SIGTERM and the hard SIGKILL at the hold cap. */
-const KILL_GRACE_MS = 2_000;
+/** Grace between SIGTERM and the hard SIGKILL at the hold cap. Single source of
+ * truth in config so the chat-lock timing invariant (validateChatLockConfig)
+ * reasons about the SAME worst-case hold the runner actually enforces. */
+const KILL_GRACE_MS = INJECTOR_SIGKILL_GRACE_MS;
 
 export function defaultRunResumeTurn(params: ResumeTurnParams): Promise<ResumeTurnResult> {
   return new Promise((resolve) => {

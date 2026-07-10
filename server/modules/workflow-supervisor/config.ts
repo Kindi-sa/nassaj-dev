@@ -268,6 +268,88 @@ export function injectorMaxHoldMs(env: NodeJS.ProcessEnv = process.env): number 
   return Number.isInteger(raw) && raw > 0 ? raw : 90_000;
 }
 
+// ---------------------------------------------------------------------------
+// T-823 (المرحلة 5) — chat-lock timing INVARIANT + boot-time assertion.
+// (qa-critic T-822 gate, condition 3: "حصر علوي على chatLockWaitMs + تأكيد إقلاعي
+//  للثابت chatLockWaitMs ≥ injectorMaxHoldMs+grace".)
+//
+// WHY: the two knobs are coupled. If a manual override lowers chatLockWaitMs (or
+// raises injectorMaxHoldMs) so the human's wait ceiling is NOT strictly greater
+// than the injector's worst-case hold, a human turn can time out fail-OPEN WHILE
+// the injector legitimately still holds the lock — the exact concurrent-jsonl-
+// append this seam exists to prevent (§ج-4). The shipped DEFAULTS are coupled
+// safely (chatLockWaitMs default = injectorMaxHoldMs + 5s), but a bad override is
+// otherwise silent. The supervisor asserts this at boot and REFUSES to start when
+// the sub-flag is on and the invariant is broken (fail-closed: no supervisor ⇒ no
+// injection ⇒ no race — the only process that ever injects is the supervisor).
+// ---------------------------------------------------------------------------
+
+/**
+ * The SIGTERM→SIGKILL grace (ms) the resume-turn runner allows its `claude` child
+ * at the hold cap before the hard kill. Defined HERE as the single source of truth
+ * (resume-turn-runner imports it) so the invariant below reasons about the injector's
+ * TRUE worst-case hold = injectorMaxHoldMs + this grace + fd-close latency.
+ */
+export const INJECTOR_SIGKILL_GRACE_MS = 2_000;
+
+/**
+ * The minimum margin (ms) chatLockWaitMs must exceed injectorMaxHoldMs by. It must
+ * be STRICTLY greater than INJECTOR_SIGKILL_GRACE_MS so the human keeps waiting
+ * until the injector has definitely released (kill + fd close), never a boundary
+ * tie. = SIGKILL grace (2s) + 1s scheduling/close margin. The shipped default wait
+ * (hold + 5s) clears this comfortably.
+ */
+export const CHAT_LOCK_REQUIRED_GRACE_MS = INJECTOR_SIGKILL_GRACE_MS + 1_000;
+
+/** Upper bound (ms) on how long a human turn may EVER wait on the seam (condition
+ * 3's "حصر علوي"). A wait beyond this is a misconfiguration, not a valid tuning —
+ * the human must never be blocked minutes on the critical path. */
+export const CHAT_LOCK_WAIT_MS_CEILING = 300_000; // 5 min
+
+/** Upper bound (ms) on the injector's per-turn hold. Bounds the OTHER knob so the
+ * invariant (wait ≥ hold + grace, wait ≤ wait-ceiling) stays satisfiable. */
+export const INJECTOR_MAX_HOLD_MS_CEILING = 240_000; // 4 min
+
+export type ChatLockConfigVerdict =
+  | { ok: true; holdMs: number; waitMs: number }
+  | { ok: false; holdMs: number; waitMs: number; problems: string[] };
+
+/**
+ * Validate the coupled chat-lock timing knobs (pure — env in, verdict out; fully
+ * unit-testable). Callers (the supervisor at boot) decide whether to warn or exit.
+ * Checks, in order: hold ≤ ceiling, wait ≤ ceiling, and the core safety invariant
+ * wait ≥ hold + CHAT_LOCK_REQUIRED_GRACE_MS.
+ */
+export function validateChatLockConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): ChatLockConfigVerdict {
+  const holdMs = injectorMaxHoldMs(env);
+  const waitMs = chatLockWaitMs(env);
+  const problems: string[] = [];
+  if (holdMs > INJECTOR_MAX_HOLD_MS_CEILING) {
+    problems.push(
+      `injectorMaxHoldMs=${holdMs} exceeds ceiling ${INJECTOR_MAX_HOLD_MS_CEILING} ` +
+        `(WORKFLOW_SUPERVISOR_HANDOFF_MAX_HOLD_MS too large)`,
+    );
+  }
+  if (waitMs > CHAT_LOCK_WAIT_MS_CEILING) {
+    problems.push(
+      `chatLockWaitMs=${waitMs} exceeds ceiling ${CHAT_LOCK_WAIT_MS_CEILING} ` +
+        `(WORKFLOW_SUPERVISOR_CHAT_LOCK_WAIT_MS too large — a human would be blocked too long)`,
+    );
+  }
+  const floor = holdMs + CHAT_LOCK_REQUIRED_GRACE_MS;
+  if (waitMs < floor) {
+    problems.push(
+      `chatLockWaitMs=${waitMs} < injectorMaxHoldMs+grace (${holdMs}+${CHAT_LOCK_REQUIRED_GRACE_MS}=${floor}): ` +
+        `a human turn could time out fail-OPEN while the injector still holds the lock ⇒ concurrent jsonl append`,
+    );
+  }
+  return problems.length > 0
+    ? { ok: false, holdMs, waitMs, problems }
+    : { ok: true, holdMs, waitMs };
+}
+
 /** Per-conversation budget dir (§د). Daily token/turn counters, atomic. 0700. */
 export function budgetDir(env: NodeJS.ProcessEnv = process.env): string {
   return path.join(supervisorStateRoot(env), 'budget');
