@@ -395,13 +395,38 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     requestedModel?: string | null,
   ): Promise<string | undefined> => {
     const normalizedRequestedModel = typeof requestedModel === 'string' ? requestedModel.trim() : '';
+    // A brand-new conversation (no session id yet) is the ONE place the caller's
+    // current selection is honoured: the freshly minted session inherits it
+    // (B-167 requirement 3). Every existing session resolves its model from its
+    // OWN state below, never from the caller's global picker selection.
     if (!sessionId?.trim()) {
       return normalizedRequestedModel || undefined;
     }
 
+    // An explicit in-conversation model re-pick wins and is scoped to this one
+    // session (B-167 requirement 2): the change store is keyed by (provider,
+    // sessionId), so it can never bleed into another conversation.
     const changedModel = await getChangedActiveModel(provider, sessionId);
     if (changedModel.supported && changedModel.changed && changedModel.model?.trim()) {
       return changedModel.model.trim();
+    }
+
+    // No explicit re-pick: pin the session to the model it is ACTUALLY running on,
+    // read from the provider's own per-session store (opencode.db, the Claude
+    // transcript, the Cursor session store …) — NOT the caller's global picker
+    // selection. This is the B-167 fix (requirement 1): the frontend sends its
+    // current global model on every turn, and this path used to forward it
+    // verbatim, so picking a model for a NEW conversation leaked onto every
+    // existing session's next turn. Providers without a per-session model memory
+    // fall back to their catalog default here (still isolated from the leak);
+    // the requested global is used only as a last resort.
+    try {
+      const sessionModel = (await getCurrentActiveModel(provider, sessionId)).model?.trim();
+      if (sessionModel) {
+        return sessionModel;
+      }
+    } catch {
+      // Fall through to the requested model when the per-session lookup fails.
     }
 
     return normalizedRequestedModel || undefined;

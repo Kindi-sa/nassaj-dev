@@ -436,6 +436,54 @@ test('resolveResumeModel prefers a stored changed model over the requested one',
   }
 });
 
+test('resolveResumeModel pins an existing session to its OWN model, not the requested global (B-167)', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-pin-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: createEphemeralCachePath(),
+      activeModelChangesPath,
+      resolveProvider: (provider) => ({
+        models: {
+          getSupportedModels: async () => createModels(`${provider}-models`),
+          // The session's own model, as read from the provider's per-session store
+          // (opencode.db, the Claude transcript, …).
+          getCurrentActiveModel: async (sessionId) =>
+            createCurrentActiveModel(`own-model-for-${sessionId}`),
+          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+        },
+      }),
+    });
+
+    // No explicit in-conversation re-pick was recorded, so the caller's global
+    // 'leaked-global' (what the frontend sends on every turn) must be ignored in
+    // favour of the model the session is actually running on. This is the leak fix.
+    const model = await service.resolveResumeModel('opencode', 'session-789', 'leaked-global');
+    assert.equal(model, 'own-model-for-session-789');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('resolveResumeModel uses the requested global for a brand-new conversation (B-167 req 3)', async () => {
+  const service = createProviderModelsService({
+    cachePath: createEphemeralCachePath(),
+    resolveProvider: (provider) => ({
+      models: {
+        getSupportedModels: async () => createModels(`${provider}-models`),
+        getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+        changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
+      },
+    }),
+  });
+
+  // No sessionId yet -> a freshly minted conversation inherits the caller's
+  // current picker selection.
+  const model = await service.resolveResumeModel('opencode', undefined, 'sonnet');
+  assert.equal(model, 'sonnet');
+});
+
 test('getProviderModels forwards userId to the provider adapter', async () => {
   const seenUserIds: Array<string | number | null | undefined> = [];
   const service = createProviderModelsService({

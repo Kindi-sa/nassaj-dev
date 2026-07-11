@@ -26,6 +26,8 @@ import type {
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 
+import { resolveSendProvider } from '../utils/resolveSendProvider';
+
 import { useFileMentions } from './useFileMentions';
 import { isPassthroughBuiltInCommand, type SlashCommand, useSlashCommands } from './useSlashCommands';
 
@@ -708,16 +710,19 @@ export function useChatComposerState({
 
   // Reads the per-provider tool settings persisted in localStorage, falling back
   // to permissive defaults when none are stored or parsing fails.
-  const getToolsSettings = useCallback(() => {
+  // Reads per-provider tool settings for `targetProvider` — the provider the turn
+  // is actually dispatched to (the SESSION's provider when resuming), not
+  // necessarily the composer's global selection (B-167).
+  const getToolsSettings = useCallback((targetProvider: LLMProvider) => {
     try {
       const settingsKey =
-        provider === 'cursor'
+        targetProvider === 'cursor'
           ? 'cursor-tools-settings'
-          : provider === 'codex'
+          : targetProvider === 'codex'
             ? 'codex-settings'
-            : provider === 'gemini'
+            : targetProvider === 'gemini'
               ? 'gemini-settings'
-              : provider === 'antigravity'
+              : targetProvider === 'antigravity'
                 ? 'antigravity-settings'
                 : 'claude-settings';
       const savedSettings = safeLocalStorage.getItem(settingsKey);
@@ -729,7 +734,7 @@ export function useChatComposerState({
     }
 
     return { allowedTools: [], disallowedTools: [], skipPermissions: false };
-  }, [provider]);
+  }, []);
 
   // Single source of truth for building and sending a provider chat command.
   // `targetSessionId` is null/undefined for a brand-new conversation. Shared by
@@ -744,13 +749,18 @@ export function useChatComposerState({
       effortValue?: string,
       uploadedFiles: ChatFile[] = [],
     ): boolean => {
-      const toolsSettings = getToolsSettings();
       const resolvedProjectPath = selectedProject?.fullPath || selectedProject?.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, messageContent);
       const resume = Boolean(targetSessionId);
+      // Seal the turn to the conversation's OWN provider when resuming, so a
+      // provider/model picked for a NEW chat can never cross into a running
+      // conversation of another provider system (B-167). A brand-new conversation
+      // (no targetSessionId) uses the composer's current global selection.
+      const effectiveProvider = resolveSendProvider(resume, selectedSession?.__provider, provider);
+      const toolsSettings = getToolsSettings(effectiveProvider);
 
       let result: { ok: boolean } | void;
-      if (provider === 'cursor') {
+      if (effectiveProvider === 'cursor') {
         result = sendMessage({
           type: 'cursor-command',
           command: messageContent,
@@ -761,7 +771,7 @@ export function useChatComposerState({
             sessionSummary, toolsSettings,
           },
         });
-      } else if (provider === 'codex') {
+      } else if (effectiveProvider === 'codex') {
         result = sendMessage({
           type: 'codex-command',
           command: messageContent,
@@ -772,7 +782,7 @@ export function useChatComposerState({
             permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
           },
         });
-      } else if (provider === 'gemini') {
+      } else if (effectiveProvider === 'gemini') {
         result = sendMessage({
           type: 'gemini-command',
           command: messageContent,
@@ -782,7 +792,7 @@ export function useChatComposerState({
             resume, model: geminiModel, sessionSummary, permissionMode, toolsSettings,
           },
         });
-      } else if (provider === 'antigravity') {
+      } else if (effectiveProvider === 'antigravity') {
         result = sendMessage({
           type: 'antigravity-command',
           command: messageContent,
@@ -792,7 +802,7 @@ export function useChatComposerState({
             resume, model: antigravityModel, sessionSummary, permissionMode, toolsSettings,
           },
         });
-      } else if (provider === 'opencode') {
+      } else if (effectiveProvider === 'opencode') {
         // OC-22: opencode `run` consumes attachments via -f/--file, so forward
         // images and files (the same payload shape as Claude). The server
         // materializes base64 images to temp files and resolves file paths, then
@@ -811,7 +821,7 @@ export function useChatComposerState({
           sessionId: targetSessionId,
           options: opencodeOptions,
         });
-      } else if (provider === 'hermes') {
+      } else if (effectiveProvider === 'hermes') {
         result = sendMessage({
           type: 'hermes-command',
           command: messageContent,
@@ -821,7 +831,7 @@ export function useChatComposerState({
             resume, model: hermesModel, sessionSummary,
           },
         });
-      } else if (provider === 'kimi') {
+      } else if (effectiveProvider === 'kimi') {
         result = sendMessage({
           type: 'kimi-command',
           command: messageContent,
@@ -831,7 +841,7 @@ export function useChatComposerState({
             resume, model: kimiModel, sessionSummary,
           },
         });
-      } else if (provider === 'deepseek') {
+      } else if (effectiveProvider === 'deepseek') {
         result = sendMessage({
           type: 'deepseek-command',
           command: messageContent,
@@ -841,7 +851,7 @@ export function useChatComposerState({
             resume, model: deepseekModel, sessionSummary,
           },
         });
-      } else if (provider === 'glm') {
+      } else if (effectiveProvider === 'glm') {
         result = sendMessage({
           type: 'glm-command',
           command: messageContent,
