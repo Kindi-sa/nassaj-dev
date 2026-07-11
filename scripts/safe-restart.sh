@@ -270,6 +270,42 @@ show_live_wf_units() {
   return 0
 }
 
+# ── رؤية جلسات المزوّدات الحيّة عبر /health (OC-08) — قراءة-فقط ─────────────────
+# الغرض: أن تسمّي رسالةُ التأجيل المزوّدَ (خصوصاً opencode) وعددَ جلساته الحيّة،
+# بدل أن تُعدّ في الدرين بلا هوية. المصدر: نقطة /health العامة التي تصدّر
+# activeSessions (أعداد صحيحة فقط، بلا معرّفات — آمنة على نقطة غير مصادَقة).
+# **قراءة-فقط بحتة**: لا تغيّر رمز الخروج ولا قرار الدرين؛ إعلامية فقط. تصمت
+# تماماً إن تعذّرت القراءة (لا curl/node، أو الخادم غير مستجيب، أو الحقل غائب).
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:${HEALTH_PORT:-3004}/health}"
+
+# يطبع أعداد الجلسات الحيّة لكل مزوّد له عدّ > 0 (سطر لكل مزوّد). لا مخرَج البتّة
+# عند التعذّر أو انعدام الجلسات. يُرجِع 0 دائماً.
+show_live_provider_sessions() {
+  command -v curl >/dev/null 2>&1 || return 0
+  command -v node >/dev/null 2>&1 || return 0
+  local body
+  body="$(curl -fsS --max-time 3 "$HEALTH_URL" 2>/dev/null || true)"
+  [ -n "$body" ] || return 0
+  local lines
+  lines="$(printf '%s' "$body" | node -e '
+    let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+      let o;try{o=JSON.parse(s)}catch(_){return}
+      const a=o&&o.activeSessions;
+      if(!a||typeof a!=="object")return;
+      for(const [k,v] of Object.entries(a)){
+        const n=Number(v);
+        if(Number.isFinite(n)&&n>0)process.stdout.write(`${k}=${n}\n`);
+      }
+    })' 2>/dev/null || true)"
+  [ -n "$lines" ] || return 0
+  emit INFO "جلسات المزوّدات الحيّة (من /health، للعرض فقط لا تؤجّل بذاتها):"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    emit INFO "  • ${line%%=*}: ${line#*=} جلسة حيّة"
+  done <<< "$lines"
+  return 0
+}
+
 # ── فحص توفّر القراءة ───────────────────────────────────────────────────────
 if [ ! -d "$WF_BASE" ]; then
   emit ERR "WF_BASE غير موجود / not found: $WF_BASE"
@@ -647,6 +683,8 @@ if [ "$LIVE_COUNT" -gt 0 ]; then
     run_restart
     exit $?
   fi
+  # OC-08: سمِّ جلسات المزوّدات الحيّة (opencode وغيره) في رسالة التأجيل.
+  show_live_provider_sessions
   emit WARN "أُجّل restart. للتجاوز الواعي: --force --exec. أو نفّذ يدوياً بعد انتهاء العمل:"
   emit INFO "$RESTART_CMD"
   exit 3

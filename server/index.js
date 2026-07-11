@@ -325,11 +325,37 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // gives up cleanly (PM2 reschedules). A port held by something FOREIGN does not
 // report it, so the guard surfaces a crash (errored) instead of dying silently.
 app.get('/health', (req, res) => {
+    // OC-08: expose per-provider LIVE session COUNTS (integers only — never ids
+    // or content, so this stays safe on the public, unauthenticated /health) so
+    // an external pre-restart gate (scripts/safe-restart.sh) can name which
+    // provider still has running sessions before it defers a restart. Best-effort:
+    // any getter throwing degrades that provider to 0 rather than failing /health.
+    const safeCount = (getter) => {
+        try {
+            const value = getter();
+            return Array.isArray(value) ? value.length : 0;
+        } catch {
+            return 0;
+        }
+    };
+    const activeSessions = {
+        claude: safeCount(getActiveClaudeSDKSessions),
+        cursor: safeCount(getActiveCursorSessions),
+        codex: safeCount(getActiveCodexSessions),
+        gemini: safeCount(getActiveGeminiSessions),
+        antigravity: safeCount(getActiveAntigravitySessions),
+        opencode: safeCount(getActiveOpenCodeSessions),
+        hermes: safeCount(getActiveHermesSessions),
+        kimi: safeCount(getActiveKimiSessions),
+        deepseek: safeCount(getActiveDeepSeekSessions),
+        glm: safeCount(getActiveGlmSessions),
+    };
     res.json({
         status: 'ok',
         service: 'nassaj-server',
         timestamp: new Date().toISOString(),
-        installMode
+        installMode,
+        activeSessions
     });
 });
 
