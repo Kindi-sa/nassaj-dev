@@ -21,6 +21,11 @@ import type {
 } from '@/shared/types.js';
 import { createNormalizedMessage, parseIncomingJsonObject } from '@/shared/utils.js';
 
+// Top-level shared/ (compiled into dist-server/shared/) — the single source of
+// truth for globally disabled providers (T-864). Relative on purpose: the `@/`
+// alias maps to server/* only.
+import { isProviderGloballyDisabled } from '../../../../shared/disabledProviders.js';
+
 type ChatIncomingMessage = AnyRecord & {
   type?: string;
   command?: string;
@@ -286,8 +291,16 @@ function isSessionVisibleToUser(
  * database) overrides the message type chosen by the client. This prevents a
  * stale client provider selection from resuming, say, an antigravity session
  * through the Claude SDK — which would fail with "No conversation found".
+ *
+ * Globally disabled providers (T-864, shared/disabledProviders.ts) are refused
+ * here — defence in depth behind the UI filtering. The check runs on the
+ * RESOLVED target provider so it also covers a resume of a historical session
+ * that belongs to a now-disabled provider (its transcript stays readable over
+ * the REST history path; only new runs are blocked).
+ *
+ * Exported for unit tests.
  */
-async function dispatchProviderCommand(
+export async function dispatchProviderCommand(
   messageType: string,
   data: ChatIncomingMessage,
   writer: WebSocketWriter,
@@ -310,6 +323,22 @@ async function dispatchProviderCommand(
       + `${requestedProvider} to persisted provider ${persistedProvider}`
       + (data.options?.effort ? ` (effort=${data.options.effort} will be dropped)` : '')
     );
+  }
+
+  if (isProviderGloballyDisabled(targetProvider)) {
+    console.log(`[INFO] Refusing dispatch for globally disabled provider "${targetProvider}"`);
+    writer.send(
+      createNormalizedMessage({
+        kind: 'complete',
+        provider: targetProvider,
+        exitCode: 1,
+        success: false,
+        error:
+          `Provider "${targetProvider}" is disabled on this deployment. `
+          + 'Existing sessions remain readable, but new runs are rejected.',
+      })
+    );
+    return;
   }
 
   if (targetProvider === 'cursor') {

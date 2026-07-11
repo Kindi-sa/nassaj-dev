@@ -6,11 +6,12 @@ import { useAntigravityActiveModel } from "../../hooks/useAntigravityActiveModel
 import { usePaletteOps } from "../../../../contexts/PaletteOpsContext";
 import { useVendorKeyStatuses } from "../../../provider-auth/hooks/useVendorKeyStatuses";
 import {
-  VENDOR_PROVIDERS,
+  ENABLED_VENDOR_PROVIDERS,
   VENDOR_PROVIDER_META,
   isVendorProvider,
   type VendorProvider,
 } from "../../../provider-auth/vendorProviders";
+import { isProviderGloballyDisabled } from "../../../../../shared/disabledProviders";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import type {
   ProjectSession,
@@ -35,7 +36,10 @@ import {
   Card,
 } from "../../../../shared/view/ui";
 
-const PROVIDER_META: { id: LLMProvider; name: string }[] = [
+// Globally disabled providers (T-864, shared/disabledProviders.ts) never make
+// it into the picker: the full list stays here for upstream-sync friendliness
+// and the filter below drops the disabled ids.
+const ALL_PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
   { id: "codex", name: "OpenAI" },
   { id: "gemini", name: "Google" },
@@ -47,6 +51,8 @@ const PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "deepseek", name: "DeepSeek" },
   { id: "glm", name: "GLM" },
 ];
+
+const PROVIDER_META = ALL_PROVIDER_META.filter((meta) => !isProviderGloballyDisabled(meta.id));
 
 const MOD_KEY =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
@@ -395,9 +401,10 @@ export default function ProviderSelectionEmptyState({
   // configured key (ADR-030) lists its Anthropic-compatible models — the same
   // live catalog the standalone vendor path uses — but selecting one keeps the
   // provider as Claude and routes the engine through that vendor endpoint.
+  // Globally disabled vendors (T-864) are excluded — no group, no key CTA.
   const claudeEngineGroups = useMemo(
     () =>
-      VENDOR_PROVIDERS.map((vendorId) => ({
+      ENABLED_VENDOR_PROVIDERS.map((vendorId) => ({
         id: vendorId,
         name: VENDOR_PROVIDER_META[vendorId].name,
         models: providerModelCatalog[vendorId]?.OPTIONS ?? [],
@@ -549,7 +556,7 @@ export default function ProviderSelectionEmptyState({
                       >
                         {isProviderDisabled ? (
                           // Provider is installed but not authenticated — show CTA only.
-                          <div className="ms-4 border-s border-border/40 ps-4 py-2">
+                          <div className="ms-4 border-s border-border/40 py-2 ps-4">
                             <p className="mb-1.5 text-[11px] text-muted-foreground">
                               {t("providerSelection.providerUnavailable", { defaultValue: "Provider not available" })}
                             </p>

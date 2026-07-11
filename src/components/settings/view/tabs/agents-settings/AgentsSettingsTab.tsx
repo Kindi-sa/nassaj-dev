@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import { filterDisabledProviders } from '../../../../../../shared/disabledProviders';
 import type { AgentCategory, AgentProvider } from '../../../types/types';
 
 import type { AgentContext, AgentsSettingsTabProps } from './types';
@@ -25,7 +26,12 @@ export default function AgentsSettingsTab({
   const [selectedCategory, setSelectedCategory] = useState<AgentCategory>('account');
 
   const visibleAgents = useMemo<AgentProvider[]>(() => {
-    return ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'kimi', 'deepseek', 'glm', 'hermes', 'sakana'];
+    // Globally disabled providers (T-864) are dropped from the settings agent
+    // bar (Account/Permissions/MCP); the full list stays for upstream sync.
+    return filterDisabledProviders([
+      'claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode',
+      'kimi', 'deepseek', 'glm', 'hermes', 'sakana',
+    ]);
   }, []);
 
   const agentContextById = useMemo<Record<AgentProvider, AgentContext>>(() => ({

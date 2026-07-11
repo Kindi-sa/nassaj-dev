@@ -1,3 +1,4 @@
+import { isProviderGloballyDisabled } from '../../../../../shared/disabledProviders';
 import type { LLMProvider } from '../../../../types/app';
 import type { ProviderAuthStatusMap } from '../../../provider-auth/types';
 
@@ -67,7 +68,10 @@ export default function AgentConnectionsStep({
       </div>
 
       <div className="space-y-3">
-        {providerCards.map((providerCard) => (
+        {/* Globally disabled providers (T-864) get no onboarding login card. */}
+        {providerCards
+          .filter((providerCard) => !isProviderGloballyDisabled(providerCard.provider))
+          .map((providerCard) => (
           <AgentConnectionCard
             key={providerCard.provider}
             provider={providerCard.provider}

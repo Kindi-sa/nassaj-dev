@@ -31,6 +31,9 @@
  * drift-guard test that imports the client catalog).
  */
 import type { LLMProvider, ProviderModelOption, ProviderModelsDefinition } from '../types/app.js';
+// Explicit .js extension: keeps this file importable from a NodeNext
+// server-build context (see the file header note).
+import { isProviderGloballyDisabled } from '../../shared/disabledProviders.js';
 
 // Mirror of the server's claude degraded-fallback catalog
 // (server/modules/providers/list/claude/claude-models.provider.ts →
@@ -833,7 +836,14 @@ export const DEFAULT_PROVIDER: LLMProvider = 'claude';
  * land on a provider with no usable picker affordance and get stuck.
  */
 export function sanitizeStoredProvider(stored: string | null): LLMProvider {
-  if (stored && Object.prototype.hasOwnProperty.call(PROVIDER_FALLBACK_MODELS, stored)) {
+  if (
+    stored &&
+    Object.prototype.hasOwnProperty.call(PROVIDER_FALLBACK_MODELS, stored) &&
+    // A persisted selection of a globally disabled provider (T-864) must not
+    // revive it — it has no picker affordance anymore and the server refuses
+    // to dispatch it; fall back to the default provider instead.
+    !isProviderGloballyDisabled(stored)
+  ) {
     return stored as LLMProvider;
   }
   return DEFAULT_PROVIDER;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import { VENDOR_PROVIDERS, type VendorProvider } from '../vendorProviders';
+import { ENABLED_VENDOR_PROVIDERS, type VendorProvider } from '../vendorProviders';
 
 export type VendorKeyStatusMap = Record<VendorProvider, boolean>;
 
@@ -29,8 +29,10 @@ export function useVendorKeyStatuses(enabled = true) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
+      // Globally disabled vendors (T-864) are skipped — no key-status request
+      // fires for them; their map entries stay false (locked, but never shown).
       const results = await Promise.all(
-        VENDOR_PROVIDERS.map(async (provider) => {
+        ENABLED_VENDOR_PROVIDERS.map(async (provider) => {
           try {
             const response = await authenticatedFetch(`/api/providers/${provider}/api-key`);
             if (!response.ok) {

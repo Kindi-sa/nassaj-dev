@@ -1,3 +1,4 @@
+import { filterDisabledProviders } from '../../../shared/disabledProviders';
 import type { LLMProvider } from '../../types/app';
 
 /**
@@ -12,6 +13,15 @@ import type { LLMProvider } from '../../types/app';
 export const VENDOR_PROVIDERS = ['kimi', 'deepseek', 'glm'] as const;
 
 export type VendorProvider = (typeof VENDOR_PROVIDERS)[number];
+
+/**
+ * Vendor providers that are not globally disabled (T-864). UI enumeration
+ * points (key-status fan-out, "Claude engine on <vendor>" groups) iterate this
+ * list; VENDOR_PROVIDERS itself stays complete so type guards and historical
+ * session rendering keep recognizing the disabled ids.
+ */
+export const ENABLED_VENDOR_PROVIDERS: readonly VendorProvider[] =
+  filterDisabledProviders(VENDOR_PROVIDERS);
 
 /** Narrowing guard: is this LLMProvider one of the API-key vendor providers? */
 export function isVendorProvider(provider: LLMProvider): provider is VendorProvider {

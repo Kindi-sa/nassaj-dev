@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+
+import { filterDisabledProviders } from '../../../../shared/disabledProviders';
 import { api } from '../../../utils/api';
 
 /**
@@ -23,8 +25,12 @@ export type SharingMode = 'shared' | 'isolated';
 /** Full sharing configuration as returned/accepted by the admin API. */
 export type ProviderSharingConfig = Record<SharingProvider, SharingMode>;
 
-/** Stable provider order used by the UI and as a fallback default. */
-export const SHARING_PROVIDERS: SharingProvider[] = [
+/**
+ * Stable provider order used by the UI and as a fallback default. Globally
+ * disabled providers (T-864) are filtered out so the sharing panel neither
+ * renders nor edits their rows (antigravity's sharing key is `agy`, unaffected).
+ */
+export const SHARING_PROVIDERS: SharingProvider[] = filterDisabledProviders([
   'claude',
   'gemini',
   'codex',
@@ -33,7 +39,7 @@ export const SHARING_PROVIDERS: SharingProvider[] = [
   'kimi',
   'deepseek',
   'glm',
-];
+]);
 
 const DEFAULT_CONFIG: ProviderSharingConfig = {
   claude: 'isolated',

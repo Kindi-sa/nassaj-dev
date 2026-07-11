@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import { authenticatedFetch } from '../../../utils/api';
 import { VENDOR_PROVIDERS, type VendorProvider } from '../../provider-auth/vendorProviders';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
@@ -16,6 +17,11 @@ import {
   sanitizeStoredProvider,
 } from '../../../constants/providerModelFallbacks';
 import { onApplyServerPreference } from '../../../preferences/preferencesSync';
+import {
+  filterDisabledProviders,
+  isProviderGloballyDisabled,
+} from '../../../../shared/disabledProviders';
+
 import { pickStoredOrCurrent } from './normalizeProviderModel';
 
 /**
@@ -27,10 +33,16 @@ export type EngineProvider = VendorProvider | null;
 
 const ENGINE_PROVIDER_STORAGE_KEY = 'claude-engine-provider';
 
-/** Reads the persisted engine provider, ignoring any stale/invalid value. */
+/**
+ * Reads the persisted engine provider, ignoring any stale/invalid value —
+ * including a vendor that has since been globally disabled (T-864), so a stale
+ * engineProvider never reaches the server.
+ */
 function readStoredEngineProvider(): EngineProvider {
   const stored = localStorage.getItem(ENGINE_PROVIDER_STORAGE_KEY);
-  return stored && (VENDOR_PROVIDERS as readonly string[]).includes(stored)
+  return stored &&
+    (VENDOR_PROVIDERS as readonly string[]).includes(stored) &&
+    !isProviderGloballyDisabled(stored)
     ? (stored as VendorProvider)
     : null;
 }
@@ -223,7 +235,12 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   }, []);
 
   const loadProviderModels = useCallback(async (options: { bypassCache?: boolean } = {}) => {
-    const providers: LLMProvider[] = ['claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes', 'kimi', 'deepseek', 'glm'];
+    // Globally disabled providers (T-864) are dropped from the catalog fan-out:
+    // no /models request is made for them at all.
+    const providers: LLMProvider[] = filterDisabledProviders([
+      'claude', 'cursor', 'codex', 'gemini', 'antigravity', 'opencode', 'hermes',
+      'kimi', 'deepseek', 'glm',
+    ]);
     const requestId = providerModelsRequestIdRef.current + 1;
     providerModelsRequestIdRef.current = requestId;
     const isHardRefresh = options.bypassCache === true;

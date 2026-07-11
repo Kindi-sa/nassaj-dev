@@ -1,3 +1,4 @@
+import { filterDisabledProviders } from '../../../shared/disabledProviders';
 import type { LLMProvider } from '../../types/app';
 
 export type ProviderAuthStatus = {
@@ -26,7 +27,9 @@ export type ProviderAuthStatusMap = Record<LLMProvider, ProviderAuthStatus>;
 // (kimi/deepseek/glm) report authenticated=true via the same endpoint once their
 // API key is configured (ADR-036 / ADR-030), so they are probed too. Only
 // `sakana` stays excluded — a union-only placeholder with no real backend.
-export const CLI_PROVIDERS: LLMProvider[] = [
+// Globally disabled providers (T-864, shared/disabledProviders.ts) are filtered
+// out so no auth probe (and no login CTA) fires for them.
+export const CLI_PROVIDERS: LLMProvider[] = filterDisabledProviders([
   'claude',
   'cursor',
   'codex',
@@ -37,7 +40,7 @@ export const CLI_PROVIDERS: LLMProvider[] = [
   'kimi',
   'deepseek',
   'glm',
-];
+]);
 
 export const PROVIDER_AUTH_STATUS_ENDPOINTS: Record<LLMProvider, string> = {
   claude: '/api/providers/claude/auth/status',
