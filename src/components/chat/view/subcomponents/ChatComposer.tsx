@@ -442,10 +442,19 @@ export default function ChatComposer({
               </>
             )}
 
-            {/* Only Claude exports live token usage; other providers never
-                populate tokenBudget so the widget shows a zero/empty state
-                that wastes toolbar space and misleads users. (B-92) */}
-            {provider === 'claude' && <TokenUsageSummary usage={tokenBudget} />}
+            {/* Token usage + context-rot indicator gate.
+                Claude exports live token usage; OpenCode also emits a real
+                `token_budget` after each run closes (opencode-cli.js:268-277),
+                so its counter must show too — the B-92 fix wrongly limited this
+                to Claude and hid the OpenCode budget that IS populated (OC-20).
+                TACTICAL EXCEPTION to "no new provider=== checks": this is the
+                sanctioned fallback that does NOT wait on T-224 (see plan §7.3).
+                REMOVE this widened gate when T-224 m0 lands the provider
+                capability descriptor (`opencode: tokenCounter live`) — the
+                widget should then read a capability flag, not a provider id. */}
+            {(provider === 'claude' || provider === 'opencode') && (
+              <TokenUsageSummary usage={tokenBudget} />
+            )}
 
             {/* Wrapper span establishes the containing block for the badge.
               * Firefox/Gecko (bug 1392476) does not let a <button> with
