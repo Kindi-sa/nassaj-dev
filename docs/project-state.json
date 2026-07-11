@@ -3543,13 +3543,14 @@
       "id": "T-850",
       "kind": "chore",
       "phase": "P0",
-      "status": "in_progress",
+      "status": "done",
+      "closed": "2026-07-11",
       "owner": "devops",
       "issue": "T-848",
       "found": "2026-07-10",
       "source": "إذن المالك 2026-07-10: اعتماد ADR-FLEET-001/002/004 وبدء التوحيد",
       "title": "F0 توحيد إصدار الأسطول: runbook تنفيذي (فرع release + مصالحة main + أول وسم nassaj-v* + fleet-current + سجلّ عقد + إصلاح الرخيمي) — تصميم للمراجعة ثم تنفيذ مبوَّب",
-      "note": "runbook منجَز 2026-07-10 (devops، غير منفِّذ، لم يلتزم شيئاً): docs/plans/FLEET-F0-RUNBOOK-2026-07-10.md + docs/fleet/nodes.tsv (كلاهما untracked). القرارات الأربعة: D1 أنشئ release/fleet جديداً (التاريخ خطّي: main⊂integration/publish+113⊂HEAD؛ integration/publish متأخّر 53 عن القمة لا أمامها — تصحيح رقم الدراسة). D2 مصالحة main بـff-only (main سلف صارم، لا reset/force). D3 أول وسم nassaj-v1.35.1 (بادئة موقَّعة تقتل تداخل describe مع v1.35.0-nassaj الإرثي) + مؤشّر ملف FLEET_RELEASE لا وسم متحرّك. D4 تضمين B-158/B-159 بوّابة صلبة قبل الوسم. **مخاطر حرجة رُصدت:** (1) لغم رخيمي (تكرار B-110): ecosystem.config.cjs متتبَّع في main@86faa54 بينما الوسم يتتبّع .example فقط ⇒ reset --hard يحذف إعداد رخيمي الحي ⇒ سقوط 3001/EADDRINUSE؛ المخفِّف: نسخ الإعداد لـecosystem.rukhaimi.config.cjs untracked قبل reset. (2) تنسيق: backend-dev (T-844/845) يعمل الآن غير ملتزَم (path-guard.js untracked + index.js معدَّل) ⇒ الوسم محجوب حتى تهبط + build أخضر + تحقّق qa-critic. **البوّابة التالية:** qa-critic يراجع runbook + إصلاحات الأمان، ثم إذن مالك صريح لكل عملية إنتاج. لا تنفيذ إنتاجي بعد."
+      "note": "runbook منجَز 2026-07-10 (devops، غير منفِّذ، لم يلتزم شيئاً): docs/plans/FLEET-F0-RUNBOOK-2026-07-10.md + docs/fleet/nodes.tsv (كلاهما untracked). القرارات الأربعة: D1 أنشئ release/fleet جديداً (التاريخ خطّي: main⊂integration/publish+113⊂HEAD؛ integration/publish متأخّر 53 عن القمة لا أمامها — تصحيح رقم الدراسة). D2 مصالحة main بـff-only (main سلف صارم، لا reset/force). D3 أول وسم nassaj-v1.35.1 (بادئة موقَّعة تقتل تداخل describe مع v1.35.0-nassaj الإرثي) + مؤشّر ملف FLEET_RELEASE لا وسم متحرّك. D4 تضمين B-158/B-159 بوّابة صلبة قبل الوسم. **مخاطر حرجة رُصدت:** (1) لغم رخيمي (تكرار B-110): ecosystem.config.cjs متتبَّع في main@86faa54 بينما الوسم يتتبّع .example فقط ⇒ reset --hard يحذف إعداد رخيمي الحي ⇒ سقوط 3001/EADDRINUSE؛ المخفِّف: نسخ الإعداد لـecosystem.rukhaimi.config.cjs untracked قبل reset. (2) تنسيق: backend-dev (T-844/845) يعمل الآن غير ملتزَم (path-guard.js untracked + index.js معدَّل) ⇒ الوسم محجوب حتى تهبط + build أخضر + تحقّق qa-critic. **البوّابة التالية:** qa-critic يراجع runbook + إصلاحات الأمان، ثم إذن مالك صريح لكل عملية إنتاج. لا تنفيذ إنتاجي بعد. **تنفيذ 2026-07-11 (إذن المالك في نص الاستئناف + دفعه اليدوي):** commit تجهيز F0 ‏b986e151 (FLEET_RELEASE+nodes.tsv+runbook أصبحت متتبَّعة) + فرع release/fleet + وسم nassaj-v1.35.1 (موثَّق -a لا موقَّعاً — لا مفتاح GPG، انحراف موثَّق) + main ff ‏7efe9a6c→b986e151 + دفع المالك بطرفيته (حارس الأذونات اعترض push المنسّق). **حالة العقد:** المركز ✅ (بناء نظيف من worktree يعزل WIP + safe-restart المالك 03:48، ‏200/200، الإصلاحات في الأرتيفاكت الحي)؛ الرخيمي ✅ (86faa548→b986e151، اللغم مُصان بـecosystem.rukhaimi.config.cjs، بوابة qa-critic safe-restart.aside.sh، ‏200/200، backup dist-server-20260710-210433)؛ ترافنشر ⛔ مؤجَّلة بقرار سليم — جلستا claude حيّتان ابنتا عملية الخادم (خطر drain-hang/B-95)، القرار للمالك: انتظار الفراغ أو إنهاء الجلستين. **T-155 عاد بوجه ثانٍ:** WF_BASE مثبَّت في safe-restart.sh أفشل exit 2 على الرخيمي؛ حُلّ ببروتوكول تعويضي معتمد (فحص عمليات claude مباشرة ثم WF_BASE=mktemp فارغ يمثّل الواقع المتحقَّق) — الإصلاح الجذري T-863. **إقفال F0 ‏2026-07-11: الأسطول كله على nassaj-v1.35.1.** ترافنشر اكتملت بعد إذن المالك بإنهاء جلستَي claude (وُجدتا زالتا ذاتياً — لا قتل): ‏b8fedb62→b986e151، ‏unshallow ✓، ‏200/200، صفر مسّ للاعتمادات بدليل قبلي/بعدي (mtime متطابق لكل مخازن .claude/.nassaj-users). بذلك **B-158/B-159 مسدودتان أسطولياً** (كانتا مكشوفتين حيّاً على ترافنشر). deployed_ref=nassaj-v1.35.1 للعقد الثلاث. متبقيات توثيقية (§8): تثبيت ADR-FLEET في alkindy/decisions + مدخل nassaj-server-docs. **درس اعتماد الرخيمي:** الملف لم يُمَسّ (mtime Jun30 باقٍ) — «الاختفاء» توكن راكد منذ Jun30 أو تشديد الحلّ per-user عبر قفزة 166 commit؛ إعادة اعتماد واحدة تكفي ولن تتكرر مع تحديثات صغيرة."
     },
     {
       "id": "T-851",
@@ -3610,24 +3611,25 @@
       "id": "T-856",
       "kind": "chore",
       "phase": "P0",
-      "status": "in_progress",
+      "status": "done",
       "owner": "backend-dev",
       "found": "2026-07-10",
+      "closed": "2026-07-11",
       "source": "خطة توافق OpenCode — M1",
       "title": "M1 تصليب تشغيل OpenCode: OPENCODE_PATH على قالب agy في المواقع الأربعة + حالة opencode في resolveProviderEnv بعزل XDG + مسار احتياطي لعدّاد التوكنز ومؤشر التعفّن (OC-20) + تشخيص تحميل المهارات اللا-حتمي (OC-18) — بنود OC-05..OC-08/18/20/22",
-      "note": "معيار OC-18: تحميل 12/12 مهارة عبر 5 تشغيلات متتالية. OC-22 المرفقات/الصور في حِمل opencode-command."
+      "note": "منجَز 2026-07-11 عبر 5 commits ‏(db212704, 496d6e6f, cd380627, aba28014, 90dc4b01): OPENCODE_PATH ‏(resolveOpenCodeBinaryPath — زوال حاجب «غير مثبَّت» مُثبت وظيفياً)؛ عزل XDG لكل مستخدم بلا لمس HOME (المشترك بلا تغيير بايت) + opencode-home.ts وfan-out للمزامن والمراقب؛ OC-08 عبر /health.activeSessions يقرؤها safe-restart؛ OC-20 بوابة العدّاد/التعفّن تشمل opencode؛ OC-22 مرفقات عبر --file. اختبارات 59/59 خادمية والعميلية خضراء؛ build:server+client ‏exit 0 — التفعيل ينتظر restart. حكم OC-18: لا عطل — الرصد 8-9/12 كان أثر قياس (عدّ ساذج لمخرج JSON)؛ الصحيح 12/12 ثابتة (يصحّح ادعاء الوثيقة محور 8). انحرافان: 3 قرّاء بلا userId (متابعة T-867) و/health بدل عدّاد drain."
     },
     {
       "id": "T-857",
       "kind": "bug",
       "phase": "P0",
-      "status": "todo",
+      "status": "in_progress",
       "owner": "backend-dev",
       "issue": "B-161",
       "found": "2026-07-10",
       "source": "خطة توافق OpenCode — OC-21 / مراجعة qa-critic",
-      "title": "إصلاح B-161: تسجيل مالك/مشارك جلسات opencode (recordSpawn/recordUserMessage في مسار spawn) ليسري ADR-052 + منع upsert المزامنة من بعث المؤرشف (isArchived)",
-      "note": "شرط قبل فتح opencode للفريق. الأنماط المرجعية: claude-sdk.js:1321، agy-cli.js:804."
+      "title": "إصلاح B-161 بنطاق موسَّع: (أ) تسجيل مالك/مشارك جلسات opencode الويبية (recordSpawn/recordUserMessage في server/opencode-cli.js) + (ب) نسب مالك للجلسات الخارجية (TUI) عند المزامنة في opencode-session-synchronizer.provider.ts:107-134 — مالك دليل البيانات (اليوم مالك المنصة؛ بعد عزل OC-06 مالك XDG_DATA_HOME لكل مستخدم) بلا استثناء في NATIVE_SESSION_PREDICATE + (ج) منع upsert المزامنة من بعث المؤرشف",
+      "note": "شرط قبل فتح opencode للفريق، ويصلح حالة المالك الحية ses_0b16c0038ffe14BG5FKLyawl0s. اختير نسب المالك عند المزامنة (لا ثقب المرشّح) حفاظاً على دلالات ADR-052. الأنماط المرجعية: claude-sdk.js:1321/1328، agy-cli.js:804. يُنفَّذ بعد إقفال M1/T-856 (تداخل opencode-cli.js)."
     },
     {
       "id": "T-858",
@@ -3660,7 +3662,8 @@
       "issue": "B-103",
       "found": "2026-07-11",
       "title": "اختبار صدق تفعيل B-103 م1 (نجح): وكيل خلفي (استطلاع B-163) نجا انتهاءَ دور المنسّق ووصلت نتيجته كاملة عبر task-notification ⇒ مسار «انتهاء الدور» مثبت حيّاً. فجوة موثَّقة: الوكلاء الخلفيون (أداة Agent) لا يسجَّلون وحدات wf-* تحت workflow-supervisor (صفر وحدات أثناء عمل الوكيل والمشرف active) ⇒ موتُ عملية المنسّق ذاتها ما زال يقتلهم — مُدخَل تصعيد للمالك: م2 CHAT_LOCK بعد الـsoak أو ربط مسار الوكلاء بالمشرف.",
-      "closed": "2026-07-11"
+      "closed": "2026-07-11",
+      "note": "تأكيد ميداني ثانٍ للفجوة (2026-07-11 03:48): safe-restart المركز قتل عملية المنسّق ووكيل devops الخلفي معها بلا سجل اكتمال (task stopped)؛ عملُ الوكيل على القرص نجا (بناءا العميل والخادم اكتملا 03:47 قبل القتل) لكن نتيجته لم تُسلَّم — وهذا بالضبط سلوك «موت عملية المنسّق» المتوقع لمسار الوكلاء غير المُشرَف. يعزّز خيار التصعيد."
     },
     {
       "id": "T-861",
@@ -3687,6 +3690,71 @@
       "source": "مواصفة استطلاع backend-dev المؤكِّدة للتشخيص (2026-07-11)",
       "title": "إصلاح B-163 عميلياً: كاتب رتيب في applyRefreshedToken (api.js:25) — لا كتابة localStorage ولا حدث إلا لتوكن exp أحدث بمعنى (توكنات نفس الثانية متساوية exp فتُتجاهل — يقتل العاصفة حتى قبل نشر الخادمي) + دفاع في العمق بمقارنة exp داخل updater في AuthContext:299-307 + اختبارات vitest للرتابة دون كسر tokenRefreshSync/tokenRefreshProactive (B-131)",
       "note": "منجَز ومُتحقَّق من المنسّق بإعادة تشغيل npm run test:client بنفسه: 15/15 ملفاً، 194/194 اختباراً (+8 رتابة جديدة MK-1..4 وMA-1..2 في tokenRefreshMonotonic.test.tsx). الملفات: src/utils/jwt.js جديد (decodeJwtExp لا يرمي أبداً)، api.js كاتب رتيب fail-open عند تعذّر الفكّ، AuthContext دفاع في العمق داخل updater نقي وpersistToken خارجه. لم يُبنَ العميل بعد — build:client ضمن سلسلة النشر."
+    },
+    {
+      "id": "T-866",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "todo",
+      "owner": "architect+frontend-dev+backend-dev",
+      "found": "2026-07-11",
+      "source": "طلب المالك 2026-07-11",
+      "title": "آلية ربط API للمزوّدات من الإعدادات (تبويب Account): إدخال/حفظ مفتاح API لكل مزوّد agentic (Anthropic لـ OpenCode وغيره) + زر يفتح طرفية الويب على أمر الربط التفاعلي للمزوّد (opencode providers login ونظائره) لإتمام الربط من داخل نسّاج",
+      "note": "يبدأ بتصميم قصير من architect: أين تُحفظ المفاتيح (اعتماد مخازن الأدوات نفسها: auth.json لـ opencode بعزل XDG لكل مستخدم — لا تخزين موازٍ في قاعدة نسّاج إلا للضرورة)، أمر الربط لكل مزوّد، وإعادة استخدام طرفية Shell القائمة (node-pty) للزر. يُنفَّذ بعد إقفال M1/T-856 لتداخل الملفات."
+    },
+    {
+      "id": "T-864",
+      "kind": "chore",
+      "phase": "P0",
+      "status": "todo",
+      "owner": "backend-dev+frontend-dev",
+      "found": "2026-07-11",
+      "source": "طلب المالك 2026-07-11",
+      "title": "إزالة مزوّدات gemini وkimi وdeepseek وglm من واجهة نسّاج — قرار المالك: gemini يغنيه antigravity، والبقية API صرفة وليست بيئات وكلاء",
+      "note": "التنفيذ المقترح: تعطيل/إخفاء كامل من الواجهة والسجل (قائمة معطَّلة مركزية) بدل حذف الكود الجارح — النتيجة للمستخدم واحدة (تختفي كلياً) مع الحفاظ على قابلية مزامنة upstream وقابلية العكس. يشمل تنظيف حالات resolve-provider-env (kimi/deepseek/glm) وأيقونات الشريط. يُنفَّذ بعد إقفال M1/T-856 لتداخل الملفات."
+    },
+    {
+      "id": "T-863",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "todo",
+      "owner": "devops",
+      "issue": "T-850",
+      "found": "2026-07-11",
+      "source": "أصاب نشر F0 حيّاً على الرخيمي (exit 2) وسيصيب ترافنشر — نفس صنف T-155 المُقفلة (مسارات مثبَّتة على بيت المركز)",
+      "title": "محمولية safe-restart.sh على عقد الأسطول: WF_BASE مثبَّت على /home/nassaj/nassaj-core/projects/<hub-path> يُفشل precondition على أي عقدة بمستخدم مختلف — المطلوب اكتشاف ديناميكي (اشتقاق من $HOME أو متغير لكل عقدة عبر ecosystem.<node>.config.cjs) أو تخطٍّ صريح موثَّق حين لا جذر transcripts، مع بقاء fail-closed عند وجوده. البديل المؤقت المعتمد 2026-07-11: بروتوكول تعويضي (فحص عمليات claude مباشرةً + WF_BASE=mktemp فارغ بعد تحقُّق الصفر)"
+    },
+    {
+      "id": "T-865",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "todo",
+      "priority": "medium",
+      "owner": "المالك",
+      "found": "2026-07-11",
+      "title": "إصلاح انجراف عقدة traventure ‏(B-166): مزامنة ecosystem مع المرجع (kill_timeout 24h + مفتاحا registry/reconcile) ثم safe-restart على العقدة — يحتاج إذن إنتاج صريحاً",
+      "note": "الوصول جاهز: ssh -i ~/.ssh/id_nassaj_fleet ibrahim@ibrahim-jalal-setup. ادفع المرجع قبل أي pull-deploy (درس B-115)."
+    },
+    {
+      "id": "T-867",
+      "kind": "chore",
+      "phase": "P4",
+      "status": "todo",
+      "owner": "backend-dev",
+      "found": "2026-07-11",
+      "source": "متابعة T-856/OC-07 (انحراف موثَّق)",
+      "title": "توحيد العزل per-user لقرّاء opencode المتبقين: تمرير userId عبر واجهات IProviderModels/IProviderSessions للقرّاء الثلاثة (getCurrentActiveModel، سجل الجلسات، نقطة /api للتوكنز) + قارئ opencode-mcp — تغيير عابر للمزوّدات",
+      "note": "فجوة محدودة على مسار العزل الاختياري فقط (الوضع الافتراضي shared آمن اليوم). حجم M/L. تُجدول مع تفعيل العزل الفعلي في Phase-MU. (كانت مُشارة كـ T-865 قبل فضّ تضارب ترقيم مع جلسة الأسطول)."
+    },
+    {
+      "id": "T-868",
+      "kind": "feature",
+      "phase": "P7",
+      "status": "in_progress",
+      "priority": "high",
+      "found": "2026-07-11",
+      "title": "تزويد عقدة mujtana (‏100.127.33.55، ‏Debian 13) بنسّاج — bootstrap-node.sh على منفذ 3004",
+      "note": "الوصول قائم عبر Tailscale SSH (‏check موافَق ‏2026-07-11، يسري ~12س). الجهاز نظيف مؤكَّد (لا gh/node/pm2/opt-nassaj، لا منافذ ويب). ‏sudo بكلمة سر → أسطر sudo وgh auth login بيد المالك، والباقي devops عبر SSH. درس ترافنشر: تحقّق الخلوّ قبل bootstrap ✅ نُفِّذ."
     }
   ],
   "issues": [
@@ -5387,7 +5455,7 @@
       "found": "2026-07-10",
       "issue": "T-843",
       "source": "مراجعة qa-critic لخطة توافق OpenCode + تحقق architect (docs/plans/OPENCODE-COMPAT-2026-07-10.md صف 15، بند OC-21)",
-      "triage": "medium → كامن حالياً (المزوّد معطَّل فعلياً بحاجب PATH) لكنه شرط قبل فتح opencode للفريق. الإصلاح ضمن OC-21 في الخطة؛ يُفعَّل مهمةً عند اعتماد D2 (T-846)."
+      "triage": "high (رُفعت 2026-07-11): تجلّى حيّاً — محادثة المالك ses_0b16c0038ffe14BG5FKLyawl0s من TUI زُومنت سليمة (watcher حي، المشروع public) لكن NATIVE_SESSION_PREDICATE أسقطها من القائمة (session_participants=0 وmessage_authors=0 لكل جلسات opencode الأربع المفهرسة). التشخيص أكد: T-857 كما هو يغطي المسار الويبي فقط؛ وُسّع نطاقه ليشمل الجلسات الخارجية عبر نسب المالك عند المزامنة (synchronizer). الإصلاح بعد إقفال M1 (تداخل opencode-cli.js)."
     },
     {
       "id": "B-162",
@@ -5414,7 +5482,7 @@
       "triage": "high → **مُشخَّص قاطعاً؛ الإصلاح لم يُنفَّذ بعد** (وكيل الإصلاح مات قبل كتابة أي كود — هشاشة B-103؛ HEAD e879043e، لا commit ولا تعديل على auth.js/AuthContext على القرص). قرار المالك 2026-07-10: إكمال في جلسة جديدة (على instance منفصل لا يموت) + إعادة تحقّق من فاعلية الإصلاح قبل النشر. **2026-07-11: التنفيذ جارٍ** (T-861 خادمي + T-862 عميلي) بعد استطلاع أكّد التشخيص على الكود الحالي وكشف مُضخِّماً جذرياً إضافياً (pwd_iat بدقّة الملّي للمستخدمين ذوي password_changed_at=NULL ⇒ الـ16 توكناً مختلفة حتماً — سُجّل دَينه المستقل B-164). **ليس عطل نشر** (كل الفرضيات الأربع الأولى مُستبعَدة: dist حديث 21:58 يحوي 3023cd8b+a0da9d38 حيّاً؛ لا مسح تخزين؛ لا bad_signature؛ SW claude-ui-v6 سليم؛ IS_PLATFORM مطفأ).",
       "note": "نورس=user_id 1 (owner)، Brave الجوال. **الجذر المُثبَت:** auth.js:140-156 يسكّ توكناً جديداً لكل طلب تجاوز منتصف عمره؛ عند فتح/عودة الواجهة تنطلق ~16 طلب REST متوازٍ على نفس التوكن القديم ⇒ 16 توكناً طازجاً مختلفاً + 16 token_refresh (مُثبَت بـaudit_log: 16/23ث). كل رد X-Refreshed-Token → applyRefreshedToken (api.js:25) → setToken (AuthContext:306) → يُعيد تأثير [token] في WebSocketContext:114 ⇒ إغلاق+فتح WS، وكل onopen يبثّ websocket-reconnected (:146) ⇒ إعادة جلب+تصيير ⇒ وميض يبدو «إعادة تحميل هستيرية»؛ مُضخَّم على Brave الجوال (خنق PWA + دورات focus + التوكن المخزَّن لا يتقدّم = عاصفة كل فتح بارد). حلقة محدودة لكل فتح لا لا-نهائية. **الإصلاح الموصى (كود، لم يُطبَّق):** (1) الأهم خادمي — تجميع توكن التجديد: توكن مجدَّد واحد لكل مستخدم ضمن نافذة 5-10ث يُعاد استعماله (auth.js:140-156) ⇒ token_refresh واحد + reconnect واحد بدل 16، بمعزل عن المتصفح. (2) عميلي — setToken فقط إن كان exp أحدث بمعنى لا لمجرد اختلاف السلسلة (AuthContext:299-307). (3) فحص Brave الجوال مع نورس (Clear-on-close/تقسيم التخزين) — إعداد لا كود. تأكيد نهائي للرابط Brave يلزمه DevTools على جهاز نورس. لا يُصلحه نشر التوحيد.",
       "fixed": "2026-07-11",
-      "review_fix": "commit c9446138 — تجميع خادمي (T-861) + رتابة عميلية (T-862)؛ تحقق ثلاثي: وحدات 887/887 و194/194، e2e معزول 16-متوازياً ⇒ ترويسة واحدة وتدقيق واحد وسكّة ثانية بعد النافذة، اعتماد qa-critic بلا عوائق. الشقّ العميلي يصير حياً على المركز بـbuild:client فوراً؛ الخادمي يلزمه safe-restart (بيد المالك). يبقى للمالك: فحص إعداد Brave الجوال مع نورس (Clear-on-close/تقسيم التخزين)."
+      "review_fix": "commit c9446138 — تجميع خادمي (T-861) + رتابة عميلية (T-862)؛ تحقق ثلاثي: وحدات 887/887 و194/194، e2e معزول 16-متوازياً ⇒ ترويسة واحدة وتدقيق واحد وسكّة ثانية بعد النافذة، اعتماد qa-critic بلا عوائق. الشقّ العميلي يصير حياً على المركز بـbuild:client فوراً؛ الخادمي يلزمه safe-restart (بيد المالك). **نُشر على المركز 2026-07-11:** ضمن nassaj-v1.35.1 (b986e151) — بناء عميل+خادم 03:47 (الخادمي من worktree نظيف يعزل WIP الجلسة الموازية) ثم safe-restart بيد المالك 03:48؛ تحقق المنسّق: 200/200 محلي+عام، REFRESH_COALESCE في dist-server الحي، البندل index-B6ebE0qE.js طازج مع sw.js. يبقى للمالك: فحص إعداد Brave الجوال مع نورس (Clear-on-close/تقسيم التخزين)، وتحديث قسري لتجاوز SW على جهازه."
     },
     {
       "id": "B-164",
@@ -5439,6 +5507,15 @@
       "issue": "B-163",
       "source": "ملاحظة qa-critic خارج نطاق مراجعة B-163 (2026-07-11) — سلوك سابق للتغيير وغير منحدِر",
       "triage": "low → backlog. المسار في routes/auth.js خارج ملفات B-163. المعالجة المقترحة: عدم إرسال ترويسة التجديد في رد تغيير كلمة السر (المعالِج يسلّم التوكن الجديد في جسم الرد أصلاً وAuthContext يكتبه مباشرة عبر setToken/persistToken)."
+    },
+    {
+      "id": "B-166",
+      "severity": "medium",
+      "status": "open",
+      "found": "2026-07-11",
+      "kind": "bug",
+      "title": "انجراف إعدادي حي على عقدة traventure: ecosystem.nassaj.config.cjs يحمل kill_timeout=300000 (5د بدل 24س) ويفتقد SESSION_REGISTRY_claude وWORKFLOW_RECONCILE",
+      "note": "كشفه فحص devops قراءة-فقط 2026-07-11 عبر SSH (‏ibrahim@ibrahim-jalal-setup ‏100.105.15.56 = سيرفر traventure نفسه، انضم للـtailnet). العقدة online منذ 10 أيام وتخدم مستخدمين. الإصلاح يتطلب إذن إنتاج + safe-restart على العقدة ذاتها — انظر T-855. مرتبط بـB-114 (أُصلح المولِّد لا العقد المنجرفة سلفاً)."
     }
   ],
   "decisions": [
