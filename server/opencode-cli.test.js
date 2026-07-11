@@ -35,9 +35,12 @@ for (const event of events) {
 
 test('spawnOpenCode emits session_created before normalized live messages for new sessions', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-cli-live-'));
-  const pathKey = findEnvKey('PATH');
+  // OC-06: the binary is now resolved via resolveOpenCodeBinaryPath(), which
+  // prefers OPENCODE_PATH → ~/.opencode/bin/opencode → PATH. On a host where the
+  // real CLI is installed the old PATH-injection would be bypassed, so pin the
+  // fake executable through the OPENCODE_PATH override (the intended knob).
+  const previousOpenCodePath = process.env.OPENCODE_PATH;
   const pathExtKey = findEnvKey('PATHEXT');
-  const previousPath = process.env[pathKey];
   const previousPathExt = process.env[pathExtKey];
   const messages = [];
   const writer = {
@@ -53,7 +56,10 @@ test('spawnOpenCode emits session_created before normalized live messages for ne
 
   try {
     await createFakeOpenCodeExecutable(tempRoot);
-    process.env[pathKey] = `${tempRoot}${path.delimiter}${previousPath || ''}`;
+    process.env.OPENCODE_PATH = path.join(
+      tempRoot,
+      process.platform === 'win32' ? 'opencode.cmd' : 'opencode',
+    );
     if (process.platform === 'win32') {
       process.env[pathExtKey] = previousPathExt?.toUpperCase().includes('.CMD')
         ? previousPathExt
@@ -78,10 +84,10 @@ test('spawnOpenCode emits session_created before normalized live messages for ne
     assert.equal(complete?.sessionId, 'open-live-1');
     assert.equal(messages.some((message) => message.kind === 'error'), false);
   } finally {
-    if (previousPath === undefined) {
-      delete process.env[pathKey];
+    if (previousOpenCodePath === undefined) {
+      delete process.env.OPENCODE_PATH;
     } else {
-      process.env[pathKey] = previousPath;
+      process.env.OPENCODE_PATH = previousOpenCodePath;
     }
 
     if (previousPathExt === undefined) {

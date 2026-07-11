@@ -1,5 +1,8 @@
 import { spawn } from 'child_process';
 import fsSync from 'node:fs';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import crossSpawn from 'cross-spawn';
 import Database from 'better-sqlite3';
@@ -8,9 +11,11 @@ import { sessionsService } from './modules/providers/services/sessions.service.j
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
-import { createNormalizedMessage, getOpenCodeDatabasePath, stampCoordinatorId } from './shared/utils.js';
+import { createNormalizedMessage, resolveOpenCodeBinaryPath, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
+import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { resolveOpenCodeDatabasePathForUser } from './modules/providers/list/opencode/opencode-home.js';
 
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
 
@@ -24,8 +29,10 @@ function readOpenCodeSessionId(event) {
   return event.sessionID || event.sessionId || null;
 }
 
-function readOpenCodeTokenUsage(sessionId) {
-  const dbPath = getOpenCodeDatabasePath();
+function readOpenCodeTokenUsage(sessionId, userId = null) {
+  // OC-07: read the token totals from the SPAWNING user's opencode.db (their
+  // isolated XDG data dir under isolation, the operator dir when shared).
+  const dbPath = resolveOpenCodeDatabasePathForUser(userId);
   if (!sessionId || !fsSync.existsSync(dbPath)) {
     return null;
   }
@@ -84,6 +91,71 @@ function readOpenCodeTokenUsage(sessionId) {
   }
 }
 
+/**
+ * OC-22: prepares attachment file paths for `opencode run --file`.
+ *
+ * opencode's `-f/--file` flag takes on-disk file PATHS (an array). Images arrive
+ * as base64 data URLs, so they are written to per-run temp files; uploaded files
+ * already live under the project's .nassaj-uploads/inbox as cwd-relative paths,
+ * so they are resolved against the working dir. Returns the absolute paths to
+ * attach plus the temp dir to clean up after the run (null when no images were
+ * materialized). Fully defensive: a malformed entry is skipped, never thrown, so
+ * a bad attachment can never abort the run.
+ *
+ * @param {Array<{data?: string}>} images base64 data-URL image objects
+ * @param {Array<{path?: string, name?: string}>} files cwd-relative file refs
+ * @param {string} cwd working directory the file paths resolve against
+ * @returns {Promise<{ filePaths: string[], tempDir: string|null }>}
+ */
+async function prepareOpenCodeAttachments(images, files, cwd) {
+  const filePaths = [];
+  let tempDir = null;
+
+  const imageList = Array.isArray(images) ? images : [];
+  if (imageList.length > 0) {
+    try {
+      tempDir = path.join(os.tmpdir(), 'nassaj-opencode-images', Date.now().toString());
+      await fs.mkdir(tempDir, { recursive: true });
+      for (const [index, image] of imageList.entries()) {
+        const matches = typeof image?.data === 'string'
+          ? image.data.match(/^data:([^;]+);base64,(.+)$/)
+          : null;
+        if (!matches) {
+          continue;
+        }
+        const [, mimeType, base64Data] = matches;
+        const extension = mimeType.split('/')[1] || 'png';
+        const filepath = path.join(tempDir, `image_${index}.${extension}`);
+        await fs.writeFile(filepath, Buffer.from(base64Data, 'base64'));
+        filePaths.push(filepath);
+      }
+    } catch (error) {
+      console.error('[OpenCode] Failed to materialize image attachments:', error?.message || error);
+    }
+  }
+
+  const fileList = Array.isArray(files) ? files : [];
+  for (const file of fileList) {
+    const relOrAbs = typeof file?.path === 'string' ? file.path : null;
+    if (!relOrAbs) {
+      continue;
+    }
+    filePaths.push(path.isAbsolute(relOrAbs) ? relOrAbs : path.resolve(cwd, relOrAbs));
+  }
+
+  return { filePaths, tempDir };
+}
+
+/** Best-effort removal of the per-run temp image dir (OC-22). Never throws. */
+async function cleanupOpenCodeTempDir(tempDir) {
+  if (!tempDir) {
+    return;
+  }
+  await fs.rm(tempDir, { recursive: true, force: true }).catch((error) => {
+    console.error('[OpenCode] Failed to remove temp attachment dir:', error?.message || error);
+  });
+}
+
 async function spawnOpenCode(command, options = {}, ws) {
   // B-31: verify the project directory exists before spawning OpenCode.
   const cwdToCheck = options.cwd || options.projectPath;
@@ -100,7 +172,7 @@ async function spawnOpenCode(command, options = {}, ws) {
   }
 
   return new Promise((resolve, reject) => {
-    const { sessionId, projectPath, cwd, model, sessionSummary } = options;
+    const { sessionId, projectPath, cwd, model, sessionSummary, images, files } = options;
     const workingDir = cwd || projectPath || process.cwd();
     const processKey = sessionId || Date.now().toString();
     let capturedSessionId = sessionId || null;
@@ -108,6 +180,8 @@ async function spawnOpenCode(command, options = {}, ws) {
     let stdoutLineBuffer = '';
     let terminalNotificationSent = false;
     let opencodeProcess = null;
+    // OC-22: temp dir holding materialized image attachments, cleaned on close.
+    let attachmentsTempDir = null;
 
     const notifyTerminalState = ({ code = null, error = null } = {}) => {
       if (terminalNotificationSent) {
@@ -209,7 +283,11 @@ async function spawnOpenCode(command, options = {}, ws) {
       }
     };
 
-    void providerModelsService.resolveResumeModel('opencode', sessionId, model).then((resolvedModel) => {
+    Promise.all([
+      providerModelsService.resolveResumeModel('opencode', sessionId, model),
+      prepareOpenCodeAttachments(images, files, workingDir),
+    ]).then(([resolvedModel, attachments]) => {
+      attachmentsTempDir = attachments.tempDir;
       const args = ['run', '--format', 'json'];
       if (sessionId) {
         args.push('--session', sessionId);
@@ -217,14 +295,23 @@ async function spawnOpenCode(command, options = {}, ws) {
       if (resolvedModel) {
         args.push('--model', resolvedModel);
       }
+      // OC-22: attach images (materialized) and files via -f/--file, one per path.
+      for (const attachmentPath of attachments.filePaths) {
+        args.push('--file', attachmentPath);
+      }
       if (command && command.trim()) {
         args.push(command.trim());
       }
 
-      opencodeProcess = spawnFunction('opencode', args, {
+      // OC-06: resolve the binary through the OPENCODE_PATH knob instead of a
+      // bare PATH lookup (PM2 does not see ~/.opencode/bin from .bashrc).
+      // OC-07: build the child env through resolveProviderEnv so an isolated
+      // user's XDG_* dirs point into their tree; shared mode returns the base
+      // env unchanged (byte-for-byte the previous {...process.env}).
+      opencodeProcess = spawnFunction(resolveOpenCodeBinaryPath(), args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env },
+        env: resolveProviderEnv(ws?.userId ?? null, 'opencode'),
       });
 
       activeOpenCodeProcesses.set(processKey, opencodeProcess);
@@ -260,12 +347,16 @@ async function spawnOpenCode(command, options = {}, ws) {
         activeOpenCodeProcesses.delete(finalSessionId);
         activeOpenCodeProcesses.delete(processKey);
 
+        // OC-22: remove materialized image temp files once the run has ended.
+        await cleanupOpenCodeTempDir(attachmentsTempDir);
+        attachmentsTempDir = null;
+
         if (stdoutLineBuffer.trim()) {
           processOpenCodeOutputLine(stdoutLineBuffer.trim());
           stdoutLineBuffer = '';
         }
 
-        const tokenBudget = readOpenCodeTokenUsage(finalSessionId);
+        const tokenBudget = readOpenCodeTokenUsage(finalSessionId, ws?.userId ?? null);
         if (tokenBudget) {
           ws.send(createNormalizedMessage({
             kind: 'status',
@@ -310,6 +401,10 @@ async function spawnOpenCode(command, options = {}, ws) {
         const finalSessionId = capturedSessionId || sessionId || processKey;
         activeOpenCodeProcesses.delete(finalSessionId);
         activeOpenCodeProcesses.delete(processKey);
+
+        // OC-22: clean up materialized image temp files on spawn failure too.
+        await cleanupOpenCodeTempDir(attachmentsTempDir);
+        attachmentsTempDir = null;
 
         // B-32: map spawn errors to structured codes.
         const installed = await providerAuthService.isProviderInstalled('opencode');

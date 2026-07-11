@@ -1,12 +1,13 @@
 import { readFile } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import spawn from 'cross-spawn';
 
 import type { IProviderAuth } from '@/shared/interfaces.js';
 import type { ProviderAuthStatus } from '@/shared/types.js';
-import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
+import { readObjectRecord, readOptionalString, resolveOpenCodeBinaryPath } from '@/shared/utils.js';
+
+import { resolveOpenCodeDataHomeForUser } from './opencode-home.js';
 
 type OpenCodeCredentialsStatus = {
   authenticated: boolean;
@@ -30,7 +31,10 @@ export class OpenCodeProviderAuth implements IProviderAuth {
    */
   private checkInstalled(): boolean {
     try {
-      const result = spawn.sync('opencode', ['--version'], { stdio: 'ignore', timeout: 5000 });
+      // OC-06: OPENCODE_PATH knob → ~/.opencode/bin/opencode → PATH fallback.
+      // The PM2 process does not inherit ~/.opencode/bin from .bashrc, so a bare
+      // 'opencode' lookup made auth-status report the CLI as not installed.
+      const result = spawn.sync(resolveOpenCodeBinaryPath(), ['--version'], { stdio: 'ignore', timeout: 5000 });
       return !result.error && result.status === 0;
     } catch {
       return false;
@@ -40,9 +44,9 @@ export class OpenCodeProviderAuth implements IProviderAuth {
   /**
    * Returns OpenCode CLI installation and credential status.
    */
-  async getStatus(): Promise<ProviderAuthStatus> {
+  async getStatus(userId?: string | number | null): Promise<ProviderAuthStatus> {
     const installed = this.checkInstalled();
-    const credentials = await this.checkCredentials();
+    const credentials = await this.checkCredentials(userId ?? null);
 
     return {
       installed,
@@ -57,9 +61,11 @@ export class OpenCodeProviderAuth implements IProviderAuth {
   /**
    * Reads OpenCode's auth store or falls back to provider API key environment variables.
    */
-  private async checkCredentials(): Promise<OpenCodeCredentialsStatus> {
+  private async checkCredentials(userId: string | number | null): Promise<OpenCodeCredentialsStatus> {
     try {
-      const authPath = path.join(os.homedir(), '.local', 'share', 'opencode', 'auth.json');
+      // OC-07: read auth.json from the requesting user's opencode data dir
+      // (isolated tree under isolation, operator dir when shared).
+      const authPath = path.join(resolveOpenCodeDataHomeForUser(userId), 'auth.json');
       const content = await readFile(authPath, 'utf8');
       const auth = readObjectRecord(JSON.parse(content)) ?? {};
 

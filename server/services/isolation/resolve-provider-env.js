@@ -11,6 +11,9 @@
  *   - codex:   CODEX_HOME=~/.nassaj-users/<userId>/.codex           (B-ISO-CODEX, wired)
  *   - agy:     HOME=~/.nassaj-users/<userId> so its brain store under
  *              ~/.gemini/antigravity-cli resolves into the isolated tree
+ *   - opencode: XDG_DATA_HOME/XDG_CONFIG_HOME/XDG_CACHE_HOME/XDG_STATE_HOME all
+ *              point into ~/.nassaj-users/<userId>/ so auth.json, opencode.db and
+ *              config isolate at once while HOME stays operator (shared skills).
  *   - cursor:  no env knob yet — shared
  *   - kimi/deepseek/glm: hosted third-party HTTP APIs that read no nassaj config
  *              tree. Their isolation is the OPPOSITE shape from the CLIs above:
@@ -40,7 +43,7 @@
  * is applied and the base environment is returned unchanged — preserving the
  * single-user behavior the app had before multi-user.
  *
- * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'|'kimi'|'deepseek'|'glm'} ProviderName
+ * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'|'opencode'|'kimi'|'deepseek'|'glm'} ProviderName
  */
 
 import { isProviderIsolated } from '../provider-sharing.js';
@@ -110,6 +113,22 @@ export function resolveProviderEnv(userId, provider, baseEnv = process.env) {
       // its BRAIN_DIR from the same per-user home when isolated.
       provisionUserDirs(userId);
       env.HOME = userConfigDir(userId, '');
+      return env;
+    }
+    case 'opencode': {
+      // OC-07: opencode keys ALL of its per-user state off the XDG base dirs
+      // (auth.json + opencode.db under XDG_DATA_HOME/opencode, config + agents
+      // under XDG_CONFIG_HOME/opencode, plus cache/state). Redirecting the four
+      // XDG_* vars into the user's isolated tree isolates every one of them at
+      // once — the OPPOSITE of overriding HOME (agy): HOME stays the operator
+      // home so opencode still reads the SHARED ~/.claude/skills library. The
+      // reader-side helpers in opencode-home.ts resolve the same paths for the
+      // synchronizer/watcher so isolated sessions are still indexed (no B-152).
+      provisionUserDirs(userId);
+      env.XDG_DATA_HOME = userConfigDir(userId, '.local/share');
+      env.XDG_CONFIG_HOME = userConfigDir(userId, '.config');
+      env.XDG_CACHE_HOME = userConfigDir(userId, '.cache');
+      env.XDG_STATE_HOME = userConfigDir(userId, '.local/state');
       return env;
     }
     case 'kimi':

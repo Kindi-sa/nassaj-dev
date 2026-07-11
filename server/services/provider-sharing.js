@@ -31,6 +31,7 @@ export const KNOWN_PROVIDERS = Object.freeze([
   'codex',
   'agy',
   'cursor',
+  'opencode',
   'kimi',
   'deepseek',
   'glm',
@@ -49,6 +50,11 @@ const DEFAULT_CONFIG = Object.freeze({
   codex: 'isolated',
   agy: 'shared',
   cursor: 'shared',
+  // opencode defaults to 'shared' (OC-07): it inherits the operator's XDG data/
+  // config tree exactly as before this seam existed, so an install with no stored
+  // config is byte-for-byte unchanged. An admin opts a user into isolation to get
+  // per-user XDG_* redirection into ~/.nassaj-users/<id>/.
+  opencode: 'shared',
   // Hosted vendor providers default to 'isolated': each user's API key is held
   // in the encrypted per-user secrets store and injected per spawn, so they must
   // never fall back to a shared operator key (B-VR-2B).

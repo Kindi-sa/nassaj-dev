@@ -6,6 +6,7 @@ import chokidar, { type FSWatcher } from 'chokidar';
 
 import { participantsDb, projectMembersDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { resolveCodexHomes } from '@/modules/providers/list/codex/codex-home.js';
+import { resolveOpenCodeDataHomes } from '@/modules/providers/list/opencode/opencode-home.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { vendorProviderRoot } from '@/modules/providers/shared/vendor/vendor-transcript.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
@@ -41,6 +42,9 @@ const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> =
     rootPath: path.join(os.homedir(), '.gemini', 'tmp'),
   },
   {
+    // Operator baseline only. OC-07: at watcher init this single opencode entry
+    // is expanded (see resolveEffectiveWatchTargets) into one watch per isolated
+    // user's opencode data dir so an isolated user's live sessions are indexed.
     provider: 'opencode',
     rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
   },
@@ -349,6 +353,15 @@ function resolveEffectiveWatchTargets(): Array<{ provider: LLMProvider; rootPath
     if (entry.provider === 'codex') {
       for (const codexHome of resolveCodexHomes()) {
         targets.push({ provider: 'codex', rootPath: path.join(codexHome, 'sessions') });
+      }
+      continue;
+    }
+    if (entry.provider === 'opencode') {
+      // OC-07: watch every user's opencode data dir (operator + isolated). In
+      // shared mode resolveOpenCodeDataHomes collapses to the single operator
+      // dir, leaving the original single watch.
+      for (const dataHome of resolveOpenCodeDataHomes()) {
+        targets.push({ provider: 'opencode', rootPath: dataHome });
       }
       continue;
     }

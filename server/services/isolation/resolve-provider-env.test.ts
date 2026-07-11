@@ -129,3 +129,47 @@ describe('resolveProviderEnv — hosted vendor key injection', () => {
     assert.equal(env.KIMI_API_KEY, undefined);
   });
 });
+
+describe('resolveProviderEnv — opencode XDG isolation (OC-07)', () => {
+  const XDG_KEYS = ['XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME'] as const;
+
+  it('shared mode (default): base env is returned byte-for-byte unchanged', () => {
+    _resetProviderSharingCache();
+    setProviderSharingConfig({ opencode: 'shared' });
+    const base: NodeJS.ProcessEnv = { PATH: '/usr/bin' };
+    const env = resolveProviderEnv(400, 'opencode', { ...base });
+    assert.deepEqual(env, base);
+    for (const key of XDG_KEYS) {
+      assert.equal(env[key], undefined, `${key} must not be set in shared mode`);
+    }
+  });
+
+  it('isolated: redirects all four XDG_* dirs into the per-user tree', () => {
+    _resetProviderSharingCache();
+    setProviderSharingConfig({ opencode: 'isolated' });
+    const env = resolveProviderEnv(401, 'opencode', { PATH: '/usr/bin' });
+
+    const userRoot = path.join(sandboxHome, '.nassaj-users', '401');
+    assert.equal(env.XDG_DATA_HOME, path.join(userRoot, '.local/share'));
+    assert.equal(env.XDG_CONFIG_HOME, path.join(userRoot, '.config'));
+    assert.equal(env.XDG_CACHE_HOME, path.join(userRoot, '.cache'));
+    assert.equal(env.XDG_STATE_HOME, path.join(userRoot, '.local/state'));
+    // HOME is NOT overridden for opencode (shared ~/.claude/skills stays reachable).
+    assert.equal(env.HOME, undefined);
+  });
+
+  it('isolated: never sets any ANTHROPIC_*/CLAUDE_* var (IRON RULE)', () => {
+    _resetProviderSharingCache();
+    setProviderSharingConfig({ opencode: 'isolated' });
+    const env = resolveProviderEnv(402, 'opencode', { PATH: '/usr/bin' });
+    assertNoAnthropicNamespace(env);
+  });
+
+  it('anonymous (null userId) opencode spawn injects nothing even when isolated', () => {
+    _resetProviderSharingCache();
+    setProviderSharingConfig({ opencode: 'isolated' });
+    const base: NodeJS.ProcessEnv = { PATH: '/usr/bin' };
+    const env = resolveProviderEnv(null, 'opencode', { ...base });
+    assert.deepEqual(env, base);
+  });
+});

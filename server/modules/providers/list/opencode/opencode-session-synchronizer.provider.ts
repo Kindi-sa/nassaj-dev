@@ -6,12 +6,13 @@ import Database from 'better-sqlite3';
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import {
-  getOpenCodeDatabasePath,
   normalizeProviderTimestamp,
   normalizeSessionName,
   readJsonRecord,
   readOptionalString,
 } from '@/shared/utils.js';
+
+import { openCodeDataHomeForSessionFile, resolveOpenCodeDataHomes } from './opencode-home.js';
 
 type OpenCodeSessionRow = {
   id: string;
@@ -34,27 +35,34 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
   private readonly provider = 'opencode' as const;
 
   /**
-   * Scans OpenCode's shared opencode.db and upserts active sessions into DB.
+   * Scans every opencode.db (operator + each isolated user's, OC-07) and upserts
+   * active sessions into DB. In shared mode resolveOpenCodeDataHomes collapses to
+   * the single operator dir, so this is byte-for-byte the pre-OC-07 scan.
    */
   async synchronize(since?: Date): Promise<number> {
-    const result = this.synchronizeRows(since);
-    return result.processed;
+    let processed = 0;
+    for (const dataHome of resolveOpenCodeDataHomes()) {
+      const dbPath = path.join(dataHome, 'opencode.db');
+      processed += this.synchronizeRows(dbPath, since).processed;
+    }
+    return processed;
   }
 
   /**
-   * Handles watcher changes for opencode.db.
+   * Handles watcher changes for a specific opencode.db (its owning data dir is
+   * the file's parent, so an isolated user's DB syncs from its own tree).
    */
   async synchronizeFile(filePath: string): Promise<string | null> {
     if (path.basename(filePath) !== 'opencode.db') {
       return null;
     }
 
-    const result = this.synchronizeRows(undefined, 1);
+    const dbPath = path.join(openCodeDataHomeForSessionFile(filePath), 'opencode.db');
+    const result = this.synchronizeRows(dbPath, undefined, 1);
     return result.firstSessionId;
   }
 
-  private synchronizeRows(since?: Date, limit?: number): SynchronizeRowsResult {
-    const dbPath = getOpenCodeDatabasePath();
+  private synchronizeRows(dbPath: string, since?: Date, limit?: number): SynchronizeRowsResult {
     if (!fsSync.existsSync(dbPath)) {
       return { processed: 0, firstSessionId: null };
     }

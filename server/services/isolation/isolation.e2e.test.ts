@@ -234,6 +234,9 @@ describe('provider-sharing config round-trip', () => {
       codex: 'isolated',
       agy: 'shared',
       cursor: 'shared',
+      // opencode defaults to 'shared' (OC-07): inherits the operator XDG tree so
+      // an install with no stored config is byte-for-byte unchanged.
+      opencode: 'shared',
       // Hosted vendor providers default to isolated: their key is per-user in the
       // encrypted secrets store, never a shared operator key (B-VR-2B).
       kimi: 'isolated',

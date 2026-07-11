@@ -326,6 +326,22 @@ export function provisionUserDirs(userId) {
       );
     }
 
+    // --- OpenCode (OC-07: isolated XDG_DATA_HOME data, SHARED XDG_CONFIG_HOME) ---
+    // resolveProviderEnv points opencode's four XDG base dirs at this user tree.
+    // DATA (auth.json + opencode.db) must be isolated: create the empty data dir
+    // so opencode writes into it. CONFIG (opencode.json, AGENTS.md, agent/,
+    // command/, skills/) is SHARED — the same model as CLAUDE.md/skills sharing —
+    // so a symlink to the operator's ~/.config/opencode gives an isolated user
+    // the fleet-standard instructions while keeping their credentials private.
+    // ~/.claude/skills stays reachable regardless because HOME is NOT overridden
+    // for opencode (only XDG), so operator skills remain shared automatically.
+    ensureDir(path.join(userRoot, '.local', 'share', 'opencode'));
+    ensureDir(path.join(userRoot, '.config'));
+    ensureSymlink(
+      path.join(home, '.config', 'opencode'),
+      path.join(userRoot, '.config', 'opencode'),
+    );
+
     // Tighten permissions every pass: mkdir's `mode` is masked by the process
     // umask, so enforce 0700 dirs / 0600 credential files explicitly. Idempotent
     // and cheap. (B-MU-OS-PERM, ADR-023 Decision 2.)
