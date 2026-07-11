@@ -3,12 +3,18 @@
  *
  * The security invariant "a key value never reaches the logs" is proven by
  * capturing ALL console output across the api-key lifecycle — success AND
- * failure — and asserting the secret never appears. Two surfaces are covered:
+ * failure — and asserting the secret never appears. Coverage spans the full
+ * save path (route -> service -> writer) across ALL FOUR credential surfaces:
  *   - the vendor route (kimi) set/delete, success and empty-key failure (the
- *     transport + service path, DB-free via the encrypted store); and
- *   - the codex writer's CLI-failure path, which is the one credential path that
+ *     transport + service path, DB-free via the encrypted store);
+ *   - the codex writer's CLI-failure path, the one credential path that
  *     deliberately logs a structured diagnostic — proving even THAT line omits
- *     the key.
+ *     the key; and
+ *   - a full set + delete lifecycle driven directly through each of the four
+ *     writers (claude / opencode / codex vendor-less + vendor), so the invariant
+ *     is asserted for every writer, not only the ones that log.
+ * Every writer target (CLAUDE_CONFIG_DIR / XDG_DATA_HOME / CODEX_HOME) is pinned
+ * into a sandbox so the run is hermetic and never touches an operator tree.
  * Runner: node:test + node:assert.
  */
 
@@ -23,7 +29,9 @@ import { after, before, test } from 'node:test';
 import express, { type NextFunction, type Request, type Response } from 'express';
 
 import providerRoutes from '@/modules/providers/provider.routes.js';
+import { ClaudeCredentialsWriter } from '@/modules/providers/list/claude/claude-credentials.writer.js';
 import { CodexCredentialsWriter } from '@/modules/providers/list/codex/codex-credentials.writer.js';
+import { OpenCodeCredentialsWriter } from '@/modules/providers/list/opencode/opencode-credentials.writer.js';
 import { _resetProviderSecretsServerKeyCache } from '@/services/isolation/provider-secrets-store.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -147,4 +155,55 @@ test('codex writer CLI-failure log line omits the key', async () => {
   const joined = cap.lines.join('\n');
   assert.ok(joined.length > 0, 'the failure path did log a diagnostic');
   assert.ok(!joined.includes(KEY), 'the codex failure log leaked the key');
+});
+
+test('every credential writer keeps the key out of logs across a set + delete lifecycle', async () => {
+  // Pin the three file-backed writer targets into the sandbox so the writes are
+  // hermetic regardless of the runner's ambient XDG/CODEX env. os.homedir is
+  // already mocked to sandboxHome (before hook), which covers claude's
+  // ~/.claude fallback; opencode keys off XDG_DATA_HOME and codex off CODEX_HOME.
+  const originalXdg = process.env.XDG_DATA_HOME;
+  const originalCodexHome = process.env.CODEX_HOME;
+  process.env.XDG_DATA_HOME = path.join(sandboxHome, '.local', 'share');
+  process.env.CODEX_HOME = path.join(sandboxHome, '.codex');
+
+  // codex reaches its native store through the CLI; inject a spawn that succeeds
+  // (close 0) so setApiKey resolves without a real codex binary.
+  const okSpawn = (_cmd: string, _args: string[]) => {
+    const child = new EventEmitter() as EventEmitter & { stdin: unknown };
+    child.stdin = { write: () => true, end: () => {} };
+    setImmediate(() => child.emit('close', 0, null));
+    return child;
+  };
+
+  // The four credential surfaces: three facet writers (claude/opencode/codex)
+  // plus the vendor path, exercised end-to-end via its route below.
+  const writers = [
+    new ClaudeCredentialsWriter(),
+    new OpenCodeCredentialsWriter(),
+    new CodexCredentialsWriter(okSpawn as never),
+  ];
+
+  const cap = captureConsole();
+  try {
+    for (const writer of writers) {
+      const set = await writer.setApiKey(null, KEY);
+      // The status object the service returns to the route must be key-free too.
+      assert.ok(!JSON.stringify(set).includes(KEY), 'a writer echoed the key in its status');
+      const del = await writer.deleteApiKey(null);
+      assert.ok(!JSON.stringify(del).includes(KEY), 'a writer echoed the key on delete');
+    }
+    // Fourth surface: the vendor writer, driven through the real route/service.
+    assert.equal((await call('POST', '/api/providers/kimi/api-key', 'u2', { apiKey: KEY })).status, 200);
+    assert.equal((await call('DELETE', '/api/providers/kimi/api-key', 'u2')).status, 200);
+  } finally {
+    cap.restore();
+    if (originalXdg === undefined) delete process.env.XDG_DATA_HOME;
+    else process.env.XDG_DATA_HOME = originalXdg;
+    if (originalCodexHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = originalCodexHome;
+  }
+
+  const joined = cap.lines.join('\n');
+  assert.ok(!joined.includes(KEY), 'a credential writer leaked the key into a console line');
 });
