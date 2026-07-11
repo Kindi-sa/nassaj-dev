@@ -36,6 +36,13 @@ import {
   Card,
 } from "../../../../shared/view/ui";
 
+import {
+  readCollapsedMap,
+  writeCollapsedMap,
+  resolveExpandedNoSearch,
+  type CollapsedMap,
+} from "./providerGroupCollapse";
+
 // Globally disabled providers (T-864, shared/disabledProviders.ts) never make
 // it into the picker: the full list stays here for upstream-sync friendliness
 // and the filter below drops the disabled ids.
@@ -135,6 +142,62 @@ function getProviderDisplayName(p: LLMProvider) {
   return "Gemini";
 }
 
+/**
+ * Clickable, keyboard-operable disclosure header for a model-picker group
+ * (T-871). The WHOLE header toggles the group; the chevron rotates to the
+ * inline-start on collapse (RTL-aware) and stays pointing down when open.
+ *
+ * It intentionally does NOT use cmdk's `heading` prop: that node is rendered
+ * `aria-hidden`, so an interactive control inside it would fail WCAG
+ * (aria-hidden-focus). Rendered as the group's first child instead, it is a
+ * normal focusable button; cmdk still hides the whole group (header included)
+ * when a search matches none of its items.
+ */
+function CollapsibleGroupHeader({
+  expanded,
+  onToggle,
+  spaced,
+  children,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+  /** Adds a small top gap so it aligns with the between-groups separator. */
+  spaced: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      onKeyDown={(e) => {
+        // cmdk's root keydown also handles Enter (it selects the highlighted
+        // item). Stop it here so activating the header ONLY toggles the group
+        // instead of also picking a model.
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.stopPropagation();
+        }
+      }}
+      aria-expanded={expanded}
+      className={[
+        "flex w-full items-center justify-between gap-1.5 rounded-sm px-2 py-1.5",
+        "text-xs font-medium uppercase tracking-wider text-muted-foreground",
+        "transition-colors hover:bg-accent/40 hover:text-foreground focus:outline-none",
+        "focus-visible:ring-2 focus-visible:ring-ring",
+        spaced ? "mt-1" : "",
+      ].join(" ").trim()}
+    >
+      <span className="flex min-w-0 items-center gap-1.5">{children}</span>
+      <ChevronDown
+        className={[
+          "h-3.5 w-3.5 shrink-0 transition-transform duration-150",
+          expanded ? "" : "-rotate-90 rtl:rotate-90",
+        ].join(" ").trim()}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
+
 export default function ProviderSelectionEmptyState({
   selectedSession,
   currentSessionId,
@@ -189,6 +252,28 @@ export default function ProviderSelectionEmptyState({
   const [isLocalRefreshing, setIsLocalRefreshing] = useState(false);
   // Prevents launching a second concurrent refresh (e.g. rapid double-click).
   const refreshInFlightRef = useRef(false);
+
+  // T-871: per-group collapse state for the picker. `searchQuery` mirrors the
+  // cmdk search box (uncontrolled — we only observe it) so an active search can
+  // override collapse; `collapsedMap` is the persisted `{ [groupId]: collapsed }`
+  // preference, seeded once from localStorage. Neither touches the provider/model
+  // selection state (owned elsewhere) or the installed/authenticated filtering.
+  const [searchQuery, setSearchQuery] = useState("");
+  const isSearching = searchQuery.trim().length > 0;
+  const [collapsedMap, setCollapsedMap] = useState<CollapsedMap>(() =>
+    readCollapsedMap(typeof window !== "undefined" ? window.localStorage : null),
+  );
+
+  // Flip and persist one group's collapse. `currentExpandedNoSearch` is the
+  // group's effective open state ignoring search, so storing it as the new
+  // COLLAPSED flag toggles the group (open→collapsed, collapsed→open).
+  const toggleGroup = useCallback((groupId: string, currentExpandedNoSearch: boolean) => {
+    setCollapsedMap((prev) => {
+      const next = { ...prev, [groupId]: currentExpandedNoSearch };
+      writeCollapsedMap(next, typeof window !== "undefined" ? window.localStorage : null);
+      return next;
+    });
+  }, []);
 
   // Trigger a refresh of auth status when the dialog opens (non-forced: TTL
   // applies here because opening the picker is not an explicit user refresh).
@@ -520,6 +605,7 @@ export default function ProviderSelectionEmptyState({
                   placeholder={t("providerSelection.searchModels", {
                     defaultValue: "Search models...",
                   })}
+                  onValueChange={setSearchQuery}
                 />
                 <CommandList className="max-h-[350px]">
                   <CommandEmpty>
@@ -539,6 +625,20 @@ export default function ProviderSelectionEmptyState({
                     // shown but locked, with a CTA to add a key instead of models.
                     const isLockedVendor =
                       isVendorProvider(group.id) && !vendorKeyStatuses[group.id];
+                    // T-871: only a group that actually lists models is collapsible
+                    // (disabled/locked/loading groups show a CTA — nothing to fold).
+                    const isCollapsible =
+                      !isProviderDisabled && !isLockedVendor && group.models.length > 0;
+                    const groupContainsSelected =
+                      provider === group.id &&
+                      !(group.id === "claude" && isEngineActive) &&
+                      group.models.some((m) => m.value === currentModel);
+                    const expandedNoSearch = resolveExpandedNoSearch({
+                      storedCollapsed: collapsedMap[group.id],
+                      modelCount: group.models.length,
+                      containsSelected: groupContainsSelected,
+                    });
+                    const expanded = isSearching || expandedNoSearch;
                     return (
                       <CommandGroup
                         key={group.id}
@@ -548,12 +648,24 @@ export default function ProviderSelectionEmptyState({
                             : "[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                         }
                         heading={
-                          <span className="flex items-center gap-1.5">
-                            <SessionProviderLogo provider={group.id} className={["h-3.5 w-3.5 shrink-0", isProviderDisabled ? "opacity-50" : ""].join(" ").trim()} />
-                            <span className={isProviderDisabled ? "opacity-50" : ""}>{group.name}</span>
-                          </span>
+                          isCollapsible ? undefined : (
+                            <span className="flex items-center gap-1.5">
+                              <SessionProviderLogo provider={group.id} className={["h-3.5 w-3.5 shrink-0", isProviderDisabled ? "opacity-50" : ""].join(" ").trim()} />
+                              <span className={isProviderDisabled ? "opacity-50" : ""}>{group.name}</span>
+                            </span>
+                          )
                         }
                       >
+                        {isCollapsible && (
+                          <CollapsibleGroupHeader
+                            expanded={expanded}
+                            onToggle={() => toggleGroup(group.id, expandedNoSearch)}
+                            spaced={idx > 0}
+                          >
+                            <SessionProviderLogo provider={group.id} className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{group.name}</span>
+                          </CollapsibleGroupHeader>
+                        )}
                         {isProviderDisabled ? (
                           // Provider is installed but not authenticated — show CTA only.
                           <div className="ms-4 border-s border-border/40 py-2 ps-4">
@@ -598,7 +710,7 @@ export default function ProviderSelectionEmptyState({
                                 {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                               </CommandItem>
                             ) : null}
-                            {(isLockedVendor ? [] : group.models).map((model) => {
+                            {((isCollapsible && !expanded) ? [] : (isLockedVendor ? [] : group.models)).map((model) => {
                               // While the engine runs on a vendor, the plain Claude
                               // models are never the active selection (the engine entry
                               // below owns the check mark).
@@ -639,20 +751,48 @@ export default function ProviderSelectionEmptyState({
                       locked with a CTA; otherwise its models pick the engine. */}
                   {claudeEngineGroups.map((group) => {
                     const isLocked = !vendorKeyStatuses[group.id];
+                    // T-871: same collapse rules as the standalone groups, keyed
+                    // under a distinct `engine-` id so a vendor's engine group and
+                    // its standalone group fold independently.
+                    const engineGroupKey = `engine-${group.id}`;
+                    const isCollapsible = !isLocked && group.models.length > 0;
+                    const groupContainsSelected =
+                      isEngineActive &&
+                      engineProvider === group.id &&
+                      group.models.some((m) => m.value === claudeModel);
+                    const expandedNoSearch = resolveExpandedNoSearch({
+                      storedCollapsed: collapsedMap[engineGroupKey],
+                      modelCount: group.models.length,
+                      containsSelected: groupContainsSelected,
+                    });
+                    const expanded = isSearching || expandedNoSearch;
+                    const engineHeading = t("providerSelection.engineOnVendor", {
+                      provider: group.name,
+                      defaultValue: "Claude engine on {{provider}}",
+                    });
                     return (
                       <CommandGroup
                         key={`engine-${group.id}`}
                         className="border-t border-border/40 [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                         heading={
-                          <span className="flex items-center gap-1.5">
-                            <SessionProviderLogo provider="claude" className="h-3.5 w-3.5 shrink-0" />
-                            {t("providerSelection.engineOnVendor", {
-                              provider: group.name,
-                              defaultValue: "Claude engine on {{provider}}",
-                            })}
-                          </span>
+                          isCollapsible ? undefined : (
+                            <span className="flex items-center gap-1.5">
+                              <SessionProviderLogo provider="claude" className="h-3.5 w-3.5 shrink-0" />
+                              {engineHeading}
+                            </span>
+                          )
                         }
                       >
+                        {isCollapsible && (
+                          <CollapsibleGroupHeader
+                            expanded={expanded}
+                            onToggle={() => toggleGroup(engineGroupKey, expandedNoSearch)}
+                            spaced
+                          >
+                            <SessionProviderLogo provider="claude" className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{engineHeading}</span>
+                          </CollapsibleGroupHeader>
+                        )}
                         {isLocked ? (
                           <CommandItem
                             value={`claude engine ${group.name} add api key`}
@@ -676,7 +816,7 @@ export default function ProviderSelectionEmptyState({
                             {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                           </CommandItem>
                         ) : null}
-                        {(isLocked ? [] : group.models).map((model) => {
+                        {((isCollapsible && !expanded) ? [] : (isLocked ? [] : group.models)).map((model) => {
                           const isSelected =
                             isEngineActive && engineProvider === group.id && claudeModel === model.value;
                           return (
