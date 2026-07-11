@@ -677,7 +677,14 @@
       "saved": "تم حفظ مفتاح API.",
       "remove": "إزالة",
       "removed": "تمت إزالة مفتاح API.",
-      "configuredNote": "يوجد مفتاح API مُعدّ."
+      "configuredNote": "يوجد مفتاح API مُعدّ.",
+      "checkingCapability": "جارٍ التحقق من دعم إدخال المفتاح…",
+      "targetLabel": "وجهة الاعتماد",
+      "targets": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "openrouter": "OpenRouter"
+      }
     }
   },
   "permissions": {

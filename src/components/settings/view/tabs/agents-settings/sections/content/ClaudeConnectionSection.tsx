@@ -10,6 +10,9 @@ import AccountContent, { type UserCredentialLink } from './AccountContent';
 type ClaudeConnectionSectionProps = {
   authStatus: AuthStatus;
   onLogin: () => void;
+  /** Re-probes `/auth/status` after the Anthropic API key is set/removed
+   *  (T-866/F1) — forwarded to `AccountContent`'s `ProviderApiKeySection`. */
+  onRefreshAuthStatus?: () => void;
 };
 
 /**
@@ -26,8 +29,16 @@ type ClaudeConnectionSectionProps = {
  * `getClaudeConnectionStatus` to detect a valid credential. Status is
  * re-checked when the process exits and via the explicit Re-check button. The
  * owner is symbolically linked by the backend and never forced through the flow.
+ *
+ * `AccountContent` also renders `ProviderApiKeySection` for claude independently
+ * (T-866/F1): pasting an Anthropic API key is a second, coexisting way to
+ * authenticate this agent, alongside the subscription link above.
  */
-export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeConnectionSectionProps) {
+export default function ClaudeConnectionSection({
+  authStatus,
+  onLogin,
+  onRefreshAuthStatus,
+}: ClaudeConnectionSectionProps) {
   const { user } = useAuth();
   const isOwner = user?.role === 'owner';
 
@@ -64,6 +75,7 @@ export default function ClaudeConnectionSection({ authStatus, onLogin }: ClaudeC
         authStatus={authStatus}
         onLogin={onLogin}
         userLink={userLink}
+        onRefreshAuthStatus={onRefreshAuthStatus}
       />
 
       <ProviderLoginModal

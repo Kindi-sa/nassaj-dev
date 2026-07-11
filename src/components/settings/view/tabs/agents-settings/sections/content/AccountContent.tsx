@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Button } from '../../../../../../../shared/view/ui';
 import SessionProviderLogo from '../../../../../../llm-logo-provider/SessionProviderLogo';
-import { isVendorProvider } from '../../../../../../provider-auth/vendorProviders';
+import { isApiKeyCandidateProvider } from '../../../../../../provider-auth/providerApiKeyMeta';
 import type { AgentProvider, AuthStatus } from '../../../../../types/types';
-import VendorApiKeySection from './VendorApiKeySection';
+import ProviderApiKeySection from './ProviderApiKeySection';
 
 /**
  * Per-user isolated credential link state (B-MU-ONBOARD / ADR-023), supplied
@@ -211,9 +211,14 @@ function CopyButton({ text }: { text: string }) {
  * resolved environment for isolating providers, so the badge and the per-user
  * link reflect the same credential and are rendered as one status.
  *
- * Hosted vendor providers (kimi / deepseek / glm) have no CLI login; their
- * connection is driven by an API key in the encrypted per-user store, rendered
- * via VendorApiKeySection (ADR-036 / ADR-030).
+ * API-key-capable providers (claude / opencode / codex / kimi / deepseek /
+ * glm, T-866/F1) render `ProviderApiKeySection` alongside whatever else the
+ * agent shows — it is capability-led (a live `/:provider/api-key/capability`
+ * check) and independent of the CLI-login row / subscription-link block, so a
+ * provider can offer both an API key AND an interactive CLI login (opencode,
+ * codex) or both an API key AND the per-user subscription link (claude).
+ * Hosted vendor providers (kimi / deepseek / glm) have no CLI login at all;
+ * the API-key panel is their only connection path (ADR-036 / ADR-030).
  */
 export default function AccountContent({ agent, authStatus, onLogin, userLink, onRefreshAuthStatus }: AccountContentProps) {
   const { t } = useTranslation('settings');
@@ -320,10 +325,14 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink, o
             </div>
           </div>
 
-          {/* Hosted vendor providers: API-key-driven connection (ADR-036 / ADR-030) */}
-          {isVendorProvider(agent) ? (
-            <VendorApiKeySection provider={agent} onConfiguredChange={onRefreshAuthStatus} />
-          ) : userLink ? (
+          {/* Capability-led API-key entry (T-866/F1) — hides itself for a
+              provider whose live capability is 'none'; independent of the
+              subscription-link block below so a provider can offer both. */}
+          {isApiKeyCandidateProvider(agent) && (
+            <ProviderApiKeySection provider={agent} onConfiguredChange={onRefreshAuthStatus} />
+          )}
+
+          {userLink && (
             /* Per-user subscription link (credential isolation, Phase-MU) */
             <div className="space-y-3 border-t border-border/50 pt-4">
               <p className={`text-sm ${config.subtextClass}`}>
@@ -366,7 +375,7 @@ export default function AccountContent({ agent, authStatus, onLogin, userLink, o
                 </p>
               )}
             </div>
-          ) : null}
+          )}
 
           {showLoginRow && (
             <div className="border-t border-border/50 pt-4">

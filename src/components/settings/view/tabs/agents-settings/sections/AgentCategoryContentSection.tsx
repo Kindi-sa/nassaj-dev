@@ -33,6 +33,7 @@ export default function AgentCategoryContentSection({
         <ClaudeConnectionSection
           authStatus={agentContextById.claude.authStatus}
           onLogin={agentContextById.claude.onLogin}
+          onRefreshAuthStatus={onRefreshAuthStatus}
         />
       )}
 

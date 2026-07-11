@@ -677,7 +677,14 @@
       "saved": "API key saved.",
       "remove": "Remove",
       "removed": "API key removed.",
-      "configuredNote": "An API key is configured."
+      "configuredNote": "An API key is configured.",
+      "checkingCapability": "Checking key entry support…",
+      "targetLabel": "Credential target",
+      "targets": {
+        "anthropic": "Anthropic",
+        "openai": "OpenAI",
+        "openrouter": "OpenRouter"
+      }
     }
   },
   "permissions": {
