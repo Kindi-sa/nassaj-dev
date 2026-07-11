@@ -30,6 +30,13 @@ export interface IProvider {
   readonly skills: IProviderSkills;
   readonly sessions: IProviderSessions;
   readonly sessionSynchronizer: IProviderSessionSynchronizer;
+  /**
+   * Optional credential-writer facet (T-866). Present only for providers whose
+   * API key can be configured from the app (claude/opencode/codex). Providers
+   * without it are either hosted vendors (legacy encrypted-store path) or
+   * terminal-only (the api-key routes answer 400 TERMINAL_ONLY).
+   */
+  readonly credentials?: IProviderCredentialWriter;
 }
 
 // ---------------------------
@@ -94,6 +101,85 @@ export interface IProviderAuth {
    * fixed home. Providers that are not per-user isolated may ignore it.
    */
   getStatus(userId?: string | number | null): Promise<ProviderAuthStatus>;
+}
+
+// ---------------------------
+//----------------- PROVIDER CREDENTIAL WRITER INTERFACE ------------
+/**
+ * How a provider's API key is physically written for a user (T-866):
+ *  - 'native_file': the server merges the key into the provider's own native
+ *    credential/config file inside the user's resolved (isolated) tree.
+ *  - 'cli_stdin':   the server drives the provider CLI (key passed via stdin
+ *    only — never argv) under the user's resolved environment.
+ *  - 'none':        the provider cannot be configured from the app.
+ */
+export type ProviderCredentialWriteMethod = 'native_file' | 'cli_stdin' | 'none';
+
+/**
+ * Writer capability advertised to the frontend so it can render the right
+ * key-entry UI. `targets` (when present) lists the internal credential targets
+ * the writer accepts (e.g. opencode: 'anthropic' | 'openai' | 'openrouter');
+ * absent means the provider has a single implicit target.
+ */
+export type ProviderCredentialWriterCapability = {
+  method: ProviderCredentialWriteMethod;
+  targets?: readonly string[];
+};
+
+/**
+ * Existence-only result returned by every credential-writer operation and by
+ * the api-key routes. NEVER carries the key value (security invariant).
+ */
+export type ProviderCredentialStatus = {
+  provider: LLMProvider;
+  configured: boolean;
+};
+
+/**
+ * Credential-writer contract for one provider (T-866).
+ *
+ * Implementations write/delete the user's API key in the provider's OWN
+ * credential surface, resolved through the central isolation seam
+ * (resolveProviderEnv) so an isolated user's key lands in their tree and never
+ * in the operator's. Invariants every implementation MUST hold:
+ *  - the key value is never logged, never echoed in a result, never in argv;
+ *  - writes are atomic (tmp + rename, file 0600, dir 0700);
+ *  - a corrupt credential file degrades to "not configured", never a crash;
+ *  - nothing under a `*_BASE_URL` env key is ever written (iron rule).
+ */
+export interface IProviderCredentialWriter {
+  /**
+   * Stores (or replaces) the user's API key for the optional target. Resolves
+   * to `{ provider, configured: true }`; rejects with a 400-shaped error for an
+   * empty key or an unsupported target.
+   */
+  setApiKey(
+    userId: string | number | null | undefined,
+    apiKey: string,
+    target?: string,
+  ): Promise<ProviderCredentialStatus>;
+
+  /**
+   * Removes the user's stored API key for the optional target (only that
+   * target — other credentials in the same file are preserved). Idempotent;
+   * resolves to `{ provider, configured: false }`.
+   */
+  deleteApiKey(
+    userId: string | number | null | undefined,
+    target?: string,
+  ): Promise<ProviderCredentialStatus>;
+
+  /**
+   * Reports whether a usable key is stored for the user/target without ever
+   * returning the secret. A corrupt/unreadable file reads as `false`.
+   */
+  isConfigured(
+    userId: string | number | null | undefined,
+    target?: string,
+  ): Promise<boolean>;
+
+  /** Describes how (and for which targets) this writer stores keys. */
+  getWriterCapability(): ProviderCredentialWriterCapability;
 }
 
 // ---------------------------
