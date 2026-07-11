@@ -793,14 +793,23 @@ export function useChatComposerState({
           },
         });
       } else if (provider === 'opencode') {
+        // OC-22: opencode `run` consumes attachments via -f/--file, so forward
+        // images and files (the same payload shape as Claude). The server
+        // materializes base64 images to temp files and resolves file paths, then
+        // passes each as --file. Empty arrays are a no-op on the server side.
+        const opencodeOptions: Record<string, unknown> = {
+          cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+          resume, model: opencodeModel, sessionSummary,
+          images: uploadedImages,
+        };
+        if (uploadedFiles.length > 0) {
+          opencodeOptions.files = uploadedFiles.map((f) => ({ path: f.relPath ?? f.path, name: f.name }));
+        }
         result = sendMessage({
           type: 'opencode-command',
           command: messageContent,
           sessionId: targetSessionId,
-          options: {
-            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
-            resume, model: opencodeModel, sessionSummary,
-          },
+          options: opencodeOptions,
         });
       } else if (provider === 'hermes') {
         result = sendMessage({
