@@ -42,6 +42,30 @@ function resolveJwtSecret() {
 const JWT_SECRET = resolveJwtSecret();
 const TOKEN_TTL = '7d';
 
+// Refresh coalescing (B-163). Single fork-mode process (PM2 instances:1), so an
+// in-process Map is authoritative for every concurrent request. Keyed by userId:
+//   userId -> { token, mintedAtMs }
+// A boot burst (~16 parallel requests) past half-life collapses to ONE minted
+// token, so the client adopts it once and redials the WebSocket once.
+const REFRESH_COALESCE_WINDOW_MS = 10_000;
+const refreshedTokenCache = new Map();
+
+function getCoalescedRefreshToken(user) {
+  const nowMs = Date.now();
+  const cached = refreshedTokenCache.get(user.id);
+  if (cached && nowMs - cached.mintedAtMs < REFRESH_COALESCE_WINDOW_MS) {
+    return { token: cached.token, minted: false };
+  }
+  const token = generateToken(user);
+  refreshedTokenCache.set(user.id, { token, mintedAtMs: nowMs });
+  if (refreshedTokenCache.size > 256) {
+    for (const [id, entry] of refreshedTokenCache) {
+      if (nowMs - entry.mintedAtMs >= REFRESH_COALESCE_WINDOW_MS) refreshedTokenCache.delete(id);
+    }
+  }
+  return { token, minted: true };
+}
+
 // Optional API key middleware
 const validateApiKey = (req, res, next) => {
   // Skip API key validation if not configured
@@ -142,16 +166,20 @@ const authenticateToken = async (req, res, next) => {
       const now = Math.floor(Date.now() / 1000);
       const halfLife = (decoded.exp - decoded.iat) / 2;
       if (now > decoded.iat + halfLife) {
-        const newToken = generateToken(user);
+        const { token: newToken, minted } = getCoalescedRefreshToken(user);
         res.setHeader('X-Refreshed-Token', newToken);
         // Record the implicit (header-driven) refresh — distinct from the
-        // explicit POST /api/auth/refresh, which logs its own row (T-182).
-        auditLogDb.record('token_refresh', {
-          userId: user.id,
-          ipAddress: ip,
-          userAgent: ua,
-          metadata: { via: 'header' },
-        });
+        // explicit POST /api/auth/refresh, which logs its own row (T-182). Only
+        // the request that actually minted logs, so a boot burst of parallel
+        // refreshes collapses to a single audit row (B-163).
+        if (minted) {
+          auditLogDb.record('token_refresh', {
+            userId: user.id,
+            ipAddress: ip,
+            userAgent: ua,
+            metadata: { via: 'header' },
+          });
+        }
       }
     }
 

@@ -1,4 +1,5 @@
 import { IS_PLATFORM } from "../constants/config";
+import { decodeJwtExp } from "./jwt.js";
 
 // localStorage key holding the JWT. Kept in sync with AUTH_TOKEN_STORAGE_KEY
 // (src/components/auth/constants.ts) and the direct readers in
@@ -24,6 +25,21 @@ const AUTH_TOKEN_STORAGE_KEY = 'auth-token';
  */
 export const applyRefreshedToken = (token) => {
   if (!token) return;
+  // Monotonic write (B-163): never regress localStorage to an older-or-equal-exp
+  // token. localStorage feeds BOTH the WS URL (resolveWebSocketUrl) and the
+  // Authorization header, so a regression re-arms the refresh storm.
+  // Tokens minted in the same second share the same exp (seconds-resolution) and
+  // are treated as "not strictly newer" — this kills the server-side burst
+  // client-side before the server-side fix ships.
+  const stored = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+  if (stored === token) return; // identical string: no write, no event
+  if (stored) {
+    const nextExp = decodeJwtExp(token);
+    const storedExp = decodeJwtExp(stored);
+    if (typeof nextExp === 'number' && typeof storedExp === 'number' && nextExp <= storedExp) {
+      return; // not strictly newer: ignore (fail-open when either side is undecodable)
+    }
+  }
   localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
   window.dispatchEvent(new CustomEvent('auth:token-refreshed', { detail: { token } }));
 };

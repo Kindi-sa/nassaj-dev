@@ -299,11 +299,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const handleTokenRefreshed = (event: Event) => {
       const nextToken = (event as CustomEvent<{ token?: string }>).detail?.token;
       if (!nextToken) return;
-      // Persist (idempotent — the dispatcher already wrote it) then adopt into
-      // state so the [token]-keyed WebSocket effect reconnects with the fresh
-      // token. Skip when unchanged to avoid a redundant reconnect.
+      // Persist (idempotent — the primary guard in applyRefreshedToken already
+      // wrote it) then adopt into state so the [token]-keyed WebSocket effect
+      // reconnects with the fresh token.
+      // Defense-in-depth (B-163): the updater is PURE (StrictMode may call it
+      // twice) — return current when unchanged OR when nextToken is not strictly
+      // newer by exp than the current state. Fail-open when either token is not
+      // a well-formed JWT (decodeTokenTimestamps returns null → exp undefined).
       persistToken(nextToken);
-      setToken((current) => (current === nextToken ? current : nextToken));
+      setToken((current) => {
+        if (current === nextToken) return current;
+        const nextExp = decodeTokenTimestamps(nextToken)?.exp;
+        const currentExp = current ? decodeTokenTimestamps(current)?.exp : undefined;
+        if (
+          typeof nextExp === 'number' &&
+          typeof currentExp === 'number' &&
+          nextExp <= currentExp
+        ) {
+          return current; // not strictly newer: keep current state
+        }
+        return nextToken;
+      });
     };
 
     window.addEventListener('auth:token-refreshed', handleTokenRefreshed);
