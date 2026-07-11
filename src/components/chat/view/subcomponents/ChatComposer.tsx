@@ -452,7 +452,7 @@ export default function ChatComposer({
                 REMOVE this widened gate when T-224 m0 lands the provider
                 capability descriptor (`opencode: tokenCounter live`) — the
                 widget should then read a capability flag, not a provider id. */}
-            {(provider === 'claude' || provider === 'opencode') && (
+            {(provider === 'claude' || provider === 'codex' || provider === 'opencode') && (
               <TokenUsageSummary usage={tokenBudget} />
             )}
 

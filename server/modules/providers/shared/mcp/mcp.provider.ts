@@ -37,7 +37,7 @@ export abstract class McpProvider implements IProviderMcp {
     this.supportedTransports = supportedTransports;
   }
 
-  async listServers(options?: { workspacePath?: string }): Promise<Record<McpScope, ProviderMcpServer[]>> {
+  async listServers(options?: { workspacePath?: string; userId?: string | number | null }): Promise<Record<McpScope, ProviderMcpServer[]>> {
     const grouped: Record<McpScope, ProviderMcpServer[]> = {
       user: [],
       local: [],
@@ -53,14 +53,14 @@ export abstract class McpProvider implements IProviderMcp {
 
   async listServersForScope(
     scope: McpScope,
-    options?: { workspacePath?: string },
+    options?: { workspacePath?: string; userId?: string | number | null },
   ): Promise<ProviderMcpServer[]> {
     if (!this.supportedScopes.includes(scope)) {
       return [];
     }
 
     const workspacePath = resolveWorkspacePath(options?.workspacePath);
-    const scopedServers = await this.readScopedServers(scope, workspacePath);
+    const scopedServers = await this.readScopedServers(scope, workspacePath, options?.userId);
     return Object.entries(scopedServers)
       .map(([name, rawConfig]) => this.normalizeServerConfig(scope, name, rawConfig))
       .filter((entry): entry is ProviderMcpServer => entry !== null);
@@ -72,9 +72,9 @@ export abstract class McpProvider implements IProviderMcp {
 
     const workspacePath = resolveWorkspacePath(input.workspacePath);
     const normalizedName = normalizeServerName(input.name);
-    const scopedServers = await this.readScopedServers(scope, workspacePath);
+    const scopedServers = await this.readScopedServers(scope, workspacePath, input.userId);
     scopedServers[normalizedName] = this.buildServerConfig(input);
-    await this.writeScopedServers(scope, workspacePath, scopedServers);
+    await this.writeScopedServers(scope, workspacePath, scopedServers, input.userId);
 
     return {
       provider: this.provider,
@@ -94,18 +94,18 @@ export abstract class McpProvider implements IProviderMcp {
   }
 
   async removeServer(
-    input: { name: string; scope?: McpScope; workspacePath?: string },
+    input: { name: string; scope?: McpScope; workspacePath?: string; userId?: string | number | null },
   ): Promise<{ removed: boolean; provider: LLMProvider; name: string; scope: McpScope }> {
     const scope = input.scope ?? 'project';
     this.assertScope(scope);
 
     const workspacePath = resolveWorkspacePath(input.workspacePath);
     const normalizedName = normalizeServerName(input.name);
-    const scopedServers = await this.readScopedServers(scope, workspacePath);
+    const scopedServers = await this.readScopedServers(scope, workspacePath, input.userId);
     const removed = Object.prototype.hasOwnProperty.call(scopedServers, normalizedName);
     if (removed) {
       delete scopedServers[normalizedName];
-      await this.writeScopedServers(scope, workspacePath, scopedServers);
+      await this.writeScopedServers(scope, workspacePath, scopedServers, input.userId);
     }
 
     return { removed, provider: this.provider, name: normalizedName, scope };
@@ -114,12 +114,14 @@ export abstract class McpProvider implements IProviderMcp {
   protected abstract readScopedServers(
     scope: McpScope,
     workspacePath: string,
+    userId?: string | number | null,
   ): Promise<Record<string, unknown>>;
 
   protected abstract writeScopedServers(
     scope: McpScope,
     workspacePath: string,
     servers: Record<string, unknown>,
+    userId?: string | number | null,
   ): Promise<void>;
 
   protected abstract buildServerConfig(input: UpsertProviderMcpServerInput): Record<string, unknown>;

@@ -15,6 +15,10 @@ import { providerModelsService } from '../modules/providers/services/provider-mo
 import { IS_PLATFORM } from '../constants/config.js';
 import { normalizeProjectPath, validateWorkspacePath } from '../shared/utils.js';
 import { buildTokenPushUrl } from '../utils/gitIdentity.js';
+import {
+  isProjectPathVisibleToUser,
+  isSessionVisibleToUser,
+} from '../modules/websocket/services/chat-websocket.service.js';
 
 const router = express.Router();
 
@@ -874,6 +878,13 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     if (!workspaceValidation.valid) {
       return res.status(400).json({ error: workspaceValidation.error });
     }
+    if (!isProjectPathVisibleToUser(projectPath, req.user?.id ?? null)) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+  }
+
+  if (sessionId && !isSessionVisibleToUser(sessionId, req.user?.id ?? null)) {
+    return res.status(404).json({ error: 'Session not found' });
   }
 
   // Validate GitHub branch/PR creation requirements
@@ -964,7 +975,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
       });
     }
 
-    const codexModels = (await providerModelsService.getProviderModels('codex')).models;
+    const codexModels = (await providerModelsService.getProviderModels('codex', {}, req.user?.id ?? null)).models;
     const geminiModels = (await providerModelsService.getProviderModels('gemini')).models;
     const opencodeModels = (await providerModelsService.getProviderModels('opencode')).models;
 

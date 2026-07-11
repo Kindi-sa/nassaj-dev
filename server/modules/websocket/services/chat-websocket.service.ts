@@ -262,7 +262,7 @@ export function isProjectPathVisibleToUser(
  * exploit path — a KNOWN private session whose row resolves — never errors, so
  * the guarantee against a non-member is not weakened by the fail-open.
  */
-function isSessionVisibleToUser(
+export function isSessionVisibleToUser(
   sessionId: string,
   userId: string | number | null
 ): boolean {

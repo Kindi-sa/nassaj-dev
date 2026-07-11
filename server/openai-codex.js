@@ -14,6 +14,9 @@
  */
 
 import { Codex } from '@openai/codex-sdk';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
@@ -24,9 +27,39 @@ import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { classifyCodexFailure } from './modules/providers/list/codex/codex-failure.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
+const activeCodexTurnLocks = new Set();
+
+async function prepareCodexInput(command, images) {
+  const imageList = Array.isArray(images) ? images : [];
+  if (imageList.length === 0) {
+    return { input: command, tempDir: null };
+  }
+
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nassaj-codex-images-'));
+  const input = [{ type: 'text', text: command }];
+  for (const [index, image] of imageList.entries()) {
+    const match = typeof image?.data === 'string'
+      ? image.data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/)
+      : null;
+    if (!match) {
+      continue;
+    }
+    const extension = match[1].split('/')[1].replace(/[^a-zA-Z0-9]/g, '') || 'png';
+    const imagePath = path.join(tempDir, `image-${index}.${extension}`);
+    await fs.writeFile(imagePath, Buffer.from(match[2], 'base64'), { mode: 0o600 });
+    input.push({ type: 'local_image', path: imagePath });
+  }
+
+  if (input.length === 1) {
+    await fs.rm(tempDir, { recursive: true, force: true });
+    return { input: command, tempDir: null };
+  }
+  return { input, tempDir };
+}
 
 function readUsageNumber(value) {
   const parsed = Number(value);
@@ -227,6 +260,33 @@ function mapPermissionModeToCodexOptions(permissionMode) {
  * @param {WebSocket|object} ws - WebSocket connection or response writer
  */
 export async function queryCodex(command, options = {}, ws) {
+  const lockKey = typeof options.sessionId === 'string' && options.sessionId
+    ? options.sessionId
+    : null;
+  if (lockKey && activeCodexTurnLocks.has(lockKey)) {
+    sendMessage(ws, createNormalizedMessage({
+      kind: 'error',
+      code: 'session_busy',
+      content: 'This Codex conversation is already processing another message.',
+      sessionId: lockKey,
+      provider: 'codex',
+    }));
+    return;
+  }
+  if (lockKey) {
+    activeCodexTurnLocks.add(lockKey);
+  }
+
+  try {
+    await queryCodexUnlocked(command, options, ws);
+  } finally {
+    if (lockKey) {
+      activeCodexTurnLocks.delete(lockKey);
+    }
+  }
+}
+
+async function queryCodexUnlocked(command, options = {}, ws) {
   // B-31: verify the project directory exists before spawning Codex.
   const cwdToCheck = options.cwd || options.projectPath;
   if (cwdToCheck) {
@@ -247,6 +307,7 @@ export async function queryCodex(command, options = {}, ws) {
     cwd,
     projectPath,
     model,
+    images,
     permissionMode = 'default'
   } = options;
 
@@ -265,6 +326,7 @@ export async function queryCodex(command, options = {}, ws) {
   let sessionCreatedSent = false;
   let terminalFailure = null;
   let participantRecorded = false;
+  let imagesTempDir = null;
   const abortController = new AbortController();
 
   // Record the authenticated human who spawned this run once a session id is
@@ -326,8 +388,11 @@ export async function queryCodex(command, options = {}, ws) {
       recordParticipant(capturedSessionId);
     }
 
+    const preparedInput = await prepareCodexInput(command, images);
+    imagesTempDir = preparedInput.tempDir;
+
     // Execute with streaming
-    const streamedTurn = await thread.runStreamed(command, {
+    const streamedTurn = await thread.runStreamed(preparedInput.input, {
       signal: abortController.signal
     });
 
@@ -366,6 +431,44 @@ export async function queryCodex(command, options = {}, ws) {
         continue;
       }
 
+      if ((event.type === 'turn.failed' || event.type === 'error') && !terminalFailure) {
+        terminalFailure = event.error || event.message || new Error('Turn failed');
+        const failure = classifyCodexFailure(
+          terminalFailure,
+          capturedSessionId || sessionId || null,
+          command,
+        );
+        sendMessage(ws, createNormalizedMessage({
+          kind: 'error',
+          provider: 'codex',
+          sessionId: capturedSessionId || sessionId || null,
+          ...failure,
+        }));
+        notifyRunFailed({
+          userId: ws?.userId || null,
+          provider: 'codex',
+          sessionId: capturedSessionId || sessionId || null,
+          sessionName: sessionSummary,
+          error: terminalFailure
+        });
+        continue;
+      }
+
+      if (event.type === 'turn.completed') {
+        const tokenBudget = extractCodexTokenBudget(event);
+        if (tokenBudget) {
+          sendMessage(ws, createNormalizedMessage({
+            kind: 'status',
+            text: 'token_budget',
+            tokenBudget,
+            sessionId: capturedSessionId || sessionId || null,
+            provider: 'codex',
+          }));
+        }
+        // The single terminal `complete` is emitted after the stream closes.
+        continue;
+      }
+
       const transformed = transformCodexEvent(event);
 
       // Normalize the transformed event into NormalizedMessage(s) via adapter
@@ -377,24 +480,6 @@ export async function queryCodex(command, options = {}, ws) {
         sendMessage(ws, msg);
       }
 
-      if (event.type === 'turn.failed' && !terminalFailure) {
-        terminalFailure = event.error || new Error('Turn failed');
-        notifyRunFailed({
-          userId: ws?.userId || null,
-          provider: 'codex',
-          sessionId: capturedSessionId || sessionId || null,
-          sessionName: sessionSummary,
-          error: terminalFailure
-        });
-      }
-
-      // Extract and send token usage if available (normalized to match Claude format)
-      if (event.type === 'turn.completed') {
-        const tokenBudget = extractCodexTokenBudget(event);
-        if (tokenBudget) {
-          sendMessage(ws, createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
-        }
-      }
     }
 
     // Send completion event
@@ -432,10 +517,13 @@ export async function queryCodex(command, options = {}, ws) {
         errorCode = 'cli_not_installed';
         errorContent = 'Codex CLI is not configured. Please set up authentication first.';
       } else {
+        const classified = classifyCodexFailure(error, capturedSessionId || sessionId || null, command);
         const mapped = mapSpawnError(error);
-        errorCode = mapped.code;
-        errorContent = mapped.fallbackMessage;
+        errorCode = classified.code === 'codex_turn_failed' ? mapped.code : classified.code;
+        errorContent = classified.code === 'codex_turn_failed' ? mapped.fallbackMessage : classified.content;
       }
+
+      const classified = classifyCodexFailure(error, capturedSessionId || sessionId || null, command);
 
       sendMessage(ws, createNormalizedMessage({
         kind: 'error',
@@ -443,6 +531,9 @@ export async function queryCodex(command, options = {}, ws) {
         content: errorContent,
         sessionId: capturedSessionId || sessionId || null,
         provider: 'codex',
+        ...(errorCode === 'conversation_not_found'
+          ? { staleSessionId: classified.staleSessionId, command: classified.command }
+          : {}),
       }));
       if (!terminalFailure) {
         notifyRunFailed({
@@ -456,12 +547,14 @@ export async function queryCodex(command, options = {}, ws) {
     }
 
   } finally {
+    if (imagesTempDir) {
+      await fs.rm(imagesTempDir, { recursive: true, force: true }).catch((error) => {
+        console.warn('[Codex] Failed to clean temporary images:', error?.message || error);
+      });
+    }
     // Update session status
     if (capturedSessionId) {
-      const session = activeCodexSessions.get(capturedSessionId);
-      if (session) {
-        session.status = session.status === 'aborted' ? 'aborted' : 'completed';
-      }
+      activeCodexSessions.delete(capturedSessionId);
     }
   }
 }

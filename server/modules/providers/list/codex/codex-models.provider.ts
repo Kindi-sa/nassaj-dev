@@ -30,6 +30,7 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
     { value: 'gpt-5.2', label: 'gpt-5.2' },
   ],
   DEFAULT: 'gpt-5.4',
+  degraded: true,
 };
 
 type CodexCachedModel = {

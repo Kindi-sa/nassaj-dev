@@ -5,7 +5,7 @@ import { claudeUsageService } from '@/modules/providers/services/claude-usage.se
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
-import { providerSecretsService } from '@/modules/providers/services/provider-secrets.service.js';
+import { providerCredentialsService } from '@/modules/providers/services/provider-credentials.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -65,6 +65,39 @@ const readApiKeyFromBody = (payload: unknown): unknown => {
   }
 
   return (payload as Record<string, unknown>).apiKey;
+};
+
+// Reads the authenticated caller's role (owner/admin/member). Set by
+// authenticateToken alongside req.user.id. Absent → treated as no elevated role.
+const readAuthenticatedUserRole = (req: Request): string | null =>
+  (req as Request & { user?: { role?: string } }).user?.role ?? null;
+
+// Optional credential target (opencode: anthropic|openai|openrouter). Read from
+// the body on writes and from the query string on read/delete. Absent → the
+// writer's default target.
+const readOptionalTarget = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : undefined;
+};
+
+// Enforces the T-866 authorization gate: a write that would touch the OPERATOR's
+// shared credentials (provider not isolated per policy) is restricted to
+// owner/admin. Isolated per-user writes are allowed for any authenticated
+// member (their own tree — userId comes from the token only). Throws 403.
+const assertCredentialWriteAllowed = (req: Request, provider: string): void => {
+  if (!providerCredentialsService.requiresElevatedRole(provider)) {
+    return;
+  }
+  const role = readAuthenticatedUserRole(req);
+  if (role !== 'owner' && role !== 'admin') {
+    throw new AppError('Configuring shared provider credentials requires an admin or owner.', {
+      code: 'CREDENTIAL_WRITE_FORBIDDEN',
+      statusCode: 403,
+    });
+  }
 };
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9._-]{1,120}$/;
@@ -421,22 +454,38 @@ router.get(
   }),
 );
 
-// ----------------- Vendor API-key management routes -----------------
-// Per-user CRUD over the encrypted secrets store for hosted vendors
-// (kimi/deepseek/glm). The whole router sits behind authenticateToken, so the
-// userId is the authenticated caller's — keys are isolated per user. These
-// routes NEVER return the key value: only `{ provider, configured }`. Once a key
-// is set, GET /:provider/auth/status reports authenticated=true because
-// VendorAuthProvider reads the same store. A non-vendor provider id is rejected
-// with 400 by the service (only the three vendors accept a key).
+// ----------------- Provider API-key management routes (T-866) -----------------
+// Generalized per-user CRUD over provider credentials. Dispatch (in
+// provider-credentials.service) is one of three cases per provider:
+//   - facet  (claude/codex/opencode): the key is merged into that provider's OWN
+//            credential file inside the caller's resolved (isolated) tree;
+//   - vendor (kimi/deepseek/glm): the legacy encrypted per-user secrets store;
+//   - none   (hermes/cursor/antigravity/gemini): 400 TERMINAL_ONLY.
+// The whole router sits behind authenticateToken, so userId is the caller's and
+// keys are isolated per user. These routes NEVER return or log the key value —
+// only `{ provider, configured }`. Once a key is set, GET /:provider/auth/status
+// flips authenticated=true (the auth facet reads the same surface).
+//
+// Authorization: a write that would touch the OPERATOR's shared credentials
+// (provider marked 'shared'/unenrolled in the sharing policy) is restricted to
+// owner/admin (403 otherwise); isolated per-user writes are open to any member
+// for their OWN tree. Terminal-only providers short-circuit to 400 before any
+// role/DB check.
 
-// POST and PUT are equivalent here: both upsert the key for the authenticated
-// user (set-or-replace), so a client may use either verb.
+// POST and PUT are equivalent here: both upsert the key (set-or-replace).
 const setProviderApiKey = asyncHandler(async (req: Request, res: Response) => {
   const provider = parseProvider(req.params.provider);
+  if (providerCredentialsService.getCapability(provider).method === 'none') {
+    throw new AppError(`Provider "${provider}" is configured from the terminal only.`, {
+      code: 'TERMINAL_ONLY',
+      statusCode: 400,
+    });
+  }
+  assertCredentialWriteAllowed(req, provider);
   const userId = readAuthenticatedUserId(req);
   const apiKey = readApiKeyFromBody(req.body);
-  const result = providerSecretsService.setKey(userId, provider, apiKey);
+  const target = readOptionalTarget((req.body as Record<string, unknown> | undefined)?.target);
+  const result = await providerCredentialsService.setKey(userId, provider, apiKey, target);
   res.json(createApiSuccessResponse(result));
 });
 
@@ -447,8 +496,17 @@ router.delete(
   '/:provider/api-key',
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
+    if (providerCredentialsService.getCapability(provider).method === 'none') {
+      throw new AppError(`Provider "${provider}" is configured from the terminal only.`, {
+        code: 'TERMINAL_ONLY',
+        statusCode: 400,
+      });
+    }
+    assertCredentialWriteAllowed(req, provider);
     const userId = readAuthenticatedUserId(req);
-    const result = providerSecretsService.deleteKey(userId, provider);
+
+    const target = readOptionalTarget(req.query.target);
+    const result = await providerCredentialsService.deleteKey(userId, provider, target);
     res.json(createApiSuccessResponse(result));
   }),
 );
@@ -459,8 +517,21 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const userId = readAuthenticatedUserId(req);
-    const result = providerSecretsService.getStatus(userId, provider);
+    const target = readOptionalTarget(req.query.target);
+    const result = await providerCredentialsService.getStatus(userId, provider, target);
     res.json(createApiSuccessResponse(result));
+  }),
+);
+
+// Advertises how a provider's key is configured so the UI renders the right
+// entry surface: { method: 'native_file'|'cli_stdin'|'none', targets? }.
+// Read-only and role-free (leaks no secret, exposes no per-user state).
+router.get(
+  '/:provider/api-key/capability',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const capability = providerCredentialsService.getCapability(provider);
+    res.json(createApiSuccessResponse({ provider, ...capability }));
   }),
 );
 
@@ -511,14 +582,19 @@ router.get(
     const provider = parseProvider(req.params.provider);
     const workspacePath = readOptionalQueryString(req.query.workspacePath);
     const scope = parseMcpScope(req.query.scope);
+    const userId = readAuthenticatedUserId(req);
+
+    if (provider === 'codex' && (!scope || scope === 'user')) {
+      assertCredentialWriteAllowed(req, provider);
+    }
 
     if (scope) {
-      const servers = await providerMcpService.listProviderMcpServersForScope(provider, scope, { workspacePath });
+      const servers = await providerMcpService.listProviderMcpServersForScope(provider, scope, { workspacePath, userId });
       res.json(createApiSuccessResponse({ provider, scope, servers }));
       return;
     }
 
-    const groupedServers = await providerMcpService.listProviderMcpServers(provider, { workspacePath });
+    const groupedServers = await providerMcpService.listProviderMcpServers(provider, { workspacePath, userId });
     res.json(createApiSuccessResponse({ provider, scopes: groupedServers }));
   }),
 );
@@ -528,7 +604,13 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const payload = parseMcpUpsertPayload(req.body);
-    const server = await providerMcpService.upsertProviderMcpServer(provider, payload);
+    if (provider === 'codex' && (payload.scope ?? 'project') === 'user') {
+      assertCredentialWriteAllowed(req, provider);
+    }
+    const server = await providerMcpService.upsertProviderMcpServer(provider, {
+      ...payload,
+      userId: readAuthenticatedUserId(req),
+    });
     res.status(201).json(createApiSuccessResponse({ server }));
   }),
 );
@@ -539,10 +621,14 @@ router.delete(
     const provider = parseProvider(req.params.provider);
     const scope = parseMcpScope(req.query.scope);
     const workspacePath = readOptionalQueryString(req.query.workspacePath);
+    if (provider === 'codex' && (scope ?? 'project') === 'user') {
+      assertCredentialWriteAllowed(req, provider);
+    }
     const result = await providerMcpService.removeProviderMcpServer(provider, {
       name: readPathParam(req.params.name, 'name'),
       scope,
       workspacePath,
+      userId: readAuthenticatedUserId(req),
     });
     res.json(createApiSuccessResponse(result));
   }),
@@ -551,6 +637,13 @@ router.delete(
 router.post(
   '/mcp/servers/global',
   asyncHandler(async (req: Request, res: Response) => {
+    const role = readAuthenticatedUserRole(req);
+    if (role !== 'owner' && role !== 'admin') {
+      throw new AppError('Adding an MCP server to all providers requires an admin or owner.', {
+        code: 'MCP_GLOBAL_WRITE_FORBIDDEN',
+        statusCode: 403,
+      });
+    }
     const payload = parseMcpUpsertPayload(req.body);
     if (payload.scope === 'local') {
       throw new AppError('Global MCP add supports only "user" or "project" scopes.', {

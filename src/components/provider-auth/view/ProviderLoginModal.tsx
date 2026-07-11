@@ -1,6 +1,6 @@
-import { ExternalLink, KeyRound, X } from 'lucide-react';
+import { ExternalLink, Info, KeyRound, X } from 'lucide-react';
 import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
-import { DEFAULT_PROJECT_FOR_EMPTY_SHELL, IS_PLATFORM } from '../../../constants/config';
+import { DEFAULT_PROJECT_FOR_EMPTY_SHELL } from '../../../constants/config';
 import type { LLMProvider } from '../../../types/app';
 
 type ProviderLoginModalProps = {
@@ -34,7 +34,11 @@ const getProviderCommand = ({
   }
 
   if (provider === 'codex') {
-    return IS_PLATFORM ? 'codex login --device-auth' : 'codex login';
+    // nassaj always runs on a remote server — the standard localhost:1455 callback
+    // flow can never complete. Use --device-auth unconditionally: it prints a
+    // link + device code in the terminal; the user opens the link in their own
+    // browser and enters the code without needing localhost.
+    return 'codex login --device-auth';
   }
 
   if (provider === 'opencode') {
@@ -103,7 +107,38 @@ export default function ProviderLoginModal({
         </div>
 
         <div className="flex-1 overflow-hidden">
-          {provider === 'gemini' ? (
+          {provider === 'codex' ? (
+            <div className="flex h-full flex-col">
+              <div className="flex-shrink-0 border-b border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/50 dark:bg-amber-900/20">
+                <div className="flex gap-3">
+                  <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Device Authorization</p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      The terminal below will display a link and a device code. Open the link in your browser and
+                      enter the code to authorize Codex — no localhost required.
+                    </p>
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Enable device code authorization for Codex in ChatGPT Security Settings, then run{' '}
+                      <code className="rounded bg-amber-100 px-1 font-mono text-xs dark:bg-amber-900/50">
+                        codex login --device-auth
+                      </code>{' '}
+                      again.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <StandaloneShell
+                  project={DEFAULT_PROJECT_FOR_EMPTY_SHELL}
+                  command={command}
+                  provider={provider}
+                  onComplete={handleComplete}
+                  minimal={true}
+                />
+              </div>
+            </div>
+          ) : provider === 'gemini' ? (
             <div className="flex h-full flex-col items-center justify-center bg-gray-50 p-8 text-center dark:bg-gray-900/50">
               <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30">
                 <KeyRound className="h-8 w-8 text-blue-600 dark:text-blue-400" />
@@ -156,7 +191,13 @@ export default function ProviderLoginModal({
               </button>
             </div>
           ) : (
-            <StandaloneShell project={DEFAULT_PROJECT_FOR_EMPTY_SHELL} command={command} onComplete={handleComplete} minimal={true} />
+            <StandaloneShell
+              project={DEFAULT_PROJECT_FOR_EMPTY_SHELL}
+              command={command}
+              provider={provider}
+              onComplete={handleComplete}
+              minimal={true}
+            />
           )}
         </div>
       </div>

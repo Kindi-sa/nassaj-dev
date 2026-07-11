@@ -780,6 +780,7 @@ export function useChatComposerState({
             cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
             resume, model: codexModel, sessionSummary,
             permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
+            images: uploadedImages,
           },
         });
       } else if (effectiveProvider === 'gemini') {

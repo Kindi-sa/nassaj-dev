@@ -5,6 +5,7 @@ import path from 'node:path';
 import TOML from '@iarna/toml';
 
 import { McpProvider } from '@/modules/providers/shared/mcp/mcp.provider.js';
+import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
 import type { McpScope, ProviderMcpServer, UpsertProviderMcpServerInput } from '@/shared/types.js';
 import {
   AppError,
@@ -39,9 +40,18 @@ export class CodexMcpProvider extends McpProvider {
     super('codex', ['user', 'project'], ['stdio', 'http']);
   }
 
-  protected async readScopedServers(scope: McpScope, workspacePath: string): Promise<Record<string, unknown>> {
+  private userConfigPath(userId?: string | number | null): string {
+    const env = resolveProviderEnv(userId ?? null, 'codex', process.env);
+    return path.join(env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'config.toml');
+  }
+
+  protected async readScopedServers(
+    scope: McpScope,
+    workspacePath: string,
+    userId?: string | number | null,
+  ): Promise<Record<string, unknown>> {
     const filePath = scope === 'user'
-      ? path.join(os.homedir(), '.codex', 'config.toml')
+      ? this.userConfigPath(userId)
       : path.join(workspacePath, '.codex', 'config.toml');
     const config = await readTomlConfig(filePath);
     return readObjectRecord(config.mcp_servers) ?? {};
@@ -51,9 +61,10 @@ export class CodexMcpProvider extends McpProvider {
     scope: McpScope,
     workspacePath: string,
     servers: Record<string, unknown>,
+    userId?: string | number | null,
   ): Promise<void> {
     const filePath = scope === 'user'
-      ? path.join(os.homedir(), '.codex', 'config.toml')
+      ? this.userConfigPath(userId)
       : path.join(workspacePath, '.codex', 'config.toml');
     const config = await readTomlConfig(filePath);
     config.mcp_servers = servers;

@@ -214,14 +214,41 @@ test('the secret value never appears in any response body across the lifecycle',
   }
 });
 
-test('a non-vendor provider is rejected with 400 (whitelist enforced)', async () => {
-  const set = await call('POST', '/api/providers/claude/api-key', { user: 'u1', body: { apiKey: TEST_API_KEY } });
+test('a terminal-only provider is rejected with 400 TERMINAL_ONLY', async () => {
+  // T-866: 'cursor' has no credential-writer facet and is not a hosted vendor,
+  // so both write and status short-circuit to TERMINAL_ONLY (no DB/role check).
+  // (Facet providers claude/codex/opencode are covered by their own writer
+  // suites; exercising them here would require a provisioned per-user tree/DB.)
+  const set = await call('POST', '/api/providers/cursor/api-key', { user: 'u1', body: { apiKey: TEST_API_KEY } });
   assert.equal(set.status, 400);
-  assert.equal(set.body.error?.code, 'UNSUPPORTED_SECRET_PROVIDER');
+  assert.equal(set.body.error?.code, 'TERMINAL_ONLY');
 
-  const status = await call('GET', '/api/providers/claude/api-key', { user: 'u1' });
+  const status = await call('GET', '/api/providers/cursor/api-key', { user: 'u1' });
   assert.equal(status.status, 400);
-  assert.equal(status.body.error?.code, 'UNSUPPORTED_SECRET_PROVIDER');
+  assert.equal(status.body.error?.code, 'TERMINAL_ONLY');
+});
+
+test('capability endpoint reports the writer method per provider', async () => {
+  // Vendor: native_file (nassaj-managed encrypted store), no targets list.
+  const kimi = await call('GET', '/api/providers/kimi/api-key/capability', { user: 'u1' });
+  assert.equal(kimi.status, 200);
+  assert.deepEqual(kimi.body.data, { provider: 'kimi', method: 'native_file' });
+
+  // Facet: opencode advertises native_file + its internal targets.
+  const opencode = await call('GET', '/api/providers/opencode/api-key/capability', { user: 'u1' });
+  assert.equal(opencode.status, 200);
+  const oc = opencode.body.data as { provider: string; method: string; targets?: string[] };
+  assert.equal(oc.provider, 'opencode');
+  assert.equal(oc.method, 'native_file');
+  assert.deepEqual(oc.targets, ['anthropic', 'openai', 'openrouter']);
+
+  // Facet: codex is cli_stdin (login CLI, key over stdin).
+  const codex = await call('GET', '/api/providers/codex/api-key/capability', { user: 'u1' });
+  assert.deepEqual(codex.body.data, { provider: 'codex', method: 'cli_stdin' });
+
+  // Terminal-only: cursor reports none.
+  const cursor = await call('GET', '/api/providers/cursor/api-key/capability', { user: 'u1' });
+  assert.deepEqual(cursor.body.data, { provider: 'cursor', method: 'none' });
 });
 
 test('an empty or missing key is rejected with 400', async () => {

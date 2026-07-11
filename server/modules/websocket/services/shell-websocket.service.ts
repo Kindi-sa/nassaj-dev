@@ -14,7 +14,7 @@ import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
 /** Providers with a per-user credential knob in resolveProviderEnv. */
-type IsolationProvider = 'claude' | 'gemini' | 'codex' | 'cursor' | 'agy';
+type IsolationProvider = 'claude' | 'gemini' | 'codex' | 'cursor' | 'agy' | 'opencode' | 'hermes';
 
 type ShellIncomingMessage = {
   type?: string;
@@ -29,6 +29,22 @@ type ShellIncomingMessage = {
   isPlainShell?: boolean;
   forceRestart?: boolean;
 };
+
+export function isProviderLoginCommand(
+  initialCommand: string,
+  provider: string,
+  hasSession: boolean,
+  isPlainShell: boolean
+): boolean {
+  const isAgyProvider = provider === 'agy' || provider === 'antigravity';
+  return (
+    initialCommand.includes('setup-token')
+    || initialCommand.includes('cursor-agent login')
+    || initialCommand.includes('codex login')
+    || initialCommand.includes('auth login')
+    || (isAgyProvider && !hasSession && !isPlainShell)
+  );
+}
 
 type PtySessionEntry = {
   pty: IPty;
@@ -333,11 +349,20 @@ function readIsolationProvider(provider: string): IsolationProvider {
   if (provider === 'agy' || provider === 'antigravity') {
     return 'agy';
   }
+  // T-866/B5: opencode isolates its credentials via XDG_* redirection in
+  // resolveProviderEnv, NOT via CLAUDE_CONFIG_DIR. Falling through to the
+  // 'claude' default made a non-owner's `opencode auth login` terminal write
+  // auth.json under the SHARED operator tree (XDG untouched) instead of the
+  // user's isolated tree — the exact isolation bug this maps out. hermes has no
+  // per-user knob (auth in ~/.hermes, shared), so it must resolve to base env
+  // too rather than wrongly inherit claude's CLAUDE_CONFIG_DIR override.
   if (
     provider === 'claude'
     || provider === 'codex'
     || provider === 'gemini'
     || provider === 'cursor'
+    || provider === 'opencode'
+    || provider === 'hermes'
   ) {
     return provider;
   }
@@ -391,17 +416,14 @@ export function handleShellConnection(
         urlDetectionBuffer = '';
         announcedAuthUrls.clear();
 
-        const isAgyProvider = provider === 'agy' || provider === 'antigravity';
-        const isLoginCommand =
-          (!!initialCommand &&
-            (initialCommand.includes('setup-token') ||
-              initialCommand.includes('cursor-agent login') ||
-              initialCommand.includes('auth login'))) ||
-          // agy has no login subcommand: a fresh interactive `agy` (no prior
-          // session) triggers its OAuth flow. Treat that as a login so any stale
-          // PTY for this key is killed and a clean re-auth session is spawned;
-          // the OAuth URL is surfaced by the generic URL detection below.
-          (isAgyProvider && !hasSession && !isPlainShell);
+        // A login must never reattach to stale terminal output. Codex device
+        // codes in particular expire, so each modal open needs a fresh PTY.
+        const isLoginCommand = isProviderLoginCommand(
+          initialCommand,
+          provider,
+          hasSession,
+          isPlainShell
+        );
 
         const commandSuffix =
           isPlainShell && initialCommand

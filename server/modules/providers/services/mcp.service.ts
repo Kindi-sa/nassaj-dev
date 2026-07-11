@@ -9,7 +9,7 @@ export const providerMcpService = {
    */
   async listProviderMcpServers(
     providerName: string,
-    options?: { workspacePath?: string },
+    options?: { workspacePath?: string; userId?: string | number | null },
   ): Promise<Record<McpScope, ProviderMcpServer[]>> {
     const provider = providerRegistry.resolveProvider(providerName);
     return provider.mcp.listServers(options);
@@ -21,7 +21,7 @@ export const providerMcpService = {
   async listProviderMcpServersForScope(
     providerName: string,
     scope: McpScope,
-    options?: { workspacePath?: string },
+    options?: { workspacePath?: string; userId?: string | number | null },
   ): Promise<ProviderMcpServer[]> {
     const provider = providerRegistry.resolveProvider(providerName);
     return provider.mcp.listServersForScope(scope, options);
@@ -43,7 +43,7 @@ export const providerMcpService = {
    */
   async removeProviderMcpServer(
     providerName: string,
-    input: { name: string; scope?: McpScope; workspacePath?: string },
+    input: { name: string; scope?: McpScope; workspacePath?: string; userId?: string | number | null },
   ): Promise<{ removed: boolean; provider: LLMProvider; name: string; scope: McpScope }> {
     const provider = providerRegistry.resolveProvider(providerName);
     return provider.mcp.removeServer(input);

@@ -69,10 +69,16 @@ mock.module('@/services/isolation/resolve-provider-env.js', {
     resolveProviderEnv: (userId: unknown, provider: string, baseEnv: Record<string, string>) => {
       resolveCalls.push({ userId, provider });
       const isolatedHome = isolatedHomeByUser.get(String(userId));
+      // Mirror the shape of the real seam per provider: claude → CLAUDE_CONFIG_DIR,
+      // opencode → XDG_DATA_HOME (B5). This lets the isolation tests prove the
+      // handler forwarded the RIGHT provider so the correct knob is applied.
+      const providerKnob = provider === 'opencode'
+        ? { XDG_DATA_HOME: `/isolated/${String(userId)}/.local/share` }
+        : { CLAUDE_CONFIG_DIR: `/isolated/${String(userId)}/.claude` };
       return {
         ...baseEnv,
         ...(isolatedHome ? { HOME: isolatedHome } : {}),
-        CLAUDE_CONFIG_DIR: `/isolated/${String(userId)}/.claude`,
+        ...providerKnob,
         __ISOLATED_FOR__: String(userId),
         __ISOLATION_PROVIDER__: provider,
       };
@@ -253,6 +259,47 @@ test('B-MU-PTY-KEY (fail-closed): two no-user connections never collide on a sha
       && (m as { data: string }).data.includes('Reconnected')
   );
   assert.equal(reconnected, false, 'no anonymous reconnection/hijack occurred');
+});
+
+test('B5: an opencode PTY for a non-owner resolves the opencode (XDG) isolation, not claude', () => {
+  spawnCalls.length = 0;
+  resolveCalls.length = 0;
+
+  const ws = makeFakeWs();
+  handleShellConnection(ws as never, { user: { id: 42 } } as never, deps);
+  ws.emit('message', JSON.stringify({
+    type: 'init',
+    projectPath: PROJECT_PATH,
+    provider: 'opencode',
+    isPlainShell: true,
+    initialCommand: 'true',
+    cols: 80,
+    rows: 24,
+  }));
+
+  assert.equal(resolveCalls.length, 1, 'resolver consulted once');
+  assert.equal(
+    resolveCalls[0].provider,
+    'opencode',
+    'the opencode provider was forwarded verbatim (not collapsed to the claude default)'
+  );
+
+  assert.equal(spawnCalls.length, 1, 'one pty spawned');
+  const env = spawnCalls[0].env;
+  assert.equal(
+    env.XDG_DATA_HOME,
+    '/isolated/42/.local/share',
+    'the PTY carries the per-user opencode XDG_DATA_HOME isolation'
+  );
+  assert.equal(env.__ISOLATION_PROVIDER__, 'opencode', 'opencode isolation applied, not claude');
+  // The mock stamps CLAUDE_CONFIG_DIR=/isolated/<id>/.claude ONLY for the claude
+  // knob. Under the pre-fix bug (opencode collapsing to the 'claude' default)
+  // that path would have been applied here; it must not be.
+  assert.notEqual(
+    env.CLAUDE_CONFIG_DIR,
+    '/isolated/42/.claude',
+    'the claude CONFIG_DIR knob was NOT applied to an opencode terminal (pre-fix bug)'
+  );
 });
 
 // --- B-90: user npm-global binaries are surfaced in the PTY PATH --------------

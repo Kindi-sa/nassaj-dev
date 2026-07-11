@@ -207,11 +207,11 @@ export interface IProviderSkills {
  * `ProviderMcpServer` records used by routes and frontend state.
  */
 export interface IProviderMcp {
-  listServers(options?: { workspacePath?: string }): Promise<Record<McpScope, ProviderMcpServer[]>>;
-  listServersForScope(scope: McpScope, options?: { workspacePath?: string }): Promise<ProviderMcpServer[]>;
+  listServers(options?: { workspacePath?: string; userId?: string | number | null }): Promise<Record<McpScope, ProviderMcpServer[]>>;
+  listServersForScope(scope: McpScope, options?: { workspacePath?: string; userId?: string | number | null }): Promise<ProviderMcpServer[]>;
   upsertServer(input: UpsertProviderMcpServerInput): Promise<ProviderMcpServer>;
   removeServer(
-    input: { name: string; scope?: McpScope; workspacePath?: string },
+    input: { name: string; scope?: McpScope; workspacePath?: string; userId?: string | number | null },
   ): Promise<{ removed: boolean; provider: LLMProvider; name: string; scope: McpScope }>;
 }
 

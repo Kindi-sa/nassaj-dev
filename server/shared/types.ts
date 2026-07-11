@@ -497,6 +497,8 @@ export type UpsertProviderMcpServerInput = {
   envVars?: string[];
   bearerTokenEnvVar?: string;
   envHttpHeaders?: Record<string, string>;
+  /** Authenticated caller context, injected server-side and never trusted from clients. */
+  userId?: string | number | null;
 };
 
 // ---------------------------
