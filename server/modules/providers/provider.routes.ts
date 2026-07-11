@@ -652,9 +652,14 @@ router.post(
       });
     }
 
+    // Forward the authenticated caller so per-user-isolated providers (e.g.
+    // codex writing into the caller's CODEX_HOME) target THIS user's tree
+    // rather than the operator's. userId is token-sourced only, never trusted
+    // from the body. The service spreads it into each provider's upsertServer.
     const results = await providerMcpService.addMcpServerToAllProviders({
       ...payload,
       scope: payload.scope === 'user' ? 'user' : 'project',
+      userId: readAuthenticatedUserId(req),
     });
     res.status(201).json(createApiSuccessResponse({ results }));
   }),

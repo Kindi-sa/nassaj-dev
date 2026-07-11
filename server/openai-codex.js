@@ -39,26 +39,43 @@ async function prepareCodexInput(command, images) {
     return { input: command, tempDir: null };
   }
 
+  // Create the scratch dir first, then guard everything after it with a
+  // try/finally. A mid-loop failure (e.g. fs.writeFile throwing before the
+  // caller captures `tempDir` into `imagesTempDir`) would otherwise orphan the
+  // directory, because the caller's deterministic cleanup only fires once it
+  // holds the handle. The dir is handed to the caller — and cleanup skipped
+  // here — solely on the committed success path.
   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'nassaj-codex-images-'));
-  const input = [{ type: 'text', text: command }];
-  for (const [index, image] of imageList.entries()) {
-    const match = typeof image?.data === 'string'
-      ? image.data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/)
-      : null;
-    if (!match) {
-      continue;
+  let committed = false;
+  try {
+    const input = [{ type: 'text', text: command }];
+    for (const [index, image] of imageList.entries()) {
+      const match = typeof image?.data === 'string'
+        ? image.data.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,([a-zA-Z0-9+/=]+)$/)
+        : null;
+      if (!match) {
+        continue;
+      }
+      const extension = match[1].split('/')[1].replace(/[^a-zA-Z0-9]/g, '') || 'png';
+      const imagePath = path.join(tempDir, `image-${index}.${extension}`);
+      await fs.writeFile(imagePath, Buffer.from(match[2], 'base64'), { mode: 0o600 });
+      input.push({ type: 'local_image', path: imagePath });
     }
-    const extension = match[1].split('/')[1].replace(/[^a-zA-Z0-9]/g, '') || 'png';
-    const imagePath = path.join(tempDir, `image-${index}.${extension}`);
-    await fs.writeFile(imagePath, Buffer.from(match[2], 'base64'), { mode: 0o600 });
-    input.push({ type: 'local_image', path: imagePath });
-  }
 
-  if (input.length === 1) {
-    await fs.rm(tempDir, { recursive: true, force: true });
-    return { input: command, tempDir: null };
+    if (input.length === 1) {
+      // No decodable image survived — hand back the plain command; the finally
+      // block below removes the now-empty scratch dir.
+      return { input: command, tempDir: null };
+    }
+    committed = true;
+    return { input, tempDir };
+  } finally {
+    if (!committed) {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch((error) => {
+        console.warn('[Codex] Failed to clean temporary images:', error?.message || error);
+      });
+    }
   }
-  return { input, tempDir };
 }
 
 function readUsageNumber(value) {
@@ -511,19 +528,20 @@ async function queryCodexUnlocked(command, options = {}, ws) {
 
       // B-32: map spawn/runtime errors to structured codes.
       const installed = await providerAuthService.isProviderInstalled('codex');
+      // Classify once and reuse: both the mapped code/content below and the
+      // conversation_not_found metadata attached to the error message derive
+      // from the same classification result.
+      const classified = classifyCodexFailure(error, capturedSessionId || sessionId || null, command);
       let errorCode;
       let errorContent;
       if (!installed) {
         errorCode = 'cli_not_installed';
         errorContent = 'Codex CLI is not configured. Please set up authentication first.';
       } else {
-        const classified = classifyCodexFailure(error, capturedSessionId || sessionId || null, command);
         const mapped = mapSpawnError(error);
         errorCode = classified.code === 'codex_turn_failed' ? mapped.code : classified.code;
         errorContent = classified.code === 'codex_turn_failed' ? mapped.fallbackMessage : classified.content;
       }
-
-      const classified = classifyCodexFailure(error, capturedSessionId || sessionId || null, command);
 
       sendMessage(ws, createNormalizedMessage({
         kind: 'error',
