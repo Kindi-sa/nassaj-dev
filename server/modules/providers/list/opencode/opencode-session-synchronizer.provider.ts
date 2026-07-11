@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import Database from 'better-sqlite3';
 
-import { sessionsDb } from '@/modules/database/index.js';
+import { participantsDb, sessionsDb } from '@/modules/database/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import {
   normalizeProviderTimestamp,
@@ -12,7 +12,11 @@ import {
   readOptionalString,
 } from '@/shared/utils.js';
 
-import { openCodeDataHomeForSessionFile, resolveOpenCodeDataHomes } from './opencode-home.js';
+import {
+  openCodeDataHomeForSessionFile,
+  resolveOpenCodeDataHomeOwner,
+  resolveOpenCodeDataHomes,
+} from './opencode-home.js';
 
 type OpenCodeSessionRow = {
   id: string;
@@ -43,7 +47,11 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     let processed = 0;
     for (const dataHome of resolveOpenCodeDataHomes()) {
       const dbPath = path.join(dataHome, 'opencode.db');
-      processed += this.synchronizeRows(dbPath, since).processed;
+      // Each data dir's owner (operator dir → platform owner, an isolated dir →
+      // its user) is the attribution target for the externally-created sessions
+      // it holds (T-857, part ب).
+      const ownerUserId = resolveOpenCodeDataHomeOwner(dataHome);
+      processed += this.synchronizeRows(dbPath, ownerUserId, since).processed;
     }
     return processed;
   }
@@ -57,12 +65,19 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       return null;
     }
 
-    const dbPath = path.join(openCodeDataHomeForSessionFile(filePath), 'opencode.db');
-    const result = this.synchronizeRows(dbPath, undefined, 1);
+    const dataHome = openCodeDataHomeForSessionFile(filePath);
+    const dbPath = path.join(dataHome, 'opencode.db');
+    const ownerUserId = resolveOpenCodeDataHomeOwner(dataHome);
+    const result = this.synchronizeRows(dbPath, ownerUserId, undefined, 1);
     return result.firstSessionId;
   }
 
-  private synchronizeRows(dbPath: string, since?: Date, limit?: number): SynchronizeRowsResult {
+  private synchronizeRows(
+    dbPath: string,
+    ownerUserId: number | null,
+    since?: Date,
+    limit?: number,
+  ): SynchronizeRowsResult {
     if (!fsSync.existsSync(dbPath)) {
       return { processed: 0, firstSessionId: null };
     }
@@ -91,7 +106,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       let processed = 0;
       let firstSessionId: string | null = null;
       for (const row of rows) {
-        const indexedSessionId = this.upsertSession(db, row);
+        const indexedSessionId = this.upsertSession(db, row, ownerUserId);
         if (!indexedSessionId) {
           continue;
         }
@@ -112,7 +127,11 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     }
   }
 
-  private upsertSession(db: Database.Database, row: OpenCodeSessionRow): string | null {
+  private upsertSession(
+    db: Database.Database,
+    row: OpenCodeSessionRow,
+    ownerUserId: number | null,
+  ): string | null {
     const sessionId = readOptionalString(row.id);
     const projectPath = readOptionalString(row.directory) ?? readOptionalString(row.worktree);
     if (!sessionId || !projectPath) {
@@ -137,6 +156,23 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
     );
+
+    // Data-provenance attribution (T-857, part ب): an opencode session created
+    // outside this server (a TUI run, or any spawn that did not flow through the
+    // web recordSpawn path) has no participant row, so it fails the "native
+    // session" predicate and never appears in the conversations list. Attribute
+    // it to the owner of the data dir it came from — WITHOUT touching the
+    // predicate. Idempotent: skipped once the session already has an owner, so a
+    // web-spawned session (already recorded) is never re-attributed and a repeat
+    // rescan never inflates message_count. This also backfills the sessions that
+    // were indexed before this fix shipped, on the first synchronize after
+    // deploy. recordSpawn self-heals the parent row and never throws.
+    if (ownerUserId !== null && !participantsDb.hasParticipant(sessionId)) {
+      participantsDb.recordSpawn(sessionId, ownerUserId, {
+        provider: this.provider,
+        projectPath,
+      });
+    }
 
     return sessionId;
   }

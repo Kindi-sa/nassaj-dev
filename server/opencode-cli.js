@@ -7,6 +7,7 @@ import path from 'node:path';
 import crossSpawn from 'cross-spawn';
 import Database from 'better-sqlite3';
 
+import { messageAuthorsDb, participantsDb } from './modules/database/index.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
@@ -182,6 +183,27 @@ async function spawnOpenCode(command, options = {}, ws) {
     let opencodeProcess = null;
     // OC-22: temp dir holding materialized image attachments, cleaned on close.
     let attachmentsTempDir = null;
+    let participantRecorded = false;
+
+    // Record the authenticated human who spawned this opencode run as a session
+    // participant + prompt author, mirroring claude-sdk.js:1321/1328 (T-857,
+    // part أ). Once per spawn (idempotent at the DB layer too) and only when the
+    // WS is authenticated — anonymous/single-user runs carry no userId. This is
+    // what makes a UI-started opencode session pass the "native session"
+    // predicate and appear in the conversations list; the synchronizer's
+    // data-provenance attribution (part ب) covers only externally-created (TUI)
+    // sessions that never reach this spawn path.
+    const recordParticipant = (sid) => {
+      if (participantRecorded || !sid || !ws?.userId) {
+        return;
+      }
+      participantRecorded = true;
+      participantsDb.recordSpawn(sid, ws.userId, {
+        provider: 'opencode',
+        projectPath: workingDir,
+      });
+      messageAuthorsDb.recordUserMessage(sid, ws.userId, command);
+    };
 
     const notifyTerminalState = ({ code = null, error = null } = {}) => {
       if (terminalNotificationSent) {
@@ -223,6 +245,11 @@ async function spawnOpenCode(command, options = {}, ws) {
       if (opencodeProcess) {
         opencodeProcess.sessionId = capturedSessionId;
       }
+
+      // New-session case: the id only exists once opencode emits it, so this is
+      // the earliest point participation can be recorded (resume runs already
+      // recorded upfront from the known sessionId below).
+      recordParticipant(capturedSessionId);
 
       if (ws.setSessionId && typeof ws.setSessionId === 'function') {
         ws.setSessionId(capturedSessionId);
@@ -288,6 +315,10 @@ async function spawnOpenCode(command, options = {}, ws) {
       prepareOpenCodeAttachments(images, files, workingDir),
     ]).then(([resolvedModel, attachments]) => {
       attachmentsTempDir = attachments.tempDir;
+      // Resume case: the session id is known before the process runs, and
+      // registerSession short-circuits when it re-sees the same id, so record
+      // participation here so a resumed opencode conversation stays "native".
+      recordParticipant(sessionId);
       const args = ['run', '--format', 'json'];
       if (sessionId) {
         args.push('--session', sessionId);

@@ -115,6 +115,32 @@ export const participantsDb = {
   },
 
   /**
+   * True when the session already has ANY human participant row (owner or
+   * participant), regardless of which user. Distinct from {@link isParticipant}
+   * (which asks about ONE user): this is the idempotency guard the OpenCode
+   * synchronizer uses (T-857) to attribute an unowned externally-created session
+   * exactly once — a session that already has an owner is never re-attributed,
+   * so its message_count/last_seen are never inflated by background rescans.
+   * Fail-open to "has a participant" is never done: any anomaly returns false
+   * only for an empty id, and a real query failure would surface, so the caller
+   * simply attempts an idempotent recordSpawn (itself ON CONFLICT-safe).
+   */
+  hasParticipant(sessionId: string): boolean {
+    if (!sessionId) {
+      return false;
+    }
+
+    const db = getConnection();
+    const row = db
+      .prepare(
+        `SELECT 1 AS ok FROM session_participants WHERE session_id = ? LIMIT 1`
+      )
+      .get(sessionId) as { ok: number } | undefined;
+
+    return row !== undefined;
+  },
+
+  /**
    * Access predicate for a session: is `userId` a human owner/participant of
    * `sessionId`, OR the recorded author of at least one message in it?
    *

@@ -6,7 +6,13 @@ import test from 'node:test';
 
 import Database from 'better-sqlite3';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import {
+  closeConnection,
+  initializeDatabase,
+  participantsDb,
+  sessionsDb,
+  userDb,
+} from '@/modules/database/index.js';
 import { OpenCodeSessionSynchronizer } from '@/modules/providers/list/opencode/opencode-session-synchronizer.provider.js';
 import { OpenCodeSessionsProvider } from '@/modules/providers/list/opencode/opencode-sessions.provider.js';
 
@@ -265,6 +271,73 @@ test('OpenCode session synchronizer indexes sqlite sessions without deletable tr
         assert.equal(indexed?.custom_name, 'OpenCode indexed title');
         assert.equal(indexed?.jsonl_path, null);
       });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode synchronizer backfills an external session to the platform owner and stays native (T-857 part ب)', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-attrib-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    await withIsolatedDatabase(() => {
+      // A non-owner is created FIRST (lower id) to prove attribution targets the
+      // role='owner' platform owner, not merely the oldest user.
+      const memberId = userDb.createUser(`u_member_${Date.now()}`, 'hash', 'user').id;
+      const ownerId = userDb.createUser(`u_owner_${Date.now()}`, 'hash', 'owner').id;
+      assert.ok(ownerId > memberId);
+
+      const synchronizer = new OpenCodeSessionSynchronizer();
+      return Promise.resolve(synchronizer.synchronize()).then((count) => {
+        assert.equal(count, 1);
+
+        // The externally-created session now has an owner participant row, so it
+        // passes the "native session" predicate and appears in the project list.
+        assert.equal(participantsDb.hasParticipant('open-session-1'), true);
+        assert.equal(sessionsDb.countSessionsByProjectPath(workspacePath), 1);
+
+        const owners = participantsDb.getOwnersBySessionIds(['open-session-1']);
+        assert.equal(owners.length, 1);
+        assert.equal(owners[0]?.userId, ownerId, 'attribution must target the platform owner');
+        assert.equal(participantsDb.isParticipant('open-session-1', memberId), false);
+      });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('OpenCode synchronizer never re-attributes a session that already has an owner (T-857 part د)', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-noreattrib-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await createOpenCodeDatabase(tempRoot, workspacePath);
+    await withIsolatedDatabase(() => {
+      const ownerId = userDb.createUser(`u_owner_${Date.now()}`, 'hash', 'owner').id;
+      const synchronizer = new OpenCodeSessionSynchronizer();
+
+      return Promise.resolve(synchronizer.synchronize())
+        .then(() => Promise.resolve(synchronizer.synchronize()))
+        .then(() => {
+          // Two full rescans: the session must be attributed exactly once, so its
+          // message_count stays 1 (a repeat recordSpawn would bump it) and no
+          // second participant is added.
+          const participants = participantsDb.listBySession('open-session-1');
+          assert.equal(participants.length, 1);
+          assert.equal(participants[0]?.userId, ownerId);
+          assert.equal(participants[0]?.role, 'owner');
+          assert.equal(participants[0]?.message_count, 1, 'idempotent: no re-attribution on rescan');
+        });
     });
   } finally {
     restoreHomeDir();

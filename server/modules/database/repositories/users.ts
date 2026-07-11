@@ -216,6 +216,38 @@ export const userDb = {
       .get(userId) as UserPublicRow | undefined;
   },
 
+  /**
+   * The platform owner's user id, or null when no user exists.
+   *
+   * "Platform owner" is the SAME identity the rest of the server treats as the
+   * administrative super-user: the account whose `role === 'owner'` (see the
+   * isPlatformOwner checks in projects.routes.ts / projects-with-sessions-fetch).
+   * The oldest active owner is chosen when several exist. If — through some
+   * legacy/edge state — no owner-role account is active, this falls back to the
+   * oldest active user (the same identity getFirstUser resolves in platform
+   * mode), so callers always get a stable, existing attribution target rather
+   * than a silent null. Used by the OpenCode session synchronizer (T-857) to
+   * attribute externally-created sessions living in the SHARED operator data
+   * dir to the platform owner without inventing an implicit default.
+   */
+  getPlatformOwnerId(): number | null {
+    const db = getConnection();
+    const owner = db
+      .prepare(
+        "SELECT id FROM users WHERE role = 'owner' AND is_active = 1 AND status = 'active' ORDER BY id ASC LIMIT 1"
+      )
+      .get() as { id: number } | undefined;
+    if (owner) {
+      return owner.id;
+    }
+    const fallback = db
+      .prepare(
+        "SELECT id FROM users WHERE is_active = 1 AND status = 'active' ORDER BY id ASC LIMIT 1"
+      )
+      .get() as { id: number } | undefined;
+    return fallback?.id ?? null;
+  },
+
   /** Returns the first active user. Used for single-user / platform mode lookups. */
   getFirstUser(): UserPublicRow | undefined {
     const db = getConnection();

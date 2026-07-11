@@ -4,6 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import {
+  closeConnection,
+  initializeDatabase,
+  participantsDb,
+  sessionsDb,
+  userDb,
+} from './modules/database/index.js';
 import { spawnOpenCode } from './opencode-cli.js';
 
 const findEnvKey = (name) =>
@@ -32,6 +39,85 @@ for (const event of events) {
   await writeFile(commandPath, '#!/bin/sh\nnode "$(dirname "$0")/opencode.js" "$@"\n', 'utf8');
   await chmod(commandPath, 0o755);
 }
+
+async function withIsolatedDatabase(runTest) {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'opencode-cli-db-'));
+  const databasePath = path.join(tempDirectory, 'auth.db');
+
+  closeConnection();
+  process.env.DATABASE_PATH = databasePath;
+  await initializeDatabase();
+
+  try {
+    await runTest();
+  } finally {
+    closeConnection();
+    if (previousDatabasePath === undefined) {
+      delete process.env.DATABASE_PATH;
+    } else {
+      process.env.DATABASE_PATH = previousDatabasePath;
+    }
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+test('spawnOpenCode records the spawning user so the web session is native (T-857 part أ)', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-cli-native-'));
+  const previousOpenCodePath = process.env.OPENCODE_PATH;
+  const pathExtKey = findEnvKey('PATHEXT');
+  const previousPathExt = process.env[pathExtKey];
+
+  try {
+    await createFakeOpenCodeExecutable(tempRoot);
+    process.env.OPENCODE_PATH = path.join(
+      tempRoot,
+      process.platform === 'win32' ? 'opencode.cmd' : 'opencode',
+    );
+    if (process.platform === 'win32') {
+      process.env[pathExtKey] = previousPathExt?.toUpperCase().includes('.CMD')
+        ? previousPathExt
+        : `.COM;.EXE;.BAT;.CMD${previousPathExt ? `;${previousPathExt}` : ''}`;
+    }
+
+    await withIsolatedDatabase(async () => {
+      const userId = userDb.createUser(`u_oc_${Date.now()}`, 'hash', 'user').id;
+      const writer = {
+        userId,
+        sessionId: null,
+        send() {},
+        setSessionId(sessionId) {
+          this.sessionId = sessionId;
+        },
+      };
+
+      // New session: id 'open-live-1' is captured from the process output.
+      await spawnOpenCode('Build it', { cwd: tempRoot }, writer);
+
+      // recordSpawn ran on the web path: a participant row now exists, so the
+      // session passes the native predicate and is listed for its project.
+      assert.equal(participantsDb.hasParticipant('open-live-1'), true);
+      assert.equal(participantsDb.isParticipant('open-live-1', userId), true);
+      assert.equal(sessionsDb.countSessionsByProjectPath(tempRoot), 1);
+      assert.deepEqual(
+        sessionsDb.getSessionsByProjectPathPage(tempRoot, 50, 0).map((row) => row.session_id),
+        ['open-live-1'],
+      );
+    });
+  } finally {
+    if (previousOpenCodePath === undefined) {
+      delete process.env.OPENCODE_PATH;
+    } else {
+      process.env.OPENCODE_PATH = previousOpenCodePath;
+    }
+    if (previousPathExt === undefined) {
+      delete process.env[pathExtKey];
+    } else {
+      process.env[pathExtKey] = previousPathExt;
+    }
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('spawnOpenCode emits session_created before normalized live messages for new sessions', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'opencode-cli-live-'));

@@ -94,21 +94,29 @@ test('deleteSessionsByJsonlPath removes only the rows indexed from that transcri
   });
 });
 
-test('createSession reactivates archived rows when the session becomes active again', async () => {
+test('createSession upsert preserves a user-archived row instead of resurrecting it (B-161/T-857)', async () => {
   await withIsolatedDatabase(() => {
     sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'First Name');
     sessionsDb.updateSessionIsArchived('session-reused', true);
 
+    // A background rescan re-upserts the same session (e.g. the synchronizer
+    // re-indexing an unchanged/archived session). Metadata may refresh, but the
+    // user's archival decision must NOT be overwritten to active.
     sessionsDb.createSession('session-reused', 'claude', '/workspace/demo-project', 'Updated Name');
 
     const activeSessions = sessionsDb.getAllSessions();
     const archivedSessions = sessionsDb.getArchivedSessions();
-    const restoredSession = sessionsDb.getSessionById('session-reused');
+    const preservedSession = sessionsDb.getSessionById('session-reused');
 
-    assert.equal(activeSessions.length, 1);
-    assert.equal(activeSessions[0]?.session_id, 'session-reused');
-    assert.equal(activeSessions[0]?.custom_name, 'Updated Name');
-    assert.equal(archivedSessions.length, 0);
-    assert.equal(restoredSession?.isArchived, 0);
+    assert.equal(activeSessions.length, 0, 'archived row must stay out of active lists after upsert');
+    assert.equal(archivedSessions.length, 1);
+    assert.equal(archivedSessions[0]?.session_id, 'session-reused');
+    // Other columns still refresh on upsert — only isArchived is preserved.
+    assert.equal(preservedSession?.custom_name, 'Updated Name');
+    assert.equal(preservedSession?.isArchived, 1, 'the upsert must not un-archive the session');
+
+    // Un-archiving remains possible through the explicit restore path.
+    sessionsDb.updateSessionIsArchived('session-reused', false);
+    assert.equal(sessionsDb.getSessionById('session-reused')?.isArchived, 0);
   });
 });

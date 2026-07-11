@@ -75,6 +75,12 @@ export const sessionsDb = {
       // session row that carries the FK reference.
       projectsDb.createProjectPath(normalizedProjectPath);
 
+      // Archival is a USER decision, never overwritten by an upsert (B-161/T-857):
+      // a new row starts active (isArchived 0 in VALUES), but on conflict the
+      // stored isArchived is PRESERVED — a background rescan (any provider's
+      // synchronizer re-indexing an unchanged/archived session) must not
+      // resurrect a session the user archived. Un-archiving has its own explicit
+      // path (restoreSessionById → updateSessionIsArchived(false)).
       db.prepare(
         `INSERT INTO sessions (session_id, provider, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
@@ -83,7 +89,6 @@ export const sessionsDb = {
            updated_at = excluded.updated_at,
            project_path = excluded.project_path,
            jsonl_path = excluded.jsonl_path,
-           isArchived = 0,
            custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
       ).run(
         sessionId,

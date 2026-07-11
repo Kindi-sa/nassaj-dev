@@ -100,3 +100,52 @@ export function resolveOpenCodeDatabasePathForUser(userId: string | number | nul
 export function openCodeDataHomeForSessionFile(filePath: string): string {
   return path.dirname(filePath);
 }
+
+/**
+ * The nassaj user id that OWNS an opencode data dir — the attribution target for
+ * externally-created (TUI) sessions found in that dir (T-857, part ب).
+ *
+ * Data-provenance ownership, honoring the exact isolation map wired on the spawn
+ * path (resolveProviderEnv → resolveOpenCodeDataHomeForUser):
+ *   - The SHARED operator dir (~/.local/share/opencode, the only dir in shared
+ *     mode) belongs to the PLATFORM OWNER (userDb.getPlatformOwnerId — the
+ *     role='owner' account the whole server treats as super-user). Attributing
+ *     the operator dir to a specific human keeps the visibility semantics of
+ *     ADR-052 intact WITHOUT poking a hole in NATIVE_SESSION_PREDICATE.
+ *   - A per-user isolated dir (~/.nassaj-users/<id>/.local/share/opencode, only
+ *     when opencode is isolated) belongs to THAT user — matched by comparing the
+ *     resolved isolated dir for each registered user against this dir.
+ *
+ * Comparison is on resolved absolute paths so a trailing-slash or relative form
+ * can never mis-match. Best-effort: any DB/enumeration anomaly degrades to the
+ * platform owner (or null when no user exists at all) rather than throwing —
+ * attribution must never take session indexing down. Returns null only when the
+ * install has no users yet, in which case the caller simply skips attribution.
+ */
+export function resolveOpenCodeDataHomeOwner(dataHome: string): number | null {
+  const operatorDir = path.resolve(operatorOpenCodeDataHome());
+  const target = path.resolve(dataHome);
+
+  if (target !== operatorDir) {
+    try {
+      for (const user of userDb.listUsers()) {
+        if (path.resolve(resolveOpenCodeDataHomeForUser(user.id)) === target) {
+          return Number(user.id);
+        }
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('Failed to resolve per-user opencode data dir owner; using platform owner', {
+        error: message,
+      });
+    }
+  }
+
+  try {
+    return userDb.getPlatformOwnerId();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Failed to resolve platform owner for opencode attribution', { error: message });
+    return null;
+  }
+}
