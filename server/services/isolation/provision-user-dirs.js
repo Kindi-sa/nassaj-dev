@@ -35,7 +35,13 @@
  *                  no link and must run `agy` to authenticate. installation_id and
  *                  settings.json are linked too for the owner when present.)
  *     .codex/
- *       (isolated credentials; no shared conversation subtree symlinked yet)
+ *       (isolated credentials + SHARED neutral governance)
+ *       AGENTS.md  -> ~/.claude/AGENTS.md   (SHARED governance for ALL users, the
+ *                  Codex mirror of the CLAUDE.md/NASSAJ.md links: ~/.claude is a
+ *                  symlink to nassaj-core, so this resolves to nassaj-core/AGENTS.md
+ *                  — the build-agents NEUTRAL instructions a spawned Codex reads from
+ *                  $CODEX_HOME/AGENTS.md on launch. Symlink not copy: single
+ *                  fleet-wide source, no drift, no owner-secret leak. ADR-057.)
  *       auth.json -> ~/.codex/auth.json  (OWNER ONLY: the bootstrap owner reuses
  *                  the operator Codex credential so an isolated owner never re-logs
  *                  in — mirrors .claude/.credentials.json. Non-owners run `codex
@@ -311,14 +317,33 @@ export function provisionUserDirs(userId) {
       }
     }
 
-    // --- Codex (isolated credentials; no shared conversation subtree yet) ---
+    // --- Codex (isolated credentials + SHARED neutral governance) ---
+    const codexDir = path.join(userRoot, '.codex');
+    ensureDir(codexDir);
+
+    // Neutral Codex governance (ADR-057 / T-819): symlink AGENTS.md into every
+    // user's isolated CODEX_HOME so a spawned Codex session reads nassaj's shared
+    // governance on launch — Codex (and opencode) ingest $CODEX_HOME/AGENTS.md.
+    // The source is the SAME base the Claude CLAUDE.md/NASSAJ.md links above use —
+    // ~/.claude, which bootstrap-node.sh symlinks to nassaj-core on every fleet
+    // node — so ~/.claude/AGENTS.md resolves to nassaj-core/AGENTS.md, the
+    // build-agents NEUTRAL output (no Claude-only mechanics: no /compact, session
+    // quotas, fable/opus model maps, hooks or ultracode). Using ~/.claude (not a
+    // hardcoded absolute nassaj-core path) keeps this portable across fleet nodes
+    // whose operator home differs. A symlink — never a copy — keeps one fleet-wide
+    // source with no drift and cannot leak owner secrets: the target is the neutral
+    // governance file only. SHARED for ALL users (governance, not a credential),
+    // mirroring the CLAUDE.md/NASSAJ.md links; ensureSymlink is a no-op if missing.
+    ensureSymlink(
+      path.join(home, '.claude', 'AGENTS.md'),
+      path.join(codexDir, 'AGENTS.md'),
+    );
+
     // Since B-136 wired the per-user CODEX_HOME on the spawn path, the bootstrap
     // owner reuses the operator's real Codex credential (~/.codex/auth.json) so an
     // isolated owner never has to re-login — mirroring the .claude/.credentials.json
     // and agy antigravity-oauth-token owner links above. Non-owner isolated users get
     // NO credential here on purpose: each must run their own `codex login`.
-    const codexDir = path.join(userRoot, '.codex');
-    ensureDir(codexDir);
     if (isOwnerUser(userId)) {
       ensureSymlink(
         path.join(home, '.codex', 'auth.json'),
