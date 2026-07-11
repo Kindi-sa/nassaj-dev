@@ -1,0 +1,13 @@
+# nassaj fleet — node registry (SOURCE OF TRUTH for F0 fan-out)
+# ADR-FLEET-004 (هوية ثلاثية: node_id تقني / tailnet_name توجيه / display_label عرض بشري)
+# التحقّق: 2026-07-10 (devops، قرائي). راجعه المالك + qa-critic قبل أي تنفيذ.
+# ---------------------------------------------------------------------------
+# جسر SSH موحّد (اتصال آلي غير تفاعلي): -i ~/.ssh/id_nassaj_fleet  (ed25519، بلا passphrase، NOPASSWD على العقد البعيدة)
+# لا alias `ssh mina` (تصحيح المالك 2026-06-24) — الوصول عبر tailnet_ip مباشرةً. لاحقاً Headscale بدل Tailscale.
+# fan-out ينشر الكود فقط (git ref + build). لا يُنسَخ مركزياً أبداً: .env / JWT_SECRET / db.sqlite / ecosystem.<node>.config.cjs / WEBAUTHN_RP_ID / ALLOWED_ORIGINS / إعداد نفق Cloudflare (B-114/B-115).
+# ---------------------------------------------------------------------------
+node_id	display_label	tailnet_name	tailnet_ip	ssh_target	user	repo_dir	port	public_domain	ecosystem_file	deploy_ref	wave	status	notes
+nassaj	نسّاج الكندي	nassaj	100.105.15.51	(hub/self)	nassaj	/home/nassaj/Project/nassaj-dev	3004	nassaj.alkindy.tech	ecosystem.alkindy.config.cjs	nassaj-v1.35.1	canary	active	المركز + مصدر البناء؛ سيرفر تطوير (لا إنتاج). restart عبر safe-restart.sh --exec فقط (حارس العميل يعترض pm2 → المالك ينفّذ السطر المطبوع يدوياً). لا تُطلق fan-out من جلسة Claude ابنة nassaj-dev (restart يقتلها).
+rukhaimi	نسّاج الرخيمي	rukhaimi	100.105.15.104	ibrahim@100.105.15.104	ibrahim	/opt/nassaj	3004	nassaj.alrukhaimi.com	ecosystem.rukhaimi.config.cjs	nassaj-v1.35.1	wave-1	needs-remediation	على main@86faa54 بلا upstream، ~166 خلف، وبلا safe-restart.sh (مفارقة إقلاع). ⚠️ ecosystem.config.cjs متتبَّع في main → reset --hard سيحذفه (لغم B-110) → انسخه لـecosystem.rukhaimi.config.cjs قبل الـreset. نفق cloudflared عبر pm2 (config محلي http2/edge-ip4). tunnel 6c09a14e. clone غالباً ضحل → --unshallow.
+traventure	نسّاج ترافنشر	ibrahim-jalal-setup	100.105.15.56	ibrahim@100.105.15.56	ibrahim	/opt/nassaj	3004	nassaj.traventure.sa	ecosystem.nassaj.config.cjs	nassaj-v1.35.1	last	active	سيرفر إنتاج منفصل (كيان ترافنشر+أصدقاء) — ينشر آخراً. shallow clone → git fetch --unshallow إلزامي. حادثة B-110 (2026-06-30) هنا: .env مفقود → سقوط على 3001 → EADDRINUSE. بوابة AGPL §13 إن كان طرفاً مستقلاً (legal).
+mujtana	نسّاج المجتنى	—	—	—	—	—	—	—	—	—	—	not-provisioned	غير مزوَّدة: لا عقدة Tailscale ولا alias. خارج نطاق F0. تُضاف عبر bootstrap-node.sh عند التزويد.
