@@ -16,6 +16,7 @@ import {
   getOpenCodeDatabasePath,
   readObjectRecord,
   readOptionalString,
+  resolveOpenCodeBinaryPath,
   writeProviderSessionActiveModelChange,
 } from '@/shared/utils.js';
 
@@ -214,7 +215,8 @@ const parseOpenCodeSessionModelValue = (rawModel: unknown): string | null => {
 };
 
 const runOpenCodeModelsCommand = (): Promise<string> => new Promise((resolve, reject) => {
-  const openCodeProcess = spawnFunction('opencode', ['models'], {
+  // OC-06: OPENCODE_PATH knob → ~/.opencode/bin/opencode → PATH fallback.
+  const openCodeProcess = spawnFunction(resolveOpenCodeBinaryPath(), ['models'], {
     cwd: process.cwd(),
     env: { ...process.env },
   });

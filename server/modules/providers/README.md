@@ -80,6 +80,26 @@ hard guardrails — which every contributor must preserve — are:
 - **No Claude-output distillation:** the vendor seam is fully separate from the
   Claude seam, so a Claude session can never become a training input to a vendor.
 
+### OpenCode CLI binary resolution (OC-06)
+
+Every place that spawns the OpenCode CLI (`spawnOpenCode` in
+`server/opencode-cli.js`, `opencode models` in `opencode-models.provider.ts`,
+and the `--version` install probe in `opencode-auth.provider.ts`) resolves the
+binary through `resolveOpenCodeBinaryPath()` in `server/shared/utils.ts` instead
+of a bare `opencode` PATH lookup. Resolution order (mirrors the `AGY_PATH`
+pattern in `agy-cli.js`):
+
+1. `OPENCODE_PATH` env override, when set.
+2. `~/.opencode/bin/opencode` when it exists on disk (the standard install
+   location).
+3. bare `opencode` from `PATH` as the final fallback.
+
+Rationale: the PM2-managed server process does not inherit the `~/.opencode/bin`
+entry added to the operator's interactive `.bashrc`, so a bare PATH lookup made
+the provider report "not installed" even though the CLI was present. The knob is
+evaluated per call (not memoized at module load) so an env change takes effect on
+the next spawn without a server restart.
+
 ## Current File Layout
 
 Each provider lives under its own folder in `server/modules/providers/list/`:

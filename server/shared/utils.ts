@@ -1048,6 +1048,34 @@ export function getOpenCodeDatabasePath(): string {
   return path.join(os.homedir(), '.local', 'share', 'opencode', 'opencode.db');
 }
 
+/**
+ * Resolves the OpenCode CLI binary to spawn (OC-06, agy-cli.js:42 pattern).
+ *
+ * Order: explicit `OPENCODE_PATH` env override → the standard install location
+ * `~/.opencode/bin/opencode` when present → bare `opencode` from PATH. The PM2
+ * process does not inherit the `.bashrc` PATH addition, so relying on PATH
+ * alone made the provider report "not installed" (OPENCODE-COMPAT plan §1).
+ * Evaluated per call (not at module load) so tests and admin env changes take
+ * effect without a server restart.
+ */
+export function resolveOpenCodeBinaryPath(): string {
+  const override = process.env.OPENCODE_PATH?.trim();
+  if (override) {
+    return override;
+  }
+
+  const defaultInstallPath = path.join(os.homedir(), '.opencode', 'bin', 'opencode');
+  try {
+    if (fs.existsSync(defaultInstallPath)) {
+      return defaultInstallPath;
+    }
+  } catch {
+    // Unreadable home tree: fall through to the PATH lookup.
+  }
+
+  return 'opencode';
+}
+
 // ---------------------------
 //----------------- SAFE DIRECTORY NAME UTILITIES ------------
 /**
