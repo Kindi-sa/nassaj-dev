@@ -160,7 +160,11 @@ function createVendorSpawn(provider) {
       // memory, so pin this new session to its creation-time model in nassaj's
       // per-session store — a later pick in ANOTHER conversation must not change
       // which model this session resumes on. Idempotent + best-effort.
-      void providerModelsService.seedSessionModel(provider, effectiveSessionId, model);
+      // .catch() guards against an unhandled rejection escaping this
+      // fire-and-forget seed and crashing the spawn (B-136 regression).
+      void providerModelsService
+        .seedSessionModel(provider, effectiveSessionId, model)
+        .catch(() => {});
     }
 
     // Record the user's own turn in the transcript so history shows both sides.

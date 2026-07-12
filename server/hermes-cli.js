@@ -151,7 +151,11 @@ async function spawnHermes(command, options = {}, ws) {
       // new session to its creation-time model in nassaj's per-session store. For a
       // fresh session `model` IS the resolved selection; seeding is idempotent +
       // best-effort (no-op on an empty selection).
-      void providerModelsService.seedSessionModel('hermes', capturedSessionId, model);
+      // .catch() guards against an unhandled rejection escaping this
+      // fire-and-forget seed and crashing the spawn (B-136 regression).
+      void providerModelsService
+        .seedSessionModel('hermes', capturedSessionId, model)
+        .catch(() => {});
     }
 
     // Stream a single stdout line as stream_delta (opencode's non-JSON path). The

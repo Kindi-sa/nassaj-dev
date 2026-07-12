@@ -455,7 +455,11 @@ async function spawnGemini(command, options = {}, ws) {
                         // default instead of the model it was created with. resolvedModel
                         // equals the caller's selection for a fresh session; seeding is
                         // idempotent + best-effort (no-op on an empty selection).
-                        void providerModelsService.seedSessionModel('gemini', capturedSessionId, resolvedModel);
+                        // .catch() guards against an unhandled rejection escaping this
+                        // fire-and-forget seed and crashing the spawn (B-136 regression).
+                        void providerModelsService
+                            .seedSessionModel('gemini', capturedSessionId, resolvedModel)
+                            .catch(() => {});
 
                         if (processKey !== capturedSessionId) {
                             activeGeminiProcesses.delete(processKey);

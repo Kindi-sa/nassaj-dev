@@ -426,7 +426,11 @@ async function queryCodexUnlocked(command, options = {}, ws) {
           // new session to its creation-time model in nassaj's per-session store —
           // a later model pick in ANOTHER conversation must not make this session
           // resume on the catalog default. Idempotent + best-effort.
-          void providerModelsService.seedSessionModel('codex', capturedSessionId, resolvedModel);
+          // .catch() guards against an unhandled rejection escaping this
+          // fire-and-forget seed and crashing the spawn (B-136 regression).
+          void providerModelsService
+            .seedSessionModel('codex', capturedSessionId, resolvedModel)
+            .catch(() => {});
 
           if (ws.setSessionId && typeof ws.setSessionId === 'function') {
             ws.setSessionId(capturedSessionId);
