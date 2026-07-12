@@ -49,6 +49,44 @@ test('models command returns available models only for the active provider', asy
   }
 });
 
+test('models command resolves antigravity instead of coercing to claude', async () => {
+  // Regression guard for T-874(3): MODEL_PROVIDERS previously omitted
+  // antigravity/hermes/kimi/deepseek/glm, so readModelProvider() silently
+  // fell back to 'claude' and the /models modal showed the wrong catalog
+  // for an antigravity (or hermes/kimi/deepseek/glm) session.
+  const originalGetProviderModels = providerModelsService.getProviderModels;
+  const originalGetCurrentActiveModel = providerModelsService.getCurrentActiveModel;
+
+  providerModelsService.getProviderModels = async () => ({
+    models: {
+      OPTIONS: [{ value: 'auto', label: 'agy default' }],
+      DEFAULT: 'auto',
+    },
+    cache: {
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: '2026-01-04T00:00:00.000Z',
+      source: 'fresh',
+    },
+  });
+  providerModelsService.getCurrentActiveModel = async () => ({
+    model: 'auto',
+  });
+
+  try {
+    const result = await executeModelsCommand([], {
+      provider: 'antigravity',
+      sessionId: 'session-1',
+    });
+
+    assert.equal(result.data.current.provider, 'antigravity');
+    assert.equal(result.data.current.providerLabel, 'Antigravity');
+    assert.deepEqual(Object.keys(result.data.available), ['antigravity']);
+  } finally {
+    providerModelsService.getProviderModels = originalGetProviderModels;
+    providerModelsService.getCurrentActiveModel = originalGetCurrentActiveModel;
+  }
+});
+
 test('models command falls back to claude for unsupported providers', async () => {
   const originalGetProviderModels = providerModelsService.getProviderModels;
   const originalGetCurrentActiveModel = providerModelsService.getCurrentActiveModel;

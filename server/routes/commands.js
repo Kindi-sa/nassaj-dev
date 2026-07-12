@@ -18,14 +18,28 @@ const APP_ROOT = findAppRoot(__dirname);
 
 const router = express.Router();
 
-const MODEL_PROVIDERS = ["claude", "cursor", "codex", "gemini", "opencode"];
+// Every provider wired into the composer's model-aware flow (T-874/T-875) so
+// `/models`, `/cost`, and `/status` resolve the session's actual provider
+// instead of silently coercing an unlisted one (e.g. antigravity) to
+// "claude" — see readModelProvider() below. `sakana` is intentionally
+// excluded: it has no model state in useChatComposerState/useChatProviderState
+// yet, so context.provider never carries it.
+const MODEL_PROVIDERS = [
+  "claude", "cursor", "codex", "gemini", "antigravity", "opencode", "hermes",
+  "kimi", "deepseek", "glm",
+];
 
 const MODEL_PROVIDER_LABELS = {
   claude: "Claude",
   cursor: "Cursor",
   codex: "Codex",
   gemini: "Gemini",
+  antigravity: "Antigravity",
   opencode: "OpenCode",
+  hermes: "Hermes",
+  kimi: "Kimi",
+  deepseek: "DeepSeek",
+  glm: "GLM",
 };
 
 const readModelProvider = (value) => {
