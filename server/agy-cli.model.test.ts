@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { pickAgyModelLabel, resolveAgyModelLabel } from './agy-cli.js';
+import { pickAgyModelLabel, resolveAgyModelLabel, resolveAgySpawnModel } from './agy-cli.js';
 
 // Mirrors the shape of the dynamic antigravity catalog OPTIONS: each model
 // carries the `value` (modelId the UI sends) and the `label` (display name agy's
@@ -69,4 +69,79 @@ test('resolveAgyModelLabel short-circuits to null for auto / empty without touch
   // Non-string inputs also short-circuit to null.
   assert.equal(await resolveAgyModelLabel(undefined), null);
   assert.equal(await resolveAgyModelLabel(null), null);
+});
+
+// ---- resolveAgySpawnModel: --model only on create or explicit re-pick (T-874(1)) ----
+
+const changedModel = (model: string | null, over: Record<string, unknown> = {}) => ({
+  provider: 'antigravity',
+  sessionId: 's',
+  supported: true,
+  changed: model !== null,
+  model,
+  ...over,
+});
+
+test('resolveAgySpawnModel: a fresh conversation passes the creation-time selection through', async () => {
+  // No brain to resume -> honour the caller's picked model (session CREATION).
+  assert.equal(
+    await resolveAgySpawnModel({ existingBrainUUID: null, sessionId: undefined, requestedModel: 'gemini-3.5-flash' }),
+    'gemini-3.5-flash',
+  );
+  // Pass-through is verbatim; auto/empty are normalized later by resolveAgyModelLabel.
+  assert.equal(
+    await resolveAgySpawnModel({ existingBrainUUID: undefined, sessionId: undefined, requestedModel: 'auto' }),
+    'auto',
+  );
+  // A non-string selection collapses to null (nothing to pass).
+  assert.equal(
+    await resolveAgySpawnModel({ existingBrainUUID: null, sessionId: undefined, requestedModel: undefined }),
+    null,
+  );
+});
+
+test('resolveAgySpawnModel: a plain resume omits --model so agy keeps the brain default', async () => {
+  let calledWith: string | null = null;
+  const result = await resolveAgySpawnModel(
+    { existingBrainUUID: 'brain-xyz', sessionId: '  sess-1  ', requestedModel: 'leaked-global' },
+    {
+      getChangedActiveModel: async (sessionId: string) => {
+        calledWith = sessionId;
+        return changedModel(null); // no explicit in-conversation re-pick
+      },
+    },
+  );
+  assert.equal(result, null, 'no re-pick -> omit --model (brain default wins)');
+  assert.equal(calledWith, 'sess-1', 'the trimmed sessionId is used for the lookup');
+});
+
+test('resolveAgySpawnModel: a resume WITH an explicit re-pick passes that model', async () => {
+  const result = await resolveAgySpawnModel(
+    { existingBrainUUID: 'brain-xyz', sessionId: 'sess-1', requestedModel: 'leaked-global' },
+    { getChangedActiveModel: async () => changedModel('Claude Opus 4.6 (Thinking)') },
+  );
+  assert.equal(result, 'Claude Opus 4.6 (Thinking)');
+});
+
+test('resolveAgySpawnModel: a resume with no sessionId never looks up and omits --model', async () => {
+  let looked = false;
+  const result = await resolveAgySpawnModel(
+    { existingBrainUUID: 'brain-xyz', sessionId: '   ', requestedModel: 'leaked-global' },
+    {
+      getChangedActiveModel: async () => {
+        looked = true;
+        return changedModel('should-not-be-used');
+      },
+    },
+  );
+  assert.equal(result, null);
+  assert.equal(looked, false, 'an empty sessionId short-circuits before the lookup');
+});
+
+test('resolveAgySpawnModel: a failing lookup degrades to null (best-effort, keep brain default)', async () => {
+  const result = await resolveAgySpawnModel(
+    { existingBrainUUID: 'brain-xyz', sessionId: 'sess-1', requestedModel: 'leaked-global' },
+    { getChangedActiveModel: async () => { throw new Error('store unavailable'); } },
+  );
+  assert.equal(result, null);
 });

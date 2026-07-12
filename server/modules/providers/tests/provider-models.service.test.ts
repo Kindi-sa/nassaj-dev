@@ -561,3 +561,95 @@ test('getProviderModels with no userId uses the shared bare-provider cache key (
   assert.equal(second.cache.source, 'memory');
   assert.equal(loadCount, 1, 'the shared key caches across no-userId calls');
 });
+
+// ---- seedSessionModel: pin a memoryless session at creation (T-874(2)) ----
+
+const memorylessAdapter = (provider: LLMProvider) => ({
+  models: {
+    getSupportedModels: async () => createModels(`${provider}-models`),
+    // A memoryless provider (gemini/codex/hermes/vendors) has no per-session
+    // model of its own, so getCurrentActiveModel only ever returns the catalog
+    // default — NOT the model a given session was created with.
+    getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-default`),
+    changeActiveModel: async (input: ProviderChangeActiveModelInput) =>
+      createSessionActiveModelChange(provider, input),
+  },
+});
+
+test('seedSessionModel pins a new session so resume returns the creation model, not the global (T-874(2))', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-seed-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: createEphemeralCachePath(),
+      activeModelChangesPath,
+      resolveProvider: memorylessAdapter,
+    });
+
+    // Session created on 'gemini-2.5-pro'; seed pins it in the change store.
+    await service.seedSessionModel('gemini', 'sess-seed-1', 'gemini-2.5-pro');
+
+    const changed = await service.getChangedActiveModel('gemini', 'sess-seed-1');
+    assert.equal(changed.changed, true, 'the seed is recorded as a pinned change');
+    assert.equal(changed.model, 'gemini-2.5-pro');
+
+    // On resume the frontend re-sends its (possibly changed) GLOBAL model; the
+    // seeded creation model must win over both the global and the catalog default.
+    const resumed = await service.resolveResumeModel('gemini', 'sess-seed-1', 'leaked-global');
+    assert.equal(resumed, 'gemini-2.5-pro');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('seedSessionModel no-ops on an empty/whitespace model (provider default keeps applying)', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-seed-empty-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: createEphemeralCachePath(),
+      activeModelChangesPath,
+      resolveProvider: memorylessAdapter,
+    });
+
+    await service.seedSessionModel('codex', 'sess-seed-2', '   ');
+    await service.seedSessionModel('codex', 'sess-seed-3', undefined);
+
+    for (const sessionId of ['sess-seed-2', 'sess-seed-3']) {
+      const changed = await service.getChangedActiveModel('codex', sessionId);
+      assert.equal(changed.changed, false, `${sessionId}: nothing seeded for an empty model`);
+    }
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('seedSessionModel is idempotent and never clobbers an explicit re-pick', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-seed-idem-'));
+  const activeModelChangesPath = path.join(tempRoot, 'session-model-changes.json');
+
+  try {
+    const service = createProviderModelsService({
+      cachePath: createEphemeralCachePath(),
+      activeModelChangesPath,
+      resolveProvider: memorylessAdapter,
+    });
+
+    // An explicit in-conversation re-pick already owns this session.
+    await writeProviderSessionActiveModelChange(
+      'hermes',
+      { sessionId: 'sess-seed-4', model: 'nous/kimi-k2.5' },
+      { filePath: activeModelChangesPath },
+    );
+
+    // A (late/duplicate) creation seed must not overwrite the user's choice.
+    await service.seedSessionModel('hermes', 'sess-seed-4', 'nous/minimax-m3');
+
+    const changed = await service.getChangedActiveModel('hermes', 'sess-seed-4');
+    assert.equal(changed.model, 'nous/kimi-k2.5', 'the explicit re-pick is preserved');
+  } finally {
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});

@@ -448,6 +448,15 @@ async function spawnGemini(command, options = {}, ws) {
                             sessionManager.addMessage(capturedSessionId, 'user', command);
                         }
 
+                        // T-874(2): gemini has no per-session model memory of its own, so
+                        // pin this new session to its creation-time model in nassaj's
+                        // per-session store. Without this, a later model pick in ANOTHER
+                        // conversation would make this session resume on the catalog
+                        // default instead of the model it was created with. resolvedModel
+                        // equals the caller's selection for a fresh session; seeding is
+                        // idempotent + best-effort (no-op on an empty selection).
+                        void providerModelsService.seedSessionModel('gemini', capturedSessionId, resolvedModel);
+
                         if (processKey !== capturedSessionId) {
                             activeGeminiProcesses.delete(processKey);
                             activeGeminiProcesses.set(capturedSessionId, geminiProcess);

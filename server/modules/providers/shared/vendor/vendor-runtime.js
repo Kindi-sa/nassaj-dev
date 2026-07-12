@@ -155,6 +155,12 @@ function createVendorSpawn(provider) {
       }
       send({ kind: 'session_created', newSessionId: effectiveSessionId });
       await writeTranscriptMeta(provider, effectiveSessionId, workspacePath, command);
+
+      // T-874(2): hosted vendors are stateless HTTP with no per-session model
+      // memory, so pin this new session to its creation-time model in nassaj's
+      // per-session store — a later pick in ANOTHER conversation must not change
+      // which model this session resumes on. Idempotent + best-effort.
+      void providerModelsService.seedSessionModel(provider, effectiveSessionId, model);
     }
 
     // Record the user's own turn in the transcript so history shows both sides.

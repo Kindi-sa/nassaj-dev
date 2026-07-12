@@ -145,6 +145,13 @@ async function spawnHermes(command, options = {}, ws) {
         sessionId: capturedSessionId,
         provider: 'hermes',
       }));
+
+      // T-874(2): hermes has no per-session model memory of its own (and its
+      // adapter's changeActiveModel is intentionally not implemented), so pin this
+      // new session to its creation-time model in nassaj's per-session store. For a
+      // fresh session `model` IS the resolved selection; seeding is idempotent +
+      // best-effort (no-op on an empty selection).
+      void providerModelsService.seedSessionModel('hermes', capturedSessionId, model);
     }
 
     // Stream a single stdout line as stream_delta (opencode's non-JSON path). The

@@ -13,7 +13,10 @@ import type {
   ProviderModelsResult,
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
-import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
+import {
+  readProviderSessionActiveModelChange,
+  writeProviderSessionActiveModelChange,
+} from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 
@@ -432,6 +435,61 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     return normalizedRequestedModel || undefined;
   };
 
+  /**
+   * Seeds the per-session model store at session CREATION so a provider WITHOUT
+   * a per-session model memory of its own (gemini / codex / hermes / hosted
+   * vendors) is pinned to the model it was created with — a later model pick in a
+   * DIFFERENT conversation can then never bleed onto this session's next turn
+   * (B-167 / T-874 requirement 2). It writes through the SAME change store that
+   * {@link resolveResumeModel} consults via {@link getChangedActiveModel}, so the
+   * seeded value is returned on the next resume instead of the catalog default.
+   *
+   * Providers that DO carry their own per-session model (claude transcript,
+   * opencode.db, cursor store, the agy brain) must NOT be seeded — their own
+   * store is already authoritative — so callers only invoke this for the
+   * memoryless providers.
+   *
+   * Idempotent and best-effort:
+   *   * an empty/whitespace model (no explicit selection) seeds nothing, so the
+   *     provider's own default keeps applying uniformly on every turn;
+   *   * an existing explicit re-pick is never overwritten (the seed only fills an
+   *     empty slot at creation, it never clobbers a later user choice);
+   *   * a write/read failure is swallowed — seeding must never break the spawn
+   *     that created the session.
+   *
+   * Note: it deliberately calls {@link writeProviderSessionActiveModelChange}
+   * directly rather than the provider adapter's `changeActiveModel`, because some
+   * memoryless adapters (hermes) intentionally throw `NOT_IMPLEMENTED` for
+   * `changeActiveModel`; the nassaj-owned change store is provider-agnostic.
+   */
+  const seedSessionModel = async (
+    provider: LLMProvider,
+    sessionId: string | undefined | null,
+    model: string | undefined | null,
+  ): Promise<void> => {
+    const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+    const normalizedModel = typeof model === 'string' ? model.trim() : '';
+    if (!normalizedSessionId || !normalizedModel) {
+      return;
+    }
+
+    try {
+      const existing = await getChangedActiveModel(provider, normalizedSessionId);
+      if (existing.changed) {
+        // A later explicit re-pick already owns this session; never clobber it.
+        return;
+      }
+
+      await writeProviderSessionActiveModelChange(
+        provider,
+        { sessionId: normalizedSessionId, model: normalizedModel },
+        { filePath: activeModelChangesPath },
+      );
+    } catch {
+      // Best-effort: a seeding failure must not break session creation.
+    }
+  };
+
   const clearCache = (): void => {
     memoryCache.clear();
     pendingRequests.clear();
@@ -445,6 +503,7 @@ export const createProviderModelsService = (dependencies: ProviderModelsServiceD
     getChangedActiveModel,
     changeActiveModel,
     resolveResumeModel,
+    seedSessionModel,
     clearCache,
   };
 };

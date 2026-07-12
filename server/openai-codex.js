@@ -422,6 +422,12 @@ async function queryCodexUnlocked(command, options = {}, ws) {
           registerSession(capturedSessionId);
           recordParticipant(capturedSessionId);
 
+          // T-874(2): codex has no per-session model memory of its own, so pin this
+          // new session to its creation-time model in nassaj's per-session store —
+          // a later model pick in ANOTHER conversation must not make this session
+          // resume on the catalog default. Idempotent + best-effort.
+          void providerModelsService.seedSessionModel('codex', capturedSessionId, resolvedModel);
+
           if (ws.setSessionId && typeof ws.setSessionId === 'function') {
             ws.setSessionId(capturedSessionId);
           }

@@ -480,6 +480,55 @@ async function resolveAgyModelLabel(model) {
     return label;
 }
 
+// Lazy service accessor so loading agy-cli.js does not eagerly pull in the whole
+// provider-models module graph at module-eval time (mirrors resolveAgyModelLabel).
+async function defaultGetChangedAgyModel(sessionId) {
+    const { providerModelsService } = await import(
+        './modules/providers/services/provider-models.service.js'
+    );
+    return providerModelsService.getChangedActiveModel('antigravity', sessionId);
+}
+
+// Decide which model (if any) should drive agy's --model flag for this spawn.
+// Mirrors provider-models.service.resolveResumeModel's intent, but for agy's
+// brain-backed sessions (T-874(1) / T-875):
+//   * fresh conversation (no brain to resume) -> honour the caller's
+//     creation-time selection, so a NEW agy session starts on the picked model;
+//   * resume WITH an explicit in-conversation re-pick -> that re-picked model;
+//   * plain resume (no re-pick) -> null: omit --model entirely so agy keeps its
+//     brain's OWN persisted model. The agy brain IS agy's per-session model
+//     memory, so forwarding the caller's (frontend-global) model on every resumed
+//     turn would let a model pick made in ANOTHER conversation bleed onto this one.
+// Returns the model string to resolve into an agy label, or null to omit --model.
+// `deps.getChangedActiveModel(sessionId)` is injectable for tests.
+async function resolveAgySpawnModel({ existingBrainUUID, sessionId, requestedModel }, deps = {}) {
+    if (!existingBrainUUID) {
+        // Fresh conversation: pass the creation-time selection through;
+        // resolveAgyModelLabel normalizes 'auto'/empty/unknown downstream.
+        return typeof requestedModel === 'string' ? requestedModel : null;
+    }
+
+    const trimmedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
+    if (!trimmedSessionId) {
+        return null;
+    }
+
+    const getChanged = deps.getChangedActiveModel || defaultGetChangedAgyModel;
+    try {
+        const changed = await getChanged(trimmedSessionId);
+        if (changed
+            && changed.supported
+            && changed.changed
+            && typeof changed.model === 'string'
+            && changed.model.trim()) {
+            return changed.model.trim();
+        }
+    } catch (err) {
+        console.warn('[agy] resume model-change lookup failed; keeping brain default:', err?.message || err);
+    }
+    return null;
+}
+
 async function spawnAntigravity(command, options = {}, ws) {
     const opts = options && typeof options === 'object' ? options : {};
     const { sessionId, projectPath, cwd, sessionSummary, model } = opts;
@@ -596,11 +645,14 @@ async function spawnAntigravity(command, options = {}, ws) {
     if (cleanCwd) {
         args.push('--add-dir', cleanCwd);
     }
-    // Pass the user-selected model through to agy. The UI sends the catalog
-    // `value` (modelId); agy's --model wants the display label, so resolve it
-    // here. Returns null for 'auto'/empty/unknown-handled-as-default, in which
-    // case we omit --model entirely and let agy use its own default model.
-    const agyModelLabel = await resolveAgyModelLabel(model);
+    // T-874(1)/T-875: pass --model only on session CREATION, or on a resume that
+    // carries an EXPLICIT in-conversation re-pick. A plain resume omits --model so
+    // agy keeps its brain's own model (the brain is agy's per-session model
+    // memory), preventing a model pick made in another conversation from bleeding
+    // in. The UI sends the catalog `value`; agy's --model wants the display label,
+    // so resolveAgyModelLabel maps it (and returns null for auto/empty/unknown).
+    const spawnModel = await resolveAgySpawnModel({ existingBrainUUID, sessionId, requestedModel: model });
+    const agyModelLabel = await resolveAgyModelLabel(spawnModel);
     if (agyModelLabel) {
         args.push('--model', agyModelLabel);
     }
@@ -1049,4 +1101,5 @@ export {
     agySessionRegistry,
     pickAgyModelLabel,
     resolveAgyModelLabel,
+    resolveAgySpawnModel,
 };

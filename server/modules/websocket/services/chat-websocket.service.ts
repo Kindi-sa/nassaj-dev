@@ -154,6 +154,34 @@ function readProvider(value: unknown): LLMProvider {
 }
 
 /**
+ * Resolves the authoritative provider for a session-scoped CONTROL message
+ * (currently `abort-session`). Mirrors {@link dispatchProviderCommand}'s resume
+ * routing: an existing session's persisted provider (the database source of
+ * truth) wins over the client-declared provider, which on a control message may
+ * carry the user's CURRENT global picker selection rather than THIS session's
+ * provider (T-874(3)). Aborting through the wrong provider's handler silently
+ * no-ops, leaving the run alive.
+ *
+ * Falls back to the client-declared provider for a brand-new or unpersisted
+ * session — an empty or unknown id — which preserves the Claude empty-sessionId
+ * abort-race handling (route to Claude and let it resolve the newest active run
+ * on the connection).
+ *
+ * Exported for unit tests.
+ */
+export function resolveSessionControlProvider(
+  sessionId: string,
+  requestedProvider: LLMProvider,
+  getSessionProvider: (sessionId: string) => LLMProvider | null
+): LLMProvider {
+  const trimmed = typeof sessionId === 'string' ? sessionId.trim() : '';
+  if (!trimmed) {
+    return requestedProvider;
+  }
+  return getSessionProvider(trimmed) ?? requestedProvider;
+}
+
+/**
  * Maps each chat command message type to the provider its payload was authored
  * for by the client. Used as the *default* routing target before the database
  * provider (the source of truth for resumed sessions) is consulted.
@@ -496,8 +524,16 @@ export function handleChatConnection(
       }
 
       if (messageType === 'abort-session') {
-        const provider = readProvider(data.provider);
         const sessionId = typeof data.sessionId === 'string' ? data.sessionId : '';
+        // T-874(3): abort the session's OWN persisted provider, not the
+        // client-declared one (which may be the current global picker selection).
+        // Empty/unknown id falls back to the client provider, preserving Claude's
+        // empty-sessionId abort-race fallback below.
+        const provider = resolveSessionControlProvider(
+          sessionId,
+          readProvider(data.provider),
+          dependencies.getSessionProvider
+        );
         let success = false;
         // The session the abort actually resolved to (claude may fall back to the
         // newest active run on this connection when the id is missing/stale).

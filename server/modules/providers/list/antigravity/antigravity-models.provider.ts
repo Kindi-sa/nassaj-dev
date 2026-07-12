@@ -1,4 +1,5 @@
 import { getAntigravityModelCatalog } from '@/modules/providers/list/antigravity/antigravity-catalog.client.js';
+import { readAntigravityModelsFromCli } from '@/modules/providers/list/antigravity/antigravity-models-cli.client.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -45,13 +46,22 @@ export const ANTIGRAVITY_FALLBACK_MODELS: ProviderModelsDefinition = {
 
 export class AntigravityProviderModels implements IProviderModels {
   /**
-   * Returns the live agy model catalog when reachable, otherwise the preserved
-   * {@link ANTIGRAVITY_FALLBACK_MODELS} flagged as degraded. The catalog client
-   * owns the network fetch, timeout, circuit breaker, and graceful fallback. The
-   * provider-models service caches a live catalog for the normal multi-day TTL
-   * and a degraded fallback only briefly, so the live fetch recovers soon.
+   * Resolves the Antigravity model catalog, most-authoritative source first:
+   *   1. the local `agy models` command (T-875) — the exact labels agy's
+   *      `--model` accepts, with no network or token dependency;
+   *   2. the live Google CloudCode catalog (antigravity-catalog.client.ts);
+   *   3. the preserved {@link ANTIGRAVITY_FALLBACK_MODELS} flagged degraded.
+   *
+   * Each layer degrades gracefully to the next and never throws. The
+   * provider-models service caches a live/CLI catalog for the normal multi-day
+   * TTL and a degraded fallback only briefly, so the authoritative source
+   * recovers soon and the subprocess runs rarely (never on the chat hot path).
    */
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
+    const cliCatalog = await readAntigravityModelsFromCli();
+    if (cliCatalog) {
+      return cliCatalog;
+    }
     return getAntigravityModelCatalog();
   }
 
