@@ -91,9 +91,16 @@ PROC_NAME="${PROC_NAME:-nassaj-dev}"
 ECOSYSTEM="${ECOSYSTEM:-$REPO_DIR/ecosystem.<node>.config.cjs}"
 FRESH_WINDOW_S="${FRESH_WINDOW_S:-180}"
 
-# جذر الـ workflows: نحلّ الـ symlink لأن المسار الفعلي عبر readlink هو
-# ~/nassaj-core/projects/... (راجع reference_nassaj_core_symlink في memory).
-DEFAULT_WF_BASE="/home/nassaj/nassaj-core/projects/-home-nassaj-Project-nassaj-dev"
+# جذر الـ workflows (transcripts): يُشتقّ ديناميكياً ليَحمِل عبر عقد الأسطول
+# (مستخدمون/جذور HOME مختلفة: nassaj، ibrahim، …) بدل تثبيت /home/nassaj الذي
+# يُفشِل traventure/mujtana. البنية: <claude-root>/projects/<مسار-المشروع-مهروباً>
+# حيث المهروب = REPO_DIR (مشتقّ من موقع السكربت) مع استبدال '/' بـ '-'. جذر claude:
+# $CLAUDE_CONFIG_DIR إن وُجد (يحوي projects/)، وإلا $HOME/nassaj-core. نحلّ الـ
+# symlink لاحقاً (readlink أدناه) لأن المسار الفعلي عبر projects رمزيٌّ نحو
+# ~/nassaj-core (راجع reference_nassaj_core_symlink في memory). التجاوز عبر WF_BASE.
+ESCAPED_PROJECT_PATH="${REPO_DIR//\//-}"
+CLAUDE_ROOT="${CLAUDE_CONFIG_DIR:-$HOME/nassaj-core}"
+DEFAULT_WF_BASE="$CLAUDE_ROOT/projects/$ESCAPED_PROJECT_PATH"
 WF_BASE="${WF_BASE:-$DEFAULT_WF_BASE}"
 if [ -e "$WF_BASE" ]; then
   WF_BASE="$(readlink -f "$WF_BASE")"
