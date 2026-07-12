@@ -36,8 +36,15 @@ const ORIGINAL_DB = process.env.DATABASE_PATH;
 
 const sandboxHome = path.join(sandbox, 'home');
 const sandboxCwd = path.join(sandbox, 'project'); // a real cwd so checkCwdExists passes
-fs.mkdirSync(sandboxHome, { recursive: true });
+fs.mkdirSync(path.join(sandboxHome, '.claude'), { recursive: true });
 fs.mkdirSync(sandboxCwd, { recursive: true });
+// Seed the neutral governance source (~/.claude/AGENTS.md) so the fail-closed Codex
+// governance gate (ADR-057 §5) passes and the spawn actually proceeds — this test is
+// about credential isolation on a GOVERNED spawn, not about the gate itself.
+fs.writeFileSync(
+  path.join(sandboxHome, '.claude', 'AGENTS.md'),
+  '# AGENTS.md — neutral nassaj governance\nplatform-agnostic instructions.\n',
+);
 process.env.HOME = sandboxHome;
 process.env.DATABASE_PATH = path.join(sandbox, 'test-db.sqlite');
 
@@ -182,6 +189,13 @@ describe('Codex spawn path — per-user credential isolation (B-136)', () => {
     // codex-sdk does NOT inherit process.env once `env` is supplied, so the resolved
     // env must be a full copy of the base env (PATH etc.), not just the override.
     assert.equal(opts.env.PATH, process.env.PATH);
+    // Governance-bypass block (ADR-057 §5, 2026-07-12): every spawn disables project-
+    // level AGENTS.md ingestion so a local AGENTS.md cannot override nassaj governance.
+    assert.equal(
+      (opts as { config?: { project_doc_max_bytes?: number } }).config?.project_doc_max_bytes,
+      0,
+      'spawn must pass project_doc_max_bytes=0 to block local AGENTS.md governance bypass',
+    );
   });
 
   it('gives two different users two different CODEX_HOME values (no cross-user leak)', async () => {

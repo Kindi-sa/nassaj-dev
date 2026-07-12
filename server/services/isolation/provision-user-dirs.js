@@ -35,13 +35,17 @@
  *                  no link and must run `agy` to authenticate. installation_id and
  *                  settings.json are linked too for the owner when present.)
  *     .codex/
- *       (isolated credentials + SHARED neutral governance)
- *       AGENTS.md  -> ~/.claude/AGENTS.md   (SHARED governance for ALL users, the
- *                  Codex mirror of the CLAUDE.md/NASSAJ.md links: ~/.claude is a
- *                  symlink to nassaj-core, so this resolves to nassaj-core/AGENTS.md
- *                  — the build-agents NEUTRAL instructions a spawned Codex reads from
- *                  $CODEX_HOME/AGENTS.md on launch. Symlink not copy: single
- *                  fleet-wide source, no drift, no owner-secret leak. ADR-057.)
+ *       (isolated credentials + neutral governance COPY)
+ *       AGENTS.md  (a real read-only 0444 COPY of the NEUTRAL governance, whose
+ *                  sha256 matches ~/.claude/AGENTS.md — the build-agents neutral
+ *                  instructions a spawned Codex reads from $CODEX_HOME/AGENTS.md on
+ *                  launch. A COPY, NOT a symlink: a Codex turn runs
+ *                  danger-full-access, and a symlink to the shared fleet-wide source
+ *                  could be written THROUGH to corrupt governance for every user; a
+ *                  per-user copy caps the blast radius at that user's own next turn,
+ *                  which the fail-closed spawn guard detects by fingerprint and
+ *                  rewrites. See codex-governance-material.js. ADR-057 §5 + 2026-07-12
+ *                  remediation.)
  *       auth.json -> ~/.codex/auth.json  (OWNER ONLY: the bootstrap owner reuses
  *                  the operator Codex credential so an isolated owner never re-logs
  *                  in — mirrors .claude/.credentials.json. Non-owners run `codex
@@ -56,6 +60,7 @@ import os from 'os';
 import path from 'path';
 
 import { auditLogDb, userDb } from '../../modules/database/index.js';
+import { materializeGovernanceCopy } from './codex-governance-material.js';
 
 // Per-user isolated config trees are owner-only (0700): under a shared system
 // uid this prevents any other local reader from listing another user's tree.
@@ -162,43 +167,6 @@ function isSymlink(p) {
   try {
     return fs.lstatSync(p).isSymbolicLink();
   } catch {
-    return false;
-  }
-}
-
-/**
- * Links the SHARED neutral Codex governance (AGENTS.md) into a user's isolated
- * CODEX_HOME. Unlike ensureSymlink — which silently swallows a missing source and
- * only logs a generic message on failure — governance is MANDATORY (ADR-057 §5,
- * owner decision 2026-07-12): both a missing neutral source AND a genuine link
- * failure are SURFACED at error level with a governance-specific marker, because a
- * Codex session that launches without it is refused at spawn by the fail-closed
- * guard (codex-governance.ensureCodexGovernance). Never throws — the rest of
- * provisioning (opencode, hardening, audit) must still complete; the spawn-time
- * guard is the hard enforcement, this link is the fast path.
- *
- * @returns {boolean} whether the governance link now exists (or already did)
- */
-function linkCodexGovernance(source, link) {
-  try {
-    if (isSymlink(link) || fs.existsSync(link)) {
-      return true;
-    }
-    if (!fs.existsSync(source)) {
-      console.error(
-        '[provision] Codex governance source MISSING — Codex sessions will be BLOCKED until it exists',
-        { source, link },
-      );
-      return false;
-    }
-    fs.symlinkSync(source, link);
-    return true;
-  } catch (err) {
-    console.error('[provision] Codex governance link FAILED — Codex sessions will be BLOCKED', {
-      source,
-      link,
-      error: err?.message || String(err),
-    });
     return false;
   }
 }
@@ -374,25 +342,24 @@ export function provisionUserDirs(userId) {
     const codexDir = path.join(userRoot, '.codex');
     ensureDir(codexDir);
 
-    // Neutral Codex governance (ADR-057 §5 — MANDATORY, fail-closed at spawn):
-    // symlink AGENTS.md into every user's isolated CODEX_HOME so a spawned Codex
-    // session reads nassaj's shared governance on launch — Codex (and opencode)
+    // Neutral Codex governance (ADR-057 §5 — MANDATORY, fail-closed at spawn;
+    // hardened 2026-07-12 remediation): materialize AGENTS.md into every user's
+    // isolated CODEX_HOME as a real, read-only (0444) COPY of the neutral source so a
+    // spawned Codex session reads nassaj's governance on launch — Codex (and opencode)
     // ingest $CODEX_HOME/AGENTS.md. The source is the SAME base the Claude
-    // CLAUDE.md/NASSAJ.md links above use — ~/.claude, which bootstrap-node.sh
-    // symlinks to nassaj-core on every fleet node — so ~/.claude/AGENTS.md resolves
-    // to nassaj-core/AGENTS.md, the build-agents NEUTRAL output (no Claude-only
-    // mechanics: no /compact, session quotas, fable/opus model maps, hooks or
-    // ultracode). Using ~/.claude (not a hardcoded absolute nassaj-core path) keeps
-    // this portable across fleet nodes whose operator home differs. A symlink —
-    // never a copy — keeps one fleet-wide source with no drift and cannot leak owner
-    // secrets: the target is the neutral governance file only. SHARED for ALL users
-    // (governance, not a credential). linkCodexGovernance SURFACES a missing source
-    // or link failure (owner decision 2026-07-12) rather than swallowing it; the
-    // fail-closed spawn guard is the hard enforcement if this fast path is absent.
-    linkCodexGovernance(
-      path.join(home, '.claude', 'AGENTS.md'),
-      path.join(codexDir, 'AGENTS.md'),
-    );
+    // CLAUDE.md/NASSAJ.md links above use — ~/.claude/AGENTS.md, which bootstrap-node.sh
+    // points at nassaj-core/AGENTS.md on every fleet node: the build-agents NEUTRAL
+    // output (no Claude-only mechanics — no /compact, session quotas, fable/opus model
+    // maps, hooks or ultracode). A COPY, NOT a symlink: a Codex turn runs
+    // danger-full-access, and a symlink to the shared fleet-wide source could be
+    // written THROUGH and corrupt governance for EVERY user on the node; a per-user
+    // copy caps the blast radius at that user's own next turn. "Governed" means the
+    // copy's fingerprint MATCHES the source (identity, not mere existence); a missing,
+    // drifted or subverted copy is rewritten here and re-checked by the fail-closed
+    // spawn guard. materializeGovernanceCopy never throws and logs a blocked-sessions
+    // marker when the neutral source is absent (owner decision 2026-07-12); the
+    // spawn-time guard is the hard enforcement if this fast path fails.
+    materializeGovernanceCopy(codexDir);
 
     // Since B-136 wired the per-user CODEX_HOME on the spawn path, the bootstrap
     // owner reuses the operator's real Codex credential (~/.codex/auth.json) so an

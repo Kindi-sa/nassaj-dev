@@ -1,19 +1,23 @@
 /**
- * provision-codex-governance.test.ts — Codex governance decoupling (ADR-057 / T-819).
+ * provision-codex-governance.test.ts — Codex governance decoupling (ADR-057 / T-819),
+ * hardened by the 2026-07-12 remediation: governance is a real read-only COPY, NOT a
+ * symlink.
  *
- * Proves provisionUserDirs injects the NEUTRAL nassaj governance into each user's
- * isolated CODEX_HOME as a symlink (never a copy):
- *   ~/.nassaj-users/<id>/.codex/AGENTS.md  ->  ~/.claude/AGENTS.md
- * and, because ~/.claude is a whole-dir symlink to nassaj-core on every fleet node
- * (bootstrap-node.sh), that link resolves to nassaj-core/AGENTS.md — the
- * build-agents neutral output a spawned Codex session reads from $CODEX_HOME/AGENTS.md.
+ * Proves provisionUserDirs materializes the NEUTRAL nassaj governance into each user's
+ * isolated CODEX_HOME as a real, read-only (0444) file whose content matches the
+ * neutral source:
+ *   ~/.nassaj-users/<id>/.codex/AGENTS.md  (copy of)  ~/.claude/AGENTS.md
+ * A COPY (never a symlink) is the security invariant: a Codex turn runs
+ * danger-full-access, and a symlink to the shared fleet-wide source could be written
+ * THROUGH and corrupt governance for every user on the node. The source itself is
+ * ~/.claude/AGENTS.md, which bootstrap-node.sh points at nassaj-core/AGENTS.md — the
+ * build-agents neutral output a spawned Codex reads from $CODEX_HOME/AGENTS.md.
  *
- * Real path, not a synthetic fixture: the sandbox reproduces the exact production
- * topology (the double hop ~/.claude -> nassaj-core -> AGENTS.md), the neutral
- * source is seeded from the REAL operator nassaj-core/AGENTS.md content when it is
- * present on this machine (so "the neutral source" is the genuine governance, not a
- * stub), and every assertion exercises real fs symlink resolution through the real
- * provisionUserDirs code.
+ * Real path, not a synthetic fixture: the sandbox reproduces the production topology
+ * (the double hop ~/.claude -> nassaj-core -> AGENTS.md), the neutral source is
+ * seeded from the REAL operator nassaj-core/AGENTS.md content when present (so "the
+ * neutral source" is genuine governance, not a stub), and every assertion exercises
+ * real fs materialization through the real provisionUserDirs code.
  *
  * HOME + DATABASE_PATH are sandboxed before importing any project module so the DB
  * singleton and userConfigDir never touch real state. Runner: node:test/tsx.
@@ -21,6 +25,7 @@
 
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -60,6 +65,10 @@ const NEUTRAL_AGENTS = path.join(NASSAJ_CORE, 'AGENTS.md');
 fs.writeFileSync(NEUTRAL_AGENTS, neutralContent);
 fs.symlinkSync(NASSAJ_CORE, path.join(sandboxHome, '.claude'));
 
+const sha256 = (buf: Buffer | string): string =>
+  crypto.createHash('sha256').update(buf).digest('hex');
+const NEUTRAL_FP = sha256(neutralContent);
+
 const { initializeDatabase, closeConnection, getConnection } = await import(
   '@/modules/database/index.js'
 );
@@ -80,7 +89,7 @@ const USER_ID = 8002;
   ).run(USER_ID, 'codex-gov-user');
 }
 
-/** Path to a user's isolated CODEX_HOME AGENTS.md link. */
+/** Path to a user's isolated CODEX_HOME AGENTS.md governance file. */
 function codexAgents(userId: number): string {
   return userConfigDir(userId, path.join('.codex', 'AGENTS.md'));
 }
@@ -94,67 +103,61 @@ after(() => {
   fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
-describe('provisionUserDirs — Codex neutral governance injection (ADR-057)', () => {
-  it('symlinks AGENTS.md into the owner isolated CODEX_HOME, resolving to the neutral source', () => {
+describe('provisionUserDirs — Codex neutral governance materialization (ADR-057, copy hardening)', () => {
+  it('materializes AGENTS.md into the owner isolated CODEX_HOME as a real file matching the source', () => {
     provisionUserDirs(OWNER_ID);
-    const link = codexAgents(OWNER_ID);
+    const gov = codexAgents(OWNER_ID);
 
-    assert.equal(fs.existsSync(link), true, 'AGENTS.md must exist in the isolated CODEX_HOME');
+    assert.equal(fs.existsSync(gov), true, 'AGENTS.md must exist in the isolated CODEX_HOME');
+    const st = fs.lstatSync(gov);
     assert.equal(
-      fs.lstatSync(link).isSymbolicLink(),
-      true,
-      'AGENTS.md must be a symlink (never a copy — single source, no owner-secret leak)'
+      st.isSymbolicLink(),
+      false,
+      'AGENTS.md must NOT be a symlink (a full-access turn could write through it to the fleet source)',
     );
+    assert.equal(st.isFile(), true, 'AGENTS.md must be a real regular file (a COPY)');
     assert.equal(
-      fs.realpathSync(link),
-      fs.realpathSync(NEUTRAL_AGENTS),
-      'the link must resolve through ~/.claude -> nassaj-core to nassaj-core/AGENTS.md'
+      sha256(fs.readFileSync(gov)),
+      NEUTRAL_FP,
+      'the copy fingerprint must equal the neutral source (identity, not mere existence)',
     );
   });
 
-  it('targets the ~/.claude governance base (absolute), matching the CLAUDE.md/NASSAJ.md pattern', () => {
-    const target = fs.readlinkSync(codexAgents(OWNER_ID));
-    assert.equal(
-      target,
-      path.join(sandboxHome, '.claude', 'AGENTS.md'),
-      'symlink target must be the ~/.claude governance base — not a hardcoded absolute nassaj-core path'
-    );
-    assert.equal(path.isAbsolute(target), true, 'target must be absolute (ADR-057 decision)');
+  it('materializes the governance copy read-only (0444) to signal intent and stop naive writes', () => {
+    const gov = codexAgents(OWNER_ID);
+    const mode = fs.statSync(gov).mode & 0o777;
+    assert.equal(mode, 0o444, `governance copy must be 0444, got 0${mode.toString(8)}`);
   });
 
-  it('serves the exact neutral content through the link, with NO Claude-only mechanics', () => {
+  it('serves the exact neutral content, with NO Claude-only mechanics', () => {
     const served = fs.readFileSync(codexAgents(OWNER_ID), 'utf8');
-    assert.equal(
-      served,
-      neutralContent,
-      'content read through the link must equal the neutral source byte-for-byte'
-    );
+    assert.equal(served, neutralContent, 'copy content must equal the neutral source byte-for-byte');
     for (const token of ['/compact', 'ultracode', 'CLAUDE_CONFIG_DIR', 'safe-restart']) {
       assert.equal(
         served.includes(token),
         false,
-        `neutral governance served to Codex must not contain the Claude-only token "${token}"`
+        `neutral governance served to Codex must not contain the Claude-only token "${token}"`,
       );
     }
   });
 
-  it('injects the SAME neutral source for a non-owner user (shared governance, no per-user drift)', () => {
+  it('materializes the SAME neutral content for a non-owner user (shared governance, no drift)', () => {
     provisionUserDirs(USER_ID);
-    const link = codexAgents(USER_ID);
+    const gov = codexAgents(USER_ID);
 
     assert.equal(
-      fs.lstatSync(link).isSymbolicLink(),
-      true,
-      'non-owner AGENTS.md must also be a symlink'
+      fs.lstatSync(gov).isSymbolicLink(),
+      false,
+      'non-owner AGENTS.md must also be a real copy, never a symlink',
     );
     assert.equal(
-      fs.realpathSync(link),
-      fs.realpathSync(codexAgents(OWNER_ID)),
-      'owner and non-owner must resolve to the SAME single neutral source (shared, no drift)'
+      sha256(fs.readFileSync(gov)),
+      sha256(fs.readFileSync(codexAgents(OWNER_ID))),
+      'owner and non-owner copies must share the SAME neutral fingerprint (no per-user drift)',
     );
   });
 
-  it('is idempotent: re-provisioning a fresh user leaves a valid link intact', () => {
+  it('is idempotent: re-provisioning a fresh user leaves a valid copy intact', () => {
     const FRESH = 8003;
     const db = getConnection();
     db.prepare(
@@ -162,15 +165,15 @@ describe('provisionUserDirs — Codex neutral governance injection (ADR-057)', (
     ).run(FRESH, 'codex-gov-fresh');
 
     provisionUserDirs(FRESH);
-    const link = codexAgents(FRESH);
-    assert.equal(fs.lstatSync(link).isSymbolicLink(), true, 'link created on first pass');
+    const gov = codexAgents(FRESH);
+    assert.equal(fs.lstatSync(gov).isFile(), true, 'copy created on first pass');
 
-    // A repeat pass must be a no-op (never throw, never replace the link).
+    // A repeat pass must be a no-op (never throw, never corrupt the copy).
     provisionUserDirs(FRESH);
     assert.equal(
-      fs.realpathSync(link),
-      fs.realpathSync(NEUTRAL_AGENTS),
-      'link still resolves to the neutral source after a repeat pass'
+      sha256(fs.readFileSync(gov)),
+      NEUTRAL_FP,
+      'copy still matches the neutral source after a repeat pass',
     );
   });
 });

@@ -397,7 +397,20 @@ async function queryCodexUnlocked(command, options = {}, ws) {
     // codex-sdk does NOT inherit process.env once `env` is supplied, so hand it the
     // FULL resolved env (resolveProviderEnv spreads process.env). Anonymous/single-
     // user (null userId) returns the base env unchanged — no non-isolated regression.
-    codex = new Codex({ env: resolveProviderEnv(ws?.userId ?? null, 'codex', process.env) });
+    codex = new Codex({
+      env: resolveProviderEnv(ws?.userId ?? null, 'codex', process.env),
+      // Governance-bypass block (ADR-057 §5, 2026-07-12 remediation): Codex merges a
+      // local AGENTS.md found in the working directory — and any ancestor up to the
+      // project/repo root — INTO the model-visible prompt alongside the neutral
+      // $CODEX_HOME/AGENTS.md governance, and a more-deeply-nested AGENTS.md takes
+      // precedence on conflict, so a project could override nassaj governance.
+      // project_doc_max_bytes=0 sets the byte budget for project-level AGENTS.md docs
+      // to zero, dropping them entirely while the global governance survives
+      // (empirically verified on codex-cli 0.144.1 via `codex debug prompt-input`).
+      // Passed as a per-spawn `--config` CLI arg (not written to config.toml), so a
+      // danger-full-access turn cannot strip it from the parent-controlled spawn.
+      config: { project_doc_max_bytes: 0 },
+    });
 
     // Thread options with sandbox and approval settings
     const threadOptions = {
