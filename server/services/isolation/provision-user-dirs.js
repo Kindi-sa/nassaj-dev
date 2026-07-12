@@ -92,6 +92,22 @@ const AGY_OWNER_LINKED_FILES = ['antigravity-oauth-token', 'installation_id', 's
 // run once per user per server lifetime, even under concurrent spawns.
 const provisioned = new Set();
 
+/**
+ * Forgets the in-process "already provisioned" flag for a user so the NEXT
+ * provisionUserDirs(userId) performs a full (non-short-circuited) pass. Used by
+ * the fail-closed Codex governance guard to FORCE a repair pass when a governance
+ * symlink has gone missing after the user was already provisioned this lifetime
+ * (the guard alone would otherwise no-op). No-op for empty ids.
+ *
+ * @param {string|number} userId
+ */
+export function invalidateProvisioned(userId) {
+  if (userId === null || userId === undefined || userId === '') {
+    return;
+  }
+  provisioned.delete(String(userId));
+}
+
 /** Root of all per-user isolated config trees. */
 function usersRoot() {
   return path.join(os.homedir(), '.nassaj-users');
@@ -146,6 +162,43 @@ function isSymlink(p) {
   try {
     return fs.lstatSync(p).isSymbolicLink();
   } catch {
+    return false;
+  }
+}
+
+/**
+ * Links the SHARED neutral Codex governance (AGENTS.md) into a user's isolated
+ * CODEX_HOME. Unlike ensureSymlink — which silently swallows a missing source and
+ * only logs a generic message on failure — governance is MANDATORY (ADR-057 §5,
+ * owner decision 2026-07-12): both a missing neutral source AND a genuine link
+ * failure are SURFACED at error level with a governance-specific marker, because a
+ * Codex session that launches without it is refused at spawn by the fail-closed
+ * guard (codex-governance.ensureCodexGovernance). Never throws — the rest of
+ * provisioning (opencode, hardening, audit) must still complete; the spawn-time
+ * guard is the hard enforcement, this link is the fast path.
+ *
+ * @returns {boolean} whether the governance link now exists (or already did)
+ */
+function linkCodexGovernance(source, link) {
+  try {
+    if (isSymlink(link) || fs.existsSync(link)) {
+      return true;
+    }
+    if (!fs.existsSync(source)) {
+      console.error(
+        '[provision] Codex governance source MISSING — Codex sessions will be BLOCKED until it exists',
+        { source, link },
+      );
+      return false;
+    }
+    fs.symlinkSync(source, link);
+    return true;
+  } catch (err) {
+    console.error('[provision] Codex governance link FAILED — Codex sessions will be BLOCKED', {
+      source,
+      link,
+      error: err?.message || String(err),
+    });
     return false;
   }
 }
@@ -321,20 +374,22 @@ export function provisionUserDirs(userId) {
     const codexDir = path.join(userRoot, '.codex');
     ensureDir(codexDir);
 
-    // Neutral Codex governance (ADR-057 / T-819): symlink AGENTS.md into every
-    // user's isolated CODEX_HOME so a spawned Codex session reads nassaj's shared
-    // governance on launch — Codex (and opencode) ingest $CODEX_HOME/AGENTS.md.
-    // The source is the SAME base the Claude CLAUDE.md/NASSAJ.md links above use —
-    // ~/.claude, which bootstrap-node.sh symlinks to nassaj-core on every fleet
-    // node — so ~/.claude/AGENTS.md resolves to nassaj-core/AGENTS.md, the
-    // build-agents NEUTRAL output (no Claude-only mechanics: no /compact, session
-    // quotas, fable/opus model maps, hooks or ultracode). Using ~/.claude (not a
-    // hardcoded absolute nassaj-core path) keeps this portable across fleet nodes
-    // whose operator home differs. A symlink — never a copy — keeps one fleet-wide
-    // source with no drift and cannot leak owner secrets: the target is the neutral
-    // governance file only. SHARED for ALL users (governance, not a credential),
-    // mirroring the CLAUDE.md/NASSAJ.md links; ensureSymlink is a no-op if missing.
-    ensureSymlink(
+    // Neutral Codex governance (ADR-057 §5 — MANDATORY, fail-closed at spawn):
+    // symlink AGENTS.md into every user's isolated CODEX_HOME so a spawned Codex
+    // session reads nassaj's shared governance on launch — Codex (and opencode)
+    // ingest $CODEX_HOME/AGENTS.md. The source is the SAME base the Claude
+    // CLAUDE.md/NASSAJ.md links above use — ~/.claude, which bootstrap-node.sh
+    // symlinks to nassaj-core on every fleet node — so ~/.claude/AGENTS.md resolves
+    // to nassaj-core/AGENTS.md, the build-agents NEUTRAL output (no Claude-only
+    // mechanics: no /compact, session quotas, fable/opus model maps, hooks or
+    // ultracode). Using ~/.claude (not a hardcoded absolute nassaj-core path) keeps
+    // this portable across fleet nodes whose operator home differs. A symlink —
+    // never a copy — keeps one fleet-wide source with no drift and cannot leak owner
+    // secrets: the target is the neutral governance file only. SHARED for ALL users
+    // (governance, not a credential). linkCodexGovernance SURFACES a missing source
+    // or link failure (owner decision 2026-07-12) rather than swallowing it; the
+    // fail-closed spawn guard is the hard enforcement if this fast path is absent.
+    linkCodexGovernance(
       path.join(home, '.claude', 'AGENTS.md'),
       path.join(codexDir, 'AGENTS.md'),
     );

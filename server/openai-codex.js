@@ -28,6 +28,11 @@ import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { classifyCodexFailure } from './modules/providers/list/codex/codex-failure.js';
+import {
+  ensureCodexGovernance,
+  GOVERNANCE_MISSING_CODE,
+  GOVERNANCE_MISSING_MESSAGE,
+} from './modules/providers/list/codex/codex-governance.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
@@ -316,6 +321,30 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       }
       return;
     }
+  }
+
+  // Fail-closed governance gate (ADR-057 §5, owner decision 2026-07-12): Codex —
+  // like any agent engine — must NEVER run outside nassaj governance. BEFORE any
+  // thread is spawned, verify (and self-heal once) that the spawner's effective
+  // $CODEX_HOME/AGENTS.md resolves to non-empty neutral governance. If it still
+  // cannot be established after a single re-provision/relink attempt, REFUSE the
+  // launch with a structural error — no Codex process is constructed, no turn runs.
+  const governance = ensureCodexGovernance(ws?.userId ?? null);
+  if (!governance.ok) {
+    console.error('[Codex] launch REFUSED — nassaj governance not established', {
+      userId: ws?.userId ?? null,
+      codexHome: governance.codexHome,
+      agentsPath: governance.agentsPath,
+      reason: governance.reason,
+    });
+    sendMessage(ws, createNormalizedMessage({
+      kind: 'error',
+      code: GOVERNANCE_MISSING_CODE,
+      content: GOVERNANCE_MISSING_MESSAGE,
+      sessionId: options.sessionId || null,
+      provider: 'codex',
+    }));
+    return;
   }
 
   const {
