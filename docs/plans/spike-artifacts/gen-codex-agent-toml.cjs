@@ -35,7 +35,7 @@ function tomlMultiline(s) {
   return s.replace(/\\/g, '\\\\').replace(/"""/g, '\\"\\"\\"');
 }
 
-function build(cardPath, canary) {
+function build(cardPath, canary, model) {
   const { fm, body } = parseCard(fs.readFileSync(cardPath, 'utf8'));
   const name = fm.name;
   if (!name) throw new Error('card missing name');
@@ -66,8 +66,12 @@ function build(cardPath, canary) {
   // sandbox_mode read-only for these read-heavy roles (rhen Gate 5 proves it
   // actually lowers; kept here to also test the D4 override question).
   lines.push('sandbox_mode = "read-only"');
-  // NOTE: fm.model (claude-opus-4-8) is DROPPED on purpose — Claude id is
-  // invalid for Codex; omitting it makes the child inherit the parent model.
+  // NOTE: fm.model (claude-opus-4-8) is DROPPED — Claude id is invalid for Codex.
+  // But `model` is REQUIRED for custom agents: Gate 1B proved that OMITTING it
+  // fails with "could not resolve the child model for service tier validation"
+  // (unlike a generic spawn, which inherits the parent model). So we emit an
+  // explicit Codex model. Production must inject the session-resolved Codex model.
+  lines.push(`model = ${JSON.stringify(model)}`);
   lines.push('developer_instructions = """');
   lines.push(tomlMultiline(contract));
   lines.push('"""');
@@ -82,5 +86,10 @@ if (!cardPath || !outPath) {
 let canary = null;
 const ci = rest.indexOf('--canary');
 if (ci !== -1) canary = rest[ci + 1];
-fs.writeFileSync(outPath, build(cardPath, canary));
-console.error(`wrote ${outPath} (name from card, canary=${canary ? 'yes' : 'no'})`);
+// model REQUIRED for custom agents (Gate 1B). Default is a spike placeholder;
+// production must pass the session-resolved Codex model via --model.
+let model = 'gpt-5.5';
+const mi = rest.indexOf('--model');
+if (mi !== -1) model = rest[mi + 1];
+fs.writeFileSync(outPath, build(cardPath, canary, model));
+console.error(`wrote ${outPath} (name from card, model=${model}, canary=${canary ? 'yes' : 'no'})`);
