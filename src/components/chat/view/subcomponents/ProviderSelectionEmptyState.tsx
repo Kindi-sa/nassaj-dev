@@ -48,7 +48,7 @@ import {
 // and the filter below drops the disabled ids.
 const ALL_PROVIDER_META: { id: LLMProvider; name: string }[] = [
   { id: "claude", name: "Anthropic" },
-  { id: "codex", name: "OpenAI" },
+  { id: "codex", name: "Codex" },
   { id: "gemini", name: "Google" },
   { id: "antigravity", name: "Antigravity (agy)" },
   { id: "cursor", name: "Cursor" },
