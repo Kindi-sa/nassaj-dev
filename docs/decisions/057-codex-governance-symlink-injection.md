@@ -208,7 +208,7 @@ spike: Codex جلسة → codex-governance.ts guard ✅
 | **مسار عام مشترك (بلا copy)** | بلا عزل — مستخدمون متعددون في مسار واحد (خطر تسرب بيانات). |
 | **نسخة + watcher** | مراقب تغييرات على nassaj-core/AGENTS.md → نسخة للمستخدمين | انجراف + فجوة زمنية + overhead. |
 | **ملف إعدادات يشير للمسار** | Codex SDK لا يقرأ `path-to-agents` — يتوقع `./AGENTS.md` مباشرة. |
-| **full-access بلا تصليب** | المتجهات (أ) (ب) (ج) في plan/ — تقليل danger-full-access البديل (T-873). |
+| **full-access بلا تصليب** | المتجهات (أ) (ب) (ج) في plan/ — تقليل danger-full-access البديل (T-884). |
 
 ---
 
@@ -219,7 +219,7 @@ spike: Codex جلسة → codex-governance.ts guard ✅
 | **(أ)** المصدر المحايد قابل للكتابة | uid nassaj كتابة ~/.claude/AGENTS.md (بصمة تطابق المعطوب) | chmod 0444 المصدر + مِلكية منفصل | عالية | devops على nassaj-core |
 | **(ب)** config.toml خبيث في شجرة مستخدم | full-access يكتب CODEX_HOME/config.toml ← turn تالي | حارس إطلاق على كل ملفات CODEX_HOME | متوسطة | متابعة مفتوحة |
 | **(ج)** TOCTOU على codexHome | فجوة spawn بين فحص وقراءة (edge case) | قفل per-user + realpath/lstat الأب | منخفضة | اختياري |
-| **(د)** تقليص danger-full-access | متجهات (أ) (ب) (ج) أصلها full-access بلا sandbox | workspace-write افتراضي + تصعيد صريح | عالية | قرار المالك T-873 |
+| **(د)** تقليص danger-full-access | متجهات (أ) (ب) (ج) أصلها full-access بلا sandbox | workspace-write افتراضي + تصعيد صريح | عالية | قرار المالك T-884 |
 
 ---
 
@@ -236,7 +236,7 @@ spike: Codex جلسة → codex-governance.ts guard ✅
 
 **الشروط المعلَّقة:**
 - [ ] متابعة (أ): تصليب المصدر المحايد (devops/nassaj-core).
-- [ ] متابعة (د): قرار المالك على danger-full-access (T-873، due 2026-07-14).
+- [ ] متابعة (د): قرار المالك على danger-full-access (T-884، due 2026-07-15).
 
 ---
 
@@ -247,7 +247,7 @@ spike: Codex جلسة → codex-governance.ts guard ✅
 | **ADR-056** | المعمارية الأم — فصل الحوكمة. |
 | **ADR-018** | `build-agents` — توليد AGENTS.md محايد. |
 | **T-819 (Spike)** | Codex يقرأ `AGENTS.md` — ✅ مؤكّد. |
-| **T-873** | قرار المالك: تقليص danger-full-access (due 2026-07-14). |
+| **T-884** | قرار المالك: تقليص danger-full-access (due 2026-07-15). |
 | **docs/plans/CODEX-GOVERNANCE-DECOUPLING-2026-07-11.md** | الخطة المرحلية + المخاطر المتبقية. |
 | **docs/reviews/CODEX-INTEGRATION-REVIEW-2026-07-11.md** | المراجعة الأمنية (qa-critic). |
 | **commit d0f97941** | بصمة sha256 + نسخة محمية 0444. |
