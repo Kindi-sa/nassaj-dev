@@ -1,6 +1,10 @@
-# ADR-057: حقن حوكمة Codex عبر symlink محايد في CODEX_HOME
+# ADR-057: حقن حوكمة Codex عبر نسخة محمية في CODEX_HOME
 
-**التاريخ:** 2026-07-11 · **الحالة:** معتمد (قرار المالك، جلسة review 2026-07-11) · **المُقترِح:** architect · **المراجعة:** qa-critic + تحقّق spike (T-819)
+**التاريخ:** 2026-07-11 (الخطة)، 2026-07-12 (التصليب: from symlink to copy) · **الحالة:**
+معتمد (قرار المالك 2026-07-11 + تصليب 2026-07-12) · **المُقترِح:** architect ·
+**المراجعة:** qa-critic + تحقّق spike (T-819)
+
+**التعديلات الأخيرة:** commits d0f97941 (بصمة + نسخة محمية) + dc211d7a (fail-closed).
 
 ---
 
@@ -8,72 +12,104 @@
 
 **المرجع الأساسي:** ADR-056 (الفصل المعماري — مصدر واحد + توليد محرّك-محدد)
 
-Codex SDK (`@openai/codex-sdk`) يقرأ `$CODEX_HOME/AGENTS.md` عند الإطلاق (spike T-819 مؤكّد 2026-07-11). nassaj-dev اليوم لا يحقن حوكمة نسّاج في `CODEX_HOME` — جلسات Codex تُطلق بلا تعليمات.
+Codex SDK (`@openai/codex-sdk`) يقرأ `$CODEX_HOME/AGENTS.md` عند الإطلاق (spike T-819
+مؤكّد 2026-07-11). nassaj-dev اليوم يحقن حوكمة نسّاج في `CODEX_HOME` — جلسات Codex تُطلق
+بتعليمات محايدة محمية.
 
-**الحل البنيوي:** `CODEX_HOME` لكل مستخدم **symlink مرتبط بـ** `AGENTS.md` المولَّد المشترك من nassaj-core.
+**الحل البنيوي (مُعدَّل 2026-07-12):** `CODEX_HOME` لكل مستخدم = نسخة حقيقية محمية 0444
+من `AGENTS.md` المولَّد المشترك من nassaj-core، مع تطابق بصمة sha256 لضمان الهوية
+(ليس مجرد existence). النسخة (لا symlink): حماية من كتابة turn full-access عبر link.
 
 **البدائل المرفوضة:**
-1. **نسخة حرفية:** كل مستخدم ← نسخة `AGENTS.md` خاصة → انجراف بلا مصدر واحد.
+1. **symlink مباشر:** جلسة danger-full-access قد تكتب عبر الـ link وتعطّب حوكمة الأسطول.
 2. **مسار مشترك hardcoded:** بلا عزل — يفقد multi-user سلامة الخصوصية.
-3. **بلا حوكمة:** الحالة الحالية — جلسات Codex بلا ضمانات أمن.
+3. **بلا حوكمة:** الحالة السابقة — جلسات Codex بلا ضمانات أمن.
 
 ---
 
 ## 2. القرار
 
-### الحل
+### الحل (معدَّل 2026-07-12)
 
 ```
-nassaj-core/AGENTS.md  ← مصدر الحقيقة (مُولَّد بـ build-agents)
+nassaj-core/AGENTS.md  ← مصدر الحقيقة (مُولَّد بـ build-agents، neutral)
     ↑
-    │ symlink
+    │ read sha256
     │
-nassaj-dev/provisionUserDirs
+nassaj-dev/provisionUserDirs + codex-governance-material
     ↓
-/home/<user>/.codex/AGENTS.md  ← مُعاد التوجيه إلى nassaj-core
+/home/<user>/.codex/AGENTS.md  ← نسخة محمية 0444 per-user
+                                 محكومة بصمة = source fingerprint
     ↑
     └─ جلسة Codex تقرأها عند الإطلاق = محكومة
+
+fail-closed spawn guard (codex-governance.ts):
+  ├─ fstat لا lstat (symlink يفشل، حتى كسر)
+  └─ sha256 المصدر = sha256 نسخة (الهوية، لا وجود فقط)
+     إن فشل: rewrite + retry
 ```
 
 ### الخطوات
 
-#### الخطوة 1: `provisionUserDirs` يحقن symlink (nassaj-dev)
+#### الخطوة 1: `provisionUserDirs` يحقن نسخة محمية (nassaj-dev)
 
-**الملف:** `server/services/user-initialization/provision-user-dirs.ts`
+**الملف:** `server/services/isolation/provision-user-dirs.js` (committed ✅)
 
-**الكود المتوقع (pseudocode):**
-```typescript
+**الكود المطبَّق (أنظر provision-user-dirs.js:345-362):**
+```javascript
 // عند إنشاء مستخدم جديد
-ensureSymlink(
-  sourceAgentsPath: '/home/nassaj/nassaj-core/AGENTS.md',  // مصدر
-  targetCodexPath: path.join(codexHomeDir, 'AGENTS.md'),    // الهدف
-  { force: true }  // أعِد الربط إن تغيّر المصدر
-);
+const codexDir = path.join(userRoot, '.codex');
+ensureDir(codexDir);
+
+// Neutral Codex governance (ADR-057 §5 — MANDATORY, fail-closed at spawn):
+// materialize AGENTS.md into every user's isolated CODEX_HOME as a real,
+// read-only (0444) COPY of the neutral source so a spawned Codex session
+// reads nassaj's governance on launch.
+materializeGovernanceCopy(codexDir);  // → provision-user-dirs.js:362
 ```
 
-**المسار:** `CODEX_HOME` = `~/.codex` أو `$XDG_CONFIG_HOME/codex` (حسب عزل per-user).
+**المسار:** `CODEX_HOME` = `~/.nassaj-users/<userId>/.codex` (عزل OS مملوك uid nassaj 0700)
 
-**الاستثناءات المتوقعة:**
-- symlink كسر ← إعادة ربط.
-- ملف عادي موجود ← حذف + إعادة ربط أو تحذير.
+**الآلية الحالية (codex-governance-material.js):**
+- readNeutralGovernance() → reads ~./claude/AGENTS.md + sha256 fingerprint
+- materializeGovernanceCopy(codexDir) → removes stale/symlink + writes 0600 + chmod 0444
+- governanceMatchesSource(agentsPath) → lstat (rejects symlink) + content verification
 
-#### الخطوة 2: Codex يقرأ symlink (SDK ← آلية Codex)
+**الاستثناءات المعالَجة:**
+- ملف عادي موجود (لا symlink) ← remove + rewrite
+- symlink (من نسخة سابقة) ← remove + rewrite نسخة حقيقية
+- محتوى مختلف / مفقود ← rewrite بمصدر جديد
+- مصدر neutral غير متاح ← fail-closed (لا كتابة، guard يرفض spawn)
 
-**لا عمل مطلوب:** Codex يقرأ `$CODEX_HOME/AGENTS.md` تلقائياً. ما دام الـ symlink موجود، يتّبعه.
+#### الخطوة 2: Codex يقرأ نسخة محمية (SDK ← آلية Codex)
 
-#### الخطوة 3: تحقّق الحقن (في قبول M1)
+**لا عمل مطلوب:** Codex يقرأ `$CODEX_HOME/AGENTS.md` تلقائياً؛ الملف حقيقي 0444 يقرأه
+بسلام. أي محاولة كتابة خلال turn danger-full-access تفشل (permission denied).
 
-**الاختبار:**
+#### الخطوة 3: حارس الإطلاق fail-closed (codex-governance.ts، spawn time)
+
+**آلية الحماية:**
+```typescript
+// قبل تشغيل جلسة Codex
+const isGovernanceValid = governanceMatchesSource(agentsPath);
+if (!isGovernanceValid) {
+  // Attempt fast repair (call provisionUserDirs / materializeGovernanceCopy)
+  // Retry check; if still fails → BLOCK spawn with 403
+  throw new Error('Codex governance failed — session blocked (fail-closed)');
+}
+```
+
+**التحقّق الحقيقي:**
 ```bash
-# مستخدم محدَّد إنتاج جلسة Codex
-$ cat ~/.codex/AGENTS.md
-# → يجب أن يكون مطابقاً لـ nassaj-core/AGENTS.md
+# مستخدم محدَّد أطلق جلسة Codex
+$ ls -l ~/.nassaj-users/<userId>/.codex/AGENTS.md
+# → -r--r--r-- nassaj nassaj ... AGENTS.md (0444، ملف حقيقي لا symlink)
 
-$ ls -l ~/.codex/AGENTS.md
-# → symlink ... -> /home/nassaj/nassaj-core/AGENTS.md
+$ sha256sum ~/.nassaj-users/<userId>/.codex/AGENTS.md
+# → يجب أن يساوي sha256 ~/.claude/AGENTS.md (المصدر)
 
-$ readlink ~/.codex/AGENTS.md
-# → /home/nassaj/nassaj-core/AGENTS.md
+# fail-closed spawn guard checked this before launch; if mismatch
+# detected → rewrite + retry; if still fails → 403
 ```
 
 ---
@@ -112,37 +148,41 @@ $ readlink ~/.codex/AGENTS.md
 
 ## 5. سيناريوهات الفشل والاسترجاع
 
-| الحالة | الفعل | الحالة الناتجة |
+| الحالة | الآلية | الحالة الناتجة |
 |---|---|---|
-| symlink مكسور | `provision` يحاول الربط الجديد → fallback أم خطأ؟ | **خطأ إيقاف** (fail-closed) — لا يُطلق Codex بلا حوكمة. |
-| `AGENTS.md` ملف عادي (لا symlink) | اسأل: هل يحذف ويعيد الربط؟ | **سياسة مقترحة:** تحذير سجل + محاولة حذف/إعادة ربط؛ فشل = exit. |
-| nassaj-core/AGENTS.md محذوف | جلسات Codex تفشل قراءة. | **فور الكشف بـ CI:** إعادة التوليد. نسّاج-dev لا يحاول الإصلاح. |
-| مستخدم يحذف ~/.codex يدوياً | provision لا يُعاد إلا عند تسجيل جديد. | **عند session التالي:** إعادة إنشاء CODEX_HOME ← symlink صحيح. |
+| نسخة مفقودة | provision: write 0600 + chmod 0444. | ✅ محكومة next turn. |
+| symlink قديم (من المحاولة الأولى) | provision: rmSync removes link + materialize real file. | ✅ محكومة next turn. |
+| محتوى مختلف / دريفت | spawn guard: detects sha256 mismatch → call materialize + retry. | ✅ محكومة إن نجح repair؛ ❌ 403 إن failed repair. |
+| مصدر neutral مفقود | materialize returns false; spawn guard logs blocked-sessions marker + 403. | ❌ Codex **محظور** (fail-closed) — ينتظر إعادة توليد build-agents. |
+| مستخدم chmod -r نسختهم | provision idempotent; spawn guard retry لـ chmod 0444. | ⚠️ edge case (نادر، يتطلب evil-uid)؛ fail-closed holds. |
+| permission denied على الكتابة | mkdirSync / writeFileSync fail → materialize returns false → spawn blocks. | ❌ Codex محظور (fail-closed) — متطلبات FS مرضية عند first provision. |
 
 ---
 
 ## 6. معايير القبول
 
-### التطبيق (nassaj-dev)
-- [ ] `provision-user-dirs.ts` — حقن symlink عند إنشاء مستخدم ✅ ([T-866/B4](https://example.com)).
-- [ ] symlink يُؤشّر إلى `nassaj-core/AGENTS.md` (مسار مطلق أم نسبي؟) **القرار:** مطلق (موثوقية أعلى في أسطول).
-- [ ] fail-closed: symlink فاشل = لا إطلاق Codex.
+### التطبيق (nassaj-dev) ✅ منجَز
+- [x] `server/services/isolation/provision-user-dirs.js` — materialize نسخة محمية عند إنشاء
+  مستخدم (commit d0f97941).
+- [x] نسخة مقروءة من `~/.claude/AGENTS.md` بـ sha256 fingerprint (codex-governance-material.js).
+- [x] نسخة محمية 0444 per-user قابلة للقراءة فقط (محاولة كتابة من danger-full-access تفشل).
+- [x] fail-closed: نسخة فاشلة / مفقودة / مختلفة = لا إطلاق Codex (codex-governance.ts).
 
-### التحقّق (Spike T-819 + M1)
-- [ ] جلسة Codex محكومة: اختبار `debug skill` ترى فقط AGENTS.md (بلا `/compact` claude).
-- [ ] multi-user: كل user symlink ← نفس `AGENTS.md` (بلا collision).
-- [ ] بلا تسريب: `AGENTS.md` محايد (لا أسرار مالك، لا APIkeys).
+### التحقّق (Spike T-819 + M1) ✅ منجَز
+- [x] جلسة Codex محكومة: اختبار realworld على بيانات التكامل (25/25 ✅).
+- [x] multi-user: كل user نسخة محمية ← نفس `AGENTS.md` fingerprint (بلا collision).
+- [x] بلا تسريب: `AGENTS.md` محايد (لا أسرار مالك، لا APIkeys) — neutral-standards.md.
 
-### الاختبارات
+### الاختبارات ✅
 ```bash
-# وحدة: symlink يُنشأ بسلام
-unit: provisionUserDirs.ensureSymlink()
+# وحدة: نسخة محمية 0444 يُنشأة بسلام
+unit: codex-governance-material.materializeGovernanceCopy() ✅
 
-# تكامل: جلسة Codex تقرأه
-integration: launchCodexSession() → detectAGENTS
+# تكامل: جلسة Codex تقرأها بدون توسع أوامر Claude
+integration: launchCodexSession() → governanceMatchesSource ✅
 
-# spike: تأثر Codex الفعلي
-spike: Codex جلسة → `debug skill` → no `/compact`
+# spike: تأثر Codex الفعلي على اشتراك آلي
+spike: Codex جلسة → codex-governance.ts guard ✅
 ```
 
 ---
@@ -151,40 +191,75 @@ spike: Codex جلسة → `debug skill` → no `/compact`
 
 | الافتراض | الحالة | الخطر |
 |---|---|---|
-| Codex يتّبع symlink (`readlink -f`) | ✅ مؤكّد (SDK defaults) | منخفض |
-| `nassaj-core/AGENTS.md` ثابت على الإطلاق | ⚠️ يفترض `build-agents` يُنفَّذ قبل nassaj-dev | متوسط — توثيق في CI |
-| بلا حذف يدوي للـ symlink من المستخدم | ⚠️ يفترض سلوك آمن | منخفض (آلية غير طبيعية) |
-| POSIX `symlink` متاح | ✅ (Linux/macOS/WSL) | منخفض |
+| Codex يقرأ `$CODEX_HOME/AGENTS.md` | ✅ مؤكّد (SDK T-819) | منخفض |
+| `~/.claude/AGENTS.md` متاح (symlink → nassaj-core) | ✅ bootstrap-node.sh يضعه | متوسط — متابعة أ أعلاه |
+| نسخة محمية 0444 لا تُكتب من danger-full-access | ✅ مختبَر (perm denied) | منخفض |
+| spawn guard يفشل مغلق (يرفض Codex) | ✅ (codex-governance.ts) | منخفض |
+| materializeGovernanceCopy + reprovision idempotent | ✅ (provision-user-dirs.js:262+) | منخفض |
 
 ---
 
-## 8. البدائل المرفوضة مرة أخرى
+## 8. البدائل المرفوضة (قبل + بعد التصليب)
 
 | البديل | السبب |
 |---|---|
+| **symlink مباشر (قديم)** | جلسة danger-full-access قد تكتب عبر الـ link → تعطّب حوكمة الأسطول (write-through corruption). |
 | **hardlink** | بلا فائدة (نفس inode) + بلا فصل مرئي. |
-| **مسار عام مشترك (بلا symlink)** | بلا عزل — مستخدمون متعددون في مسار واحد. |
-| **نسخة + watcher** | مراقب تغييرات على nassaj-core/AGENTS.md → نسخة للمستخدمين | انجراف + فجوة زمنية. |
-| **ملف إعدادات يشير للمسار** | Codex لا يقرأ `path-to-agents` — يتوقع `./AGENTS.md` مباشرة. |
+| **مسار عام مشترك (بلا copy)** | بلا عزل — مستخدمون متعددون في مسار واحد (خطر تسرب بيانات). |
+| **نسخة + watcher** | مراقب تغييرات على nassaj-core/AGENTS.md → نسخة للمستخدمين | انجراف + فجوة زمنية + overhead. |
+| **ملف إعدادات يشير للمسار** | Codex SDK لا يقرأ `path-to-agents` — يتوقع `./AGENTS.md` مباشرة. |
+| **full-access بلا تصليب** | المتجهات (أ) (ب) (ج) في plan/ — تقليل danger-full-access البديل (T-873). |
 
 ---
 
-## 9. الروابط
+## 9. المخاطر المتبقية والمتابعات
+
+| المتجه | الخطر | الحل | الأولوية | المتابعة |
+|---|---|---|---|---|
+| **(أ)** المصدر المحايد قابل للكتابة | uid nassaj كتابة ~/.claude/AGENTS.md (بصمة تطابق المعطوب) | chmod 0444 المصدر + مِلكية منفصل | عالية | devops على nassaj-core |
+| **(ب)** config.toml خبيث في شجرة مستخدم | full-access يكتب CODEX_HOME/config.toml ← turn تالي | حارس إطلاق على كل ملفات CODEX_HOME | متوسطة | متابعة مفتوحة |
+| **(ج)** TOCTOU على codexHome | فجوة spawn بين فحص وقراءة (edge case) | قفل per-user + realpath/lstat الأب | منخفضة | اختياري |
+| **(د)** تقليص danger-full-access | متجهات (أ) (ب) (ج) أصلها full-access بلا sandbox | workspace-write افتراضي + تصعيد صريح | عالية | قرار المالك T-873 |
+
+---
+
+## 10. حالة qa-critic والفيتو
+
+**الفيتو:** GO مشروطاً بتوثيق (wf/بوابة 2026-07-13).
+
+**الشروط المستكملة:**
+- [x] تصليب المنفذ مختبَر (25/25 ثنائي حقيقي، 0 skipped).
+- [x] fail-closed يرفض Codex بلا AGENTS.md مطابقة (governanceMatchesSource + lstat).
+- [x] بصمة sha256 محمية الهوية (لا mere existence).
+- [x] نسخة محمية 0444 لا symlink (prevent write-through).
+- [x] توثيق المخاطر المتبقية (أعلاه) + توصيات.
+
+**الشروط المعلَّقة:**
+- [ ] متابعة (أ): تصليب المصدر المحايد (devops/nassaj-core).
+- [ ] متابعة (د): قرار المالك على danger-full-access (T-873، due 2026-07-14).
+
+---
+
+## 11. الروابط
 
 | المرجع | العلاقة |
 |---|---|
 | **ADR-056** | المعمارية الأم — فصل الحوكمة. |
-| **ADR-018** | `build-agents` — توليد AGENTS.md. |
+| **ADR-018** | `build-agents` — توليد AGENTS.md محايد. |
 | **T-819 (Spike)** | Codex يقرأ `AGENTS.md` — ✅ مؤكّد. |
-| **T-866/B4** | حارس كتابة مزوّد (تطبيق متزامن). |
-| **docs/plans/CODEX-GOVERNANCE-DECOUPLING-2026-07-11.md** | الخطة المرحلية (المرحلة 1). |
+| **T-873** | قرار المالك: تقليص danger-full-access (due 2026-07-14). |
+| **docs/plans/CODEX-GOVERNANCE-DECOUPLING-2026-07-11.md** | الخطة المرحلية + المخاطر المتبقية. |
 | **docs/reviews/CODEX-INTEGRATION-REVIEW-2026-07-11.md** | المراجعة الأمنية (qa-critic). |
+| **commit d0f97941** | بصمة sha256 + نسخة محمية 0444. |
+| **commit dc211d7a** | حارس إطلاق fail-closed. |
 
 ---
 
-## 10. الملاحظات
+## 12. الملاحظات
 
-- **symlink أم نسخة؟** symlink (مصدر واحد، بلا انجراف).
-- **مسار mutability؟** nassaj-core/AGENTS.md لا يُكتب من nassaj-dev (build-agents الوحيد يكتب).
-- **CI/CD:** حلقة CI يجب أن تشغّل `build-agents --check` قبل nassaj-dev (ضمان تطابق).
-- **الأسطول:** كل عقدة توفّر `nassaj-core` (عبر `bootstrap-node.sh`) → symlink يعمل موحّداً.
+- **نسخة ≠ symlink:** نسخة حقيقية 0444 = حماية من write-through corruption (worst-case: مستخدم واحد).
+- **بصمة ≠ existence:** "محكوم" = sha256 match، لا مجرد ملف موجود.
+- **fail-closed ≠ fail-open:** لا ترقيع fallback — غياب حوكمة = رفض spawn.
+- **مسار mutability:** nassaj-core/AGENTS.md يُكتب من build-agents فقط (CI آلية).
+- **الأسطول:** كل عقدة توفّر `nassaj-core/AGENTS.md` (عبر `bootstrap-node.sh`) + per-user copy
+  isolate (0700 uid nassaj).
