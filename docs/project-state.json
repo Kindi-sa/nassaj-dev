@@ -5929,7 +5929,7 @@
       "found": "2026-07-14",
       "title": "uid الخدمة nassaj عضو مجموعة docker (وsudo): أي Codex turn بذات uid يشغّل docker run -v /:/host = جذر المضيف الكامل، يتجاوز أي sandbox قراءة/كتابة (Landlock/bwrap) — تصعيد امتياز أشدّ من قراءة الاعتمادات",
       "source": "اكتشاف architect (لجنة T-893 2026-07-14)، مؤكَّد بالمنسّق: id nassaj → 989(docker),27(sudo)؛ docker ps بلا sudo تُظهر حاويات حيّة. devops: sudo -n يفشل (لا NOPASSWD) لكن docker rootful+العضوية = مكافئ root بلا كلمة سر.",
-      "triage": "critical → T-896 (degroup docker/sudo من هوية Codex، fail-safe، شرط لازم مُقدَّم قبل T-893). قرار المالك: هل تحتاج العقدة عضوية nassaj في docker لأحمال أخرى (حاويات wafeq-* حيّة)؟ إن لا فإزالة العضوية أبسط تخفيف."
+      "triage": "critical → T-896 (degroup docker/sudo من هوية Codex، fail-safe، شرط لازم مُقدَّم قبل T-893). قرار المالك: هل تحتاج العقدة عضوية nassaj في docker لأحمال أخرى (حاويات wafeq-* حيّة)؟ إن لا فإزالة العضوية أبسط تخفيف. **أُغلق ومتحقَّق على nassaj-dev 2026-07-14: gpasswd -d nassaj docker + su - nassaj (shell نظيف) → pm2 kill && pm2 resurrect؛ العملية والعفريت بلا 989، docker.sock 660 غير قابل للوصول، الخادم HTTP 200. إغلاق باقي الأسطول (rukhaimi/traventure) عبر تقنين T-896.**"
     }
   ],
   "decisions": [
