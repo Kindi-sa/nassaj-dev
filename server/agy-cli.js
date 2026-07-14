@@ -35,6 +35,7 @@ import { createNormalizedMessage } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { resolveCagedLaunch } from './services/isolation/provider-cage-wiring.js';
 import { userConfigDir } from './services/isolation/provision-user-dirs.js';
 import { isProviderIsolated } from './services/provider-sharing.js';
 import { SessionRegistry } from './session-registry.js';
@@ -815,7 +816,16 @@ async function spawnAntigravity(command, options = {}, ws) {
 
     let agProcess;
     try {
-        agProcess = spawn(AGY_PATH, args, {
+        // T-897: cage the agy spawn behind NASSAJ_PROVIDER_CAGE (default OFF ⇒
+        // launch is returned unchanged, byte-identical to the previous spawn).
+        const agyLaunch = resolveCagedLaunch({
+            userId,
+            provider: 'agy',
+            cmd: AGY_PATH,
+            args,
+            cwd: cleanCwd,
+        });
+        agProcess = spawn(agyLaunch.cmd, agyLaunch.args, {
             cwd: cleanCwd,
             // Single source of truth for the spawn env. When agy is isolated for
             // this user (admin policy) the resolver overrides HOME to the per-user

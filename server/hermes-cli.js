@@ -22,6 +22,7 @@ import { providerAuthService } from './modules/providers/services/provider-auth.
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { sessionsDb } from './modules/database/index.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { resolveCagedLaunch } from './services/isolation/provider-cage-wiring.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
@@ -182,7 +183,16 @@ async function spawnHermes(command, options = {}, ws) {
         args.push('-m', resolvedModel);
       }
 
-      hermesProcess = spawnFunction('hermes', args, {
+      // T-897: cage the hermes spawn behind NASSAJ_PROVIDER_CAGE (default OFF ⇒
+      // launch returned unchanged; byte-identical to the previous spawn).
+      const hermesLaunch = resolveCagedLaunch({
+        userId: ws?.userId ?? null,
+        provider: 'hermes',
+        cmd: 'hermes',
+        args,
+        cwd: workingDir,
+      });
+      hermesProcess = spawnFunction(hermesLaunch.cmd, hermesLaunch.args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         // Hermes follows agy: env flows through resolveProviderEnv so the iron-rule

@@ -14,6 +14,7 @@ import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { resolveCagedLaunch } from './services/isolation/provider-cage-wiring.js';
 import { participantsDb } from './modules/database/index.js';
 
 // Use cross-spawn on Windows for correct .cmd resolution (same pattern as cursor-cli.js)
@@ -319,8 +320,20 @@ async function spawnGemini(command, options = {}, ws) {
     // the base env unchanged when no userId is present.
     const spawnEnv = resolveProviderEnv(ws?.userId ?? null, 'gemini', baseSpawnEnv);
 
+    // T-897: cage the gemini spawn behind NASSAJ_PROVIDER_CAGE (default OFF ⇒
+    // launch returned unchanged; byte-identical to the previous spawn). The
+    // shell wrapper (sh -c exec ...) is caged as a unit — bwrap execs sh which
+    // execs gemini, all inside the sandbox.
+    const geminiLaunch = resolveCagedLaunch({
+        userId: ws?.userId ?? null,
+        provider: 'gemini',
+        cmd: spawnCmd,
+        args: spawnArgs,
+        cwd: workingDir,
+    });
+
     return new Promise((resolve, reject) => {
-        const geminiProcess = spawnFunction(spawnCmd, spawnArgs, {
+        const geminiProcess = spawnFunction(geminiLaunch.cmd, geminiLaunch.args, {
             cwd: workingDir,
             stdio: ['pipe', 'pipe', 'pipe'],
             env: spawnEnv

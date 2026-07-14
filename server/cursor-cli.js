@@ -7,6 +7,7 @@ import { providerModelsService } from './modules/providers/services/provider-mod
 import { createNormalizedMessage, stampCoordinatorId } from './shared/utils.js';
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
+import { resolveCagedLaunch } from './services/isolation/provider-cage-wiring.js';
 import { participantsDb } from './modules/database/index.js';
 
 // Use cross-spawn on Windows for better command execution
@@ -160,7 +161,16 @@ async function spawnCursor(command, options = {}, ws) {
       console.log('Working directory:', workingDir);
       console.log('Session info - Input sessionId:', sessionId, 'Resume:', resume);
 
-      const cursorProcess = spawnFunction('cursor-agent', args, {
+      // T-897: cage the cursor spawn behind NASSAJ_PROVIDER_CAGE (default OFF ⇒
+      // launch returned unchanged; byte-identical to the previous spawn).
+      const cursorLaunch = resolveCagedLaunch({
+        userId: ws?.userId ?? null,
+        provider: 'cursor',
+        cmd: 'cursor-agent',
+        args,
+        cwd: workingDir,
+      });
+      const cursorProcess = spawnFunction(cursorLaunch.cmd, cursorLaunch.args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env } // Inherit all environment variables

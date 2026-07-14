@@ -34,6 +34,7 @@ import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { assertAnthropicBaseUrlAllowed, assertSettingsEnvAllowed } from './services/isolation/anthropic-base-url-guard.js';
+import { buildCagedSdkSpawn } from './services/isolation/provider-cage-wiring.js';
 import { applyClaudeEngineProviderEnv } from './services/isolation/apply-claude-engine-provider-env.js';
 import { collectSettingsBaseUrls } from './services/isolation/collect-settings-base-urls.js';
 import { buildVendorDelegateMcp } from './modules/providers/shared/vendor/vendor-delegate-mcp.js';
@@ -780,6 +781,12 @@ async function getClaudeBuiltInCommands(context = {}) {
     assertAnthropicBaseUrlAllowed(sdkOptions.env);
     assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
 
+    // T-897: cage this probe's Claude spawn too (flag OFF ⇒ undefined ⇒ unset).
+    const cagedProbeSpawn = buildCagedSdkSpawn({ userId, cwd: cwd ?? null });
+    if (cagedProbeSpawn) {
+      sdkOptions.spawnClaudeCodeProcess = cagedProbeSpawn;
+    }
+
     queryInstance = query({
       prompt: emptyPromptStream(),
       options: sdkOptions,
@@ -1394,6 +1401,19 @@ async function runClaudeSDKQuery(command, options = {}, ws, internalOptions = {}
     // spawn env. Validate that file under the same allowlist so a competitor base
     // URL placed there cannot bypass the OS-env guard above.
     assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
+
+    // T-897: unified provider cage (behind NASSAJ_PROVIDER_CAGE, default OFF).
+    // When on, route the SDK's Claude Code spawn through bwrap so it cannot read
+    // other users' ~/.nassaj-users trees or reach host runtime sockets. Returns
+    // undefined when the flag is off ⇒ the option is never set and the SDK keeps
+    // its stock local spawn (byte-identical off path).
+    const cagedClaudeSpawn = buildCagedSdkSpawn({
+      userId: ws?.userId ?? null,
+      cwd: sdkOptions.cwd ?? null,
+    });
+    if (cagedClaudeSpawn) {
+      sdkOptions.spawnClaudeCodeProcess = cagedClaudeSpawn;
+    }
 
     // Per-user commit authorship (B-MU-UX-GIT-ID): inject GIT_AUTHOR_*/
     // GIT_COMMITTER_* for the authenticated user so any commit the agent makes

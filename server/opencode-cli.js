@@ -16,6 +16,7 @@ import { createNormalizedMessage, resolveOpenCodeBinaryPath, stampCoordinatorId 
 import { checkCwdExists, buildCwdMissingPayload } from './shared/cwd-check.js';
 import { mapSpawnError } from './shared/spawn-error.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
+import { resolveCagedLaunch } from './services/isolation/provider-cage-wiring.js';
 import { resolveOpenCodeDatabasePathForUser } from './modules/providers/list/opencode/opencode-home.js';
 
 const spawnFunction = process.platform === 'win32' ? crossSpawn : spawn;
@@ -339,7 +340,16 @@ async function spawnOpenCode(command, options = {}, ws) {
       // OC-07: build the child env through resolveProviderEnv so an isolated
       // user's XDG_* dirs point into their tree; shared mode returns the base
       // env unchanged (byte-for-byte the previous {...process.env}).
-      opencodeProcess = spawnFunction(resolveOpenCodeBinaryPath(), args, {
+      // T-897: cage the opencode spawn behind NASSAJ_PROVIDER_CAGE (default OFF
+      // ⇒ launch returned unchanged; byte-identical to the previous spawn).
+      const opencodeLaunch = resolveCagedLaunch({
+        userId: ws?.userId ?? null,
+        provider: 'opencode',
+        cmd: resolveOpenCodeBinaryPath(),
+        args,
+        cwd: workingDir,
+      });
+      opencodeProcess = spawnFunction(opencodeLaunch.cmd, opencodeLaunch.args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: resolveProviderEnv(ws?.userId ?? null, 'opencode'),

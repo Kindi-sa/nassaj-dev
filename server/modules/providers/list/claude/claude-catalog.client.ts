@@ -10,6 +10,7 @@ import {
   assertSettingsEnvAllowed,
 } from '@/services/isolation/anthropic-base-url-guard.js';
 import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
+import { buildCagedSdkSpawn } from '@/services/isolation/provider-cage-wiring.js';
 import type { ProviderModelOption, ProviderModelsDefinition } from '@/shared/types.js';
 
 import {
@@ -305,6 +306,12 @@ async function probeSupportedModels(
     // caught too. See server/services/isolation/anthropic-base-url-guard.js.
     assertAnthropicBaseUrlAllowed(probeEnv);
     assertSettingsEnvAllowed(probeEnv.CLAUDE_CONFIG_DIR ?? '', probeEnv);
+
+    // T-897: cage the catalog-probe Claude spawn (flag OFF ⇒ undefined ⇒ unset).
+    const cagedProbeSpawn = buildCagedSdkSpawn({ userId, cwd: probeCwd });
+    if (cagedProbeSpawn) {
+      options.spawnClaudeCodeProcess = cagedProbeSpawn;
+    }
 
     queryInstance = query({
       prompt: emptyPromptStream(),

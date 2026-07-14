@@ -10,6 +10,7 @@ import {
   readRequestUserId,
 } from '@/modules/websocket/services/chat-websocket.service.js';
 import { resolveProviderEnv } from '@/services/isolation/resolve-provider-env.js';
+import { resolveCagedLaunch } from '@/services/isolation/provider-cage-wiring.js';
 import type { AuthenticatedWebSocketRequest } from '@/shared/types.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
@@ -552,7 +553,20 @@ export function handleShellConnection(
         // no user's npm path can leak into another's terminal.
         const prioritizedPath = prioritizeUserNpmGlobalBin(isolatedEnv, resolvedProjectPath);
 
-        shellProcess = pty.spawn(shell, shellArgs, {
+        // T-897: cage the interactive terminal behind NASSAJ_PROVIDER_CAGE
+        // (default OFF ⇒ launch returned unchanged; byte-identical to the
+        // previous pty.spawn). A caged PTY runs bash inside bwrap so a terminal
+        // cannot cat another user's ~/.nassaj-users tree or reach docker.sock.
+        // codex maps to the exempt path (self-cages) — see resolveCagedLaunch.
+        const ptyLaunch = resolveCagedLaunch({
+          userId,
+          provider: readIsolationProvider(provider),
+          cmd: shell,
+          args: shellArgs,
+          cwd: resolvedProjectPath,
+        });
+
+        shellProcess = pty.spawn(ptyLaunch.cmd, ptyLaunch.args, {
           name: 'xterm-256color',
           cols: termCols,
           rows: termRows,
