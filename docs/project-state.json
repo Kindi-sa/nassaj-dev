@@ -84,40 +84,40 @@
       "id": "T-895",
       "kind": "bug",
       "phase": "P0",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "high",
       "owner": "backend-dev",
       "issue": "B-169",
       "found": "2026-07-14",
       "source": "بند [حرج] من مراجعة qa-critic النقدية لعمل ADR-058 (لجنة T-893، 2026-07-14)، مؤكَّد بقراءة المنسّق.",
       "title": "قفل شبكة Codex خلف علم الخادم CODEX_WORKSPACE_NETWORK حصراً: تجاهُل options.networkAccess/networkAccessEnabled القادم من العميل في مسار WS (كما danger-full-access محبوس خلف CODEX_ALLOW_FULL_ACCESS)، حتى يهبط عزل القراءة T-893",
-      "note": "chat-websocket.service.ts:377 يمرّر data.options خاماً ثم openai-codex.js:317-322,422-423 يشرّع networkAccess العميلي تحت workspace-write. مع القراءة المفتوحة (uid مشترك) = تسريب auth.json/transcripts مستخدم آخر في turn واحد؛ يخرق الخط الأحمر لـADR-058 نصّاً (البند 3 per-session opt-in). الشبكة per-session تعود بأمان بعد T-893. يشمل: تصحيح قسم «مُغلَق» في ADR-058 (زعم إغلاق الشبكة مضلّل)، اختبار يمارس chat-websocket فعلياً لا grep نصّي، حفظ artifact السموك القرصي، وتثبيت webSearchEnabled=false مع webSearchMode=disabled دفاعاً في العمق (قناة تسريب بديلة لا يضبطها الكود)."
+      "note": "chat-websocket.service.ts:377 يمرّر data.options خاماً ثم openai-codex.js:317-322,422-423 يشرّع networkAccess العميلي تحت workspace-write. مع القراءة المفتوحة (uid مشترك) = تسريب auth.json/transcripts مستخدم آخر في turn واحد؛ يخرق الخط الأحمر لـADR-058 نصّاً (البند 3 per-session opt-in). الشبكة per-session تعود بأمان بعد T-893. يشمل: تصحيح قسم «مُغلَق» في ADR-058 (زعم إغلاق الشبكة مضلّل)، اختبار يمارس chat-websocket فعلياً لا grep نصّي، حفظ artifact السموك القرصي، وتثبيت webSearchEnabled=false مع webSearchMode=disabled دفاعاً في العمق (قناة تسريب بديلة لا يضبطها الكود). الكود منجَز ومتحقَّق ذاتياً (20/20 بالمُشغِّل الصحيح --experimental-test-module-mocks) ومُلتزَم (0ee0315b) ومبنيّ (build:server نظيف). ينتظر restart منسَّق — يُجمَع مع تطبيق degroup (T-896) في إعادة تشغيل واحدة لتقليل الانقطاع؛ جلسة Codex حيّة (~3 أيام، PID 1474704) تستوجب فحص drain قبل safe-restart."
     },
     {
       "id": "T-896",
       "kind": "security",
       "phase": "P0",
       "status": "todo",
-      "priority": "high",
+      "priority": "critical",
       "owner": "devops",
       "issue": "B-170",
       "found": "2026-07-14",
       "source": "اكتشاف architect (لجنة T-893) مؤكَّد بالمنسّق؛ qa-critic: شرط لازم مُقدَّم لا مرافق.",
       "title": "تجريد مجموعتَي docker+sudo من هوية عملية Codex الفرعية عند الإطلاق (setpriv --clear-groups أو إسقاط الإضافيات) أو منع الوصول إلى /var/run/docker.sock — fail-safe، شرط لازم مُقدَّم قبل عزل القراءة T-893",
-      "note": "uid nassaj عضو docker(989)+sudo(27)؛ docker ps بلا sudo ناجحة، فـCodex turn يشغّل docker run -v /:/host = جذر المضيف، يتجاوز أي sandbox قراءة (bwrap حول عملية تملك docker.sock = سجن بمفتاحه في جيب السجين). الترتيب: degroup أولاً (fail-safe تفرضه النواة) ثم عزل القراءة (ب). قرار المالك: أثر إزالة العضوية على أحمال العقدة الأخرى (docker rootful، حاويات wafeq حيّة على الجهاز)."
+      "note": "uid nassaj عضو docker(989)+sudo(27)؛ docker ps بلا sudo ناجحة، فـCodex turn يشغّل docker run -v /:/host = جذر المضيف، يتجاوز أي sandbox قراءة (bwrap حول عملية تملك docker.sock = سجن بمفتاحه في جيب السجين). الترتيب: degroup أولاً (fail-safe تفرضه النواة) ثم عزل القراءة (ب). **إجماع لجنة 2026-07-14 (architect+devops+qa-critic، فيتو على تأجيله): هذه البوابة رقم ١ لكل المزوّدات** — هروب docker يتجاوز أي عزل قراءة فإغلاقه أولاً شرط، وإلا فالباقي وهم أمان. تُحقِّق أن لا مسار نشر/تشغيل يعتمد docker/sudo (grep فارغ). الأمر الأدنى الآمن (بلا خطر lockout؛ sudo محميّ بكلمة سر فغير مستغَلّ آلياً): `sudo gpasswd -d nassaj docker` — يسري كاملاً عند أول restart (العملية الجارية تحتفظ بالمجموعة حتى تُعاد). أمر جذر للمالك. توسعة اختيارية لاحقاً: فصل خدمة/إدارة كامل (حساب مدير منفصل + سحب nassaj من sudo، بترتيب يمنع lockout)."
     },
     {
       "id": "T-897",
       "kind": "spike",
       "phase": "P0",
-      "status": "todo",
+      "status": "deferred",
       "priority": "high",
       "owner": "architect",
       "found": "2026-07-14",
       "blockedBy": "T-893",
       "source": "بوابة P0 لتوصية اللجنة (ب) + شروط فيتو qa-critic 2026-07-14.",
       "title": "spike بوابة T-893: إثبات أن profile قراءة مقيّدة (Codex [permissions] Restricted) محقونة عبر config عند نقطة الإطلاق الوحيدة تغلق ناقل القراءة فعلاً — بمعايير fail-closed ومتعددة النواقل قبل أي اعتماد",
-      "note": "نطاق موسَّع بشروط qa-critic: (1) احترام SDK للprofile المحقون عبر config والأسبقية مع sandboxMode؛ (2) أدنى allowlist قراءة يُقلِع معه Codex (node+codex الموزّع+codex-linux-sandbox helper+/usr,/lib,/lib64,/bin,/etc/ssl,/etc/resolv.conf+CODEX_HOME الخاص+cwd(project_roots)+tmp، ناقص أشجار الآخرين و~/.codex و.credentials.json وtoken agy)؛ (3) fail-closed إن لم يُفعَّل backend المقيَّد (لا سقوط صامت لـLandlock/بلا-sandbox)؛ (4) turn عدائي فعلي يفشل على: cat مباشر، proc/<pid>/root (تأكيد PID-namespace)، docker run -v، symlink، ووراثة الوكيل الفرعي (Gate 5/T-887)؛ (5) artifacts قرصية من أشجار فعلية لا fixtures مصطنعة (درس 2026-06-28)؛ (6) عقدة تمثّل الأسطول. محقَّق مسبقاً: codex doctor = restricted fs + restricted network حيّ تحت bwrap محزوم مع Codex؛ الفجوة أن read=unrestricted فقط."
+      "note": "نطاق موسَّع بشروط qa-critic: (1) احترام SDK للprofile المحقون عبر config والأسبقية مع sandboxMode؛ (2) أدنى allowlist قراءة يُقلِع معه Codex (node+codex الموزّع+codex-linux-sandbox helper+/usr,/lib,/lib64,/bin,/etc/ssl,/etc/resolv.conf+CODEX_HOME الخاص+cwd(project_roots)+tmp، ناقص أشجار الآخرين و~/.codex و.credentials.json وtoken agy)؛ (3) fail-closed إن لم يُفعَّل backend المقيَّد (لا سقوط صامت لـLandlock/بلا-sandbox)؛ (4) turn عدائي فعلي يفشل على: cat مباشر، proc/<pid>/root (تأكيد PID-namespace)، docker run -v، symlink، ووراثة الوكيل الفرعي (Gate 5/T-887)؛ (5) artifacts قرصية من أشجار فعلية لا fixtures مصطنعة (درس 2026-06-28)؛ (6) عقدة تمثّل الأسطول. محقَّق مسبقاً: codex doctor = restricted fs + restricted network حيّ تحت bwrap محزوم مع Codex؛ الفجوة أن read=unrestricted فقط. **مؤجَّل بإجماع لجنة 2026-07-14**: قفص Codex دفاع-في-العمق ضيّق (Codex فقط؛ المنسّق المستقل غالباً Claude 2.1.126 بلا قفص OS) وذو معنى فقط بعد B (T-896). الـspike توقّف مرتين بموت الوكيل الخلفي عند انقطاع جلسة المنسّق (هشاشة معروفة)؛ يُستأنف بعد B عند الحاجة (يُفضَّل تشغيله متزامناً لا خلفية)."
     },
     {
       "id": "M-BG-2-GATE",
@@ -4109,7 +4109,7 @@
       "found": "2026-07-14",
       "source": "الخط الأحمر لفيتو qa-critic + تأكيد architect/devops في لجنة 2026-07-14",
       "title": "عزل القراءة على مستوى النظام لكوديكس: uid منفصل لكل مستخدم أو حاوية/namespace — CODEX_HOME معزول مساراً لكنه على uid nassaj مشترك، فأي turn يقرأ auth.json وtranscripts المستخدمين الآخرين؛ workspace-write يقيّد الكتابة لا القراءة",
-      "note": "**حاجز فيتو مانع** قبل: (1) أي كشف لتفويض Codex-كمنسّق (T-886) لمستخدم ثانٍ، (2) تفعيل شبكة قناة تسريب على uid مشترك. المنسّق المستقل على uid مشترك = محرّك حصاد اعتمادات على بُعد حقنة. الأثقل بنيوياً — قرار مالك على النهج (uid/حاوية/broker). لجنة تصميم منعقدة 2026-07-14 بطلب المالك (architect + devops بالتوازي ثم qa-critic بفيتو): اختيار النهج + تقدير الكلفة/المخاطر — التوصية تُعرض على المالك للقرار. نتيجة اللجنة 2026-07-14: تقارُب architect+devops على النهج (ب) — profile قراءة مقيّدة عبر sandbox Codex الأصيل (Restricted [permissions] محقونة عبر config عند نقطة الإطلاق الوحيدة؛ بلا امتياز، بلا مساس بالwatcher المشترك ولا روابط owner، يغطّي Gate 5 بالوراثة). (أ) uid مؤجَّل دفاعاً-في-العمق (غير متاح بلا newuidmap/root ويكسر الwatcher المشترك). فيتو qa-critic مشروط قبل الاعتماد: degroup docker/sudo شرط لازم مُقدَّم (B-170/T-896)، قفل الشبكة العميلية بوابة فورية مستقلة (B-169/T-895)، وspike موسَّع fail-closed متعدد النواقل proc+docker+symlink+وراثة الوكيل (T-897). ADR-059 مقترح. القرار النهائي على النهج للمالك."
+      "note": "**حاجز فيتو مانع** قبل: (1) أي كشف لتفويض Codex-كمنسّق (T-886) لمستخدم ثانٍ، (2) تفعيل شبكة قناة تسريب على uid مشترك. المنسّق المستقل على uid مشترك = محرّك حصاد اعتمادات على بُعد حقنة. الأثقل بنيوياً — قرار مالك على النهج (uid/حاوية/broker). لجنة تصميم منعقدة 2026-07-14 بطلب المالك (architect + devops بالتوازي ثم qa-critic بفيتو): اختيار النهج + تقدير الكلفة/المخاطر — التوصية تُعرض على المالك للقرار. نتيجة اللجنة 2026-07-14: تقارُب architect+devops على النهج (ب) — profile قراءة مقيّدة عبر sandbox Codex الأصيل (Restricted [permissions] محقونة عبر config عند نقطة الإطلاق الوحيدة؛ بلا امتياز، بلا مساس بالwatcher المشترك ولا روابط owner، يغطّي Gate 5 بالوراثة). (أ) uid مؤجَّل دفاعاً-في-العمق (غير متاح بلا newuidmap/root ويكسر الwatcher المشترك). فيتو qa-critic مشروط قبل الاعتماد: degroup docker/sudo شرط لازم مُقدَّم (B-170/T-896)، قفل الشبكة العميلية بوابة فورية مستقلة (B-169/T-895)، وspike موسَّع fail-closed متعدد النواقل proc+docker+symlink+وراثة الوكيل (T-897). ADR-059 مقترح. القرار النهائي على النهج للمالك. **إجماع لجنة 2026-07-14 على الترتيب بعد اكتشاف شمول ثغرة القراءة لكل المزوّدات**: B (degroup docker، T-896) بوابة أولى لكل المزوّدات؛ ثم إصلاح الشبكة (T-895)؛ فقفص Codex (A/T-897) دفاع عمق مؤجَّل؛ والعزل الشامل per-uid (النهج أ، هذه المهمة) هو الإصلاح الحقيقي للقراءة عبر كل المزوّدات لكنه مؤجَّل (ثقيل، يكسر watcher/owner، مبالغة لـ4 موثوقين الآن)."
     },
     {
       "id": "T-894",
