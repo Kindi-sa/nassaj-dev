@@ -250,30 +250,80 @@ function transformCodexEvent(event) {
 }
 
 /**
- * Map permission mode to Codex SDK options
+ * Map a nassaj permission mode to Codex SDK sandbox options.
+ *
+ * SECURITY CEILING (T-884, committee decision 2026-07-14). Both live spawn paths
+ * — REST (/api/agent) and the interactive WS path, which forwards CLIENT-supplied
+ * options straight through — funnel through this single parser, so the ceiling is
+ * enforced here rather than at any call site. On a shared uid the default MUST NOT
+ * be danger-full-access:
+ *   - 'bypassPermissions' (the mode both paths historically pinned) is CAPPED to the
+ *     same workspace-write ceiling as 'acceptEdits'. A client selecting it over WS
+ *     can no longer elevate itself to full disk/network access.
+ *   - danger-full-access is reachable ONLY behind the explicit operator deployment
+ *     flag CODEX_ALLOW_FULL_ACCESS==='true' (default OFF, read from the SERVER env —
+ *     never a per-user or client-controlled value).
+ *
  * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
- * @returns {object} - { sandboxMode, approvalPolicy }
+ * @param {object} [env] - environment carrying the escape-hatch flag (defaults to process.env)
+ * @returns {{ sandboxMode: string, approvalPolicy: string }}
  */
-function mapPermissionModeToCodexOptions(permissionMode) {
+function mapPermissionModeToCodexOptions(permissionMode, env = process.env) {
+  // The safe autonomous ceiling: writes confined to the workspace, no approval
+  // prompts (so headless/REST turns don't stall). Reused for acceptEdits AND the
+  // capped bypassPermissions mode — one source of truth, no re-typed literal.
+  const workspaceWriteAutonomous = {
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+  };
+
   switch (permissionMode) {
     case 'acceptEdits':
-      return {
-        sandboxMode: 'workspace-write',
-        approvalPolicy: 'never'
-      };
+      return workspaceWriteAutonomous;
     case 'bypassPermissions':
-      return {
-        sandboxMode: 'danger-full-access',
-        approvalPolicy: 'never'
-      };
+      // Escape hatch: full access ONLY when the operator has explicitly opted the
+      // whole deployment in. Absent the flag (the fleet default), bypassPermissions
+      // is indistinguishable from acceptEdits — capped to workspace-write.
+      if (env?.CODEX_ALLOW_FULL_ACCESS === 'true') {
+        return {
+          sandboxMode: 'danger-full-access',
+          approvalPolicy: 'never',
+        };
+      }
+      return workspaceWriteAutonomous;
     case 'default':
     default:
       return {
         sandboxMode: 'workspace-write',
-        approvalPolicy: 'untrusted'
+        approvalPolicy: 'untrusted',
       };
   }
 }
+
+/**
+ * Resolve whether Codex network access should be enabled for a workspace-write turn.
+ *
+ * OFF by default: under a shared uid an outbound network channel is an exfiltration
+ * risk (T-884). Enabled ONLY on an explicit request — a per-session option
+ * (options.networkAccess === true) or the operator deployment flag
+ * CODEX_WORKSPACE_NETWORK==='true'. Returns `undefined` (not `false`) when not
+ * requested so the caller OMITS the field entirely and the SDK never emits a
+ * network_access config line, leaving Codex's own workspace-write default (OFF).
+ *
+ * @param {object} [options] - per-run options (may carry `networkAccess`)
+ * @param {object} [env] - environment carrying the deployment flag (defaults to process.env)
+ * @returns {true|undefined}
+ */
+function resolveCodexNetworkAccess(options = {}, env = process.env) {
+  const perSessionOptIn =
+    options?.networkAccess === true || options?.networkAccessEnabled === true;
+  const deploymentFlag = env?.CODEX_WORKSPACE_NETWORK === 'true';
+  return perSessionOptIn || deploymentFlag ? true : undefined;
+}
+
+// Exported for unit/regression coverage (T-884). The live code paths call these
+// internally; the tests import them to assert the ceiling without a real subprocess.
+export { mapPermissionModeToCodexOptions, resolveCodexNetworkAccess };
 
 /**
  * Execute a Codex query with streaming
@@ -365,6 +415,12 @@ async function queryCodexUnlocked(command, options = {}, ws) {
 
   const workingDirectory = cwd || projectPath || process.cwd();
   const { sandboxMode, approvalPolicy } = mapPermissionModeToCodexOptions(permissionMode);
+  // Network access is only a workspace-write concern (danger-full-access already
+  // has the network; read-only has no writes to exfiltrate through). Under
+  // workspace-write it stays OFF unless explicitly requested per-session or by the
+  // operator flag — see resolveCodexNetworkAccess.
+  const networkAccessEnabled =
+    sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess(options) : undefined;
 
   let codex;
   let thread;
@@ -412,13 +468,16 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       config: { project_doc_max_bytes: 0 },
     });
 
-    // Thread options with sandbox and approval settings
+    // Thread options with sandbox and approval settings. networkAccessEnabled is
+    // included ONLY when explicitly enabled (workspace-write + opt-in); omitting it
+    // leaves the SDK from emitting any network_access config, so the default is OFF.
     const threadOptions = {
       workingDirectory,
       skipGitRepoCheck: true,
       sandboxMode,
       approvalPolicy,
-      model: resolvedModel
+      model: resolvedModel,
+      ...(networkAccessEnabled === true ? { networkAccessEnabled: true } : {}),
     };
 
     // Start or resume thread

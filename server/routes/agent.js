@@ -1013,7 +1013,11 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         cwd: finalProjectPath,
         sessionId: sessionId || null,
         model: model || codexModels.DEFAULT,
-        permissionMode: 'bypassPermissions'
+        // T-884: run autonomously (no approval prompts) but capped to the
+        // workspace-write ceiling. Pinning 'acceptEdits' — NOT 'bypassPermissions' —
+        // keeps this headless path at workspace-write even if the
+        // CODEX_ALLOW_FULL_ACCESS escape hatch is ever enabled for another path.
+        permissionMode: 'acceptEdits'
       }, writer);
     } else if (provider === 'gemini') {
       console.log('✨ Starting Gemini CLI session');

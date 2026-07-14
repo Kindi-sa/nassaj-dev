@@ -3878,14 +3878,14 @@
       "id": "T-884",
       "kind": "decision",
       "phase": "P0",
-      "status": "todo",
+      "status": "in_progress",
       "priority": "high",
-      "owner": "المالك",
+      "owner": "backend-dev",
       "found": "2026-07-12",
       "due": "2026-07-15",
       "source": "بند [حرج] رابع من تحقّق ultracode (wf_82901c7c) — تحليل backend-dev ضمن T-883",
       "title": "قرار تقليص sandbox جلسات Codex: routes/agent.js يثبّت bypassPermissions → danger-full-access، وكل المستخدمين يتشاركون uid واحد فأي turn يكتب في أشجار المستخدمين الآخرين",
-      "note": "تقوية T-883 سدّت ناقل «الكتابة عبر symlink نحو مصدر الأسطول» فقط، لا الوصول العام بين المستخدمين. الخيارات (codex 0.144.1، Landlock/Debian 13): (أ) الإبقاء — لا كسر، نطاق ضرر أوسع ما يمكن؛ (ب) workspace-write + networkAccessEnabled:true + approvalPolicy:never — الكتابة محصورة في cwd المشروع + $TMPDIR + session files تحت CODEX_HOME، الشبكة تبقى (npm/git يعملان)، ينكسر فقط ما يكتب خارج المشروع عمداً؛ (ج) workspace-write بلا شبكة — عدواني لأداة تطوير. توصية backend-dev: (ب) خلف علم قابل للضبط، مع علم صريح أنه لا يغلق قراءة الاعتمادات بين المستخدمين (يلزمها uid لكل مستخدم — تغيير أكبر خارج النطاق)، ويُختبر على بيئة pm2/Landlock قبل الطرح. | تأكيد مستقل 2026-07-13 (GPT/Codex عبر architect+qa-critic، جلسة 019f585b): «CODEX_HOME منفصل + uid مشترك + danger-full-access ليس حدّاً أمنياً بين المستخدمين» — أي process بنفس uid يقرأ ~/.nassaj-users/<آخر>/؛ رفعه GPT فوق مشكلة التفويض نفسها وحذّر أن إضافة وكلاء Codex فرعيين توسّع سطح الهجوم والتوازي، فيجب حسمه قبل أي طرح إنتاجي لهم (بوابة سابقة في spike T-885)."
+      "note": "تقوية T-883 سدّت ناقل «الكتابة عبر symlink نحو مصدر الأسطول» فقط، لا الوصول العام بين المستخدمين. الخيارات (codex 0.144.1، Landlock/Debian 13): (أ) الإبقاء — لا كسر، نطاق ضرر أوسع ما يمكن؛ (ب) workspace-write + networkAccessEnabled:true + approvalPolicy:never — الكتابة محصورة في cwd المشروع + $TMPDIR + session files تحت CODEX_HOME، الشبكة تبقى (npm/git يعملان)، ينكسر فقط ما يكتب خارج المشروع عمداً؛ (ج) workspace-write بلا شبكة — عدواني لأداة تطوير. توصية backend-dev: (ب) خلف علم قابل للضبط، مع علم صريح أنه لا يغلق قراءة الاعتمادات بين المستخدمين (يلزمها uid لكل مستخدم — تغيير أكبر خارج النطاق)، ويُختبر على بيئة pm2/Landlock قبل الطرح. | تأكيد مستقل 2026-07-13 (GPT/Codex عبر architect+qa-critic، جلسة 019f585b): «CODEX_HOME منفصل + uid مشترك + danger-full-access ليس حدّاً أمنياً بين المستخدمين» — أي process بنفس uid يقرأ ~/.nassaj-users/<آخر>/؛ رفعه GPT فوق مشكلة التفويض نفسها وحذّر أن إضافة وكلاء Codex فرعيين توسّع سطح الهجوم والتوازي، فيجب حسمه قبل أي طرح إنتاجي لهم (بوابة سابقة في spike T-885). | ✅ قرار اللجنة 2026-07-14 (architect+qa-critic+devops+backend-dev، فيتو qa-critic): اعتُمد workspace-write سقفاً في المُحلّل المشترك mapPermissionModeToCodexOptions (يغلق مسارَي REST agent.js:1016 وWS chat-websocket:377 معاً)؛ default=workspace-write (فيتو على danger كافتراضي)، danger خلف علم مالك صريح فقط لا client-selectable في multi-user؛ **الشبكة OFF افتراضياً** (قناة تسريب الاعتمادات المقروءة) + تفعيل صريح per-session؛ /api/agent يتوقف عن تثبيت bypass؛ اختبار انحدار: لا مسار يبلغ danger افتراضياً. سموك معزول (SDK path) يثبت بقاء كتابة auth/sessions تحت CODEX_HOME قبل قلب الحيّ. طرح nassaj قنصةً ثم أسطول بيد المالك. ADR-058 إلزامي. الخط الأحمر: لا danger/شبكة على uid مشترك يبلغه مستخدم ثانٍ حتى عزل القراءة (T-893). | ✅ نُفِّذ 2026-07-14 (ADR-058): السقف في mapPermissionModeToCodexOptions (openai-codex.js) + /api/agent→acceptEdits. تحقّق المنسّق بنفسه: ceiling 17/17، انحدار codex 36/36، typecheck نظيف، وسموك SDK معزول حيّ أثبت كتابة $CODEX_HOME/sessions تحت workspace-write (المزوّد لا ينكسر) والشبكة OFF/ON مطابقة. تحفّظ: نطاق الكتابة = cwd∪/tmp (مسجّل في ADR). بانتظار build:server+safe-restart على nassaj ثم تحقّق حيّ. الأسطول بدفع المالك."
     },
     {
       "id": "T-885",
@@ -4003,13 +4003,12 @@
       "kind": "chore",
       "phase": "P0",
       "status": "todo",
-      "priority": "low",
+      "priority": "medium",
       "owner": "backend-dev",
       "found": "2026-07-14",
       "source": "فحص ميداني 2026-07-14 أثناء الفرز الشامل",
       "title": "التحقق من ترحيل حوكمة Codex للمستخدمين القدامى: المستخدمون 3/5/7/user-* ما زالوا على symlink قديم لا نسخة 0444 — التأكد أن self-heal عند أول spawn يعمل فعلاً أو ترحيلهم يدوياً",
-      "note": "المستخدمان 1 و2 والمالك على النسخة المحمية؛ الباقون أثر تزويد ما قبل d0f97941. اختبار واحد بمستخدم قديم يكفي للحسم. | 2026-07-14: محجوبة/مرشّحة للإلغاء تبعاً لـT-884 — لو قُلّص sandbox إلى workspace-write فلن يستطيع Codex الكتابة في CODEX_HOME أصلاً، فتصبح آلية النسخ 0444 وترحيلها غير ضرورية ويكفي symlink مشترك.",
-      "blockedBy": "T-884"
+      "note": "المستخدمان 1 و2 والمالك على النسخة المحمية؛ الباقون أثر تزويد ما قبل d0f97941. اختبار واحد بمستخدم قديم يكفي للحسم. | 2026-07-14: محجوبة/مرشّحة للإلغاء تبعاً لـT-884 — لو قُلّص sandbox إلى workspace-write فلن يستطيع Codex الكتابة في CODEX_HOME أصلاً، فتصبح آلية النسخ 0444 وترحيلها غير ضرورية ويكفي symlink مشترك. | ⚠️ تصحيح 2026-07-14 (backend-dev+qa-critic+architect): عبارتي أعلاه «workspace-write يمنع الكتابة في CODEX_HOME أصلاً» **خاطئة** — workspace-write يقيّد أوامر النموذج فقط لا I/O الداخلي لـCodex (auth refresh وsessions تبقى تعمل)، والنسخة 0444 يكتبها **الأب خارج الـsandbox** فلا يمسّها الـturn ولا يُغنيها sandbox. T-888 تبقى صالحة (ترحيل المستخدمين القدامى من symlink لنسخة محمية) وليست ملغاة."
     },
     {
       "id": "T-889",
@@ -4033,8 +4032,7 @@
       "found": "2026-07-14",
       "source": "البند المفتوح (أ) في ADR-057 + مخاطر qa-critic المتبقية قبل GO",
       "title": "تصليب المصدر المحايد للحوكمة (~/.claude/AGENTS.md → nassaj-core) ضد الكتابة بـuid nassaj: turn حيّ بـdanger-full-access يستطيع إفساد مصدر الأسطول المشترك مباشرةً متجاوزاً حماية النسخ 0444",
-      "note": "مرتبط بـT-884 (تقليص sandbox يقلّص الناقل) لكنه لا يغني عنه: يلزم حماية على مستوى الملكية/الصلاحيات أو التوليد من nassaj-core عند البناء. يشمل أيضاً خطر حقن config.toml ونافذة TOCTOU المرصودين. | 2026-07-14: نطاقها يتقلّص جذرياً لو حُسم T-884 نحو workspace-write (يسقط ناقل الكتابة نحو المصدر). قرار T-884 أولاً ثم يُعاد تقييم الحاجة.",
-      "blockedBy": "T-884"
+      "note": "مرتبط بـT-884 (تقليص sandbox يقلّص الناقل) لكنه لا يغني عنه: يلزم حماية على مستوى الملكية/الصلاحيات أو التوليد من nassaj-core عند البناء. يشمل أيضاً خطر حقن config.toml ونافذة TOCTOU المرصودين. | 2026-07-14: نطاقها يتقلّص جذرياً لو حُسم T-884 نحو workspace-write (يسقط ناقل الكتابة نحو المصدر). قرار T-884 أولاً ثم يُعاد تقييم الحاجة. | تصحيح 2026-07-14: workspace-write **يخفّف** ناقل كتابة المصدر عبر أمر صدفة خبيث (تحسين حقيقي لـT-890) لكنه **لا يُلغيها** — الطبقتان متعامدتان (sandbox posture + حاجز filesystem 0444). تبقى: تصليب ملكية/صلاحيات المصدر المحايد ~/.claude/AGENTS.md ضد uid nassaj."
     },
     {
       "id": "T-891",
@@ -4060,6 +4058,30 @@
       "source": "شكوى المالك «لا أرى مكوّنات كوديكس» — تشخيص 2026-07-14",
       "title": "تسمية كوديكس «OpenAI» بدل «Codex» في منتقي النماذج (ProviderSelectionEmptyState) تُخفيه عن بحث المالك",
       "note": "أُصلح: ProviderSelectionEmptyState.tsx:51 name «OpenAI»→«Codex» (طابق كل الأسطح الأخرى ونص البحث cmdk). tsc نظيف، test:client 221/221. لم يُبنَ بعد (شجرة العمل تحوي عمل T-879 غير مؤكَّد لجلسة أخرى) — يُنشر بأول build:client نظيف. المحور 2 الحقيقي (مكوّنات متميّزة بصرياً) لا يزال تجريداً موحّداً — قرار منتج معلّق."
+    },
+    {
+      "id": "T-893",
+      "kind": "security",
+      "phase": "P0",
+      "status": "todo",
+      "priority": "high",
+      "owner": "المالك",
+      "found": "2026-07-14",
+      "source": "الخط الأحمر لفيتو qa-critic + تأكيد architect/devops في لجنة 2026-07-14",
+      "title": "عزل القراءة على مستوى النظام لكوديكس: uid منفصل لكل مستخدم أو حاوية/namespace — CODEX_HOME معزول مساراً لكنه على uid nassaj مشترك، فأي turn يقرأ auth.json وtranscripts المستخدمين الآخرين؛ workspace-write يقيّد الكتابة لا القراءة",
+      "note": "**حاجز فيتو مانع** قبل: (1) أي كشف لتفويض Codex-كمنسّق (T-886) لمستخدم ثانٍ، (2) تفعيل شبكة قناة تسريب على uid مشترك. المنسّق المستقل على uid مشترك = محرّك حصاد اعتمادات على بُعد حقنة. الأثقل بنيوياً — قرار مالك على النهج (uid/حاوية/broker)."
+    },
+    {
+      "id": "T-894",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "todo",
+      "priority": "medium",
+      "owner": "frontend-dev",
+      "found": "2026-07-14",
+      "source": "شرط qa-critic في قرار3 (لجنة 2026-07-14)",
+      "title": "إظهار posture سياسة Codex النشطة (workspace-write مقابل full-access) للمستخدم لا صامتاً، وعدم عرض bypassPermissions كخيار نِدّ افتراضي في وضع متعدد المستخدمين (PermissionsContent.tsx:563)",
+      "note": "متابعة لقرار1: العلم يفرض السقف خادمياً، لكن الواجهة يجب ألا تقدّم bypass كخيار عادي ولا تُخفي الوضع الفعّال. مرتبط بواصف القدرات ADR-047/T-224."
     }
   ],
   "issues": [
