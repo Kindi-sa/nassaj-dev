@@ -303,22 +303,26 @@ function mapPermissionModeToCodexOptions(permissionMode, env = process.env) {
 /**
  * Resolve whether Codex network access should be enabled for a workspace-write turn.
  *
- * OFF by default: under a shared uid an outbound network channel is an exfiltration
- * risk (T-884). Enabled ONLY on an explicit request — a per-session option
- * (options.networkAccess === true) or the operator deployment flag
- * CODEX_WORKSPACE_NETWORK==='true'. Returns `undefined` (not `false`) when not
- * requested so the caller OMITS the field entirely and the SDK never emits a
- * network_access config line, leaving Codex's own workspace-write default (OFF).
+ * SERVER-FLAG-ONLY (T-895/B-169). Network is OFF by default and can be turned on
+ * EXCLUSIVELY by the operator deployment flag CODEX_WORKSPACE_NETWORK==='true'.
+ * The per-session CLIENT opt-in (`options.networkAccess` / `options.networkAccessEnabled`)
+ * that used to enable it is REMOVED and is now IGNORED entirely: the interactive WS
+ * path forwards raw client options into queryCodex, so under a shared uid — where
+ * reads across users stay open until read isolation lands (T-893) — a client opt-in
+ * let any authenticated user open an outbound channel and exfiltrate another user's
+ * auth.json in a single turn. The per-session opt-in can be reintroduced safely once
+ * T-893 provides system-level read isolation. Returns `undefined` (not `false`) when
+ * off so the caller OMITS the field and the SDK never emits a network_access config
+ * line, leaving Codex's own workspace-write default (OFF).
  *
- * @param {object} [options] - per-run options (may carry `networkAccess`)
+ * @param {object} [_options] - per-run options; network fields are intentionally IGNORED (T-895)
  * @param {object} [env] - environment carrying the deployment flag (defaults to process.env)
  * @returns {true|undefined}
  */
-function resolveCodexNetworkAccess(options = {}, env = process.env) {
-  const perSessionOptIn =
-    options?.networkAccess === true || options?.networkAccessEnabled === true;
-  const deploymentFlag = env?.CODEX_WORKSPACE_NETWORK === 'true';
-  return perSessionOptIn || deploymentFlag ? true : undefined;
+function resolveCodexNetworkAccess(_options = {}, env = process.env) {
+  // Client-supplied network opt-in is deliberately NOT consulted (T-895/B-169);
+  // the server deployment flag is the ONLY enable path until read isolation (T-893).
+  return env?.CODEX_WORKSPACE_NETWORK === 'true' ? true : undefined;
 }
 
 // Exported for unit/regression coverage (T-884). The live code paths call these
@@ -417,10 +421,11 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   const { sandboxMode, approvalPolicy } = mapPermissionModeToCodexOptions(permissionMode);
   // Network access is only a workspace-write concern (danger-full-access already
   // has the network; read-only has no writes to exfiltrate through). Under
-  // workspace-write it stays OFF unless explicitly requested per-session or by the
-  // operator flag — see resolveCodexNetworkAccess.
+  // workspace-write it stays OFF unless the operator deployment flag is set; the
+  // client opt-in was removed (T-895/B-169) so `options` is not consulted here —
+  // see resolveCodexNetworkAccess.
   const networkAccessEnabled =
-    sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess(options) : undefined;
+    sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess() : undefined;
 
   let codex;
   let thread;
@@ -469,14 +474,21 @@ async function queryCodexUnlocked(command, options = {}, ws) {
     });
 
     // Thread options with sandbox and approval settings. networkAccessEnabled is
-    // included ONLY when explicitly enabled (workspace-write + opt-in); omitting it
+    // included ONLY when the operator flag enabled it (workspace-write); omitting it
     // leaves the SDK from emitting any network_access config, so the default is OFF.
+    // Defense in depth (T-895/B-169): pin the built-in web-search channel OFF
+    // explicitly — the SDK otherwise leaves it to a default we don't control, and on
+    // a shared uid an implicit outbound search tool is another exfiltration path.
+    // Both keys of the SDK's ThreadOptions surface are set (webSearchEnabled:false +
+    // webSearchMode:'disabled').
     const threadOptions = {
       workingDirectory,
       skipGitRepoCheck: true,
       sandboxMode,
       approvalPolicy,
       model: resolvedModel,
+      webSearchEnabled: false,
+      webSearchMode: 'disabled',
       ...(networkAccessEnabled === true ? { networkAccessEnabled: true } : {}),
     };
 

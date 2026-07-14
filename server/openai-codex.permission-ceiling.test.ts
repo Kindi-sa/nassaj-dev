@@ -12,6 +12,13 @@
  * disk + network on a shared uid. After the fix, danger-full-access is reachable ONLY
  * behind the operator env flag CODEX_ALLOW_FULL_ACCESS==='true'.
  *
+ * T-895/B-169 extends the same lockdown to the network channel: the WS-forwarded
+ * client options `networkAccess` / `networkAccessEnabled` used to enable outbound
+ * network under workspace-write, which on a shared uid (reads still open until T-893)
+ * let any authenticated user exfiltrate another user's auth.json in one turn. The
+ * client opt-in is now IGNORED; network is enabled EXCLUSIVELY by the server flag
+ * CODEX_WORKSPACE_NETWORK==='true'. Web search is additionally pinned OFF at launch.
+ *
  * Runner: node:test + node:assert/strict via
  *   npx tsx --experimental-test-module-mocks --tsconfig server/tsconfig.json --test <this file>
  */
@@ -68,6 +75,8 @@ type ThreadOptions = {
   sandboxMode?: string;
   approvalPolicy?: string;
   networkAccessEnabled?: boolean;
+  webSearchEnabled?: boolean;
+  webSearchMode?: string;
   [k: string]: unknown;
 };
 type ThreadStart = { method: 'start' | 'resume'; options: ThreadOptions | undefined };
@@ -217,26 +226,52 @@ describe('mapPermissionModeToCodexOptions — sandbox ceiling (T-884)', () => {
   });
 });
 
-describe('resolveCodexNetworkAccess — network OFF by default (T-884)', () => {
-  it('returns undefined (OFF) with no opt-in', () => {
+describe('resolveCodexNetworkAccess — server-flag-ONLY, client opt-in removed (T-895/B-169)', () => {
+  it('returns undefined (OFF) with no flag and no client fields', () => {
     assert.equal(resolveCodexNetworkAccess({}, {}), undefined);
   });
 
-  it('returns true for a per-session opt-in (networkAccess)', () => {
-    assert.equal(resolveCodexNetworkAccess({ networkAccess: true }, {}), true);
+  it('IGNORES a client per-session networkAccess:true (the B-169 hole)', () => {
+    assert.equal(
+      resolveCodexNetworkAccess({ networkAccess: true }, {}),
+      undefined,
+      'client-supplied networkAccess must NOT enable the network',
+    );
   });
 
-  it('returns true for the SDK-named alias networkAccessEnabled', () => {
-    assert.equal(resolveCodexNetworkAccess({ networkAccessEnabled: true }, {}), true);
+  it('IGNORES the client alias networkAccessEnabled:true', () => {
+    assert.equal(
+      resolveCodexNetworkAccess({ networkAccessEnabled: true }, {}),
+      undefined,
+      'client-supplied networkAccessEnabled must NOT enable the network',
+    );
   });
 
-  it('returns true for the operator flag CODEX_WORKSPACE_NETWORK==="true"', () => {
+  it('IGNORES client opt-in even when both network keys are set', () => {
+    assert.equal(
+      resolveCodexNetworkAccess({ networkAccess: true, networkAccessEnabled: true }, {}),
+      undefined,
+    );
+  });
+
+  it('enables ONLY via the operator flag CODEX_WORKSPACE_NETWORK==="true"', () => {
     assert.equal(resolveCodexNetworkAccess({}, { CODEX_WORKSPACE_NETWORK: 'true' }), true);
   });
 
-  it('ignores a falsey/non-"true" flag', () => {
+  it('operator flag owns the switch regardless of client fields', () => {
+    assert.equal(
+      resolveCodexNetworkAccess({ networkAccess: false }, { CODEX_WORKSPACE_NETWORK: 'true' }),
+      true,
+    );
+  });
+
+  it('ignores a falsey/non-"true" flag (and client opt-in cannot substitute)', () => {
     assert.equal(resolveCodexNetworkAccess({}, { CODEX_WORKSPACE_NETWORK: '1' }), undefined);
-    assert.equal(resolveCodexNetworkAccess({ networkAccess: false }, {}), undefined);
+    assert.equal(resolveCodexNetworkAccess({}, { CODEX_WORKSPACE_NETWORK: 'TRUE' }), undefined);
+    assert.equal(
+      resolveCodexNetworkAccess({ networkAccess: true }, { CODEX_WORKSPACE_NETWORK: '' }),
+      undefined,
+    );
   });
 });
 
@@ -285,25 +320,69 @@ describe('queryCodex live spawn — sandbox ceiling regression (T-884)', () => {
     assert.equal(opts?.sandboxMode, 'workspace-write');
   });
 
-  it('network passes through ONLY on explicit opt-in, and only under workspace-write', async () => {
+  // spawnAndCapture forwards its argument straight into queryCodex as the run
+  // options — exactly what the interactive WS path does with client-supplied
+  // data.options (chat-websocket.service.ts → queryCodex(command, data.options, …)).
+  // So passing networkAccess/networkAccessEnabled here models a hostile client at
+  // the WS boundary.
+  it('network enabled ONLY by the operator flag; CLIENT opt-in is IGNORED (T-895/B-169)', async () => {
     const off = await spawnAndCapture({ permissionMode: 'bypassPermissions' });
     assert.equal(off?.networkAccessEnabled, undefined, 'default: no network field');
 
-    const onSession = await spawnAndCapture({ permissionMode: 'bypassPermissions', networkAccess: true });
-    assert.equal(onSession?.networkAccessEnabled, true, 'per-session opt-in enables network');
+    // The B-169 exploit: a client forwards networkAccess:true through the WS path.
+    // It must NOT enable the network any more.
+    const clientSession = await spawnAndCapture({ permissionMode: 'bypassPermissions', networkAccess: true });
+    assert.equal(
+      clientSession?.networkAccessEnabled,
+      undefined,
+      'client-supplied networkAccess must NOT enable network (B-169 closed)',
+    );
+    const clientAlias = await spawnAndCapture({ permissionMode: 'acceptEdits', networkAccessEnabled: true });
+    assert.equal(
+      clientAlias?.networkAccessEnabled,
+      undefined,
+      'client-supplied networkAccessEnabled alias must NOT enable network',
+    );
 
+    // ONLY the operator flag turns it on...
     await withEnv({ CODEX_WORKSPACE_NETWORK: 'true' }, async () => {
       const onFlag = await spawnAndCapture({ permissionMode: 'acceptEdits' });
       assert.equal(onFlag?.networkAccessEnabled, true, 'operator flag enables network');
+      // ...and the server owns the switch even against a client trying to disable it.
+      const onFlagClientOff = await spawnAndCapture({ permissionMode: 'acceptEdits', networkAccess: false });
+      assert.equal(onFlagClientOff?.networkAccessEnabled, true);
     });
 
     // Under danger-full-access the workspace-write network field is NOT emitted
     // (network is already implied by full access; the config key would be inert).
     await withEnv({ CODEX_ALLOW_FULL_ACCESS: 'true' }, async () => {
-      const danger = await spawnAndCapture({ permissionMode: 'bypassPermissions', networkAccess: true });
+      const danger = await spawnAndCapture({ permissionMode: 'bypassPermissions' });
       assert.equal(danger?.sandboxMode, 'danger-full-access');
       assert.equal(danger?.networkAccessEnabled, undefined);
     });
+  });
+
+  it('web search is pinned OFF at launch on every spawn (defense in depth, T-895)', async () => {
+    const base = await spawnAndCapture({ permissionMode: 'default' });
+    assert.equal(base?.webSearchEnabled, false, 'webSearchEnabled must be pinned false');
+    assert.equal(base?.webSearchMode, 'disabled', "webSearchMode must be pinned 'disabled'");
+
+    // Stays disabled even where the operator has enabled outbound network.
+    await withEnv({ CODEX_WORKSPACE_NETWORK: 'true' }, async () => {
+      const withNet = await spawnAndCapture({ permissionMode: 'acceptEdits' });
+      assert.equal(withNet?.networkAccessEnabled, true, 'sanity: operator flag on');
+      assert.equal(withNet?.webSearchEnabled, false, 'web search stays off under operator network');
+      assert.equal(withNet?.webSearchMode, 'disabled');
+    });
+
+    // A client cannot re-open web search either.
+    const hostile = await spawnAndCapture({
+      permissionMode: 'bypassPermissions',
+      webSearchEnabled: true,
+      webSearchMode: 'live',
+    });
+    assert.equal(hostile?.webSearchEnabled, false, 'client webSearchEnabled:true must NOT stick');
+    assert.equal(hostile?.webSearchMode, 'disabled', 'client webSearchMode:live must NOT stick');
   });
 });
 
