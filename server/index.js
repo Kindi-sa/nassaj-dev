@@ -128,6 +128,7 @@ import { configureWebPush } from './services/vapid-keys.js';
 import { getBrandingTitle } from './services/branding-config.js';
 import { ensureOwnerBootstrapped } from './services/bootstrap-owner.service.js';
 import { enforcePlatformIsolationGuard } from './services/platform-isolation-guard.service.js';
+import { enforceDockerSockBootGuard } from './services/isolation/docker-sock-boot-guard.js';
 import { userConfigDir } from './services/isolation/provision-user-dirs.js';
 import { isProviderIsolated } from './services/provider-sharing.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, requireRole, JWT_SECRET } from './middleware/auth.js';
@@ -2364,6 +2365,14 @@ const VITE_PORT = process.env.VITE_PORT || 5173;
 // Initialize database and start server
 async function startServer() {
     try {
+        // T-896 / B-170 fail-closed gate — FIRST, before the DB and long before
+        // the listener opens: if this process can reach /var/run/docker.sock
+        // via its numeric gids, docker escape to host root is one provider turn
+        // away and every isolation layer below is moot. Throws with the exact
+        // degroup remediation (the catch below exits 1). Silent no-op when no
+        // docker socket exists. No disable flag by design (committee 2026-07-14).
+        enforceDockerSockBootGuard();
+
         // Initialize authentication database
         await initializeDatabase();
 
