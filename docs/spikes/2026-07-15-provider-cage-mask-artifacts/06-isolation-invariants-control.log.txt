@@ -1,0 +1,7 @@
+usersRoot listing: 2 
+user1 tree: HIDDEN
+user1 cred: HIDDEN
+docker.sock: HIDDEN
+own tree write: WRITABLE
+~/.ssh: 0
+exit=0

@@ -9,16 +9,29 @@
  * no live spawn path (that follows a per-provider spike once resolve-provider-env
  * stabilizes).
  *
- * Cage shape (unprivileged, no root — verified on disk 2026-07-14):
+ * Cage shape (unprivileged, no root — verified on disk 2026-07-14; extended
+ * 2026-07-15 with write re-binds + credential file-masks, T-898):
  *   bwrap --unshare-user --unshare-pid --unshare-ipc \
  *         --ro-bind / / --dev /dev --proc /proc \
  *         --tmpfs /run --tmpfs /tmp \
  *         --tmpfs <hidePath>… \
+ *         --bind <writePath> <writePath>… \
  *         --tmpfs <usersRoot> --bind <usersRoot>/<userId> <usersRoot>/<userId> \
  *         --bind <cwd> <cwd> \
+ *         --ro-bind /dev/null <maskFile>… \
  *         -- <cmd> <args...>
  * <hidePath> are extra owner-secret DIRECTORIES blanked with an empty tmpfs
  * (e.g. ~/.ssh — the fleet key); computed by the wiring layer, passed in.
+ * <writePath> are shared stores the launching provider must keep WRITING to
+ * (e.g. ~/.claude/projects — the by-design-shared transcript store, ADR-023 —
+ * and the ~/.npm / ~/.cache toolchain caches MCP needs): under a plain
+ * `--ro-bind / /` those writes EROFS-fail silently (GAP 2, spike 2026-07-14),
+ * so each is re-bound read-write. Computed per provider by the wiring layer.
+ * <maskFile> are single credential FILES blanked by binding host /dev/null on
+ * top (GAP 1: `--ro-bind / /` leaves every operator credential in the shared
+ * $HOME readable; tmpfs cannot mount over a FILE — verified 2026-07-14 — so a
+ * file needs the /dev/null bind). Masks are mounted LAST so no later bind
+ * (user rebind, cwd, writePaths) can ever re-expose a masked credential.
  * Effect: another user's ~/.nassaj-users tree is hidden (tmpfs over the root,
  * only the caller's own dir re-bound rw), host runtime sockets like
  * /run/docker.sock disappear (tmpfs /run), /proc/<pid>/root is sealed by the new
@@ -218,13 +231,22 @@ export function resolveBwrapPath() {
  *
  * @param {{ userId?: string|number|null, provider: ProviderName|string,
  *           cmd: string, args?: string[], cwd?: string, usersRoot?: string,
- *           hidePaths?: string[] }} spec hidePaths: extra owner-secret DIRECTORIES
- *           to blank with an empty tmpfs (e.g. ~/.ssh); computed by the caller.
+ *           hidePaths?: string[], writePaths?: string[], maskFiles?: string[] }} spec
+ *           hidePaths: extra owner-secret DIRECTORIES to blank with an empty
+ *           tmpfs (e.g. ~/.ssh); computed by the caller.
+ *           writePaths: shared stores/caches re-bound READ-WRITE so the
+ *           launching provider keeps persisting (transcripts, MCP caches);
+ *           computed per provider by the caller (must exist — bwrap --bind
+ *           fails on a missing source).
+ *           maskFiles: single credential FILES blanked with a read-only bind
+ *           of host /dev/null, mounted LAST so nothing re-exposes them;
+ *           computed per provider/user by the caller (must exist — bwrap
+ *           cannot create a mount point inside the read-only root).
  * @param {{ resolveBwrapPath?: () => (string|null) }} [deps] injectable seam (tests)
  * @returns {{ cmd: string, args: string[] }}
  */
 export function buildCagedLaunch(
-  { userId, provider, cmd, args = [], cwd, usersRoot, hidePaths = [] },
+  { userId, provider, cmd, args = [], cwd, usersRoot, hidePaths = [], writePaths = [], maskFiles = [] },
   deps = {},
 ) {
   const passthrough = { cmd, args };
@@ -272,6 +294,15 @@ export function buildCagedLaunch(
     if (p) bwrapArgs.push('--tmpfs', p);
   }
 
+  // Re-expose the shared stores/caches this provider must keep WRITING to
+  // (by-design-shared transcript stores, ~/.npm / ~/.cache for MCP). Placed
+  // AFTER the hides (a write grant beats a hide only when the caller asked for
+  // both explicitly) and BEFORE the usersRoot tmpfs + maskFiles, so isolation
+  // overlays always win over writability on any overlap.
+  for (const p of writePaths) {
+    if (p) bwrapArgs.push('--bind', p, p);
+  }
+
   // Hide the entire per-user root, then re-expose ONLY this user's dir (rw) so a
   // caged provider can never read another user's sessions/credentials.
   if (usersRoot) {
@@ -286,6 +317,16 @@ export function buildCagedLaunch(
   // Writable project working dir (session output / edits land here).
   if (cwd) {
     bwrapArgs.push('--bind', cwd, cwd);
+  }
+
+  // Mask single credential FILES with a read-only bind of host /dev/null
+  // (tmpfs only mounts over directories — pointing it at a file aborts bwrap
+  // boot, verified 2026-07-14). Mounted LAST, deliberately: no later mount
+  // exists to re-expose a masked credential — not the per-user rebind, not a
+  // cwd that happens to contain one (e.g. a project rooted at $HOME), not a
+  // writePaths grant.
+  for (const f of maskFiles) {
+    if (f) bwrapArgs.push('--ro-bind', '/dev/null', f);
   }
 
   bwrapArgs.push('--', cmd, ...args);

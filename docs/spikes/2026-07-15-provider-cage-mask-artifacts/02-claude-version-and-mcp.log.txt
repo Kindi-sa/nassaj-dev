@@ -1,0 +1,9 @@
+== claude --version (caged, CLAUDE_CONFIG_DIR=/home/nassaj/.nassaj-users/2/.claude) ==
+2.1.207 (Claude Code)
+exit=0
+
+== claude mcp list (caged; npx-launched stdio MCP needs writable ~/.npm) ==
+Checking MCP server health…
+
+plugin:github:github: https://api.githubcopilot.com/mcp/ (HTTP) - ✘ Failed to connect
+exit=0

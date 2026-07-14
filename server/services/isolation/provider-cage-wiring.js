@@ -11,9 +11,22 @@
  *
  * Flag economics (NASSAJ_PROVIDER_CAGE, default OFF): with the flag off,
  * resolveCagedLaunch returns `{ cmd, args }` with the SAME references it was
- * given and touches no filesystem, and buildCagedSdkSpawn returns undefined
- * so the SDK option is never even set — the off path is byte-identical to the
- * pre-wiring behaviour at every launch site.
+ * given and touches no filesystem (and reads no sharing policy), and
+ * buildCagedSdkSpawn returns undefined so the SDK option is never even set —
+ * the off path is byte-identical to the pre-wiring behaviour at every launch
+ * site.
+ *
+ * T-898 (2026-07-15): on top of the T-897 denylist this module now computes a
+ * per-launch cageMountPlan — masking EVERY shared-$HOME provider credential
+ * (GAP 1 of the 2026-07-14 spike: full credential harvest was possible in one
+ * caged turn) while re-binding the launching provider's own by-design-shared
+ * stores + toolchain caches read-write (GAP 2: ro shared stores silently
+ * dropped transcripts / EROFS-broke hermes). See cageMountPlan for the
+ * entitlement rules (admin-policy shared mode, owner-reuse symlinks).
+ *
+ * The isProviderIsolated import is read lazily per caged launch only (flag-on
+ * path); provider-sharing/appConfigDb open their connection on first use, so
+ * merely importing this module still touches no database.
  *
  * NOTE: resolve-provider-env.js (the natural env seam) is intentionally NOT
  * involved — it is under parallel work (handoff 2026-07-14); this module
@@ -24,6 +37,8 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+
+import { isProviderIsolated } from '../provider-sharing.js';
 
 import { buildCagedLaunch, cageEnabled } from './provider-cage.js';
 
@@ -60,11 +75,214 @@ export function cageUsersRoot({ homedir = os.homedir, existsSync = fs.existsSync
  * `claude --version` and `claude mcp list` were verified to boot with
  * ~/.claude.json fully masked.
  *
- * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean }} [deps]
+ * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
+ *           realpathSync?: (p: string) => string }} [deps]
  * @returns {string[]}
  */
-export function cageSecretHidePaths({ homedir = os.homedir, existsSync = fs.existsSync } = {}) {
-  return [path.join(homedir(), '.ssh')].filter((p) => existsSync(p));
+export function cageSecretHidePaths({
+  homedir = os.homedir,
+  existsSync = fs.existsSync,
+  realpathSync = fs.realpathSync,
+} = {}) {
+  return [path.join(homedir(), '.ssh')]
+    .filter((p) => existsSync(p))
+    .map((p) => toRealMountPath(p, realpathSync));
+}
+
+/**
+ * Every provider credential FILE living in the shared operator $HOME, relative
+ * to homedir — the exact set the 2026-07-14 spike proved READABLE inside the
+ * denylist cage (GAP 1: full credential harvest in one prompt-injected turn).
+ * Keyed by the provider each file belongs to, because the launching provider's
+ * OWN credential may be legitimately needed (see cageMountPlan) while every
+ * other provider's credential is always masked.
+ *
+ * Deliberately absent:
+ *  - gemini: no operator-level gemini-cli credential file exists on any fleet
+ *    node (verified on disk 2026-07-15 — ~/.gemini holds only antigravity-cli/,
+ *    config/, projects/, sessions/, tmp/); the antigravity OAuth token is agy's
+ *    and is listed under agy.
+ *  - cursor: not installed on any fleet node; no credential path to verify.
+ *    Revisit when a node has it (T-897 spike note).
+ * @type {Readonly<Record<string, readonly string[]>>}
+ */
+export const CAGE_SHARED_CREDENTIALS = Object.freeze({
+  claude: Object.freeze([path.join('.claude', '.credentials.json'), '.claude.json']),
+  codex: Object.freeze([path.join('.codex', 'auth.json')]),
+  agy: Object.freeze([path.join('.gemini', 'antigravity-cli', 'antigravity-oauth-token')]),
+  hermes: Object.freeze([path.join('.hermes', 'auth.json')]),
+  opencode: Object.freeze([path.join('.local', 'share', 'opencode', 'auth.json')]),
+});
+
+/**
+ * Shared stores (relative to homedir) the LAUNCHING provider must keep writing
+ * to inside the cage. Everything here is shared BY DESIGN (ADR-023: one
+ * conversation history for all users), so re-binding it read-write inside the
+ * cage grants nothing a live spawn does not already have today — while leaving
+ * it read-only silently drops transcripts/state (GAP 2, spike 2026-07-14:
+ * a real caged claude turn completed with NO transcript persisted; hermes
+ * EROFS-fails outright). Isolation is untouched: only the launching provider's
+ * own store is re-bound; every other provider's store stays read-only and the
+ * per-user trees stay hidden.
+ *
+ * Shape note — isolated vs shared launches differ: an ISOLATED provider writes
+ * its private state into the user's own re-bound tree and only needs the
+ * narrow, by-design-shared store (e.g. ~/.claude/projects, reached through the
+ * per-user `projects` symlink provisionUserDirs creates). A SHARED-mode
+ * provider (admin policy, e.g. agy/opencode today) runs directly on the
+ * operator tree and needs its whole state dir writable, exactly as it is
+ * without the cage.
+ *
+ * @param {string} launching normalized provider name
+ * @param {boolean} isolated isProviderIsolated(launching)
+ * @returns {string[]} homedir-relative paths
+ */
+function launchingProviderWriteStores(launching, isolated) {
+  switch (launching) {
+    case 'claude':
+      return isolated
+        ? [path.join('.claude', 'projects')]
+        : ['.claude', '.claude.json'];
+    case 'gemini':
+      return isolated ? [path.join('.gemini', 'projects')] : ['.gemini'];
+    case 'agy':
+      return isolated
+        ? [path.join('.gemini', 'antigravity-cli', 'brain')]
+        : [path.join('.gemini', 'antigravity-cli')];
+    case 'hermes':
+      // No per-user knob at all — ~/.hermes (state.db + auth) is always shared.
+      return ['.hermes'];
+    case 'opencode':
+      return isolated
+        ? []
+        : [path.join('.local', 'share', 'opencode'), path.join('.local', 'state', 'opencode')];
+    default:
+      // cursor + any future provider: no known shared store to re-bind.
+      return [];
+  }
+}
+
+/**
+ * The MCP/toolchain caches every caged provider needs WRITABLE: `npx`-launched
+ * stdio MCP servers die on EROFS in ~/.npm/_cacache (spike artifact 03; with a
+ * writable ~/.npm the playwright MCP server boots — artifact 04), and browser/
+ * uv caches live under ~/.cache. Shared-rw across users is the documented
+ * trade-off (same as today without the cage); per-user cache redirection is a
+ * follow-up owner decision (spike recommendation §2).
+ * @type {readonly string[]}
+ */
+const CAGE_TOOLCHAIN_CACHES = Object.freeze(['.npm', '.cache']);
+
+/** @returns {boolean} link is a symlink resolving to the same file as target */
+function symlinkResolvesTo(link, target, { lstatSync, realpathSync }) {
+  try {
+    if (!lstatSync(link).isSymbolicLink()) return false;
+    return realpathSync(link) === realpathSync(target);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolves a mount path to its REAL path, falling back to the input when
+ * resolution fails. bwrap cannot use a bind/tmpfs DEST that traverses a
+ * symlink ("Can't mkdir …: No such file or directory" — proven on disk
+ * 2026-07-15: ~/.claude is itself a symlink to ~/nassaj-core on fleet nodes),
+ * while mounting on the resolved real path works AND is reached by runtime
+ * lookups through any symlinked alias (the kernel resolves the alias onto the
+ * mounted target). Masking/binding the real path also closes the aliasing
+ * loophole: no alternate path to the same file escapes the mount.
+ *
+ * @param {string} p
+ * @param {(p: string) => string} realpathSync
+ * @returns {string}
+ */
+function toRealMountPath(p, realpathSync) {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+}
+
+/**
+ * Computes the per-launch mount plan that closes the two structural gaps the
+ * 2026-07-14 spike proved on disk (see docs/spikes/2026-07-14-provider-cage-spike.md):
+ *
+ *   maskFiles  (GAP 1) — every shared-$HOME provider credential is blanked
+ *   with a /dev/null file-bind EXCEPT the launching provider's own credential
+ *   when this launch is entitled to it:
+ *     - the provider is in ADMIN-POLICY SHARED mode (isProviderIsolated false):
+ *       the spawn legitimately runs on the operator credential — that IS the
+ *       sharing policy — so it stays readable and is re-bound rw (a refresh
+ *       that cannot persist a rotated token would break auth durably);
+ *     - the provider is ISOLATED but provisionUserDirs linked this user's own
+ *       tree back to the operator file (owner-reuse symlink, ADR-023): the
+ *       disk link IS the entitlement — checked by realpath equality, never by
+ *       role lookup (keeps this seam database-free on the read path and
+ *       follows the actual deployment, not an assumed one).
+ *   An isolated launch with no entitlement link gets EVERY credential masked —
+ *   including its own provider's operator file — because its credential lives
+ *   in its own re-bound per-user tree (CLAUDE_CONFIG_DIR/CODEX_HOME model;
+ *   `claude --version` + `claude mcp list` verified to boot with the operator
+ *   ~/.claude.json masked).
+ *
+ *   writePaths (GAP 2) — the launching provider's by-design-shared store(s) +
+ *   the toolchain caches, re-bound read-write (see launchingProviderWriteStores).
+ *
+ * Both lists are existsSync-filtered: bwrap fails on a missing --bind source
+ * and cannot create a mask mount point inside the read-only root.
+ *
+ * @param {{ provider: string, userId?: string|number|null }} spec
+ * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
+ *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           isProviderIsolated?: (provider: string) => boolean }} [deps] test seam
+ * @returns {{ writePaths: string[], maskFiles: string[] }}
+ */
+export function cageMountPlan({ provider, userId }, deps = {}) {
+  const homedir = deps.homedir ?? os.homedir;
+  const existsSync = deps.existsSync ?? fs.existsSync;
+  const lstatSync = deps.lstatSync ?? fs.lstatSync;
+  const realpathSync = deps.realpathSync ?? fs.realpathSync;
+  const providerIsolated = deps.isProviderIsolated ?? isProviderIsolated;
+
+  const home = homedir();
+  const launching = String(provider ?? '').trim().toLowerCase();
+  const uid = userId === null || userId === undefined ? '' : String(userId).trim();
+  const isolatedLaunch = providerIsolated(launching);
+
+  // Mount targets are realpath-normalized (see toRealMountPath) and deduped:
+  // two logical paths may resolve to one real file (e.g. anything under the
+  // ~/.claude → ~/nassaj-core symlink on fleet nodes).
+  const writePaths = new Set();
+  for (const rel of [...launchingProviderWriteStores(launching, isolatedLaunch), ...CAGE_TOOLCHAIN_CACHES]) {
+    const abs = path.join(home, rel);
+    if (existsSync(abs)) writePaths.add(toRealMountPath(abs, realpathSync));
+  }
+
+  const maskFiles = new Set();
+  for (const [credProvider, relFiles] of Object.entries(CAGE_SHARED_CREDENTIALS)) {
+    for (const rel of relFiles) {
+      const abs = path.join(home, rel);
+      if (!existsSync(abs)) continue;
+      if (credProvider === launching) {
+        if (!isolatedLaunch) {
+          // shared-mode: the operator credential IS the policy
+          writePaths.add(toRealMountPath(abs, realpathSync));
+          continue;
+        }
+        const userLink = path.join(home, '.nassaj-users', uid, rel);
+        if (uid !== '' && symlinkResolvesTo(userLink, abs, { lstatSync, realpathSync })) {
+          // provisioned owner-reuse: entitlement proven on disk
+          writePaths.add(toRealMountPath(abs, realpathSync));
+          continue;
+        }
+      }
+      maskFiles.add(toRealMountPath(abs, realpathSync));
+    }
+  }
+
+  return { writePaths: [...writePaths], maskFiles: [...maskFiles] };
 }
 
 /**
@@ -78,11 +296,15 @@ export function cageSecretHidePaths({ homedir = os.homedir, existsSync = fs.exis
  *                requires the source; a shared-provider user may have none —
  *                their tree simply stays hidden with everyone else's);
  *   - cwd:       only passed when it exists (launchers validate cwd anyway;
- *                this keeps a failed validation from becoming a bwrap error).
+ *                this keeps a failed validation from becoming a bwrap error);
+ *   - writePaths/maskFiles: the per-launch cageMountPlan (credential masks +
+ *                shared-store write re-binds), every entry existsSync-filtered.
  *
  * @param {{ userId?: string|number|null, provider: string, cmd: string,
  *           args?: string[], cwd?: string|null }} spec
  * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
+ *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           isProviderIsolated?: (provider: string) => boolean,
  *           resolveBwrapPath?: () => (string|null) }} [deps] test seam
  * @returns {{ cmd: string, args: string[] }}
  */
@@ -96,6 +318,7 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
   const existsSync = deps.existsSync ?? fs.existsSync;
   const usersRoot = cageUsersRoot(deps);
   const hidePaths = cageSecretHidePaths(deps);
+  const { writePaths, maskFiles } = cageMountPlan({ provider, userId }, deps);
 
   const uid = userId === null || userId === undefined ? '' : String(userId).trim();
   const ownDirExists =
@@ -110,6 +333,8 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
       cwd: cwd && existsSync(cwd) ? cwd : undefined,
       usersRoot,
       hidePaths,
+      writePaths,
+      maskFiles,
     },
     deps.resolveBwrapPath ? { resolveBwrapPath: deps.resolveBwrapPath } : undefined,
   );
@@ -138,6 +363,8 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
  * @param {{ userId?: string|number|null, cwd?: string|null }} spec
  * @param {{ spawn?: typeof spawn, homedir?: () => string,
  *           existsSync?: (p: string) => boolean,
+ *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           isProviderIsolated?: (provider: string) => boolean,
  *           resolveBwrapPath?: () => (string|null) }} [deps] test seam
  * @returns {((spec: { command: string, args: string[], cwd?: string,
  *            env?: Record<string, string|undefined>, signal?: AbortSignal }) =>

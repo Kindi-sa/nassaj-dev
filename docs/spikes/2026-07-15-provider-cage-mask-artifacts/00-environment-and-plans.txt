@@ -1,0 +1,26 @@
+date: 2026-07-14T22:55:06.090Z
+host: Linux nassaj 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20) x86_64 GNU/Linux
+node: v24.15.0
+bwrap: /home/nassaj/Project/nassaj-dev/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap
+cwd (temp, outside projects): /tmp/t898-cage-MThEGI
+user under test: 2 (real tree /home/nassaj/.nassaj-users/2)
+DATABASE_PATH (live sharing policy source): /home/nassaj/.local/share/nassaj-dev/db.sqlite
+
+cageMountPlan(claude, user 2):
+  writePaths: ["/home/nassaj/nassaj-core/projects","/home/nassaj/.npm","/home/nassaj/.cache"]
+  maskFiles:  ["/home/nassaj/nassaj-core/.credentials.json","/home/nassaj/.claude.json","/home/nassaj/.codex/auth.json","/home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token","/home/nassaj/.hermes/auth.json","/home/nassaj/.local/share/opencode/auth.json"]
+cageMountPlan(gemini, user 2):
+  writePaths: ["/home/nassaj/.gemini/projects","/home/nassaj/.npm","/home/nassaj/.cache"]
+  maskFiles:  ["/home/nassaj/nassaj-core/.credentials.json","/home/nassaj/.claude.json","/home/nassaj/.codex/auth.json","/home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token","/home/nassaj/.hermes/auth.json","/home/nassaj/.local/share/opencode/auth.json"]
+cageMountPlan(agy, user 2):
+  writePaths: ["/home/nassaj/.gemini/antigravity-cli","/home/nassaj/.npm","/home/nassaj/.cache","/home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token"]
+  maskFiles:  ["/home/nassaj/nassaj-core/.credentials.json","/home/nassaj/.claude.json","/home/nassaj/.codex/auth.json","/home/nassaj/.hermes/auth.json","/home/nassaj/.local/share/opencode/auth.json"]
+cageMountPlan(opencode, user 2):
+  writePaths: ["/home/nassaj/.local/share/opencode","/home/nassaj/.local/state/opencode","/home/nassaj/.npm","/home/nassaj/.cache","/home/nassaj/.local/share/opencode/auth.json"]
+  maskFiles:  ["/home/nassaj/nassaj-core/.credentials.json","/home/nassaj/.claude.json","/home/nassaj/.codex/auth.json","/home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token","/home/nassaj/.hermes/auth.json"]
+cageMountPlan(hermes, user 2):
+  writePaths: ["/home/nassaj/.hermes","/home/nassaj/.npm","/home/nassaj/.cache","/home/nassaj/.hermes/auth.json"]
+  maskFiles:  ["/home/nassaj/nassaj-core/.credentials.json","/home/nassaj/.claude.json","/home/nassaj/.codex/auth.json","/home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token","/home/nassaj/.local/share/opencode/auth.json"]
+
+derived caged argv (claude, user 2) — produced by resolveCagedLaunch, not hand-built:
+/home/nassaj/Project/nassaj-dev/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap --unshare-user --unshare-pid --unshare-ipc --ro-bind / / --dev /dev --proc /proc --tmpfs /run --tmpfs /tmp --tmpfs /home/nassaj/.ssh --bind /home/nassaj/nassaj-core/projects /home/nassaj/nassaj-core/projects --bind /home/nassaj/.npm /home/nassaj/.npm --bind /home/nassaj/.cache /home/nassaj/.cache --tmpfs /home/nassaj/.nassaj-users --bind /home/nassaj/.nassaj-users/2 /home/nassaj/.nassaj-users/2 --bind /tmp/t898-cage-MThEGI /tmp/t898-cage-MThEGI --ro-bind /dev/null /home/nassaj/nassaj-core/.credentials.json --ro-bind /dev/null /home/nassaj/.claude.json --ro-bind /dev/null /home/nassaj/.codex/auth.json --ro-bind /dev/null /home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token --ro-bind /dev/null /home/nassaj/.hermes/auth.json --ro-bind /dev/null /home/nassaj/.local/share/opencode/auth.json -- /home/nassaj/.local/bin/claude --version

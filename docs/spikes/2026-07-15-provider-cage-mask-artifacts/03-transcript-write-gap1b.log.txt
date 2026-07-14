@@ -1,0 +1,13 @@
+probe: write through the PER-USER projects symlink (/home/nassaj/.nassaj-users/2/.claude/projects/.t898-write-probe)
+symlink target: /home/nassaj/nassaj-core/projects
+
+== OLD recipe (T-897 denylist, no writePaths) — production per-user path ==
+WRITE_FAIL: 
+sh: 1: cannot create /home/nassaj/.nassaj-users/2/.claude/projects/.t898-write-probe: Read-only file system
+cat: /tmp/err.txt: No such file or directory
+exit=0
+
+== NEW recipe (T-898 plan) ==
+WRITE_OK
+t898
+exit=0

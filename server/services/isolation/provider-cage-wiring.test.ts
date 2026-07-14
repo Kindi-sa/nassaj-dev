@@ -24,6 +24,8 @@ import path from 'node:path';
 import {
   cageUsersRoot,
   cageSecretHidePaths,
+  cageMountPlan,
+  CAGE_SHARED_CREDENTIALS,
   resolveCagedLaunch,
   buildCagedSdkSpawn,
 } from './provider-cage-wiring.js';
@@ -61,8 +63,19 @@ const FAKE_BWRAP = { resolveBwrapPath: () => '/opt/codex/bwrap' };
 const HOME = '/home/op';
 const USERS_ROOT = path.join(HOME, '.nassaj-users');
 
-/** deps where every probed path "exists" (records probes for assertions). */
-function allExist() {
+/** lstat that always throws — models "no per-user entitlement symlink". */
+function lstatAbsent(): never {
+  const err = new Error('ENOENT') as NodeJS.ErrnoException;
+  err.code = 'ENOENT';
+  throw err;
+}
+
+/**
+ * deps where every probed path "exists" (records probes for assertions).
+ * The sharing policy is injected (all providers isolated) so no test ever
+ * touches the real database through the default isProviderIsolated.
+ */
+function allExist(isolated: (p: string) => boolean = () => true) {
   const probed: string[] = [];
   return {
     probed,
@@ -73,6 +86,8 @@ function allExist() {
         probed.push(p);
         return true;
       },
+      lstatSync: lstatAbsent as unknown as typeof import('node:fs').lstatSync,
+      isProviderIsolated: isolated,
     },
   };
 }
@@ -124,10 +139,11 @@ describe('cageSecretHidePaths', () => {
 // ---------------------------------------------------------------------------
 
 describe('flag OFF — byte-identical passthrough', () => {
-  it('returns the same cmd/args references and touches no filesystem', () => {
+  it('returns the same cmd/args references, touches no filesystem and reads no policy', () => {
     setCage(false);
     const args = ['run', '--format', 'json'];
     let fsTouched = 0;
+    let policyRead = 0;
     const out = resolveCagedLaunch(
       { userId: 7, provider: 'opencode', cmd: '/usr/bin/opencode', args, cwd: '/w' },
       {
@@ -137,11 +153,16 @@ describe('flag OFF — byte-identical passthrough', () => {
           fsTouched += 1;
           return true;
         },
+        isProviderIsolated: () => {
+          policyRead += 1;
+          return true;
+        },
       },
     );
     assert.equal(out.cmd, '/usr/bin/opencode');
     assert.equal(out.args, args, 'args must be the SAME array reference (zero re-shaping)');
     assert.equal(fsTouched, 0, 'flag off must not stat anything (hot path untouched)');
+    assert.equal(policyRead, 0, 'flag off must not consult the sharing policy');
   });
 
   it('returns passthrough when the flag is unset entirely', () => {
@@ -216,6 +237,7 @@ describe('flag ON — caged launch shape', () => {
       ...FAKE_BWRAP,
       homedir: () => HOME,
       existsSync: (p: string) => p === USERS_ROOT, // only the root exists
+      isProviderIsolated: () => true,
     };
     const out = resolveCagedLaunch(
       { userId: 99, provider: 'gemini', cmd: 'gemini', args: [], cwd: '/proj' },
@@ -238,6 +260,7 @@ describe('flag ON — caged launch shape', () => {
       ...FAKE_BWRAP,
       homedir: () => HOME,
       existsSync: () => false, // neither root nor cwd exist
+      isProviderIsolated: () => true,
     };
     const out = resolveCagedLaunch(
       { userId: 1, provider: 'claude', cmd: 'claude', args: ['x'], cwd: '/proj' },
@@ -253,9 +276,150 @@ describe('flag ON — caged launch shape', () => {
     setCage(true);
     const out = resolveCagedLaunch(
       { userId: 1, provider: 'claude', cmd: 'claude', args: ['x'], cwd: '/proj' },
-      { resolveBwrapPath: () => null, homedir: () => HOME, existsSync: () => true },
+      {
+        resolveBwrapPath: () => null,
+        homedir: () => HOME,
+        existsSync: () => true,
+        lstatSync: lstatAbsent as unknown as typeof import('node:fs').lstatSync,
+        isProviderIsolated: () => true,
+      },
     );
     assert.deepEqual(out, { cmd: 'claude', args: ['x'] }, 'missing bwrap must not block the spawn');
+  });
+
+  it('argv carries the mount plan: credentials masked AFTER the user rebind, store re-bound rw', () => {
+    setCage(true);
+    const { deps } = allExist();
+    const out = resolveCagedLaunch(
+      { userId: 42, provider: 'claude', cmd: 'claude', args: ['chat'], cwd: '/proj' },
+      deps,
+    );
+    const cred = path.join(HOME, '.claude', '.credentials.json');
+    const claudeJson = path.join(HOME, '.claude.json');
+    const codexAuth = path.join(HOME, '.codex', 'auth.json');
+    const hermesAuth = path.join(HOME, '.hermes', 'auth.json');
+    const agyToken = path.join(HOME, '.gemini', 'antigravity-cli', 'antigravity-oauth-token');
+    const opencodeAuth = path.join(HOME, '.local', 'share', 'opencode', 'auth.json');
+    for (const f of [cred, claudeJson, codexAuth, hermesAuth, agyToken, opencodeAuth]) {
+      assertContainsSeq(out.args, ['--ro-bind', '/dev/null', f]);
+    }
+    // isolated claude keeps writing transcripts to the by-design-shared store
+    const store = path.join(HOME, '.claude', 'projects');
+    assertContainsSeq(out.args, ['--bind', store, store]);
+    // masks mount after the per-user rebind so nothing re-exposes them
+    const userDir = path.join(USERS_ROOT, '42');
+    assert.ok(
+      indexOfSubsequence(out.args, ['--ro-bind', '/dev/null', cred]) >
+        indexOfSubsequence(out.args, ['--bind', userDir, userDir]),
+      'credential masks must mount after the per-user rebind',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cageMountPlan — per-launch credential masks + shared-store write re-binds
+// ---------------------------------------------------------------------------
+
+describe('cageMountPlan (T-898)', () => {
+  const CRED = {
+    claudeCred: path.join(HOME, '.claude', '.credentials.json'),
+    claudeJson: path.join(HOME, '.claude.json'),
+    codexAuth: path.join(HOME, '.codex', 'auth.json'),
+    agyToken: path.join(HOME, '.gemini', 'antigravity-cli', 'antigravity-oauth-token'),
+    hermesAuth: path.join(HOME, '.hermes', 'auth.json'),
+    opencodeAuth: path.join(HOME, '.local', 'share', 'opencode', 'auth.json'),
+  };
+  const ALL_CREDS = Object.values(CRED);
+
+  it('covers every credential the 2026-07-14 spike proved readable (registry completeness)', () => {
+    const rels = Object.values(CAGE_SHARED_CREDENTIALS).flat();
+    for (const rel of [
+      path.join('.claude', '.credentials.json'),
+      '.claude.json',
+      path.join('.codex', 'auth.json'),
+      path.join('.gemini', 'antigravity-cli', 'antigravity-oauth-token'),
+      path.join('.hermes', 'auth.json'),
+      path.join('.local', 'share', 'opencode', 'auth.json'),
+    ]) {
+      assert.ok(rels.includes(rel), `registry must include ${rel}`);
+    }
+  });
+
+  it('ISOLATED claude, no entitlement: masks EVERY credential incl. its own; store + caches rw', () => {
+    const { deps } = allExist();
+    const plan = cageMountPlan({ provider: 'claude', userId: 7 }, deps);
+    for (const f of ALL_CREDS) {
+      assert.ok(plan.maskFiles.includes(f), `${f} must be masked`);
+      assert.ok(!plan.writePaths.includes(f), `${f} must not be granted rw`);
+    }
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.claude', 'projects')));
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.npm')), 'MCP npm cache must be writable');
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.cache')));
+    // the shared transcript store must never be masked
+    assert.ok(!plan.maskFiles.includes(path.join(HOME, '.claude', 'projects')));
+  });
+
+  it('ISOLATED claude with a provisioned owner-reuse symlink: own credential exempt + rw', () => {
+    const userLink = path.join(USERS_ROOT, '7', '.claude', '.credentials.json');
+    const { deps } = allExist();
+    const entitledDeps = {
+      ...deps,
+      lstatSync: ((p: string) => {
+        if (p === userLink) return { isSymbolicLink: () => true };
+        return lstatAbsent();
+      }) as unknown as typeof import('node:fs').lstatSync,
+      realpathSync: ((p: string) =>
+        p === userLink ? CRED.claudeCred : p) as unknown as (p: string) => string,
+    };
+    const plan = cageMountPlan({ provider: 'claude', userId: 7 }, entitledDeps);
+    assert.ok(!plan.maskFiles.includes(CRED.claudeCred), 'entitled credential must not be masked');
+    assert.ok(plan.writePaths.includes(CRED.claudeCred), 'entitled credential must be rw (token refresh)');
+    // .claude.json has no per-user symlink — still masked even for the entitled user
+    assert.ok(plan.maskFiles.includes(CRED.claudeJson));
+    // and every OTHER provider credential stays masked
+    for (const f of [CRED.codexAuth, CRED.agyToken, CRED.hermesAuth, CRED.opencodeAuth]) {
+      assert.ok(plan.maskFiles.includes(f), `${f} must stay masked`);
+    }
+  });
+
+  it('SHARED-mode agy (admin policy): its own token stays readable + rw; everything else masked', () => {
+    const { deps } = allExist((p) => p !== 'agy'); // agy shared, others isolated
+    const plan = cageMountPlan({ provider: 'agy', userId: 7 }, deps);
+    assert.ok(!plan.maskFiles.includes(CRED.agyToken), 'shared-mode agy must keep its own token');
+    assert.ok(plan.writePaths.includes(CRED.agyToken), 'token must be rw (refresh persistence)');
+    assert.ok(
+      plan.writePaths.includes(path.join(HOME, '.gemini', 'antigravity-cli')),
+      'shared-mode agy runs on the operator state dir',
+    );
+    for (const f of [CRED.claudeCred, CRED.claudeJson, CRED.codexAuth, CRED.hermesAuth, CRED.opencodeAuth]) {
+      assert.ok(plan.maskFiles.includes(f), `${f} must be masked inside the agy cage`);
+    }
+  });
+
+  it('hermes (no per-user knob, policy-shared): ~/.hermes rw incl. its auth; other creds masked', () => {
+    const { deps } = allExist((p) => p !== 'hermes');
+    const plan = cageMountPlan({ provider: 'hermes', userId: 7 }, deps);
+    assert.ok(!plan.maskFiles.includes(CRED.hermesAuth));
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.hermes')), 'hermes state dir must be rw');
+    for (const f of [CRED.claudeCred, CRED.claudeJson, CRED.codexAuth, CRED.agyToken, CRED.opencodeAuth]) {
+      assert.ok(plan.maskFiles.includes(f), `${f} must be masked inside the hermes cage`);
+    }
+  });
+
+  it('ISOLATED gemini: no gemini credential exists at operator level — all six creds masked', () => {
+    const { deps } = allExist();
+    const plan = cageMountPlan({ provider: 'gemini', userId: 7 }, deps);
+    for (const f of ALL_CREDS) {
+      assert.ok(plan.maskFiles.includes(f), `${f} must be masked inside the gemini cage`);
+    }
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.gemini', 'projects')));
+  });
+
+  it('existsSync-filters everything: nothing to mask/bind on a bare host', () => {
+    const { deps } = allExist();
+    const bare = { ...deps, existsSync: () => false };
+    const plan = cageMountPlan({ provider: 'claude', userId: 7 }, bare);
+    assert.deepEqual(plan, { writePaths: [], maskFiles: [] });
   });
 });
 
@@ -292,12 +456,17 @@ describe('buildCagedSdkSpawn — flag ON', () => {
 // not just the right argv.
 // ---------------------------------------------------------------------------
 
+// The integration paths inject ONLY the sharing policy (all isolated): the real
+// default would read the live app_config database from a unit test. Everything
+// else (homedir, fs, bwrap resolution) is the real thing.
+const REAL_WITH_POLICY = { isProviderIsolated: () => true };
+
 function realBwrapUsable(): boolean {
   // Reuse the module's own resolver via a caged probe: build an argv and try it.
   setCage(true);
   const probe = resolveCagedLaunch(
     { userId: null, provider: 'claude', cmd: 'true', args: [], cwd: undefined },
-    {},
+    REAL_WITH_POLICY,
   );
   if (probe.cmd === 'true') return false; // passthrough ⇒ no bwrap resolved
   const res = spawnSync(probe.cmd, probe.args, { encoding: 'utf8' });
@@ -312,11 +481,13 @@ describe('resolveCagedLaunch — real cage integration', () => {
     () => {
       // The integration behaviour is already proven end-to-end in
       // provider-cage.test.ts against buildCagedLaunch; here we only assert the
-      // wiring path yields a cage that EXECUTES (status 0) with the namespaces.
+      // wiring path yields a cage that EXECUTES (status 0) with the namespaces —
+      // now including the real T-898 mount plan (live credential masks + store
+      // re-binds computed from the REAL operator $HOME).
       setCage(true);
       const out = resolveCagedLaunch(
         { userId: null, provider: 'claude', cmd: 'sh', args: ['-c', 'echo CAGED_OK'], cwd: undefined },
-        {},
+        REAL_WITH_POLICY,
       );
       const res = spawnSync(out.cmd, out.args, { encoding: 'utf8' });
       assert.equal(res.status, 0, res.stderr);

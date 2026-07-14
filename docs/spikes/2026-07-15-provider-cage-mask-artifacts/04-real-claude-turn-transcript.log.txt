@@ -1,0 +1,10 @@
+== claude -p "Reply with exactly: OK" (caged, user 2, temp cwd) ==
+stdout: OK
+
+stderr: exit=0
+
+== transcript persistence in the SHARED store ==
+transcript dir /home/nassaj/nassaj-core/projects/-tmp-t898-cage-M8F43r:
+  559913ce-8721-43ea-bb47-926fc16f085c.jsonl (20599 bytes, mtime 2026-07-14T22:52:40.234Z)
+  memory (4096 bytes, mtime 2026-07-14T22:52:35.170Z)
+(cleaned up after capture)

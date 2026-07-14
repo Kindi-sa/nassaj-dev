@@ -303,6 +303,73 @@ describe('buildCagedLaunch — wrapped argv shape', () => {
 });
 
 // ---------------------------------------------------------------------------
+// buildCagedLaunch — writePaths (shared-store rw re-binds) + maskFiles
+// (credential /dev/null file-masks) — T-898
+// ---------------------------------------------------------------------------
+
+describe('buildCagedLaunch — writePaths & maskFiles argv shape (T-898)', () => {
+  const FAKE = { resolveBwrapPath: () => '/opt/codex/bwrap' };
+  const usersRoot = '/srv/nassaj-users';
+  const cwd = '/home/nassaj/Project/demo';
+  const store = '/home/nassaj/.claude/projects';
+  const npmCache = '/home/nassaj/.npm';
+  const cred = '/home/nassaj/.claude/.credentials.json';
+  const claudeJson = '/home/nassaj/.claude.json';
+
+  function launch(extra: Record<string, unknown> = {}) {
+    setCage(true);
+    return buildCagedLaunch(
+      { userId: '77', provider: 'claude', cmd: 'claude', args: [], cwd, usersRoot, ...extra },
+      FAKE,
+    );
+  }
+
+  it('re-binds every writePaths entry read-write (--bind p p)', () => {
+    const out = launch({ writePaths: [store, npmCache] });
+    assertContainsSeq(out.args, ['--bind', store, store]);
+    assertContainsSeq(out.args, ['--bind', npmCache, npmCache]);
+  });
+
+  it('masks every maskFiles entry with a read-only /dev/null bind', () => {
+    const out = launch({ maskFiles: [cred, claudeJson] });
+    assertContainsSeq(out.args, ['--ro-bind', '/dev/null', cred]);
+    assertContainsSeq(out.args, ['--ro-bind', '/dev/null', claudeJson]);
+  });
+
+  it('mounts maskFiles LAST: after the user rebind, the cwd bind and every writePath', () => {
+    const out = launch({ writePaths: [store], maskFiles: [cred] });
+    const maskIdx = indexOfSubsequence(out.args, ['--ro-bind', '/dev/null', cred]);
+    const userDir = path.join(usersRoot, '77');
+    const rebindIdx = indexOfSubsequence(out.args, ['--bind', userDir, userDir]);
+    const cwdIdx = indexOfSubsequence(out.args, ['--bind', cwd, cwd]);
+    const writeIdx = indexOfSubsequence(out.args, ['--bind', store, store]);
+    assert.ok(maskIdx !== -1 && rebindIdx !== -1 && cwdIdx !== -1 && writeIdx !== -1);
+    assert.ok(maskIdx > rebindIdx, 'mask must mount after the per-user rebind');
+    assert.ok(maskIdx > cwdIdx, 'mask must mount after the cwd bind (a $HOME-rooted cwd must not re-expose it)');
+    assert.ok(maskIdx > writeIdx, 'mask must mount after every writePaths grant');
+    // and still before the command separator
+    assert.ok(maskIdx < out.args.indexOf('--'));
+  });
+
+  it('orders writePaths BEFORE the usersRoot tmpfs (isolation overlays win on overlap)', () => {
+    const out = launch({ writePaths: [store] });
+    const writeIdx = indexOfSubsequence(out.args, ['--bind', store, store]);
+    const usersIdx = indexOfSubsequence(out.args, ['--tmpfs', usersRoot]);
+    assert.ok(writeIdx !== -1 && usersIdx !== -1);
+    assert.ok(writeIdx < usersIdx, 'writePaths must precede the usersRoot tmpfs');
+  });
+
+  it('ignores empty entries and adds no /dev/null bind when maskFiles is omitted', () => {
+    const withEmpty = launch({ writePaths: ['', undefined as unknown as string], maskFiles: [''] });
+    assert.equal(indexOfSubsequence(withEmpty.args, ['--bind', '', '']), -1);
+    assert.equal(withEmpty.args.includes('/dev/null'), false);
+
+    const omitted = launch({});
+    assert.equal(omitted.args.includes('/dev/null'), false, 'no masks unless asked');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Integration — drive a REAL bwrap sandbox (skipped when unavailable)
 // ---------------------------------------------------------------------------
 
@@ -380,6 +447,67 @@ describe('buildCagedLaunch — integration against a real bwrap sandbox', () => 
         // the child still boots
         assert.match(out, /NODE_OK/, 'node must still boot inside the cage');
         assert.doesNotMatch(out, /NODE_FAIL/);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it(
+    'maskFiles blanks a credential file while writePaths stays writable and ro stays ro (T-898)',
+    { skip: cage.usable ? false : `bwrap/userns unavailable: ${cage.reason}` },
+    () => {
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'nassaj-cage-mask-it-'));
+      try {
+        const cred = path.join(tmp, 'auth.json');
+        const store = path.join(tmp, 'shared-store');
+        const roDir = path.join(tmp, 'ro-dir');
+        const cwd = path.join(tmp, 'project');
+        fs.writeFileSync(cred, '{"token":"SECRETTOKEN"}');
+        fs.mkdirSync(store, { recursive: true });
+        fs.mkdirSync(roDir, { recursive: true });
+        fs.mkdirSync(cwd, { recursive: true });
+
+        const q = (s: string) => `'${s}'`;
+        const script = [
+          // masked credential: bound to the /dev/null device → zero-length AND
+          // its content never flows (ro-bound char device denies read). Both
+          // facts prove the secret is gone: -s is false and cat yields nothing.
+          `if [ -s ${q(cred)} ]; then echo MASK_LEAK; else echo MASK_EMPTY; fi`,
+          `cat ${q(cred)} 2>/dev/null`,
+          // write into the rw-re-bound shared store must succeed
+          `if echo probe > ${q(path.join(store, 'probe.txt'))} 2>/dev/null; then echo STORE_WRITE_OK; else echo STORE_WRITE_FAIL; fi`,
+          // a sibling dir WITHOUT a write grant stays read-only (ro-bind /)
+          `if echo probe > ${q(path.join(roDir, 'probe.txt'))} 2>/dev/null; then echo RO_LEAK; else echo RO_BLOCKED; fi`,
+        ].join('\n');
+
+        setCage(true);
+        const launch = buildCagedLaunch({
+          userId: null,
+          provider: 'claude',
+          cmd: 'sh',
+          args: ['-c', script],
+          cwd,
+          writePaths: [store],
+          maskFiles: [cred],
+        });
+        assert.equal(launch.cmd, resolveBwrapPath());
+
+        const res = spawnSync(launch.cmd, launch.args, { encoding: 'utf8' });
+        const out = `${res.stdout || ''}${res.stderr || ''}`;
+        assert.equal(res.status, 0, `sandbox should exit 0, got ${String(res.status)}\n${out}`);
+        assert.match(out, /MASK_EMPTY/, 'masked credential must read as empty');
+        assert.doesNotMatch(out, /MASK_LEAK/);
+        assert.doesNotMatch(out, /SECRETTOKEN/, 'the credential content must never be readable');
+        assert.match(out, /STORE_WRITE_OK/, 'the rw-re-bound store must accept writes');
+        assert.doesNotMatch(out, /STORE_WRITE_FAIL/);
+        assert.match(out, /RO_BLOCKED/, 'an unlisted dir must stay read-only');
+        assert.doesNotMatch(out, /RO_LEAK/);
+
+        // and the write really landed on the host disk
+        assert.equal(fs.readFileSync(path.join(store, 'probe.txt'), 'utf8').trim(), 'probe');
+        // while the host credential is untouched
+        assert.match(fs.readFileSync(cred, 'utf8'), /SECRETTOKEN/);
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }

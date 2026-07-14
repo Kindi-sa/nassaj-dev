@@ -1,0 +1,22 @@
+== agy cage (live policy: shared) ==
+agy own token: READABLE (506 bytes) — shared-mode entitlement
+claude cred inside agy cage: MASKED (no bytes flow)
+agy brain writable: WRITABLE
+
+agy --version: 1.1.1exit=0
+
+== hermes cage (no per-user knob; policy-shared) ==
+hermes own auth: READABLE (9698 bytes)
+hermes state writable: WRITABLE
+claude cred inside hermes cage: MASKED (no bytes flow)
+
+hermes --version: Hermes Agent v0.17.0 (2026.6.19) · upstream 46e87b14 · local 5ecf3bf0 (+1 carried commit)
+Project: /home/nassaj/.hermes/hermes-agent
+Python: 3.11.15
+OpenAI SDK: 2.24.0exit=0
+
+== opencode --version (caged; live policy: shared) ==
+1.17.18exit=0
+
+== gemini --version (caged; live policy: isolated) ==
+1.1.1exit=0
