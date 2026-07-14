@@ -128,6 +128,54 @@ describe('enforceDockerSockBootGuard — refusal paths (fail-closed)', () => {
       assert.match(msg, /pm2 kill && pm2 resurrect/);
       assert.match(msg, /pm2 restart.*NOT enough/i);
       assert.match(msg, /no disable flag/i);
+      // a PROVEN exposure is not the unverifiable case — no mixed message
+      assert.doesNotMatch(msg, /UNVERIFIABLE/);
+    }
+  });
+});
+
+describe('enforceDockerSockBootGuard — unverifiable message is DISTINCT (qa-critic 2026-07-14)', () => {
+  // The degroup steps (gpasswd/su/pm2 kill) treat a held gid; on a stat failure
+  // they are the wrong medicine and would mislead the operator. Both paths stay
+  // fail-closed — only the diagnosis differs.
+
+  it('stat EACCES: message says UNVERIFIABLE + host-FS diagnosis, NOT the gpasswd degroup steps', () => {
+    const { deps, errors } = makeDeps({
+      statSync: () => {
+        const err = new Error('EACCES: permission denied') as NodeJS.ErrnoException;
+        err.code = 'EACCES';
+        throw err;
+      },
+    });
+    try {
+      enforceDockerSockBootGuard(deps);
+      assert.fail('must have thrown (fail-closed)');
+    } catch (err) {
+      assert.ok(err instanceof DockerSockExposedError, 'must still refuse to boot');
+      const msg = (err as Error).message;
+      assert.match(msg, /UNVERIFIABLE/);
+      assert.match(msg, /NOT a proven docker-group exposure/i);
+      assert.match(msg, /stat \/var\/run\/docker\.sock/, 'must point at reproducing the syscall');
+      assert.match(msg, /ls -ld \/var \/var\/run \/run/, 'must point at the path chain');
+      assert.doesNotMatch(msg, /gpasswd/, 'degroup steps are the wrong medicine for a stat failure');
+      assert.doesNotMatch(msg, /pm2 kill/);
+      // the documented trade-off + the no-flag invariant stay explicit
+      assert.match(msg, /fail-closed BY DESIGN/i);
+      assert.match(msg, /no disable flag/i);
+      assert.equal(errors.length, 1);
+    }
+  });
+
+  it('platform without getgroups: same UNVERIFIABLE form, still fail-closed', () => {
+    const { deps } = makeDeps({ getgroups: null, getgid: null, getegid: null });
+    try {
+      enforceDockerSockBootGuard(deps);
+      assert.fail('must have thrown (fail-closed)');
+    } catch (err) {
+      const msg = (err as Error).message;
+      assert.match(msg, /UNVERIFIABLE/);
+      assert.match(msg, /cannot report process groups/);
+      assert.doesNotMatch(msg, /gpasswd/);
     }
   });
 });

@@ -20,11 +20,25 @@
  *   - socket absent (ENOENT/ENOTDIR)      → silent pass (nothing to escape to);
  *   - socket present, gid NOT held        → pass (logs one info line);
  *   - socket present, gid held            → operational fatal error with the
- *     exact remediation steps, then DockerSockExposedError (startServer's
- *     catch exits 1 before the listener ever opens);
+ *     exact degroup remediation steps, then DockerSockExposedError
+ *     (startServer's catch exits 1 before the listener ever opens);
  *   - cannot determine (stat error other than absence, or a platform without
- *     getgroups while the socket exists) → FAIL CLOSED: same fatal path. An
- *     unverifiable boot is treated as an exposed boot, never waved through.
+ *     getgroups while the socket exists) → FAIL CLOSED: same fatal path, but
+ *     with its OWN diagnostic message (qa-critic 2026-07-14: the degroup
+ *     steps are wrong medicine for a stat failure and would mislead the
+ *     operator). An unverifiable boot is treated as an exposed boot, never
+ *     waved through.
+ *
+ * DELIBERATE fail-closed trade-off on unexpected errno (documented per the
+ * 2026-07-14 review): a host-filesystem fault that makes the socket
+ * unstat-able (EACCES on /var/run, EIO, ELOOP from a tampered symlink chain…)
+ * refuses boot on a node that might factually be safe — including production
+ * traventure. That cost is accepted BY DESIGN: this guard protects against
+ * root escape, and "cannot verify" is indistinguishable at boot time from
+ * "exposed and hidden". Availability is recoverable by an operator fixing the
+ * host FS; a silent waved-through root escape is not. The unverifiable
+ * message spells out that distinction so the on-call operator debugs the
+ * host, not the group membership.
  *
  * Residual (documented, out of this guard's mandate): a process running as
  * uid 0, or a setfacl ACL granting the uid direct socket access, bypasses the
@@ -60,13 +74,14 @@ function serviceUser() {
 }
 
 /**
- * The full remediation, mirroring the verified 2026-07-14 procedure: gpasswd
- * alone does NOT clear an already-running pm2 daemon's cached groups — the
- * daemon must be regenerated from a clean login shell.
+ * Fatal message for a PROVEN exposure (the process holds the socket's gid).
+ * The remediation mirrors the verified 2026-07-14 procedure: gpasswd alone
+ * does NOT clear an already-running pm2 daemon's cached groups — the daemon
+ * must be regenerated from a clean login shell.
  * @param {string} detail  one-line reason this boot was refused
  * @returns {string}
  */
-function buildFatalMessage(detail) {
+function buildExposedFatalMessage(detail) {
   const user = serviceUser();
   return [
     `[docker-sock-guard] REFUSING TO BOOT: ${detail}`,
@@ -79,6 +94,33 @@ function buildFatalMessage(detail) {
     '  3. pm2 kill && pm2 resurrect            # regenerate the pm2 daemon WITHOUT the group',
     '     (a plain `pm2 restart` is NOT enough: the old daemon re-inherits the stale group)',
     `  4. verify: cat /proc/$(pm2 pid nassaj-dev)/status | grep Groups   # no docker gid`,
+    'This guard is fail-closed BY DESIGN and has no disable flag (committee 2026-07-14).',
+  ].join('\n');
+}
+
+/**
+ * Fatal message for an UNVERIFIABLE state (socket present or presumed present
+ * but the exposure check itself failed). Distinct from the exposed message on
+ * purpose (qa-critic 2026-07-14): the degroup/gpasswd steps do not treat a
+ * stat failure and would send the operator down the wrong path. Group
+ * membership may be perfectly fine here — the guard refuses because it cannot
+ * PROVE it, and an unverifiable boot is treated as an exposed boot by design
+ * (accepted trade-off: a host-FS fault can refuse a factually-safe boot, even
+ * on production; that beats waving through a hidden root escape).
+ * @param {string} detail  one-line reason verification failed
+ * @returns {string}
+ */
+function buildUnverifiableFatalMessage(detail) {
+  return [
+    `[docker-sock-guard] REFUSING TO BOOT (UNVERIFIABLE): ${detail}`,
+    'This is NOT a proven docker-group exposure — the exposure check itself failed, and',
+    'fail-closed treats "cannot verify" exactly like "exposed" (a server that can reach',
+    'the Docker control socket is one `docker run -v /:/host` away from host root, B-170).',
+    'Remediation: fix the HOST condition that broke the check, not group membership:',
+    `  1. stat ${DOCKER_SOCK_PATH}             # reproduce the failing syscall; note the errno`,
+    '  2. inspect the path chain (ls -ld /var /var/run /run) for permissions/symlink damage',
+    '  3. if Docker is not meant to run on this node, remove the socket/daemon entirely —',
+    '     an ABSENT socket passes this guard silently',
     'This guard is fail-closed BY DESIGN and has no disable flag (committee 2026-07-14).',
   ].join('\n');
 }
@@ -145,7 +187,7 @@ export function enforceDockerSockBootGuard({
       return { checked: false, exposed: false, sockGid: null };
     }
     // Present-but-unverifiable is indistinguishable from exposed: fail closed.
-    const message = buildFatalMessage(
+    const message = buildUnverifiableFatalMessage(
       `cannot stat ${sockPath} (${code || err?.message || 'unknown error'}) — unverifiable state is treated as exposed`,
     );
     logError(message);
@@ -157,7 +199,7 @@ export function enforceDockerSockBootGuard({
 
   const gids = collectProcessGids({ getgroups, getgid, getegid });
   if (gids === null) {
-    const message = buildFatalMessage(
+    const message = buildUnverifiableFatalMessage(
       `${sockPath} exists but this platform cannot report process groups — unverifiable state is treated as exposed`,
     );
     logError(message);
@@ -165,7 +207,7 @@ export function enforceDockerSockBootGuard({
   }
 
   if (gids.has(sockGid)) {
-    const message = buildFatalMessage(
+    const message = buildExposedFatalMessage(
       `${sockPath} is owned by gid ${sockGid} and this process HOLDS gid ${sockGid} ` +
         `(process gids: ${[...gids].sort((a, b) => a - b).join(', ')})`,
     );
