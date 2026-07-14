@@ -1,0 +1,10 @@
+host: Linux nassaj 6.12.94+deb13-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.12.94-1 (2026-06-20) x86_64 GNU/Linux
+date: 2026-07-14T17:49:54+03:00
+bwrap: /home/nassaj/Project/nassaj-dev/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap
+claude: 2.1.207 (Claude Code)
+agy: 1.1.1
+opencode: 1.17.18
+hermes: Hermes Agent v0.17.0 (2026.6.19) · upstream 226e8de8 · local 5ecf3bf0 (+1 carried commit)
+gemini: 1.1.1
+codex: codex-cli 0.144.1
+cursor-agent: NOT-INSTALLED

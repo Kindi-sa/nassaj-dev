@@ -1,0 +1,10 @@
+== provider state dirs writability inside cage (caged for spike user; operator HOME is ro-bind) ==
+WRITABLE  own-tree(rebound) : /home/nassaj/.nassaj-users/spike-20260714
+READ-ONLY claude shared transcripts : /home/nassaj/.claude/projects
+READ-ONLY gemini shared transcripts : /home/nassaj/.gemini/projects
+READ-ONLY agy shared brain : /home/nassaj/.gemini/antigravity-cli/brain
+READ-ONLY hermes state (fully shared, no per-user knob) : /home/nassaj/.hermes
+READ-ONLY opencode shared config : /home/nassaj/.config/opencode
+READ-ONLY npm/npx cache (MCP toolchain) : /home/nassaj/.npm
+READ-ONLY XDG cache (playwright browsers/uv) : /home/nassaj/.cache
+WRITABLE  tmp (tmpfs) : /tmp

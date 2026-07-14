@@ -1,0 +1,11 @@
+-- /proc/1/root/etc/hostname (cage self root; host hostname is world-readable anyway) --
+nassaj
+(read cage-self /etc/hostname — same NS, not an escape)
+-- REAL escape target: foreign cred via /proc/1/root (must be blocked by overlay) --
+BLOCKED_PROC_FOREIGN_CRED
+-- REAL escape target: docker.sock via /proc/1/root (must be blocked) --
+BLOCKED_PROC_DOCKER
+-- can we see ANY host (non-cage) pid? (must be NO) --
+1 2 6 7 8 9   <- only cage pids = host /proc hidden
+-- host-only proc path for a known host pid (pm2/god pid) must be absent --
+VISIBLE_HOST_PID_1 (would be a leak)

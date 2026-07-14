@@ -1,0 +1,46 @@
+############ ISOLATION PROBE (cage shell, provider=claude scope) ############
+-- neg: foreign user 1 credential --
+BLOCKED_FOREIGN_CRED
+-- neg: docker.sock --
+BLOCKED_DOCKER_SOCK
+-- neg: /proc/1/root escape (pid-ns) --
+LEAK_PROC1_ROOT
+-- neg: other users root listing --
+BLOCKED_OTHER_ROOT
+-- pos: own marker readable --
+OWN_OK
+-- pos: node boots --
+NODE_OK
+-- pos: bash present --
+BASH_OK
+-- ctx: visible pids (pid-ns) --
+1 15 16 17 2 
+-- ctx: whoami/uid --
+1000
+nassaj
+ISO_EXIT=0
+
+############ PER-PROVIDER BOOT INSIDE CAGE ############
+==== claude boot (/home/nassaj/.local/bin/claude --version) ====
+2.1.207 (Claude Code)
+claude_BOOT_EXIT=0
+
+==== agy boot (/home/nassaj/.local/bin/agy --version) ====
+1.1.1
+agy_BOOT_EXIT=0
+
+==== opencode boot (/home/nassaj/.opencode/bin/opencode --version) ====
+1.17.18
+opencode_BOOT_EXIT=0
+
+==== hermes boot (/home/nassaj/.local/bin/hermes --version) ====
+Hermes Agent v0.17.0 (2026.6.19) · upstream 226e8de8 · local 5ecf3bf0 (+1 carried commit)
+Project: /home/nassaj/.hermes/hermes-agent
+Python: 3.11.15
+OpenAI SDK: 2.24.0
+hermes_BOOT_EXIT=0
+
+==== gemini boot (/home/nassaj/.local/bin/gemini --version) ====
+1.1.1
+gemini_BOOT_EXIT=0
+

@@ -1,0 +1,10 @@
+== denylist gap: operator/owner shared credentials under HOME are ro-bound, NOT hidden ==
+READABLE(operator secret): /home/nassaj/.claude/.credentials.json  bytes=509
+READABLE(operator secret): /home/nassaj/.codex/auth.json  bytes=4120
+READABLE(operator secret): /home/nassaj/.hermes/auth.json  bytes=9698
+READABLE(operator secret): /home/nassaj/.gemini/antigravity-cli/antigravity-oauth-token  bytes=506
+== shared transcript store writability (claude projects symlink target) ==
+READ-ONLY: /home/nassaj/.claude/projects (transcripts to shared store would EROFS)
+touch FAILED: touch: cannot touch '/home/nassaj/.claude/projects/.cage-write-probe': Read-only file system
+== per-user OTHER tree still hidden (control) ==
+BLOCKED other-user cred
