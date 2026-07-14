@@ -22,7 +22,8 @@
  * caged turn) while re-binding the launching provider's own by-design-shared
  * stores + toolchain caches read-write (GAP 2: ro shared stores silently
  * dropped transcripts / EROFS-broke hermes). See cageMountPlan for the
- * entitlement rules (admin-policy shared mode, owner-reuse symlinks).
+ * entitlement rules (admin-policy shared mode ONLY — the forgeable isolated
+ * owner-reuse-symlink exemption was removed, see the forgery-closure note below).
  *
  * T-898 pre-go-live hardening (2026-07-15, second qa-critic pass): the GAP-1
  * sweep is widened past the provider-keyed set to the WHOLE shared-$HOME secret
@@ -33,6 +34,21 @@
  * therefore fail-OPEN for any FUTURE secret dropped into $HOME (root fix =
  * allowlist; deferred to owner, see the spike). The flag stays OFF and the
  * off-path is byte-identical.
+ *
+ * T-898 forgery closure (2026-07-15, same second qa-critic pass, disk-PoC-proven):
+ * the per-user tree is bind-mounted READ-WRITE inside the cage, so the old isolated
+ * owner-reuse exemption — which trusted an on-disk
+ * ~/.nassaj-users/<id>/.claude/.credentials.json → operator-credential symlink,
+ * checked by realpath equality — was FORGEABLE from inside the cage: a
+ * prompt-injected session deletes its own credential, plants that symlink, and the
+ * next launch's fresh cageMountPlan hands it the LIVE operator credential rw (the
+ * qa-critic extracted 509 B of OAuth + gained a rotate/corrupt primitive on the
+ * fleet-shared credential = re-opened GAP 1). That exemption is REMOVED: the
+ * shared-credential mask set is authoritative by realpath and is only ever waived
+ * for the launching provider's OWN credential in admin-policy SHARED mode — a
+ * sharing-DB decision, never a surface the cage can write. An isolated user's own
+ * credential lives INSIDE its per-user tree (a real path that is a strict descendant
+ * of ~/.nassaj-users/<id>) and stays writable through the tree rebind, untouched.
  *
  * The isProviderIsolated import is read lazily per caged launch only (flag-on
  * path); provider-sharing/appConfigDb open their connection on first use, so
@@ -298,16 +314,6 @@ function launchingProviderWriteStores(launching, isolated) {
  */
 const CAGE_TOOLCHAIN_CACHES = Object.freeze(['.npm', '.cache']);
 
-/** @returns {boolean} link is a symlink resolving to the same file as target */
-function symlinkResolvesTo(link, target, { lstatSync, realpathSync }) {
-  try {
-    if (!lstatSync(link).isSymbolicLink()) return false;
-    return realpathSync(link) === realpathSync(target);
-  } catch {
-    return false;
-  }
-}
-
 /**
  * Resolves a mount path to its REAL path, falling back to the input when
  * resolution fails. bwrap cannot use a bind/tmpfs DEST that traverses a
@@ -332,82 +338,99 @@ function toRealMountPath(p, realpathSync) {
 
 /**
  * Computes the per-launch mount plan that closes the two structural gaps the
- * 2026-07-14 spike proved on disk (see docs/spikes/2026-07-14-provider-cage-spike.md):
+ * 2026-07-14 spike proved on disk (see docs/spikes/2026-07-14-provider-cage-spike.md),
+ * hardened by the second qa-critic pass (2026-07-15 forgery closure, see the module
+ * header):
  *
- *   maskFiles  (GAP 1) — every shared-$HOME provider credential is blanked
- *   with a /dev/null file-bind EXCEPT the launching provider's own credential
- *   when this launch is entitled to it:
- *     - the provider is in ADMIN-POLICY SHARED mode (isProviderIsolated false):
- *       the spawn legitimately runs on the operator credential — that IS the
- *       sharing policy — so it stays readable and is re-bound rw (a refresh
- *       that cannot persist a rotated token would break auth durably);
- *     - the provider is ISOLATED but provisionUserDirs linked this user's own
- *       tree back to the operator file (owner-reuse symlink, ADR-023): the
- *       disk link IS the entitlement — checked by realpath equality, never by
- *       role lookup (keeps this seam database-free on the read path and
- *       follows the actual deployment, not an assumed one).
- *   An isolated launch with no entitlement link gets EVERY credential masked —
- *   including its own provider's operator file — because its credential lives
- *   in its own re-bound per-user tree (CLAUDE_CONFIG_DIR/CODEX_HOME model;
- *   `claude --version` + `claude mcp list` verified to boot with the operator
- *   ~/.claude.json masked).
+ *   maskFiles  (GAP 1) — EVERY shared-$HOME provider credential that exists is
+ *   blanked with a /dev/null file-bind, keyed by REAL path (toRealMountPath) so no
+ *   symlink alias escapes the mask. This shared-credential mask set is
+ *   AUTHORITATIVE: a credential real path is only ever pulled OUT of the mask (into
+ *   a read-write bind) for the launching provider's OWN credential AND ONLY in
+ *   admin-policy SHARED mode (isProviderIsolated false) — the spawn legitimately
+ *   runs on the operator credential, that IS the sharing policy, so it stays
+ *   readable + rw (a refresh that cannot persist a rotated token breaks auth). That
+ *   waiver is read from the sharing DB, NEVER from on-disk state.
  *
- *   writePaths (GAP 2) — the launching provider's by-design-shared store(s) +
- *   the toolchain caches, re-bound read-write (see launchingProviderWriteStores).
+ *   An ISOLATED launch earns NO credential waiver: its operator credential is
+ *   ALWAYS masked. The user runs on its own per-user tree (CLAUDE_CONFIG_DIR/
+ *   CODEX_HOME), whose real credential file lives INSIDE ~/.nassaj-users/<id>/ — a
+ *   strict descendant of the user tree, already writable through the per-user tree
+ *   rebind in buildCagedLaunch. The operator credential's real path is never a
+ *   descendant of that tree, so no on-disk symlink (forged or provisioned) can turn
+ *   it writable. The previous "owner-reuse symlink ⇒ operator credential rw"
+ *   exemption is deliberately gone: the tree is rw inside the cage, so that link was
+ *   forgeable (qa-critic 2026-07-15 disk PoC).
  *
- * Both lists are existsSync-filtered: bwrap fails on a missing --bind source
- * and cannot create a mask mount point inside the read-only root.
+ *   writePaths (GAP 2) — the launching provider's by-design-shared store(s) + the
+ *   toolchain caches, re-bound read-write (see launchingProviderWriteStores), plus
+ *   the shared-mode exempt credential, MINUS any candidate whose real path collides
+ *   with a masked shared credential (a masked real path must NEVER be handed out
+ *   read-write — belt to the "masks mounted last" suspenders in buildCagedLaunch).
+ *
+ * Both lists are existsSync-filtered (bwrap fails on a missing --bind source and
+ * cannot mask a dest inside the read-only root) and realpath-normalized + deduped
+ * (two logical paths may collapse to one real file — e.g. anything under the
+ * ~/.claude → ~/nassaj-core symlink on fleet nodes).
  *
  * @param {{ provider: string, userId?: string|number|null }} spec
  * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
- *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           realpathSync?: (p: string) => string,
  *           isProviderIsolated?: (provider: string) => boolean }} [deps] test seam
  * @returns {{ writePaths: string[], maskFiles: string[] }}
  */
 export function cageMountPlan({ provider, userId }, deps = {}) {
   const homedir = deps.homedir ?? os.homedir;
   const existsSync = deps.existsSync ?? fs.existsSync;
-  const lstatSync = deps.lstatSync ?? fs.lstatSync;
   const realpathSync = deps.realpathSync ?? fs.realpathSync;
   const providerIsolated = deps.isProviderIsolated ?? isProviderIsolated;
 
   const home = homedir();
   const launching = String(provider ?? '').trim().toLowerCase();
-  const uid = userId === null || userId === undefined ? '' : String(userId).trim();
   const isolatedLaunch = providerIsolated(launching);
+  const real = (abs) => toRealMountPath(abs, realpathSync);
 
-  // Mount targets are realpath-normalized (see toRealMountPath) and deduped:
-  // two logical paths may resolve to one real file (e.g. anything under the
-  // ~/.claude → ~/nassaj-core symlink on fleet nodes).
-  const writePaths = new Set();
-  for (const rel of [...launchingProviderWriteStores(launching, isolatedLaunch), ...CAGE_TOOLCHAIN_CACHES]) {
-    const abs = path.join(home, rel);
-    if (existsSync(abs)) writePaths.add(toRealMountPath(abs, realpathSync));
-  }
-
-  const maskFiles = new Set();
-  for (const [credProvider, relFiles] of Object.entries(CAGE_SHARED_CREDENTIALS)) {
+  // (1) AUTHORITATIVE shared-credential mask set: every shared-$HOME provider
+  // credential that exists, by real path. This set always wins on overlap; it is
+  // only ever REDUCED by the shared-mode waiver below, never overridden by a bind.
+  const sharedCredRealpaths = new Set();
+  for (const relFiles of Object.values(CAGE_SHARED_CREDENTIALS)) {
     for (const rel of relFiles) {
       const abs = path.join(home, rel);
-      if (!existsSync(abs)) continue;
-      if (credProvider === launching) {
-        if (!isolatedLaunch) {
-          // shared-mode: the operator credential IS the policy
-          writePaths.add(toRealMountPath(abs, realpathSync));
-          continue;
-        }
-        const userLink = path.join(home, '.nassaj-users', uid, rel);
-        if (uid !== '' && symlinkResolvesTo(userLink, abs, { lstatSync, realpathSync })) {
-          // provisioned owner-reuse: entitlement proven on disk
-          writePaths.add(toRealMountPath(abs, realpathSync));
-          continue;
-        }
-      }
-      maskFiles.add(toRealMountPath(abs, realpathSync));
+      if (existsSync(abs)) sharedCredRealpaths.add(real(abs));
     }
   }
 
-  return { writePaths: [...writePaths], maskFiles: [...maskFiles] };
+  // (2) The launching provider's OWN credential is waived from the mask (readable +
+  // rw) ONLY in admin-policy SHARED mode — a DB decision, never on-disk state. An
+  // ISOLATED launch earns no waiver (its operator credential stays masked; it runs
+  // on its per-user tree, whose own credential is a strict descendant, rw via the
+  // tree rebind). This is what closes the forgeable owner-reuse-symlink path.
+  const writeWaivedCreds = new Set();
+  if (!isolatedLaunch) {
+    for (const rel of CAGE_SHARED_CREDENTIALS[launching] ?? []) {
+      const abs = path.join(home, rel);
+      if (existsSync(abs)) writeWaivedCreds.add(real(abs));
+    }
+  }
+
+  const maskSet = new Set([...sharedCredRealpaths].filter((rp) => !writeWaivedCreds.has(rp)));
+
+  // (3) writePaths: by-design-shared stores + toolchain caches, each existsSync-
+  // filtered and realpath-normalized, MINUS any whose real path is a masked shared
+  // credential; then the shared-mode waived credential(s). A masked real path can
+  // never enter a write bind.
+  const writePaths = new Set();
+  for (const rel of [...launchingProviderWriteStores(launching, isolatedLaunch), ...CAGE_TOOLCHAIN_CACHES]) {
+    const abs = path.join(home, rel);
+    if (!existsSync(abs)) continue;
+    const rp = real(abs);
+    if (maskSet.has(rp)) continue;
+    writePaths.add(rp);
+  }
+  for (const rp of writeWaivedCreds) writePaths.add(rp);
+
+  return { writePaths: [...writePaths], maskFiles: [...maskSet] };
 }
 
 /**

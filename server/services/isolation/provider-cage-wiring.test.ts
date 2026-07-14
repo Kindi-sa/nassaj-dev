@@ -217,28 +217,41 @@ describe('cageOperatorSecretMasks', () => {
 describe('flag OFF — byte-identical passthrough', () => {
   it('returns the same cmd/args references, touches no filesystem and reads no policy', () => {
     setCage(false);
-    const args = ['run', '--format', 'json'];
+    const cmdRef = '/usr/bin/opencode';
+    const argsRef = ['run', '--format', 'json'];
     let fsTouched = 0;
     let policyRead = 0;
+    let homedirRead = 0;
+    let realpathRead = 0;
     const out = resolveCagedLaunch(
-      { userId: 7, provider: 'opencode', cmd: '/usr/bin/opencode', args, cwd: '/w' },
+      { userId: 7, provider: 'opencode', cmd: cmdRef, args: argsRef, cwd: '/w' },
       {
         ...FAKE_BWRAP,
-        homedir: () => HOME,
+        homedir: () => {
+          homedirRead += 1;
+          return HOME;
+        },
         existsSync: () => {
           fsTouched += 1;
           return true;
         },
+        realpathSync: ((p: string) => {
+          realpathRead += 1;
+          return p;
+        }) as unknown as (p: string) => string,
         isProviderIsolated: () => {
           policyRead += 1;
           return true;
         },
       },
     );
-    assert.equal(out.cmd, '/usr/bin/opencode');
-    assert.equal(out.args, args, 'args must be the SAME array reference (zero re-shaping)');
+    // byte-identical off path: SAME references out, and zero disk/DB introspection
+    assert.equal(out.cmd, cmdRef, 'cmd must be the SAME reference (out.cmd === cmdRef)');
+    assert.equal(out.args, argsRef, 'args must be the SAME array reference (out.args === argsRef)');
     assert.equal(fsTouched, 0, 'flag off must not stat anything (hot path untouched)');
     assert.equal(policyRead, 0, 'flag off must not consult the sharing policy');
+    assert.equal(homedirRead, 0, 'flag off must not resolve homedir');
+    assert.equal(realpathRead, 0, 'flag off must not realpath anything');
   });
 
   it('returns passthrough when the flag is unset entirely', () => {
@@ -459,27 +472,59 @@ describe('cageMountPlan (T-898)', () => {
     assert.ok(!plan.maskFiles.includes(path.join(HOME, '.claude', 'projects')));
   });
 
-  it('ISOLATED claude with a provisioned owner-reuse symlink: own credential exempt + rw', () => {
+  it('ISOLATED claude: a forged owner-reuse symlink to the operator credential is IGNORED (T-898 forgery closure)', () => {
+    // The qa-critic PoC: the per-user tree is bind-mounted rw inside the cage, so a
+    // caged session can plant ~/.nassaj-users/7/.claude/.credentials.json → the
+    // operator credential. Entitlement must NOT be derived from that cage-writable
+    // surface: the operator credential STAYS masked and is NEVER handed out rw, no
+    // matter what the on-disk link resolves to. (The removed exemption trusted
+    // exactly this realpath equality.)
     const userLink = path.join(USERS_ROOT, '7', '.claude', '.credentials.json');
     const { deps } = allExist();
-    const entitledDeps = {
+    const forgedDeps = {
       ...deps,
-      lstatSync: ((p: string) => {
-        if (p === userLink) return { isSymbolicLink: () => true };
-        return lstatAbsent();
-      }) as unknown as typeof import('node:fs').lstatSync,
+      // a realpath seam under which the planted symlink WOULD resolve onto the
+      // operator credential — the precise condition the old exemption trusted
       realpathSync: ((p: string) =>
         p === userLink ? CRED.claudeCred : p) as unknown as (p: string) => string,
     };
-    const plan = cageMountPlan({ provider: 'claude', userId: 7 }, entitledDeps);
-    assert.ok(!plan.maskFiles.includes(CRED.claudeCred), 'entitled credential must not be masked');
-    assert.ok(plan.writePaths.includes(CRED.claudeCred), 'entitled credential must be rw (token refresh)');
-    // .claude.json has no per-user symlink — still masked even for the entitled user
-    assert.ok(plan.maskFiles.includes(CRED.claudeJson));
-    // and every OTHER provider credential stays masked
-    for (const f of [CRED.codexAuth, CRED.agyToken, CRED.hermesAuth, CRED.opencodeAuth]) {
+    const plan = cageMountPlan({ provider: 'claude', userId: 7 }, forgedDeps);
+    assert.ok(plan.maskFiles.includes(CRED.claudeCred), 'operator credential must STAY masked despite the forged link');
+    assert.ok(
+      !plan.writePaths.includes(CRED.claudeCred),
+      'a forged/owner-reuse link must NEVER grant the operator credential rw',
+    );
+    // every credential (incl. its own) masked; the by-design store still writable
+    for (const f of ALL_CREDS) {
       assert.ok(plan.maskFiles.includes(f), `${f} must stay masked`);
+      assert.ok(!plan.writePaths.includes(f), `${f} must never be granted rw`);
     }
+    assert.ok(plan.writePaths.includes(path.join(HOME, '.claude', 'projects')), 'transcript store stays rw');
+  });
+
+  it('argv under a forged symlink: the operator credential is emitted ONLY masked, never as a rw --bind (T-898)', () => {
+    // End-to-end at the argv layer: build the real bwrap argv (resolveCagedLaunch →
+    // cageMountPlan → buildCagedLaunch) with the planted-symlink realpath seam and
+    // assert the operator credential appears solely as `--ro-bind /dev/null` and in
+    // NO `--bind cred cred` write grant.
+    setCage(true);
+    const userLink = path.join(USERS_ROOT, '7', '.claude', '.credentials.json');
+    const { deps } = allExist();
+    const out = resolveCagedLaunch(
+      { userId: 7, provider: 'claude', cmd: 'claude', args: ['chat'], cwd: '/proj' },
+      {
+        ...deps,
+        realpathSync: ((p: string) =>
+          p === userLink ? CRED.claudeCred : p) as unknown as (p: string) => string,
+      },
+    );
+    const cred = CRED.claudeCred;
+    assertContainsSeq(out.args, ['--ro-bind', '/dev/null', cred]);
+    assert.equal(
+      indexOfSubsequence(out.args, ['--bind', cred, cred]),
+      -1,
+      'the operator credential must NEVER be emitted as a read-write --bind',
+    );
   });
 
   it('SHARED-mode agy (admin policy): its own token stays readable + rw; everything else masked', () => {

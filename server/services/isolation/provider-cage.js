@@ -299,8 +299,15 @@ export function buildCagedLaunch(
   // AFTER the hides (a write grant beats a hide only when the caller asked for
   // both explicitly) and BEFORE the usersRoot tmpfs + maskFiles, so isolation
   // overlays always win over writability on any overlap.
+  //
+  // Defense in depth (T-898 forgery closure): a path that is ALSO in maskFiles is
+  // never emitted as a read-write bind. cageMountPlan already guarantees this, but
+  // enforcing it at the builder means no caller — now or later — can re-expose a
+  // masked credential by listing its real path in writePaths. Masks still mount
+  // LAST, so this only drops a contradictory bind; it can never weaken a mask.
+  const maskedSet = new Set(maskFiles.filter(Boolean));
   for (const p of writePaths) {
-    if (p) bwrapArgs.push('--bind', p, p);
+    if (p && !maskedSet.has(p)) bwrapArgs.push('--bind', p, p);
   }
 
   // Hide the entire per-user root, then re-expose ONLY this user's dir (rw) so a

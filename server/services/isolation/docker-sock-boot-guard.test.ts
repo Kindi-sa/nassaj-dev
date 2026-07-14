@@ -109,10 +109,20 @@ describe('enforceDockerSockBootGuard — refusal paths (fail-closed)', () => {
   });
 
   it('fails CLOSED when the platform cannot report groups while the socket exists', () => {
-    // `undefined` would re-trigger the default parameter (the REAL
-    // process.getgroups); `null` models a platform where the API is missing
-    // and still takes the non-function branch, exactly like production would.
+    // `null` models a platform where the group API is missing (non-function
+    // branch), exactly like production would. The guard falls back to the LIVE
+    // process functions ONLY when the key is OMITTED entirely — an explicitly
+    // passed value (null OR undefined, see the next case) is honored verbatim.
     const { deps } = makeDeps({ getgroups: null, getgid: null, getegid: null });
+    assert.throws(() => enforceDockerSockBootGuard(deps), DockerSockExposedError);
+  });
+
+  it('fails CLOSED when getgroups is explicitly undefined (testability fix, qa-critic 2026-07-15)', () => {
+    // The old `getgroups = process.getgroups` parameter default silently reverted an
+    // explicit `undefined` to the REAL function, so absence could only be simulated
+    // with `null`. Now an explicitly-passed `undefined` is honored as "no getgroups"
+    // and still fails closed — while OMITTING the key keeps the live default.
+    const { deps } = makeDeps({ getgroups: undefined });
     assert.throws(() => enforceDockerSockBootGuard(deps), DockerSockExposedError);
   });
 

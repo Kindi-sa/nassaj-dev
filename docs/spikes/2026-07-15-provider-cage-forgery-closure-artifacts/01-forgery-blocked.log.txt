@@ -1,0 +1,30 @@
+date: 2026-07-14T23:54:23.201Z
+host: nassaj   node: v24.15.0
+operator credential: /home/nassaj/.claude/.credentials.json  ->  realpath /home/nassaj/nassaj-core/.credentials.json
+HOST (no cage) size of the operator credential: 509 bytes
+  ^ this is the exact secret the qa-critic exfiltrated (509 B OAuth) before the fix
+
+== ATTACK: caged session plants a forged owner-reuse symlink ==
+  planted: /home/nassaj/.nassaj-users/t898-forgery-59ir8m/.claude/.credentials.json
+       ->  /home/nassaj/.claude/.credentials.json   (realpath /home/nassaj/nassaj-core/.credentials.json)
+  bwrap resolved: /home/nassaj/Project/nassaj-dev/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/codex-resources/bwrap
+  argv masks the operator realpath (--ro-bind /dev/null): true
+  argv rw-binds the operator realpath (--bind, the leak) : false
+  --- real bwrap run (exit 0) ---
+  in-cage link's own path-string size (stat, no -L): 38  (= length of the link target path, not content)
+  in-cage dereferenced size via forgery  (stat -L)  : 0
+  in-cage dereferenced size direct       (stat -L)  : 0
+  in-cage open-for-read via forgery (kernel error, if any):
+      cat: /home/nassaj/.nassaj-users/t898-forgery-59ir8m/.claude/.credentials.json: Permission denied
+  in-cage credential CONTENT bytes actually readable: 0
+  VERDICT: BLOCKED — Permission denied / 0 content bytes; the 509-byte OAuth is gone
+
+== CONTROL: a user's OWN real in-tree credential (realpath stays inside the tree) ==
+  /home/nassaj/.nassaj-users/t898-legit-59ir8m/.claude/.credentials.json  (real file, 25 bytes)
+  --- real bwrap run (exit 0) ---
+  in-cage read of OWN in-tree credential: [LEGIT_USER_CRED_TOKEN_OK]
+  in-cage WRITE to OWN credential: OK
+  post-run host check: OWN credential now contains APPENDED_IN_CAGE: true
+
+SUMMARY: forged symlink -> operator credential BLOCKED (0 bytes);
+         own in-tree credential -> readable + writable (function preserved).

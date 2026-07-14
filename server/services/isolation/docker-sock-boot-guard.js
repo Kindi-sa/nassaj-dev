@@ -168,15 +168,25 @@ function collectProcessGids(proc) {
  * @param {(msg: string) => void} [deps.logInfo]
  * @returns {{ checked: boolean, exposed: false, sockGid: number|null }}
  */
-export function enforceDockerSockBootGuard({
-  sockPath = DOCKER_SOCK_PATH,
-  statSync = fs.statSync,
-  getgroups = process.getgroups,
-  getgid = process.getgid,
-  getegid = process.getegid,
-  logError = console.error,
-  logInfo = console.log,
-} = {}) {
+export function enforceDockerSockBootGuard(deps = {}) {
+  const {
+    sockPath = DOCKER_SOCK_PATH,
+    statSync = fs.statSync,
+    logError = console.error,
+    logInfo = console.log,
+  } = deps;
+  // Group-introspection functions resolve to the LIVE process functions ONLY when
+  // the caller OMITS the key. An explicitly-passed value is honored verbatim —
+  // including `undefined` — so a test can model a platform WITHOUT getgroups by
+  // passing `getgroups: undefined`. The previous `getgroups = process.getgroups`
+  // parameter default silently reverted an explicit `undefined` back to the real
+  // function, so only `null` could simulate absence (qa-critic 2026-07-15: a
+  // testability wart, not a vuln). Fail-closed behavior is UNCHANGED: a
+  // non-function still yields null in collectProcessGids → refuse to boot.
+  const getgroups = 'getgroups' in deps ? deps.getgroups : process.getgroups;
+  const getgid = 'getgid' in deps ? deps.getgid : process.getgid;
+  const getegid = 'getegid' in deps ? deps.getegid : process.getegid;
+
   let stat;
   try {
     stat = statSync(sockPath);
