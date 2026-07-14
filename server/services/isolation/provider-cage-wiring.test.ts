@@ -24,8 +24,11 @@ import path from 'node:path';
 import {
   cageUsersRoot,
   cageSecretHidePaths,
+  cageOperatorSecretMasks,
   cageMountPlan,
   CAGE_SHARED_CREDENTIALS,
+  CAGE_SECRET_HIDE_DIRS,
+  CAGE_OPERATOR_SECRET_FILES,
   resolveCagedLaunch,
   buildCagedSdkSpawn,
 } from './provider-cage-wiring.js';
@@ -113,24 +116,97 @@ describe('cageUsersRoot', () => {
 // ---------------------------------------------------------------------------
 
 describe('cageSecretHidePaths', () => {
-  it('computes ~/.ssh relative to homedir (never a hard-coded /home/nassaj)', () => {
-    const paths = cageSecretHidePaths({ homedir: () => '/home/ibrahim', existsSync: () => true });
-    assert.deepEqual(paths, ['/home/ibrahim/.ssh']);
+  // readdirSync stub so cdxrt globbing is deterministic (never a real-$HOME readdir).
+  const noCdxrt = { readdirSync: (() => []) as unknown as (p: string) => string[] };
+
+  it('re-roots every secret dir on the REAL homedir (never a hard-coded /home/nassaj)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => '/home/ibrahim', existsSync: () => true, ...noCdxrt });
+    assert.ok(paths.includes('/home/ibrahim/.ssh'), '~/.ssh (fleet key) must be hidden');
+    assert.ok(paths.includes('/home/ibrahim/.gnupg'), 'GPG keyring must be hidden');
+    assert.ok(paths.includes('/home/ibrahim/.cloudflared'), 'tunnel creds must be hidden');
+    assert.ok(
+      paths.includes(path.join('/home/ibrahim', '.local', 'share', 'nassaj-dev')),
+      'the LIVE app-db dir (password hashes + api_keys) must be hidden',
+    );
+    assert.ok(paths.every((p) => p.startsWith('/home/ibrahim/')), 'no path may be hard-coded off the owner home');
   });
 
-  it('re-roots on a different owner home (fleet nodes differ)', () => {
-    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true });
-    assert.deepEqual(paths, [path.join(HOME, '.ssh')]);
+  it('covers the full fixed secret-dir registry when every dir exists', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true, ...noCdxrt });
+    for (const rel of CAGE_SECRET_HIDE_DIRS) {
+      assert.ok(paths.includes(path.join(HOME, rel)), `${rel} must be hidden`);
+    }
   });
 
-  it('omits a path that does not exist (nothing to hide, minimal argv)', () => {
-    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => false });
+  it('globs cdxrt.*​/secret dirs live (random, ephemeral Codex runtime auth copies)', () => {
+    const paths = cageSecretHidePaths({
+      homedir: () => HOME,
+      existsSync: () => true,
+      readdirSync: (() => ['cdxrt.AbC123', 'cdxrt.ZzZ', '.ssh', 'Project', 'notcdxrt']) as unknown as (
+        p: string,
+      ) => string[],
+    });
+    assert.ok(paths.includes(path.join(HOME, 'cdxrt.AbC123', 'secret')));
+    assert.ok(paths.includes(path.join(HOME, 'cdxrt.ZzZ', 'secret')));
+    // only cdxrt.* matched — a sibling project dir must not be swept in
+    assert.ok(!paths.some((p) => p.includes(`${path.sep}notcdxrt${path.sep}`)));
+    assert.ok(!paths.some((p) => p.includes(`${path.sep}Project${path.sep}secret`)));
+  });
+
+  it('omits paths that do not exist (nothing to hide, minimal argv)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => false, ...noCdxrt });
     assert.deepEqual(paths, []);
   });
 
-  it('never includes ~/.claude.json (tmpfs cannot mount over a file)', () => {
-    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true });
+  it('tolerates a readdir failure (best-effort cdxrt glob never throws)', () => {
+    const paths = cageSecretHidePaths({
+      homedir: () => HOME,
+      existsSync: (p: string) => p === path.join(HOME, '.ssh'),
+      readdirSync: (() => {
+        throw new Error('EACCES');
+      }) as unknown as (p: string) => string[],
+    });
+    assert.deepEqual(paths, [path.join(HOME, '.ssh')]);
+  });
+
+  it('never includes ~/.claude.json (tmpfs cannot mount over a file; masked as a FILE instead)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true, ...noCdxrt });
     assert.ok(!paths.some((p) => p.endsWith('.claude.json')), '.claude.json must not be tmpfs-hidden');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cageOperatorSecretMasks — non-provider secret FILES (unconditional masks)
+// ---------------------------------------------------------------------------
+
+describe('cageOperatorSecretMasks', () => {
+  it('masks the GitHub OAuth + server key + registry/git creds, re-rooted on homedir', () => {
+    const files = cageOperatorSecretMasks({ homedir: () => HOME, existsSync: () => true });
+    assert.ok(files.includes(path.join(HOME, '.config', 'gh', 'hosts.yml')), 'gh OAuth token must be masked');
+    assert.ok(
+      files.includes(path.join(HOME, '.nassaj-provider-secrets.key')),
+      'the server key that decrypts every provider secret must be masked',
+    );
+    assert.ok(files.includes(path.join(HOME, '.docker', 'config.json')));
+    assert.ok(files.includes(path.join(HOME, '.netrc')));
+    assert.ok(files.includes(path.join(HOME, '.git-credentials')));
+  });
+
+  it('covers the full operator secret-file registry', () => {
+    const files = cageOperatorSecretMasks({ homedir: () => HOME, existsSync: () => true });
+    for (const rel of CAGE_OPERATOR_SECRET_FILES) {
+      assert.ok(files.includes(path.join(HOME, rel)), `${rel} must be masked`);
+    }
+  });
+
+  it('never masks ~/.npmrc (npx/MCP registry config — owner decision, not a blind mask)', () => {
+    const files = cageOperatorSecretMasks({ homedir: () => HOME, existsSync: () => true });
+    assert.ok(!files.some((p) => p.endsWith('.npmrc')), '.npmrc must stay readable for MCP install');
+  });
+
+  it('existsSync-filters: nothing to mask on a bare host', () => {
+    const files = cageOperatorSecretMasks({ homedir: () => HOME, existsSync: () => false });
+    assert.deepEqual(files, []);
   });
 });
 
@@ -312,6 +388,30 @@ describe('flag ON — caged launch shape', () => {
       indexOfSubsequence(out.args, ['--ro-bind', '/dev/null', cred]) >
         indexOfSubsequence(out.args, ['--bind', userDir, userDir]),
       'credential masks must mount after the per-user rebind',
+    );
+  });
+
+  it('argv also masks the non-provider operator secrets (gh OAuth + server key) and hides their secret dirs', () => {
+    setCage(true);
+    const { deps } = allExist();
+    const out = resolveCagedLaunch(
+      { userId: 42, provider: 'claude', cmd: 'claude', args: ['chat'], cwd: '/proj' },
+      deps,
+    );
+    // operator secret FILES masked with /dev/null (unconditional, no entitlement)
+    const ghHosts = path.join(HOME, '.config', 'gh', 'hosts.yml');
+    const serverKey = path.join(HOME, '.nassaj-provider-secrets.key');
+    assertContainsSeq(out.args, ['--ro-bind', '/dev/null', ghHosts]);
+    assertContainsSeq(out.args, ['--ro-bind', '/dev/null', serverKey]);
+    // operator secret DIRS blanked with tmpfs (crown-jewel app db + tunnel creds)
+    assertContainsSeq(out.args, ['--tmpfs', path.join(HOME, '.local', 'share', 'nassaj-dev')]);
+    assertContainsSeq(out.args, ['--tmpfs', path.join(HOME, '.cloudflared')]);
+    // the gh mask mounts LAST (after the per-user rebind) like every other mask
+    const userDir = path.join(USERS_ROOT, '42');
+    assert.ok(
+      indexOfSubsequence(out.args, ['--ro-bind', '/dev/null', ghHosts]) >
+        indexOfSubsequence(out.args, ['--bind', userDir, userDir]),
+      'operator secret masks must mount after the per-user rebind',
     );
   });
 });

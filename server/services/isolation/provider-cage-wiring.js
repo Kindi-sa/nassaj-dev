@@ -24,6 +24,16 @@
  * dropped transcripts / EROFS-broke hermes). See cageMountPlan for the
  * entitlement rules (admin-policy shared mode, owner-reuse symlinks).
  *
+ * T-898 pre-go-live hardening (2026-07-15, second qa-critic pass): the GAP-1
+ * sweep is widened past the provider-keyed set to the WHOLE shared-$HOME secret
+ * surface the qa-critic proved readable — non-provider operator secrets
+ * (CAGE_OPERATOR_SECRET_FILES: .config/gh/hosts.yml, .nassaj-provider-secrets.key,
+ * …) masked with /dev/null, and operator secret DIRECTORIES (CAGE_SECRET_HIDE_DIRS
+ * + globbed cdxrt.*​/secret) blanked with tmpfs. This stays a DENYLIST and is
+ * therefore fail-OPEN for any FUTURE secret dropped into $HOME (root fix =
+ * allowlist; deferred to owner, see the spike). The flag stays OFF and the
+ * off-path is byte-identical.
+ *
  * The isProviderIsolated import is read lazily per caged launch only (flag-on
  * path); provider-sharing/appConfigDb open their connection on first use, so
  * merely importing this module still touches no database.
@@ -58,33 +68,148 @@ export function cageUsersRoot({ homedir = os.homedir, existsSync = fs.existsSync
 }
 
 /**
- * Owner-secret DIRECTORIES blanked with an empty tmpfs inside every cage —
- * closing the denylist's biggest leak: the operator's own SSH private keys,
- * including the fleet key that grants SSH to every node. Computed relative to
- * the REAL homedir (os.homedir), so it is correct on each fleet node where the
- * owner user differs (nassaj here, ibrahim on traventure) — never a hard-coded
- * /home/nassaj. Only existing paths are returned: nothing to hide otherwise,
- * and it keeps the argv (and the bwrap mount count) minimal.
+ * Fixed owner/operator secret DIRECTORIES (homedir-relative) blanked with an
+ * empty tmpfs in every cage. Beyond the fleet SSH key (~/.ssh, T-897) this
+ * sweeps the whole shared-$HOME secret-DIRECTORY surface a prompt-injected caged
+ * provider could otherwise read wholesale (T-898 — the same GAP-1 class the
+ * qa-critic veto was built on, now proven to reach non-provider operator secrets
+ * too):
+ *   - .ssh              fleet SSH private key (T-897)
+ *   - .gnupg            GPG private keyring
+ *   - .cloudflared      tunnel cert.pem + named-tunnel credential JSON
+ *   - .aws              AWS credentials/config
+ *   - .config/gcloud    GCP application-default credentials
+ *   - .cloudcli         stale auth.db (password hashes + api_keys + user_credentials)
+ *   - .local/share/nassaj-dev  the LIVE app db.sqlite (password hashes + api_keys)
+ *   - .nassaj-provider-secrets the shared encrypted provider keystore (dir form)
+ * None is read by any caged provider CHILD: the nassaj SERVER (which reads
+ * db.sqlite and the keystore) is the PARENT and is never caged, and mount
+ * namespaces are per-child, so hiding these inside the child denies the harvest
+ * while the parent's own view is untouched. The `cdxrt.*​/secret` Codex runtime
+ * copies are added dynamically (see cdxrtSecretDirs).
+ * @type {readonly string[]}
+ */
+export const CAGE_SECRET_HIDE_DIRS = Object.freeze([
+  '.ssh',
+  '.gnupg',
+  '.cloudflared',
+  '.aws',
+  path.join('.config', 'gcloud'),
+  '.cloudcli',
+  path.join('.local', 'share', 'nassaj-dev'),
+  '.nassaj-provider-secrets',
+]);
+
+/**
+ * Non-provider operator secret FILES (homedir-relative) masked UNCONDITIONALLY
+ * with `--ro-bind /dev/null` in every cage. Unlike CAGE_SHARED_CREDENTIALS there
+ * is NO entitlement/owner-reuse exemption: no provider owns these, so no caged
+ * child ever legitimately reads them.
+ *   - .config/gh/hosts.yml        GitHub OAuth (private-repo + CI-secret access) —
+ *                                 the highest-value leak the 2026-07-15 qa-critic
+ *                                 disk run proved readable inside the cage
+ *   - .nassaj-provider-secrets.key  the 32-byte SERVER key that DECRYPTS every
+ *                                 stored provider API key (a "*.key" private key;
+ *                                 read only by the parent provider-secrets-store)
+ *   - .docker/config.json         container-registry auth (docker.sock is already
+ *                                 hidden, so docker is unusable in-cage regardless)
+ *   - .netrc / .git-credentials   curl/git stored credentials
+ * DELIBERATELY EXCLUDED — ~/.npmrc: npx-launched stdio MCP servers read it for
+ * registry config, so a private-registry token there is a PROVIDER-NEEDED secret
+ * → owner decision (spike residual), NOT a blind mask that would break MCP
+ * install. Absent on every fleet node today (public registry only), so masking
+ * it would change nothing functionally here — but the rule stays principled.
+ * Blind filename globs (`*credential*`, `config.json`) are deliberately NOT used:
+ * on disk they hit source files (~/.hermes/.../credential_*.py) and tool prefs
+ * (~/.config/astro/config.json) — an explicit path denylist is the safe form.
+ * @type {readonly string[]}
+ */
+export const CAGE_OPERATOR_SECRET_FILES = Object.freeze([
+  path.join('.config', 'gh', 'hosts.yml'),
+  '.nassaj-provider-secrets.key',
+  path.join('.docker', 'config.json'),
+  '.netrc',
+  '.git-credentials',
+]);
+
+/**
+ * The `secret/` subdir of every Codex runtime dir (~/cdxrt.<rand>/secret),
+ * globbed live because the suffix is random and the dirs are ephemeral. Each
+ * holds a copy of the Codex auth token; codex self-cages and is cage-EXEMPT, so
+ * no non-codex provider ever needs them. Best-effort: a readdir failure yields
+ * nothing (acceptable — this is defense in depth layered over the provider-keyed
+ * masks). Point-in-time by nature: a cdxrt dir created AFTER a cage launched is
+ * not retroactively hidden (documented residual).
+ * @param {string} home
+ * @param {(p: string) => string[]} readdirSync
+ * @returns {string[]} absolute paths (existence checked by the caller)
+ */
+function cdxrtSecretDirs(home, readdirSync) {
+  try {
+    return readdirSync(home)
+      .filter((name) => /^cdxrt\./.test(name))
+      .map((name) => path.join(home, name, 'secret'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Owner/operator secret DIRECTORIES blanked with an empty tmpfs inside every
+ * cage: the fixed set (CAGE_SECRET_HIDE_DIRS) plus the live-globbed Codex
+ * runtime `secret/` dirs. Computed relative to the REAL homedir (os.homedir), so
+ * it is correct on each fleet node where the owner user differs (nassaj here,
+ * ibrahim on traventure) — never a hard-coded /home/nassaj. Every path is
+ * realpath-normalized (symlink safety, toRealMountPath) and existsSync-filtered:
+ * nothing to hide otherwise, and it keeps the argv (and the bwrap mount count)
+ * minimal.
  *
- * DELIBERATELY EXCLUDED — ~/.claude.json (Anthropic OAuth token): tmpfs mounts
- * over a DIRECTORY only; pointing it at that FILE aborts bwrap boot
- * ("Can't mkdir …: Not a directory", verified 2026-07-14). Masking a single
- * file needs a file-level primitive (e.g. --ro-bind /dev/null <file>) — tracked
- * as a follow-up, NOT shipped here. Per-user Claude isolation does not depend on
- * the owner file: with CLAUDE_CONFIG_DIR pointed at the user's own tree,
- * `claude --version` and `claude mcp list` were verified to boot with
- * ~/.claude.json fully masked.
+ * DELIBERATELY EXCLUDED here — ~/.claude.json (Anthropic OAuth token): tmpfs
+ * mounts over a DIRECTORY only; pointing it at that FILE aborts bwrap boot
+ * ("Can't mkdir …: Not a directory", verified 2026-07-14). It IS masked, as a
+ * FILE, via CAGE_SHARED_CREDENTIALS → maskFiles (`--ro-bind /dev/null`), so no
+ * secret is left readable; only the mount PRIMITIVE differs. Per-user Claude
+ * isolation does not depend on the owner file: with CLAUDE_CONFIG_DIR pointed at
+ * the user's own tree, `claude --version` and `claude mcp list` were verified to
+ * boot with ~/.claude.json fully masked.
  *
  * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
- *           realpathSync?: (p: string) => string }} [deps]
+ *           realpathSync?: (p: string) => string,
+ *           readdirSync?: (p: string) => string[] }} [deps]
  * @returns {string[]}
  */
 export function cageSecretHidePaths({
   homedir = os.homedir,
   existsSync = fs.existsSync,
   realpathSync = fs.realpathSync,
+  readdirSync = fs.readdirSync,
 } = {}) {
-  return [path.join(homedir(), '.ssh')]
+  const home = homedir();
+  const dirs = [
+    ...CAGE_SECRET_HIDE_DIRS.map((rel) => path.join(home, rel)),
+    ...cdxrtSecretDirs(home, readdirSync),
+  ];
+  return dirs.filter((p) => existsSync(p)).map((p) => toRealMountPath(p, realpathSync));
+}
+
+/**
+ * The non-provider operator secret FILES to mask in every cage
+ * (CAGE_OPERATOR_SECRET_FILES), realpath-normalized + existsSync-filtered.
+ * Unconditional: unlike cageMountPlan's provider-keyed credential masks there is
+ * no entitlement exemption — none of these is ever legitimately read by a caged
+ * child, so the launching provider makes no difference.
+ *
+ * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
+ *           realpathSync?: (p: string) => string }} [deps]
+ * @returns {string[]}
+ */
+export function cageOperatorSecretMasks({
+  homedir = os.homedir,
+  existsSync = fs.existsSync,
+  realpathSync = fs.realpathSync,
+} = {}) {
+  const home = homedir();
+  return CAGE_OPERATOR_SECRET_FILES.map((rel) => path.join(home, rel))
     .filter((p) => existsSync(p))
     .map((p) => toRealMountPath(p, realpathSync));
 }
@@ -304,6 +429,7 @@ export function cageMountPlan({ provider, userId }, deps = {}) {
  *           args?: string[], cwd?: string|null }} spec
  * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean,
  *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           readdirSync?: (p: string) => string[],
  *           isProviderIsolated?: (provider: string) => boolean,
  *           resolveBwrapPath?: () => (string|null) }} [deps] test seam
  * @returns {{ cmd: string, args: string[] }}
@@ -319,6 +445,10 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
   const usersRoot = cageUsersRoot(deps);
   const hidePaths = cageSecretHidePaths(deps);
   const { writePaths, maskFiles } = cageMountPlan({ provider, userId }, deps);
+  // Provider-keyed credential masks (entitlement-aware) + unconditional
+  // non-provider operator secret masks, deduped: two logical paths can resolve
+  // to one real file (both /dev/null-bound harmlessly, but a Set keeps argv tidy).
+  const allMaskFiles = [...new Set([...maskFiles, ...cageOperatorSecretMasks(deps)])];
 
   const uid = userId === null || userId === undefined ? '' : String(userId).trim();
   const ownDirExists =
@@ -334,7 +464,7 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
       usersRoot,
       hidePaths,
       writePaths,
-      maskFiles,
+      maskFiles: allMaskFiles,
     },
     deps.resolveBwrapPath ? { resolveBwrapPath: deps.resolveBwrapPath } : undefined,
   );
@@ -364,6 +494,7 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
  * @param {{ spawn?: typeof spawn, homedir?: () => string,
  *           existsSync?: (p: string) => boolean,
  *           lstatSync?: typeof fs.lstatSync, realpathSync?: (p: string) => string,
+ *           readdirSync?: (p: string) => string[],
  *           isProviderIsolated?: (provider: string) => boolean,
  *           resolveBwrapPath?: () => (string|null) }} [deps] test seam
  * @returns {((spec: { command: string, args: string[], cwd?: string,
