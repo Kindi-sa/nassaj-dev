@@ -23,6 +23,7 @@ import path from 'node:path';
 
 import {
   cageUsersRoot,
+  cageSecretHidePaths,
   resolveCagedLaunch,
   buildCagedSdkSpawn,
 } from './provider-cage-wiring.js';
@@ -89,6 +90,32 @@ describe('cageUsersRoot', () => {
   it('returns undefined when the root is absent (nothing to hide)', () => {
     const root = cageUsersRoot({ homedir: () => HOME, existsSync: () => false });
     assert.equal(root, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cageSecretHidePaths — owner-secret dirs, relative to the REAL homedir
+// ---------------------------------------------------------------------------
+
+describe('cageSecretHidePaths', () => {
+  it('computes ~/.ssh relative to homedir (never a hard-coded /home/nassaj)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => '/home/ibrahim', existsSync: () => true });
+    assert.deepEqual(paths, ['/home/ibrahim/.ssh']);
+  });
+
+  it('re-roots on a different owner home (fleet nodes differ)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true });
+    assert.deepEqual(paths, [path.join(HOME, '.ssh')]);
+  });
+
+  it('omits a path that does not exist (nothing to hide, minimal argv)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => false });
+    assert.deepEqual(paths, []);
+  });
+
+  it('never includes ~/.claude.json (tmpfs cannot mount over a file)', () => {
+    const paths = cageSecretHidePaths({ homedir: () => HOME, existsSync: () => true });
+    assert.ok(!paths.some((p) => p.endsWith('.claude.json')), '.claude.json must not be tmpfs-hidden');
   });
 });
 
@@ -170,6 +197,14 @@ describe('flag ON — caged launch shape', () => {
     const userDir = path.join(USERS_ROOT, '42');
     assertContainsSeq(out.args, ['--bind', userDir, userDir]);
     assertContainsSeq(out.args, ['--bind', '/proj', '/proj']);
+    // owner-secret hiding is wired in: ~/.ssh blanked, BEFORE the user rebind
+    const sshDir = path.join(HOME, '.ssh');
+    assertContainsSeq(out.args, ['--tmpfs', sshDir]);
+    assert.ok(
+      indexOfSubsequence(out.args, ['--tmpfs', sshDir]) <
+        indexOfSubsequence(out.args, ['--bind', userDir, userDir]),
+      '~/.ssh tmpfs must precede the per-user rebind',
+    );
     const dash = out.args.indexOf('--');
     assert.deepEqual(out.args.slice(dash + 1), ['/home/op/.local/bin/agy', '-p', 'hi']);
   });

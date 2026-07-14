@@ -43,6 +43,31 @@ export function cageUsersRoot({ homedir = os.homedir, existsSync = fs.existsSync
 }
 
 /**
+ * Owner-secret DIRECTORIES blanked with an empty tmpfs inside every cage —
+ * closing the denylist's biggest leak: the operator's own SSH private keys,
+ * including the fleet key that grants SSH to every node. Computed relative to
+ * the REAL homedir (os.homedir), so it is correct on each fleet node where the
+ * owner user differs (nassaj here, ibrahim on traventure) — never a hard-coded
+ * /home/nassaj. Only existing paths are returned: nothing to hide otherwise,
+ * and it keeps the argv (and the bwrap mount count) minimal.
+ *
+ * DELIBERATELY EXCLUDED — ~/.claude.json (Anthropic OAuth token): tmpfs mounts
+ * over a DIRECTORY only; pointing it at that FILE aborts bwrap boot
+ * ("Can't mkdir …: Not a directory", verified 2026-07-14). Masking a single
+ * file needs a file-level primitive (e.g. --ro-bind /dev/null <file>) — tracked
+ * as a follow-up, NOT shipped here. Per-user Claude isolation does not depend on
+ * the owner file: with CLAUDE_CONFIG_DIR pointed at the user's own tree,
+ * `claude --version` and `claude mcp list` were verified to boot with
+ * ~/.claude.json fully masked.
+ *
+ * @param {{ homedir?: () => string, existsSync?: (p: string) => boolean }} [deps]
+ * @returns {string[]}
+ */
+export function cageSecretHidePaths({ homedir = os.homedir, existsSync = fs.existsSync } = {}) {
+  return [path.join(homedir(), '.ssh')].filter((p) => existsSync(p));
+}
+
+/**
  * Resolves the concrete `{ cmd, args }` a launcher must spawn for a provider
  * run — caged when (and only when) NASSAJ_PROVIDER_CAGE=true and the provider
  * is in scope (see cageEnabled: codex and the HTTP-hosted vendors are exempt).
@@ -70,6 +95,7 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
 
   const existsSync = deps.existsSync ?? fs.existsSync;
   const usersRoot = cageUsersRoot(deps);
+  const hidePaths = cageSecretHidePaths(deps);
 
   const uid = userId === null || userId === undefined ? '' : String(userId).trim();
   const ownDirExists =
@@ -83,6 +109,7 @@ export function resolveCagedLaunch({ userId, provider, cmd, args = [], cwd }, de
       args,
       cwd: cwd && existsSync(cwd) ? cwd : undefined,
       usersRoot,
+      hidePaths,
     },
     deps.resolveBwrapPath ? { resolveBwrapPath: deps.resolveBwrapPath } : undefined,
   );

@@ -13,9 +13,12 @@
  *   bwrap --unshare-user --unshare-pid --unshare-ipc \
  *         --ro-bind / / --dev /dev --proc /proc \
  *         --tmpfs /run --tmpfs /tmp \
+ *         --tmpfs <hidePath>… \
  *         --tmpfs <usersRoot> --bind <usersRoot>/<userId> <usersRoot>/<userId> \
  *         --bind <cwd> <cwd> \
  *         -- <cmd> <args...>
+ * <hidePath> are extra owner-secret DIRECTORIES blanked with an empty tmpfs
+ * (e.g. ~/.ssh — the fleet key); computed by the wiring layer, passed in.
  * Effect: another user's ~/.nassaj-users tree is hidden (tmpfs over the root,
  * only the caller's own dir re-bound rw), host runtime sockets like
  * /run/docker.sock disappear (tmpfs /run), /proc/<pid>/root is sealed by the new
@@ -197,24 +200,15 @@ export function resolveBwrapPath() {
 
 // --- caged launch builder ---------------------------------------------------
 
-let warnedBwrapMissing = false;
-
-/**
- * Test-only: reset the one-shot "bwrap missing" warning memo so the fail-safe
- * path can be asserted deterministically.
- * @internal
- */
-export function __resetCageWarningsForTests() {
-  warnedBwrapMissing = false;
-}
-
 /**
  * Build the concrete `{ cmd, args }` to spawn for a provider run.
  *
  *  - cage disabled OR provider exempt → passthrough `{ cmd, args }` unchanged.
- *  - cage enabled but no bwrap found  → passthrough + one-shot warning (FAIL-SAFE,
- *    never fail-open: a missing sandbox must not silently drop isolation AND
- *    must not block the spawn; we run unwrapped and shout once).
+ *  - cage enabled but no bwrap found  → passthrough + a warning ON EVERY SPAWN
+ *    (FAIL-SAFE, never fail-open: a missing sandbox must not silently drop
+ *    isolation AND must not block the spawn; we run unwrapped and shout each
+ *    time — a dropped isolation layer is individually security-relevant, so it
+ *    is deliberately NOT deduplicated).
  *  - cage enabled and bwrap available → wrap cmd/args in bwrap with the unified
  *    flags, hiding other users' trees and host sockets.
  *
@@ -223,12 +217,14 @@ export function __resetCageWarningsForTests() {
  * (bwrap --bind requires the source to exist), exactly like provisionUserDirs.
  *
  * @param {{ userId?: string|number|null, provider: ProviderName|string,
- *           cmd: string, args?: string[], cwd?: string, usersRoot?: string }} spec
+ *           cmd: string, args?: string[], cwd?: string, usersRoot?: string,
+ *           hidePaths?: string[] }} spec hidePaths: extra owner-secret DIRECTORIES
+ *           to blank with an empty tmpfs (e.g. ~/.ssh); computed by the caller.
  * @param {{ resolveBwrapPath?: () => (string|null) }} [deps] injectable seam (tests)
  * @returns {{ cmd: string, args: string[] }}
  */
 export function buildCagedLaunch(
-  { userId, provider, cmd, args = [], cwd, usersRoot },
+  { userId, provider, cmd, args = [], cwd, usersRoot, hidePaths = [] },
   deps = {},
 ) {
   const passthrough = { cmd, args };
@@ -237,14 +233,13 @@ export function buildCagedLaunch(
   const resolve = deps.resolveBwrapPath || resolveBwrapPath;
   const bwrap = resolve();
   if (!bwrap) {
-    if (!warnedBwrapMissing) {
-      warnedBwrapMissing = true;
-      console.warn(
-        '[provider-cage] NASSAJ_PROVIDER_CAGE=true but no bwrap found; running ' +
-          'provider UNWRAPPED (fail-safe passthrough)',
-        { provider: normalizeProvider(provider) },
-      );
-    }
+    // Warn on EVERY spawn (no memo): a dropped isolation layer must never fall
+    // silent — each unwrapped launch is individually security-relevant.
+    console.warn(
+      '[provider-cage] NASSAJ_PROVIDER_CAGE=true but no bwrap found; running ' +
+        'provider UNWRAPPED (fail-safe passthrough)',
+      { provider: normalizeProvider(provider) },
+    );
     return passthrough;
   }
 
@@ -268,6 +263,14 @@ export function buildCagedLaunch(
     '--tmpfs',
     '/tmp',
   ];
+
+  // Blank out extra owner-secret directories (e.g. ~/.ssh — the fleet SSH key)
+  // with an empty tmpfs. MUST precede the per-user rebind below: if a hidden
+  // dir ever contained the rebind target, the later --bind re-exposes it on
+  // top; the reverse order would mask the user's own dir.
+  for (const p of hidePaths) {
+    if (p) bwrapArgs.push('--tmpfs', p);
+  }
 
   // Hide the entire per-user root, then re-expose ONLY this user's dir (rw) so a
   // caged provider can never read another user's sessions/credentials.

@@ -29,7 +29,6 @@ import {
   buildCagedLaunch,
   HTTP_HOSTED_PROVIDERS,
   CAGE_EXEMPT_PROVIDERS,
-  __resetCageWarningsForTests,
 } from './provider-cage.js';
 
 // --- flag helpers -----------------------------------------------------------
@@ -178,16 +177,23 @@ describe('buildCagedLaunch — passthrough branches', () => {
     assert.deepEqual(out, { cmd: 'kimi', args: [] });
   });
 
-  it('FAILS SAFE (passthrough + one warning) when the flag is on but no bwrap resolves', () => {
+  it('FAILS SAFE (passthrough) + warns on EVERY spawn when the flag is on but no bwrap resolves', () => {
     setCage(true);
-    __resetCageWarningsForTests();
     const warn = mock.method(console, 'warn', () => {});
-    const out = buildCagedLaunch(
-      { userId: '1', provider: 'claude', cmd: 'claude', args: ['chat'], cwd: '/w', usersRoot: '/u' },
-      { resolveBwrapPath: () => null },
-    );
-    assert.deepEqual(out, { cmd: 'claude', args: ['chat'] }, 'must run unwrapped, not blocked');
-    assert.equal(warn.mock.callCount(), 1, 'must warn exactly once about the dropped cage');
+    const call = () =>
+      buildCagedLaunch(
+        { userId: '1', provider: 'claude', cmd: 'claude', args: ['chat'], cwd: '/w', usersRoot: '/u' },
+        { resolveBwrapPath: () => null },
+      );
+    const a = call();
+    const b = call();
+    const c = call();
+    // never blocked — always passthrough
+    for (const out of [a, b, c]) {
+      assert.deepEqual(out, { cmd: 'claude', args: ['chat'] }, 'must run unwrapped, not blocked');
+    }
+    // NOT deduplicated: a dropped isolation layer must shout on each spawn
+    assert.equal(warn.mock.callCount(), 3, 'must warn once PER spawn about the dropped cage');
     warn.mock.restore();
   });
 });
@@ -249,6 +255,50 @@ describe('buildCagedLaunch — wrapped argv shape', () => {
     assertContainsSeq(a.args, ['--bind', dirA, dirA]);
     assertContainsSeq(b.args, ['--bind', dirB, dirB]);
     assert.equal(indexOfSubsequence(a.args, ['--bind', dirB, dirB]), -1, 'user A must not see B');
+  });
+
+  it('blanks each hidePaths entry with its own --tmpfs (owner-secret hiding)', () => {
+    setCage(true);
+    const ssh = '/home/nassaj/.ssh';
+    const aws = '/home/nassaj/.aws';
+    const out = buildCagedLaunch(
+      { userId: '77', provider: 'claude', cmd: 'claude', args: [], cwd, usersRoot, hidePaths: [ssh, aws] },
+      FAKE,
+    );
+    assertContainsSeq(out.args, ['--tmpfs', ssh]);
+    assertContainsSeq(out.args, ['--tmpfs', aws]);
+  });
+
+  it('orders every hidePaths tmpfs BEFORE the per-user rebind (re-expose on top)', () => {
+    setCage(true);
+    const ssh = '/home/nassaj/.ssh';
+    const out = buildCagedLaunch(
+      { userId: '77', provider: 'claude', cmd: 'claude', args: [], cwd, usersRoot, hidePaths: [ssh] },
+      FAKE,
+    );
+    const hideIdx = indexOfSubsequence(out.args, ['--tmpfs', ssh]);
+    const userDir = path.join(usersRoot, '77');
+    const bindUserIdx = indexOfSubsequence(out.args, ['--bind', userDir, userDir]);
+    assert.ok(hideIdx !== -1 && bindUserIdx !== -1);
+    assert.ok(hideIdx < bindUserIdx, 'hidePaths tmpfs must precede the user rebind');
+  });
+
+  it('ignores empty entries and adds nothing when hidePaths is omitted', () => {
+    setCage(true);
+    const withEmpty = buildCagedLaunch(
+      { userId: '77', provider: 'claude', cmd: 'claude', args: [], cwd, usersRoot, hidePaths: ['', undefined as unknown as string] },
+      FAKE,
+    );
+    // no stray --tmpfs '' pair
+    assert.equal(indexOfSubsequence(withEmpty.args, ['--tmpfs', '']), -1);
+
+    const omitted = buildCagedLaunch(
+      { userId: '77', provider: 'claude', cmd: 'claude', args: [], cwd, usersRoot },
+      FAKE,
+    );
+    // exactly the three baseline tmpfs mounts (/run, /tmp, usersRoot) — no extras
+    const tmpfsCount = omitted.args.filter((a) => a === '--tmpfs').length;
+    assert.equal(tmpfsCount, 3, 'baseline is /run + /tmp + usersRoot only when no hidePaths');
   });
 });
 
