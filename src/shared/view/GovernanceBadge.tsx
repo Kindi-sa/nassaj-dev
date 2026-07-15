@@ -1,4 +1,4 @@
-import { ShieldCheck, ShieldOff } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../lib/utils';
@@ -11,57 +11,29 @@ type GovernanceBadgeProps = {
 };
 
 /**
- * Pill badge reflecting the live governance status of the active session's
- * provider (T-900, §المرحلة 3). Three honest states:
+ * Governance indicator for the active session's provider (T-900, §المرحلة 3 — قلب).
  *
- *   governed + enforced=true  → emerald, ShieldCheck, governed label
- *   governed + enforced=false → emerald (muted), ShieldCheck, governed label,
- *                               tooltip "حاضر غير مُنفَّذ / present but not enforced"
- *   ungoverned                → amber, ShieldOff, ungoverned label
- *   null (absent / error)     → renders nothing (fail-HIDDEN, not fail-ungoverned)
+ * Governance is the default assumed state — showing a positive "governed" badge
+ * adds noise without signal. Three honest states:
  *
- * A11y: role="status", aria-label contains the full tooltip text so screen
- * readers get the explanation without needing to hover. RTL-safe: gap/logical
- * flow only — no left/right overrides needed.
+ *   governed (enforced or present) → renders nothing (expected default)
+ *   ungoverned                     → soft amber warning triangle
+ *   null (absent / error)          → renders nothing (fail-HIDDEN)
  *
- * Re-fetches only when `provider` changes (MVP cadence per T-900 §4).
+ * A11y: role="status", aria-label carries both label and tooltip text so screen
+ * readers receive the explanation without requiring a hover. RTL-safe: only
+ * logical-flow gap — no left/right overrides needed.
  */
 export default function GovernanceBadge({ provider, className }: GovernanceBadgeProps) {
   const { t } = useTranslation('common');
   const descriptor = useProviderGovernance(provider);
 
-  if (!descriptor) {
-    // Fail-HIDDEN: unknown server state or old endpoint not yet deployed.
+  // Fail-HIDDEN: unknown server state, absent endpoint, or governed (expected default).
+  if (!descriptor || descriptor.status === 'governed') {
     return null;
   }
 
-  if (descriptor.status === 'governed') {
-    const tooltipKey = descriptor.enforced
-      ? 'governanceBadge.tooltip.enforced'
-      : 'governanceBadge.tooltip.present';
-    const tooltip = t(tooltipKey);
-    const label = t('governanceBadge.governed');
-
-    return (
-      <span
-        role="status"
-        title={tooltip}
-        aria-label={`${label} — ${tooltip}`}
-        className={cn(
-          'inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4',
-          descriptor.enforced
-            ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-            : 'border-emerald-500/20 bg-emerald-500/5 text-emerald-600/70 dark:text-emerald-500/60',
-          className,
-        )}
-      >
-        <ShieldCheck className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
-        <span>{label}</span>
-      </span>
-    );
-  }
-
-  // status === 'ungoverned'
+  // status === 'ungoverned': show a quiet warning — not the default.
   const tooltip = t('governanceBadge.tooltip.none');
   const label = t('governanceBadge.ungoverned');
 
@@ -72,11 +44,11 @@ export default function GovernanceBadge({ provider, className }: GovernanceBadge
       aria-label={`${label} — ${tooltip}`}
       className={cn(
         'inline-flex flex-shrink-0 items-center gap-1 rounded-full border px-1.5 py-px text-[10px] font-medium leading-4',
-        'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
+        'border-amber-400/25 bg-amber-400/5 text-amber-600/60 dark:text-amber-500/50',
         className,
       )}
     >
-      <ShieldOff className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
+      <AlertTriangle className="h-2.5 w-2.5 flex-shrink-0" aria-hidden="true" />
       <span>{label}</span>
     </span>
   );

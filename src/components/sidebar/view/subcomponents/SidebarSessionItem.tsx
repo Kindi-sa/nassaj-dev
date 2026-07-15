@@ -4,7 +4,7 @@ import { Check, Copy, Edit2, ExternalLink, Star, Trash2, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
-import { Badge, Tooltip } from '../../../../shared/view/ui';
+import { Badge } from '../../../../shared/view/ui';
 import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
 import WorkflowStatusBadge from '../../../../shared/view/WorkflowStatusBadge';
 import { cn } from '../../../../lib/utils';
@@ -246,26 +246,11 @@ export default function SidebarSessionItem({
   return (
     <>
     <div className="group relative">
-      {sessionView.isActive && (
-        <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
-          <Tooltip content={t('tooltips.activeSessionIndicator')} position="right">
-            <div
-              role="status"
-              aria-label={t('tooltips.activeSessionIndicator')}
-              className="h-2 w-2 animate-pulse rounded-full bg-green-500"
-            />
-          </Tooltip>
-        </div>
-      )}
-
       <div className="md:hidden">
         <div
           className={cn(
             'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
-            isSelected ? 'bg-primary/5 border-primary/20' : '',
-            !isSelected && sessionView.isActive
-              ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
-              : 'border-border/30',
+            isSelected ? 'bg-primary/5 border-primary/20' : 'border-border/30',
           )}
           onClick={selectMobileSession}
           onContextMenu={handleContextMenu}

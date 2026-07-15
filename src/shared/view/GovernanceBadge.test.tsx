@@ -1,12 +1,12 @@
 /**
- * اختبارات T-900 — GovernanceBadge
+ * اختبارات T-900 — GovernanceBadge (بعد قلب المنطق)
  *
  * يغطّي:
  *   - null ⇒ لا عرض (fail-HIDDEN)
- *   - governed+enforced ⇒ pill زمردي، نص governed، tooltip enforced
- *   - governed+unenforced ⇒ pill زمردي مخفّف، نص governed، tooltip present
- *   - ungoverned ⇒ pill كهرماني، نص ungoverned، tooltip none
- *   - aria-label يضمّ النص والـtooltip معاً
+ *   - governed+enforced ⇒ لا عرض (الحوكمة افتراض لا مزية)
+ *   - governed+unenforced ⇒ لا عرض
+ *   - ungoverned ⇒ تحذير ناعم: أيقونة + نص + tooltip
+ *   - aria-label يضمّ النص والـtooltip معاً عند ungoverned
  *
  * الـhook مُحاكى (مُغلَّف) — سلوكه مختبَر بشكل مستقل
  * في useProviderGovernance.test.ts.
@@ -48,7 +48,7 @@ describe('GovernanceBadge', () => {
     expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('renders governed pill with enforced tooltip for governed+enforced', () => {
+  it('renders nothing for governed+enforced (governance is the expected default)', () => {
     const desc: GovernanceDescriptor = {
       provider: 'codex',
       status: 'governed',
@@ -56,17 +56,12 @@ describe('GovernanceBadge', () => {
       mechanism: 'codex-fingerprint',
     };
     mockHook.mockReturnValue(desc);
-    render(<GovernanceBadge provider="codex" />);
-
-    const badge = screen.getByRole('status');
-    expect(badge).toBeDefined();
-    // Label text
-    expect(badge.textContent).toContain('governanceBadge.governed');
-    // Tooltip (title attribute)
-    expect(badge.getAttribute('title')).toBe('governanceBadge.tooltip.enforced');
+    const { container } = render(<GovernanceBadge provider="codex" />);
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('renders governed pill with present tooltip for governed+unenforced', () => {
+  it('renders nothing for governed+unenforced (governance is the expected default)', () => {
     const desc: GovernanceDescriptor = {
       provider: 'claude',
       status: 'governed',
@@ -74,14 +69,12 @@ describe('GovernanceBadge', () => {
       mechanism: 'claude-md',
     };
     mockHook.mockReturnValue(desc);
-    render(<GovernanceBadge provider="claude" />);
-
-    const badge = screen.getByRole('status');
-    expect(badge.textContent).toContain('governanceBadge.governed');
-    expect(badge.getAttribute('title')).toBe('governanceBadge.tooltip.present');
+    const { container } = render(<GovernanceBadge provider="claude" />);
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it('renders ungoverned pill with ShieldOff text and none tooltip', () => {
+  it('renders soft warning for ungoverned with correct label and tooltip', () => {
     const desc: GovernanceDescriptor = {
       provider: 'hermes',
       status: 'ungoverned',
@@ -92,24 +85,9 @@ describe('GovernanceBadge', () => {
     render(<GovernanceBadge provider="hermes" />);
 
     const badge = screen.getByRole('status');
+    expect(badge).toBeDefined();
     expect(badge.textContent).toContain('governanceBadge.ungoverned');
     expect(badge.getAttribute('title')).toBe('governanceBadge.tooltip.none');
-  });
-
-  it('aria-label contains both label and tooltip text for governed+enforced', () => {
-    const desc: GovernanceDescriptor = {
-      provider: 'codex',
-      status: 'governed',
-      enforced: true,
-      mechanism: 'codex-fingerprint',
-    };
-    mockHook.mockReturnValue(desc);
-    render(<GovernanceBadge provider="codex" />);
-
-    const badge = screen.getByRole('status');
-    const ariaLabel = badge.getAttribute('aria-label') ?? '';
-    expect(ariaLabel).toContain('governanceBadge.governed');
-    expect(ariaLabel).toContain('governanceBadge.tooltip.enforced');
   });
 
   it('aria-label contains both label and tooltip text for ungoverned', () => {
