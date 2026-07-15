@@ -82,6 +82,7 @@
     "percentUsed": "{{percent}} مُستخدَم",
     "resetsIn": "يُعاد التعيين {{time}}",
     "extraUsageDetail": "{{used}} من {{limit}} مُستخدَم",
+    "crossProviderNote": "استخدام حساب Claude — هذه الجلسة تعمل على {{provider}}",
     "windows": {
       "session": "الجلسة الحالية",
       "weeklyAllModels": "كل النماذج (أسبوعي)",
@@ -752,14 +753,14 @@
         },
         "bypassPermissions": {
           "title": "تجاوز الأذونات",
-          "description": "وصول كامل للنظام دون قيود. تعمل جميع الأوامر تلقائياً مع كامل الوصول للقرص والشبكة. استخدم بحذر."
+          "description": "تعمل جميع الأوامر تلقائياً دون طلب موافقة. مقصور على workspace-write مع شبكة مطفأة — نفس سقف «قبول التعديلات» — والوصول الكامل للقرص/الشبكة متاح فقط إذا فعّله المشغّل صراحة لهذا النشر (مطفأ افتراضياً). استخدم بحذر."
         }
       },
       "technicalDetails": "تفاصيل تقنية",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write، approvalPolicy=untrusted. أوامر موثوقة: cat، cd، grep، head، ls، pwd، tail، git status/log/diff/show، find (بدون -exec)، إلخ.",
-        "acceptEdits": "sandboxMode=workspace-write، approvalPolicy=never. جميع الأوامر تنفّذ تلقائياً داخل مجلد المشروع.",
-        "bypassPermissions": "sandboxMode=danger-full-access، approvalPolicy=never. وصول كامل للنظام، استخدم في البيئات الموثوقة فقط.",
+        "default": "sandboxMode=workspace-write، approvalPolicy=untrusted، الشبكة مطفأة. أوامر موثوقة: cat، cd، grep، head، ls، pwd، tail، git status/log/diff/show، find (بدون -exec)، إلخ.",
+        "acceptEdits": "sandboxMode=workspace-write، approvalPolicy=never، الشبكة مطفأة. جميع الأوامر تنفّذ تلقائياً داخل مجلد المشروع.",
+        "bypassPermissions": "sandboxMode=workspace-write، approvalPolicy=never، الشبكة مطفأة — نفس سقف «قبول التعديلات» على هذا النشر. sandboxMode=danger-full-access (وصول كامل فعلي للقرص/الشبكة) لا يتحقق إلا إذا فعّل المشغّل علم CODEX_ALLOW_FULL_ACCESS لكامل النشر — وهو مطفأ افتراضياً على الأسطول.",
         "overrideNote": "يمكنك تجاوز ذلك لكل جلسة باستخدام زر الوضع في واجهة المحادثة."
       }
     },

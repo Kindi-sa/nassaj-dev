@@ -9,7 +9,12 @@ import QuickSettingsContent from './QuickSettingsContent';
 import QuickSettingsHandle from './QuickSettingsHandle';
 import QuickSettingsPanelHeader from './QuickSettingsPanelHeader';
 
-export default function QuickSettingsPanelView() {
+type QuickSettingsPanelViewProps = {
+  /** T-5: مزوّد الجلسة المفتوحة حالياً — يُمرَّر إلى ClaudeUsageSection للوسم. */
+  sessionProvider?: string | null;
+};
+
+export default function QuickSettingsPanelView({ sessionProvider }: QuickSettingsPanelViewProps = {}) {
   const [isOpen, setIsOpen] = useState(false);
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { isDarkMode } = useTheme();
@@ -80,6 +85,7 @@ export default function QuickSettingsPanelView() {
             isOpen={isOpen}
             preferences={quickSettingsPreferences}
             onPreferenceChange={handlePreferenceChange}
+            sessionProvider={sessionProvider}
           />
         </div>
       </div>

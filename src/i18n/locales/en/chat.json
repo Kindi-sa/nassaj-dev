@@ -146,10 +146,16 @@
       "default": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace.",
       "auto": "A model classifier decides per tool call whether to approve or deny. Hands-off, but safer than Bypass — denials still happen.",
       "acceptEdits": "All commands run automatically within the workspace. Full auto mode with sandboxed execution.",
-      "bypassPermissions": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution.",
+      "bypassPermissions": "All commands run automatically with no approval prompts. Capped to workspace-write with network OFF — same ceiling as Accept Edits — unless the operator has enabled full disk/network access for this deployment (off by default). Use with caution.",
       "plan": "Planning mode - no commands are executed"
     },
-    "technicalDetails": "Technical details"
+    "technicalDetails": "Technical details",
+    "posture": {
+      "title": "Actual sandbox ceiling",
+      "default": "sandbox: workspace-write · approvals: untrusted · network: OFF",
+      "acceptEdits": "sandbox: workspace-write · approvals: never · network: OFF",
+      "bypassPermissions": "sandbox: workspace-write · approvals: never · network: OFF — same as Accept Edits. Full disk/network access only if the operator enabled it for this deployment (off by default)."
+    }
   },
   "gemini": {
     "permissionMode": "Gemini Permission Mode",

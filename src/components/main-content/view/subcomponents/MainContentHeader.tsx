@@ -124,7 +124,7 @@ export default function MainContentHeader({
           />
         </div>
 
-        <HeaderUsageIndicator tabsMode={tabsMode} />
+        <HeaderUsageIndicator tabsMode={tabsMode} sessionProvider={selectedSession?.__provider} />
 
         <div className="flex min-w-0 flex-shrink items-center gap-1.5 sm:flex-shrink-0">
           {/* Tab group renders only when the display mode is "full" or "compact".

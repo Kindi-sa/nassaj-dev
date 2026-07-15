@@ -21,6 +21,7 @@ import {
   filterDisabledProviders,
   isProviderGloballyDisabled,
 } from '../../../../shared/disabledProviders';
+import { getProviderCapabilities } from '../constants/providerCapabilities';
 
 import { pickStoredOrCurrent } from './normalizeProviderModel';
 
@@ -51,18 +52,10 @@ function readStoredEngineProvider(): EngineProvider {
 // source of truth). The former local copy had claude:'opus' which is not a
 // valid Claude model value, and was missing hermes and sakana entries.
 
-export const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
-  if (provider === 'codex') {
-    return ['default', 'acceptEdits', 'bypassPermissions'];
-  }
-  if (provider === 'claude') {
-    return ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'];
-  }
-  if (provider === 'opencode') {
-    return ['default'];
-  }
-  return ['default', 'acceptEdits', 'bypassPermissions', 'plan'];
-};
+// T-904 (ADR-047 م0): قارئة رفيعة فوق واصف القدرات — لا تُعرِّف مجموعات
+// الأذونات بنفسها، تقرأها من PROVIDER_UI_CAPABILITIES (مصدر وحيد للحقيقة).
+export const getPermissionModesForProvider = (provider: LLMProvider | string): PermissionMode[] =>
+  getProviderCapabilities(provider).permissions.modes;
 
 interface UseChatProviderStateArgs {
   selectedSession: ProjectSession | null;
@@ -461,10 +454,16 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
       return;
     }
 
+    // T-904: seed against the OPEN SESSION's own provider (mirrors
+    // ChatInterface's displayProvider = selectedSession?.__provider ??
+    // provider), not the global picker — so a global switch away from
+    // claude never re-seeds an open claude session's permission mode
+    // against another provider's mode set.
+    const sessionProvider = selectedSession.__provider ?? provider;
     const savedMode = localStorage.getItem(`permissionMode-${selectedSession.id}`) as PermissionMode | null;
-    const validModes = getPermissionModesForProvider(provider);
+    const validModes = getPermissionModesForProvider(sessionProvider);
     setPermissionMode(savedMode && validModes.includes(savedMode) ? savedMode : 'default');
-  }, [selectedSession?.id, provider]);
+  }, [selectedSession?.id, selectedSession?.__provider, provider]);
 
   // Provider is driven solely by explicit user selection (localStorage).
   // Session's __provider is informational only — we never auto-override the
@@ -513,7 +512,10 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   }, [provider]);
 
   const cyclePermissionMode = useCallback(() => {
-    const modes = getPermissionModesForProvider(provider);
+    // T-904: rotate within the OPEN SESSION's own mode set, not the global
+    // picker's — see the seeding effect above for the same rationale.
+    const sessionProvider = selectedSession?.__provider ?? provider;
+    const modes = getPermissionModesForProvider(sessionProvider);
 
     const currentIndex = modes.indexOf(permissionMode);
     const nextIndex = (currentIndex + 1) % modes.length;
@@ -523,7 +525,7 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     if (selectedSession?.id) {
       localStorage.setItem(`permissionMode-${selectedSession.id}`, nextMode);
     }
-  }, [permissionMode, provider, selectedSession?.id]);
+  }, [permissionMode, provider, selectedSession?.id, selectedSession?.__provider]);
 
   const selectProviderModel = useCallback(async (
     targetProvider: LLMProvider,

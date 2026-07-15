@@ -82,6 +82,7 @@
     "percentUsed": "{{percent}} used",
     "resetsIn": "Resets {{time}}",
     "extraUsageDetail": "{{used}} of {{limit}} used",
+    "crossProviderNote": "Claude account usage — this session runs on {{provider}}",
     "windows": {
       "session": "Current session",
       "weeklyAllModels": "All models (weekly)",
@@ -752,14 +753,14 @@
         },
         "bypassPermissions": {
           "title": "Bypass Permissions",
-          "description": "Full system access with no restrictions. All commands run automatically with full disk and network access. Use with caution."
+          "description": "All commands run automatically with no approval prompts. Capped to workspace-write with network access OFF, same ceiling as Accept Edits — full disk/network access is available only if the operator has explicitly enabled it for this deployment (off by default). Use with caution."
         }
       },
       "technicalDetails": "Technical details",
       "technicalInfo": {
-        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
-        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. All commands auto-execute within project directory.",
-        "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Full system access, use only in trusted environments.",
+        "default": "sandboxMode=workspace-write, approvalPolicy=untrusted, network access OFF. Trusted commands: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (without -exec), etc.",
+        "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never, network access OFF. All commands auto-execute within project directory.",
+        "bypassPermissions": "sandboxMode=workspace-write, approvalPolicy=never, network access OFF — the SAME ceiling as Accept Edits on this deployment. sandboxMode=danger-full-access (real full disk/network access) is reachable only when the operator has explicitly set the CODEX_ALLOW_FULL_ACCESS flag for the whole deployment; it is off by default on the fleet.",
         "overrideNote": "You can override this per-session using the mode button in the chat interface."
       }
     },

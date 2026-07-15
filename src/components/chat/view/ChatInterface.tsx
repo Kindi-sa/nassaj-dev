@@ -743,7 +743,7 @@ function ChatInterface({
         />
       </div>
 
-      <QuickSettingsPanel />
+      <QuickSettingsPanel sessionProvider={displayProvider} />
 
       <CommandResultModal
         payload={commandModalPayload}

@@ -23,6 +23,8 @@ type QuickSettingsContentProps = {
   isOpen: boolean;
   preferences: QuickSettingsPreferences;
   onPreferenceChange: (key: PreferenceToggleKey, value: boolean) => void;
+  /** T-5: session provider passthrough for ClaudeUsageSection's cross-provider label. */
+  sessionProvider?: string | null;
 };
 
 export default function QuickSettingsContent({
@@ -30,6 +32,7 @@ export default function QuickSettingsContent({
   isOpen,
   preferences,
   onPreferenceChange,
+  sessionProvider,
 }: QuickSettingsContentProps) {
   const { t } = useTranslation('settings');
 
@@ -47,7 +50,7 @@ export default function QuickSettingsContent({
 
   return (
     <div className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden bg-background p-4">
-      <ClaudeUsageSection isOpen={isOpen} />
+      <ClaudeUsageSection isOpen={isOpen} sessionProvider={sessionProvider} />
 
       <QuickSettingsSection title={t('quickSettings.sections.appearance')}>
         <div className={SETTING_ROW_CLASS}>

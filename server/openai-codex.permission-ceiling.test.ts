@@ -77,6 +77,7 @@ type ThreadOptions = {
   networkAccessEnabled?: boolean;
   webSearchEnabled?: boolean;
   webSearchMode?: string;
+  modelReasoningEffort?: string;
   [k: string]: unknown;
 };
 type ThreadStart = { method: 'start' | 'resume'; options: ThreadOptions | undefined };
@@ -111,7 +112,7 @@ mock.module('@openai/codex-sdk', { namedExports: { Codex: FakeCodex } });
 const { initializeDatabase, closeConnection } = await import('@/modules/database/index.js');
 // eslint-disable-next-line boundaries/no-unknown
 const codexModule = await import('@/openai-codex.js');
-const { queryCodex, mapPermissionModeToCodexOptions, resolveCodexNetworkAccess } =
+const { queryCodex, mapPermissionModeToCodexOptions, resolveCodexNetworkAccess, resolveCodexReasoningEffort } =
   codexModule as unknown as {
     queryCodex: (command: string, options: unknown, ws: unknown) => Promise<void>;
     mapPermissionModeToCodexOptions: (
@@ -122,6 +123,7 @@ const { queryCodex, mapPermissionModeToCodexOptions, resolveCodexNetworkAccess }
       options?: Record<string, unknown>,
       env?: Record<string, string | undefined>,
     ) => true | undefined;
+    resolveCodexReasoningEffort: (reasoningEffort: unknown) => string | undefined;
   };
 
 // Restore the real setInterval now that the import graph's timers are unref'd.
@@ -275,6 +277,34 @@ describe('resolveCodexNetworkAccess — server-flag-ONLY, client opt-in removed 
   });
 });
 
+describe('resolveCodexReasoningEffort — SDK-enum validation + clamp (T-905)', () => {
+  it('passes through the SDK-native values unchanged', () => {
+    for (const value of ['minimal', 'low', 'medium', 'high', 'xhigh']) {
+      assert.equal(resolveCodexReasoningEffort(value), value);
+    }
+  });
+
+  it('is case-insensitive', () => {
+    assert.equal(resolveCodexReasoningEffort('HIGH'), 'high');
+    assert.equal(resolveCodexReasoningEffort('Medium'), 'medium');
+  });
+
+  it('clamps the Claude-only tiers (no ModelReasoningEffort equivalent) to xhigh', () => {
+    assert.equal(resolveCodexReasoningEffort('max'), 'xhigh');
+    assert.equal(resolveCodexReasoningEffort('ultracode'), 'xhigh');
+  });
+
+  it('omits the field (undefined) for "none", empty, missing, or unknown values', () => {
+    for (const bad of ['none', '', undefined, null, 'nonsense', 123, {}]) {
+      assert.equal(
+        resolveCodexReasoningEffort(bad as unknown as string),
+        undefined,
+        `${JSON.stringify(bad)} must NOT be forwarded raw to the SDK`,
+      );
+    }
+  });
+});
+
 // ===========================================================================
 // Part 2 — Behavioural regression: NO live path reaches danger-full-access
 // without the explicit flag (qa-critic veto requirement). Drives queryCodex and
@@ -383,6 +413,38 @@ describe('queryCodex live spawn — sandbox ceiling regression (T-884)', () => {
     });
     assert.equal(hostile?.webSearchEnabled, false, 'client webSearchEnabled:true must NOT stick');
     assert.equal(hostile?.webSearchMode, 'disabled', 'client webSearchMode:live must NOT stick');
+  });
+});
+
+describe('queryCodex live spawn — modelReasoningEffort forwarding (T-905)', () => {
+  it('omits modelReasoningEffort entirely when no reasoningEffort is sent', async () => {
+    const opts = await spawnAndCapture({});
+    assert.equal(opts?.modelReasoningEffort, undefined);
+  });
+
+  it('forwards a valid reasoningEffort as modelReasoningEffort', async () => {
+    const opts = await spawnAndCapture({ reasoningEffort: 'high' });
+    assert.equal(opts?.modelReasoningEffort, 'high');
+  });
+
+  it('clamps a hostile/stale max|ultracode client value to xhigh', async () => {
+    const maxOpts = await spawnAndCapture({ reasoningEffort: 'max' });
+    assert.equal(maxOpts?.modelReasoningEffort, 'xhigh');
+    const ucOpts = await spawnAndCapture({ reasoningEffort: 'ultracode' });
+    assert.equal(ucOpts?.modelReasoningEffort, 'xhigh');
+  });
+
+  it('omits the field for "none" or any unrecognized value — never forwarded raw', async () => {
+    const noneOpts = await spawnAndCapture({ reasoningEffort: 'none' });
+    assert.equal(noneOpts?.modelReasoningEffort, undefined);
+    const junkOpts = await spawnAndCapture({ reasoningEffort: 'not-a-real-effort' });
+    assert.equal(junkOpts?.modelReasoningEffort, undefined);
+  });
+
+  it('is forwarded identically on the resume path', async () => {
+    const opts = await spawnAndCapture({ sessionId: 'fake-thread-id', reasoningEffort: 'xhigh' });
+    assert.equal(threadStarts[threadStarts.length - 1].method, 'resume');
+    assert.equal(opts?.modelReasoningEffort, 'xhigh');
   });
 });
 

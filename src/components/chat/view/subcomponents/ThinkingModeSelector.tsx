@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback, type CSSProperties } from 're
 import { createPortal } from 'react-dom';
 import { Check, Minus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { effortModes } from '../../constants/thinkingModes';
+import { effortModes, type EffortMode } from '../../constants/thinkingModes';
 import { cn } from '../../../../lib/utils';
 
 type ThinkingModeSelectorProps = {
@@ -10,9 +10,21 @@ type ThinkingModeSelectorProps = {
   onModeChange: (modeId: string) => void;
   onClose?: () => void;
   className?: string;
+  /**
+   * مجموعة فرعية اختيارية من effortModes (T-905، مثلاً كودكس بلا max/ultracode
+   * — لا مقابل لهما في codex ModelReasoningEffort). الغياب = القائمة الكاملة،
+   * فسلوك claude يبقى حرفياً كما كان قبل T-905.
+   */
+  modes?: EffortMode[];
 };
 
-function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className = '' }: ThinkingModeSelectorProps) {
+function ThinkingModeSelector({
+  selectedMode,
+  onModeChange,
+  onClose,
+  className = '',
+  modes = effortModes,
+}: ThinkingModeSelectorProps) {
   const { t } = useTranslation('chat');
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -20,7 +32,7 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties | null>(null);
 
-  const translatedModes = effortModes.map(mode => ({
+  const translatedModes = modes.map(mode => ({
     ...mode,
     displayName: t(`effortMode.modes.${mode.id}.name`, { defaultValue: mode.name }),
     displayDescription: t(`effortMode.modes.${mode.id}.description`, { defaultValue: '' }),
@@ -203,13 +215,17 @@ function ThinkingModeSelector({ selectedMode, onModeChange, onClose, className =
           </div>
 
           <div className="min-h-0 overflow-y-auto p-1.5">
-            {translatedModes.map((mode, index) => {
+            {translatedModes.map((mode) => {
               const ModeIcon = mode.icon;
               const isSelected = mode.id === selectedMode;
               const isUC = mode.id === 'ultracode';
 
-              // Logical separators: after 'none' (index 0) and after 'max' (index 5)
-              const showSeparatorBefore = index === 1 || index === 6;
+              // Logical separators: after 'none' (start of active tiers) and after
+              // 'max' (start of the special/dangerous tier). Id-based (not index-based)
+              // so a filtered `modes` subset (T-905, e.g. codex without max/ultracode)
+              // degrades gracefully — the 'ultracode' separator simply never renders
+              // when 'ultracode' itself is absent from the list.
+              const showSeparatorBefore = mode.id === 'low' || mode.id === 'ultracode';
 
               return (
                 <div key={mode.id}>

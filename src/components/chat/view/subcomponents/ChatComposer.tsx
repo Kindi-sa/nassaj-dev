@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { useMemo } from 'react';
 import type {
   ChangeEvent,
   ClipboardEvent,
@@ -14,6 +15,8 @@ import type {
 import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react';
 
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
+import { getProviderCapabilities } from '../../constants/providerCapabilities';
+import { effortModes } from '../../constants/thinkingModes';
 import FileAttachment from './FileAttachment';
 import type { RunProgress } from '../../hooks/useRunProgress';
 import {
@@ -29,6 +32,7 @@ import {
 
 import CommandMenu from './CommandMenu';
 import AgentStatusCard from './AgentStatusCard';
+import CodexPostureInfo from './CodexPostureInfo';
 import ImageAttachment from './ImageAttachment';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import ThinkingModeSelector from './ThinkingModeSelector';
@@ -132,7 +136,6 @@ export default function ChatComposer({
   runStartedAt = null,
   runProgress = null,
   onAbortSession,
-  provider,
   displayProvider,
   permissionMode,
   onModeSwitch,
@@ -187,6 +190,26 @@ export default function ChatComposer({
   sendError = null,
 }: ChatComposerProps) {
   const { t } = useTranslation('chat');
+  // T-904: كل قدرات المُؤلِّف (منتقي التفكير، عدّاد التوكنز، تلميح الإرفاق)
+  // تُشتق من مزوّد الجلسة المفتوحة (displayProvider) لا الاختيار العام
+  // (provider)، فتبقى أدوات جلسة claude ثابتة مهما تغيّر الاختيار العام —
+  // الأخير يؤثّر فقط على جلسة جديدة (قرار المالك، انحراف واعٍ عن PLAN-v1 §4.1).
+  const capabilities = useMemo(
+    () => getProviderCapabilities(displayProvider),
+    [displayProvider],
+  );
+  // T-905: ThinkingModeSelector يعرض effortModes الكاملة ما لم يحصرها الواصف
+  // (capabilities.effort.modes) بمجموعة فرعية من الهويّات — حال codex اليوم
+  // (بلا max/ultracode، لا مقابل لهما في codex ModelReasoningEffort). المرجع
+  // ثابت من PROVIDER_UI_CAPABILITIES (مصفوفة وحدة نمطية لا تُعاد كل رندر)،
+  // فالمذكِّر مستقرّ ولا يُعيد الحساب إلا حين يتبدّل المزوّد فعلياً.
+  const effortModesForProvider = useMemo(() => {
+    if (!capabilities.effort.modes) {
+      return effortModes;
+    }
+    const allowedIds = new Set(capabilities.effort.modes);
+    return effortModes.filter((mode) => allowedIds.has(mode.id));
+  }, [capabilities.effort.modes]);
   const textareaRect = textareaRef.current?.getBoundingClientRect();
   // bottom-anchored position: distance from bottom of viewport to top of textarea + gap.
   // left = textarea left edge (for LTR anchoring in getMenuPosition).
@@ -374,13 +397,13 @@ export default function ChatComposer({
           <PromptInputTools>
             <PromptInputButton
               tooltip={{
-                content: provider !== 'claude'
+                content: !capabilities.command.supportsImages
                   ? t('input.nonClaudeAttachmentHint')
                   : t('input.attachFilesAndImages'),
               }}
               onClick={openImagePicker}
               aria-label={
-                provider !== 'claude'
+                !capabilities.command.supportsImages
                   ? t('input.nonClaudeAttachmentHint')
                   : t('input.attachFilesAndImages')
               }
@@ -428,9 +451,23 @@ export default function ChatComposer({
               </div>
             </button>
 
-            {provider === 'claude' && (
+            {/* T-894/T-905: زرّ معلومات السقف الفعلي (sandbox/شبكة) للوضع الحالي —
+                codex فقط (capabilities.posture.supported)، تصحيحاً لنصوص كانت تصف
+                bypassPermissions بأنه وصول كامل للقرص/الشبكة بينما السقف الحيّ
+                مقصور على workspace-write وشبكة OFF (ADR-058/T-884). */}
+            {capabilities.posture.supported && (
+              <CodexPostureInfo permissionMode={permissionMode} />
+            )}
+
+            {capabilities.effort.supported && (
               <>
-                <ThinkingModeSelector selectedMode={thinkingMode} onModeChange={setThinkingMode} onClose={() => {}} className="" />
+                <ThinkingModeSelector
+                  selectedMode={thinkingMode}
+                  onModeChange={setThinkingMode}
+                  onClose={() => {}}
+                  className=""
+                  modes={effortModesForProvider}
+                />
                 {thinkingMode === 'ultracode' && (
                   <span
                     className="hidden items-center rounded border border-red-400 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-700 shadow-[0_0_8px_rgba(239,68,68,0.40)] dark:border-red-600 dark:bg-red-950 dark:text-red-300 dark:shadow-[0_0_10px_rgba(239,68,68,0.55)] sm:flex"
@@ -442,17 +479,15 @@ export default function ChatComposer({
               </>
             )}
 
-            {/* Token usage + context-rot indicator gate.
-                Claude exports live token usage; OpenCode also emits a real
-                `token_budget` after each run closes (opencode-cli.js:268-277),
-                so its counter must show too — the B-92 fix wrongly limited this
-                to Claude and hid the OpenCode budget that IS populated (OC-20).
-                TACTICAL EXCEPTION to "no new provider=== checks": this is the
-                sanctioned fallback that does NOT wait on T-224 (see plan §7.3).
-                REMOVE this widened gate when T-224 m0 lands the provider
-                capability descriptor (`opencode: tokenCounter live`) — the
-                widget should then read a capability flag, not a provider id. */}
-            {(provider === 'claude' || provider === 'codex' || provider === 'opencode') && (
+            {/* Token usage + context-rot indicator gate (T-904, ADR-047 م0).
+                Gated on the provider capability descriptor — claude/codex/
+                opencode emit a real `token_budget` (opencode-cli.js:268-277),
+                hermes/agy/gemini/... do not, so their gate stays closed
+                (B-92). Derived from `capabilities` (displayProvider = the
+                OPEN SESSION's provider), not the global picker, so the
+                counter never disappears/appears out of sync with the
+                conversation actually shown. */}
+            {capabilities.tokenCounter.supported && (
               <TokenUsageSummary usage={tokenBudget} />
             )}
 

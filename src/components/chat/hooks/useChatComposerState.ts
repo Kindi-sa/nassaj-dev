@@ -772,16 +772,26 @@ export function useChatComposerState({
           },
         });
       } else if (effectiveProvider === 'codex') {
+        // T-905: mirrors the Claude branch's `effort` handling below — attach
+        // `reasoningEffort` only when a non-empty value is chosen (the UI only
+        // ever offers codex the none/low/medium/high/xhigh subset, see
+        // providerCapabilities.ts codex.effort.modes). The server (openai-codex.js
+        // queryCodexUnlocked) re-validates against the SDK's own enum regardless —
+        // this is not the sole safety net.
+        const codexOptions: Record<string, unknown> = {
+          cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
+          resume, model: codexModel, sessionSummary,
+          permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
+          images: uploadedImages,
+        };
+        if (effortValue) {
+          codexOptions.reasoningEffort = effortValue;
+        }
         result = sendMessage({
           type: 'codex-command',
           command: messageContent,
           sessionId: targetSessionId,
-          options: {
-            cwd: resolvedProjectPath, projectPath: resolvedProjectPath, sessionId: targetSessionId,
-            resume, model: codexModel, sessionSummary,
-            permissionMode: permissionMode === 'plan' ? 'default' : permissionMode,
-            images: uploadedImages,
-          },
+          options: codexOptions,
         });
       } else if (effectiveProvider === 'gemini') {
         result = sendMessage({
@@ -1148,6 +1158,17 @@ export function useChatComposerState({
   useEffect(() => {
     handleSubmitRef.current = handleSubmit;
   }, [handleSubmit]);
+
+  // T-904 (بند 6): تصفير thinkingMode عند تبدّل مزوّد الجلسة المفتوحة (session
+  // = selectedSession?.__provider ?? العام، لا العام وحده — نفس الاشتقاق
+  // المستخدَم في ChatComposer/useChatProviderState). effortModes قيم مزوّد-محدَّدة
+  // (claude فقط اليوم)، فبقاء قيمة كـ'ultracode' معلَّقة بعد تبدّل الجلسة إلى
+  // مزوّد آخر ثم العودة يُعدّ تسرّباً بين فضاءي قيم متنافرين.
+  const sessionProviderForThinkingReset = selectedSession?.__provider ?? provider;
+  useEffect(() => {
+    void sessionProviderForThinkingReset; // trigger-only; keeps exhaustive-deps honest
+    setThinkingMode('none');
+  }, [sessionProviderForThinkingReset]);
 
   useEffect(() => {
     inputValueRef.current = input;

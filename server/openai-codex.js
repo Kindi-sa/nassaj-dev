@@ -339,9 +339,43 @@ function resolveCodexNetworkAccess(_options = {}, env = process.env) {
   return env?.CODEX_WORKSPACE_NETWORK === 'true' ? true : undefined;
 }
 
-// Exported for unit/regression coverage (T-884). The live code paths call these
-// internally; the tests import them to assert the ceiling without a real subprocess.
-export { mapPermissionModeToCodexOptions, resolveCodexNetworkAccess };
+// SDK-accepted ModelReasoningEffort values (codex-sdk/dist/index.d.ts). The
+// composer UI (ChatComposer.tsx via providerCapabilities.ts codex.effort.modes)
+// only ever offers a subset of these ('none'/low/medium/high/xhigh, no 'minimal'),
+// but this validator is the SERVER's own safety net — the one chokepoint both live
+// spawn paths (WS + REST /api/agent) funnel through — so a client sending anything
+// outside the SDK's real enum can never reach `codex.startThread`/`resumeThread` raw.
+const CODEX_REASONING_EFFORT_VALUES = new Set(['minimal', 'low', 'medium', 'high', 'xhigh']);
+// Clamp map for UI-only tiers that have no ModelReasoningEffort equivalent
+// ('max'/'ultracode' — Claude-only concepts in effortModes.ts) to the nearest
+// real Codex tier, in case a stale/hand-crafted client payload ever sends them.
+const CODEX_REASONING_EFFORT_CLAMP = { max: 'xhigh', ultracode: 'xhigh' };
+
+/**
+ * Resolve `options.reasoningEffort` (T-905/T-884-follow-up) to a value safe to
+ * hand the Codex SDK's `modelReasoningEffort`, or `undefined` to omit the field
+ * entirely (Codex then falls back to its own config.toml default, "medium").
+ * `undefined`/`'none'`/anything unrecognized (and not clampable) all omit the
+ * field — the SDK is NEVER handed a raw, unvalidated client string.
+ *
+ * @param {unknown} reasoningEffort - client-supplied options.reasoningEffort
+ * @returns {string|undefined}
+ */
+function resolveCodexReasoningEffort(reasoningEffort) {
+  if (typeof reasoningEffort !== 'string' || !reasoningEffort) {
+    return undefined;
+  }
+  const normalized = reasoningEffort.toLowerCase();
+  if (CODEX_REASONING_EFFORT_VALUES.has(normalized)) {
+    return normalized;
+  }
+  return CODEX_REASONING_EFFORT_CLAMP[normalized];
+}
+
+// Exported for unit/regression coverage (T-884/T-905). The live code paths call
+// these internally; the tests import them to assert the ceiling without a real
+// subprocess.
+export { mapPermissionModeToCodexOptions, resolveCodexNetworkAccess, resolveCodexReasoningEffort };
 
 /**
  * Execute a Codex query with streaming
@@ -422,7 +456,8 @@ async function queryCodexUnlocked(command, options = {}, ws) {
     projectPath,
     model,
     images,
-    permissionMode = 'default'
+    permissionMode = 'default',
+    reasoningEffort,
   } = options;
 
   const resolvedModel = await providerModelsService.resolveResumeModel(
@@ -440,6 +475,11 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   // see resolveCodexNetworkAccess.
   const networkAccessEnabled =
     sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess() : undefined;
+  // T-905: the ThinkingModeSelector's chosen effort, validated/clamped against the
+  // SDK's real ModelReasoningEffort enum (see resolveCodexReasoningEffort above) —
+  // omitted entirely when absent/invalid so Codex falls back to its config.toml
+  // default ("medium") rather than ever receiving a raw unvalidated client string.
+  const modelReasoningEffort = resolveCodexReasoningEffort(reasoningEffort);
 
   // Coordinator governance layer (T-886, redirected 2026-07-15): nassaj's "delegate,
   // don't execute" rule is a PERMANENT, always-on layer applied to EVERY Codex launch —
@@ -537,6 +577,7 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       webSearchEnabled: false,
       webSearchMode: 'disabled',
       ...(networkAccessEnabled === true ? { networkAccessEnabled: true } : {}),
+      ...(modelReasoningEffort ? { modelReasoningEffort } : {}),
     };
 
     // Start or resume thread

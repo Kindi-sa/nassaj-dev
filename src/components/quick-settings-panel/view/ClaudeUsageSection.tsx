@@ -3,12 +3,19 @@ import { useTranslation } from 'react-i18next';
 import type { ClaudeUsage } from '../claudeUsageTypes';
 import { useClaudeUsage } from '../hooks/useClaudeUsage';
 import { formatCredits, formatPercent } from '../claudeUsageHelpers';
+import { getProviderCapabilities } from '../../chat/constants/providerCapabilities';
 import QuickSettingsSection from './QuickSettingsSection';
 import ClaudeUsageBar from './ClaudeUsageBar';
 
 type ClaudeUsageSectionProps = {
   // Drives fetching: only poll while the panel is open.
   isOpen: boolean;
+  /**
+   * مزوّد الجلسة المفتوحة حالياً (selectedSession?.__provider)، إن وُجدت.
+   * البيانات تبقى بيانات حساب Claude دوماً (T-5) — تُوسَم لا تُحجَب حين
+   * الجلسة المفتوحة ليست claude.
+   */
+  sessionProvider?: string | null;
 };
 
 // Order of standard windows + their label keys. Rendered when non-null.
@@ -69,12 +76,20 @@ function UsageContent({ data }: { data: ClaudeUsage }) {
  * "Claude Usage" panel section. Mirrors claude.ai usage limits.
  * Owns loading/error/empty/success states; data comes from useClaudeUsage.
  */
-export default function ClaudeUsageSection({ isOpen }: ClaudeUsageSectionProps) {
+export default function ClaudeUsageSection({ isOpen, sessionProvider }: ClaudeUsageSectionProps) {
   const { t } = useTranslation('settings');
   const usage = useClaudeUsage(isOpen);
 
   // Title row carries the plan badge once data is available.
   const plan = usage.status === 'success' ? usage.data.plan : null;
+
+  // T-5: label (never hide) when the currently open session isn't claude, so
+  // this always-Claude-account data is never mistaken for the session's own
+  // provider usage.
+  const capabilities = getProviderCapabilities(sessionProvider);
+  const crossProviderNote = !capabilities.quota.isClaudeAccount
+    ? t('claudeUsage.crossProviderNote', { provider: capabilities.displayName })
+    : null;
 
   const title = (
     <span className="flex items-center gap-2">
@@ -89,6 +104,10 @@ export default function ClaudeUsageSection({ isOpen }: ClaudeUsageSectionProps) 
 
   return (
     <QuickSettingsSection title={title}>
+      {crossProviderNote && (
+        <p className="mb-1 text-xs text-muted-foreground/80">{crossProviderNote}</p>
+      )}
+
       {(usage.status === 'idle' || usage.status === 'loading') && (
         <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

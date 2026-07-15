@@ -7,6 +7,7 @@ import {
   usageTextColorClass,
 } from '../../../quick-settings-panel/claudeUsageHelpers';
 import type { ClaudeUsage } from '../../../quick-settings-panel/claudeUsageTypes';
+import { getProviderCapabilities } from '../../../chat/constants/providerCapabilities';
 
 // ---------------------------------------------------------------------------
 // Window definitions — order determines display order.
@@ -28,10 +29,17 @@ const WINDOWS: { letter: string; key: WindowKey }[] = [
 // ---------------------------------------------------------------------------
 interface HeaderUsageIndicatorProps {
   tabsMode?: 'full' | 'compact' | 'minimal' | 'hidden';
+  /**
+   * مزوّد الجلسة المفتوحة حالياً (selectedSession?.__provider). أشرطة الحصة
+   * تبقى بيانات حساب Claude دوماً (T-5) — لا تُحجَب حين الجلسة ليست claude،
+   * لكنها تُوسَم بذلك صراحةً كي لا تُفهَم خطأً كبيانات مزوّد الجلسة الحالية.
+   */
+  sessionProvider?: string | null;
 }
 
-export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorProps) {
+export default function HeaderUsageIndicator({ tabsMode, sessionProvider }: HeaderUsageIndicatorProps) {
   const { i18n, t } = useTranslation('settings');
+  const isClaudeSession = getProviderCapabilities(sessionProvider).quota.isClaudeAccount;
 
   // Visible at any viewport width in every mode except "hidden". A previous
   // version gated this on a 900px/1280px width query to protect room for the
@@ -66,10 +74,21 @@ export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorP
   // Nothing to show — all windows are null.
   if (items.length === 0) return null;
 
+  // T-5: the indicator always reflects the Claude ACCOUNT's usage (the API has
+  // no per-provider quota concept), never hidden for a non-claude session —
+  // but a non-claude session gets an explicit disambiguation note so it never
+  // reads as "this session's" quota.
+  const crossProviderNote = !isClaudeSession
+    ? t('claudeUsage.crossProviderNote', {
+        provider: getProviderCapabilities(sessionProvider).displayName,
+      })
+    : null;
+
   return (
     <div
       className="flex items-center gap-3 flex-shrink-0 select-none"
-      aria-label={t('claudeUsage.title')}
+      aria-label={crossProviderNote ? `${t('claudeUsage.title')} — ${crossProviderNote}` : t('claudeUsage.title')}
+      title={crossProviderNote ?? undefined}
     >
       {items.map(({ letter, clamped, resetsAt }) => {
         const percent = formatPercent(clamped, i18n.language);
@@ -77,18 +96,21 @@ export default function HeaderUsageIndicator({ tabsMode }: HeaderUsageIndicatorP
         // Resolve the human-readable window label for aria/title.
         const windowKey = WINDOWS.find((w) => w.letter === letter)!.key;
         const label = t(`claudeUsage.windows.${windowKey}`);
-        // Build tooltip: show reset time when available, label-only otherwise.
+        // Build tooltip: show reset time when available, label-only otherwise,
+        // plus the cross-provider disambiguation note when relevant (T-5).
         const resetText = formatResetTime(resetsAt, i18n.language);
-        const tooltip = resetText
+        const baseTooltip = resetText
           ? `${label} — ${t('claudeUsage.resetsIn', { time: resetText })}`
           : label;
+        const tooltip = crossProviderNote ? `${baseTooltip} — ${crossProviderNote}` : baseTooltip;
         // aria-label carries both the percentage and optional reset time so
         // screen-reader users receive the full context (the percentage is
         // visually rendered but the tooltip alone omits it when no reset time
         // is present, and even with it the percentage is buried).
-        const ariaLabel = resetText
+        const baseAriaLabel = resetText
           ? `${label}: ${percent} — ${t('claudeUsage.resetsIn', { time: resetText })}`
           : `${label}: ${percent}`;
+        const ariaLabel = crossProviderNote ? `${baseAriaLabel} — ${crossProviderNote}` : baseAriaLabel;
 
         return (
           <span
