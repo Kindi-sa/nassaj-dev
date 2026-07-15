@@ -189,13 +189,13 @@ function ThinkingModeSelector({
           }
           setIsOpen(true);
         }}
-        className={`flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 sm:h-10 sm:w-10 ${triggerBg}`}
+        className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-200 sm:h-8 sm:w-8 ${triggerBg}`}
         title={t('effortMode.buttonTitle', { mode: currentMode.displayName })}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={t('effortMode.buttonTitle', { mode: currentMode.displayName })}
       >
-        <IconComponent className={`h-5 w-5 ${currentMode.color}`} />
+        <IconComponent className={`h-4 w-4 ${currentMode.color}`} />
       </button>
 
       {isOpen && typeof document !== 'undefined' && createPortal(
