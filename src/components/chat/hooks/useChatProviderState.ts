@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
-import { VENDOR_PROVIDERS, type VendorProvider } from '../../provider-auth/vendorProviders';
+import { type VendorProvider } from '../../provider-auth/vendorProviders';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type {
   ProjectSession,
@@ -17,36 +17,30 @@ import {
   sanitizeStoredProvider,
 } from '../../../constants/providerModelFallbacks';
 import { onApplyServerPreference } from '../../../preferences/preferencesSync';
-import {
-  filterDisabledProviders,
-  isProviderGloballyDisabled,
-} from '../../../../shared/disabledProviders';
+import { filterDisabledProviders } from '../../../../shared/disabledProviders';
 import { getProviderCapabilities } from '../constants/providerCapabilities';
 
 import { pickStoredOrCurrent } from './normalizeProviderModel';
 
-/**
- * The active "Claude engine on a vendor endpoint" selection (ADR-037). A vendor
- * id means the Claude engine runs against that vendor's Anthropic-compatible
- * endpoint; null is the normal official-Anthropic path.
- */
-export type EngineProvider = VendorProvider | null;
+// Re-export pure engine-provider storage helpers so existing callers keep their
+// import path (from './useChatProviderState') without touching ChatInterface.tsx
+// or other view files. The implementations live in engineProviderSession.ts
+// (React-free, testable in node:test). The EngineProvider type also moves there.
+export type { EngineProvider } from './engineProviderSession';
+export {
+  readStoredEngineProvider,
+  readSessionEngineProvider,
+  stampSessionEngineProvider,
+  writePendingEngineStamp,
+  consumePendingEngineStamp,
+} from './engineProviderSession';
 
-const ENGINE_PROVIDER_STORAGE_KEY = 'claude-engine-provider';
+import {
+  type EngineProvider,
+  readStoredEngineProvider,
+  readSessionEngineProvider,
+} from './engineProviderSession';
 
-/**
- * Reads the persisted engine provider, ignoring any stale/invalid value —
- * including a vendor that has since been globally disabled (T-864), so a stale
- * engineProvider never reaches the server.
- */
-function readStoredEngineProvider(): EngineProvider {
-  const stored = localStorage.getItem(ENGINE_PROVIDER_STORAGE_KEY);
-  return stored &&
-    (VENDOR_PROVIDERS as readonly string[]).includes(stored) &&
-    !isProviderGloballyDisabled(stored)
-    ? (stored as VendorProvider)
-    : null;
-}
 
 // FALLBACK_DEFAULT_MODEL is imported from providerModelFallbacks.ts (single
 // source of truth). The former local copy had claude:'opus' which is not a
@@ -150,12 +144,14 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
   const providerModelsRequestIdRef = useRef(0);
 
   // Persisted setter for the engine provider so the choice survives reloads.
+  // The global key 'claude-engine-provider' is the same constant used by
+  // engineProviderSession.ts (readStoredEngineProvider / writePendingEngineStamp).
   const persistEngineProvider = useCallback((next: EngineProvider) => {
     setEngineProvider(next);
     if (next) {
-      localStorage.setItem(ENGINE_PROVIDER_STORAGE_KEY, next);
+      localStorage.setItem('claude-engine-provider', next);
     } else {
-      localStorage.removeItem(ENGINE_PROVIDER_STORAGE_KEY);
+      localStorage.removeItem('claude-engine-provider');
     }
   }, []);
 
@@ -463,6 +459,18 @@ export function useChatProviderState({ selectedSession, selectedProject }: UseCh
     const savedMode = localStorage.getItem(`permissionMode-${selectedSession.id}`) as PermissionMode | null;
     const validModes = getPermissionModesForProvider(sessionProvider);
     setPermissionMode(savedMode && validModes.includes(savedMode) ? savedMode : 'default');
+
+    // T-915 (privacy fix): engineProvider (ADR-037) must be scoped to the OPEN
+    // SESSION exactly like permissionMode above, never inherited from the
+    // global picker's last choice. Before this, engineProvider was cleared only
+    // when the global provider switched away from claude (see the effect
+    // below) — so opening an unrelated, already-existing claude session while
+    // the global pick was still a vendor (e.g. "Claude via Kimi", chosen for a
+    // different new chat) sent that session's traffic through the vendor
+    // unintentionally. Fail-safe: no per-session stamp (old session predating
+    // this feature, or a non-claude session) => null (official Anthropic),
+    // never the global key.
+    setEngineProvider(sessionProvider === 'claude' ? readSessionEngineProvider(selectedSession.id) : null);
   }, [selectedSession?.id, selectedSession?.__provider, provider]);
 
   // Provider is driven solely by explicit user selection (localStorage).

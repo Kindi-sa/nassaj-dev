@@ -9,6 +9,12 @@ import type { PendingPermissionRequest, SessionNavigationOptions } from '../type
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 
+import {
+  consumePendingEngineStamp,
+  readSessionEngineProvider,
+  stampSessionEngineProvider,
+} from './useChatProviderState';
+
 type PendingViewSession = {
   sessionId: string | null;
   startedAt: number;
@@ -376,6 +382,18 @@ export function useChatRealtimeHandlers({
         if (!currentSessionId) {
           console.log('Session created with ID:', newSessionId);
           console.log('Existing session ID:', currentSessionId);
+          // T-915 (privacy fix, qa-critic correction): stamp the engine provider
+          // (ADR-037) from the PENDING SLOT written by dispatchProviderCommand
+          // at send-time, NOT from the global localStorage key.  The global key
+          // diverges from React state when the user opens an older session
+          // (React→null) without touching the picker, while the global still
+          // holds a vendor id from a previous "Claude via Kimi" selection.
+          // consumePendingEngineStamp() reads exactly what was sent and clears
+          // the slot, so every session_created event sees the right value.
+          // Only meaningful for claude; other providers never write the stamp.
+          if (provider === 'claude') {
+            stampSessionEngineProvider(newSessionId, consumePendingEngineStamp());
+          }
           setCurrentSessionId(newSessionId);
           setPendingPermissionRequests((prev) =>
             prev.map((r) => (r.sessionId ? r : { ...r, sessionId: newSessionId })),
@@ -390,6 +408,15 @@ export function useChatRealtimeHandlers({
           sessionStorage.setItem('pendingSessionId', newSessionId);
           if (pendingViewSessionRef.current) {
             pendingViewSessionRef.current.sessionId = newSessionId;
+          }
+          // T-915 (B-ENG continuity): a stale-resume mint means the backend
+          // couldn't find the old session. The pending stamp was NOT written
+          // for a resume (writePendingEngineStamp runs only for new conversations).
+          // Preserve B-ENG continuity by copying the OLD session's engine stamp
+          // onto the replacement so a vendor-routed conversation keeps routing
+          // through the same vendor. No-op for official-Anthropic sessions (null).
+          if (provider === 'claude') {
+            stampSessionEngineProvider(newSessionId, readSessionEngineProvider(currentSessionId));
           }
           setCurrentSessionId(newSessionId);
           setPendingPermissionRequests((prev) =>

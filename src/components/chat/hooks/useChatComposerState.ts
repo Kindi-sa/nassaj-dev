@@ -25,9 +25,9 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
-
 import { resolveSendProvider } from '../utils/resolveSendProvider';
 
+import { readSessionEngineProvider, writePendingEngineStamp } from './useChatProviderState';
 import { useFileMentions } from './useFileMentions';
 import { isPassthroughBuiltInCommand, type SlashCommand, useSlashCommands } from './useSlashCommands';
 
@@ -757,6 +757,18 @@ export function useChatComposerState({
       // conversation of another provider system (B-167). A brand-new conversation
       // (no targetSessionId) uses the composer's current global selection.
       const effectiveProvider = resolveSendProvider(resume, selectedSession?.__provider, provider);
+      // T-915 (privacy fix): seal engineProvider (ADR-037) to the session being
+      // resumed, the same way effectiveProvider is sealed above, and read it
+      // fresh from the per-session stamp rather than trusting the composer's
+      // `engineProvider` React state to have already re-synced for whichever
+      // session is being resumed. A resume must never carry a vendor chosen for
+      // an unrelated new chat (the confirmed T-882 leak: an official Anthropic
+      // session resumed while the global picker still held "Claude via Kimi").
+      // A brand-new conversation (resume===false) keeps the composer's current
+      // selection, exactly like effectiveProvider.
+      const effectiveEngineProvider = resume && targetSessionId
+        ? readSessionEngineProvider(targetSessionId)
+        : engineProvider;
       const toolsSettings = getToolsSettings(effectiveProvider);
 
       let result: { ok: boolean } | void;
@@ -873,6 +885,17 @@ export function useChatComposerState({
           },
         });
       } else {
+        // T-915 (privacy fix, qa-critic correction): record the value being
+        // SENT right now into the pending slot so session_created can stamp the
+        // new session id with it.  Only for new conversations (resume=false) —
+        // a resume already has its stamp from creation time; it must NOT
+        // overwrite that stamp with a potentially-stale global selection.
+        // effectiveEngineProvider is already sealed to the session's own stamp
+        // for resumes (line above) but writePendingEngineStamp is a no-op for
+        // resumes anyway since session_created never fires for a healthy resume.
+        if (!resume) {
+          writePendingEngineStamp(effectiveEngineProvider);
+        }
         // Anthropic / Claude provider. Attach `effort` only when a non-empty value is chosen.
         const claudeOptions: Record<string, unknown> = {
           projectPath: resolvedProjectPath, cwd: resolvedProjectPath, sessionId: targetSessionId,
@@ -898,8 +921,8 @@ export function useChatComposerState({
         // the server reads options.engineProvider to inject that vendor's
         // ANTHROPIC_BASE_URL/AUTH_TOKEN and passes `model` (a vendor model id)
         // through unchanged. Omitted entirely on the normal official path.
-        if (engineProvider) {
-          claudeOptions.engineProvider = engineProvider;
+        if (effectiveEngineProvider) {
+          claudeOptions.engineProvider = effectiveEngineProvider;
         }
         result = sendMessage({
           type: 'claude-command',
