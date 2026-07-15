@@ -108,6 +108,22 @@ describe('codex-coordinator-agents — constants', () => {
     assert.match(COORDINATOR_ROOT_CONTRACT, /بلا @/);
   });
 
+  it('root contract enumerates the delegate roster and forbids unconfigured spawns', () => {
+    // Roster is derived from COORDINATOR_AGENT_NAMES — every name must appear verbatim
+    // (no hand-maintained duplicate list in the contract text).
+    for (const name of COORDINATOR_AGENT_NAMES) {
+      assert.ok(
+        COORDINATOR_ROOT_CONTRACT.includes(name),
+        `contract must enumerate the delegate «${name}»`,
+      );
+    }
+    // Directive: delegate ONLY to the roster; an unavailable specialization ⇒ tell the
+    // owner, do NOT spawn an unconfigured agent, do NOT self-execute (guards the silent
+    // degradation of forking a write agent that has no TOML).
+    assert.match(COORDINATOR_ROOT_CONTRACT, /فوّض فقط إلى هؤلاء/);
+    assert.match(COORDINATOR_ROOT_CONTRACT, /غير مُهيّأ/);
+  });
+
   it('resolves cards under $HOME/.claude/agents', () => {
     assert.equal(coordinatorAgentCardPath('architect'), path.join(CARDS_DIR, 'architect.md'));
   });

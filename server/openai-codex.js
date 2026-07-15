@@ -272,7 +272,7 @@ function transformCodexEvent(event) {
  *
  * COORDINATOR ROLE (T-886): an OPT-IN launch identity STRUCTURALLY denied writes,
  * network and effectful execution by the OS sandbox — read-only + approvalPolicy
- * 'never' — so delegation (spawn_agent) is its only output. Not prompt-toggleable and
+ * 'never' — so delegation (spawn_agent) is its only write-side output. Not prompt-toggleable and
  * not env-gated. It is opt-in ONLY: the 'default' below stays workspace-write, so every
  * pre-existing direct-write session is unaffected (R1).
  *
@@ -448,7 +448,7 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   const networkAccessEnabled =
     sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess() : undefined;
 
-  // Coordinator role (T-886, OPT-IN): a read-only launch whose ONLY output is
+  // Coordinator role (T-886, OPT-IN): a read-only launch whose ONLY write-side output is
   // delegation. Everything coordinator-specific is gated behind this flag so every
   // non-coordinator spawn stays byte-for-byte unchanged (R1 regression safety).
   const isCoordinator = permissionMode === 'coordinator';

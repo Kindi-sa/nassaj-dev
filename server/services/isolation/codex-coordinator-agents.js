@@ -19,7 +19,7 @@
  *     turn-to-turn idempotence (rewrite only when an input changed).
  *   - FAIL-CLOSED: a missing/malformed card, a missing model, or a write failure yields
  *     ok:false and the caller REFUSES the coordinator launch — a coordinator whose only
- *     output is delegation is broken without its delegates.
+ *     write-side output is delegation is broken without its delegates.
  *
  * Security posture (R3 honesty — NOT overclaimed): sandbox_mode="read-only" in the
  * child TOML aligns with what E12 enforces anyway (a read-only parent re-applies its
@@ -60,7 +60,10 @@ export const CODEX_AGENTS_SUBDIR = 'agents';
  */
 export const COORDINATOR_ROOT_CONTRACT =
   'أنت منسّق نسّاج: فوّض ولا تنفّذ؛ لأي مهمة متخصصة استدعِ الوكيل المطابق بالاسم بلا @ ' +
-  'عبر spawn_agent وانتظر wait_agent ثم ادمج؛ لا تنفّذ العمل المتخصص بنفسك.';
+  'عبر spawn_agent وانتظر wait_agent ثم ادمج؛ لا تنفّذ العمل المتخصص بنفسك. ' +
+  `الوكلاء المتاحون للتفويض حصراً هم: ${COORDINATOR_AGENT_NAMES.join('، ')}. ` +
+  'فوّض فقط إلى هؤلاء؛ وإن تطلّبت المهمة تخصصاً غير متاح فأبلغ المالك ولا ' +
+  'تُفرّخ وكيلاً غير مُهيّأ ولا تنفّذ العمل بنفسك.';
 
 /** Structural error code when a coordinator launch cannot prepare its delegates. */
 export const COORDINATOR_AGENTS_MISSING_CODE = 'coordinator_agents_missing';
