@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-07-11",
+  "updated": "2026-07-15",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -80,6 +80,45 @@
     }
   ],
   "tasks": [
+    {
+      "id": "T-904",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "high",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "طلب المالك 2026-07-15: «المكوّنات البصرية المرتبطة بكلود كود ثابتة لكل جلسات كلود لا تتغير مهما تغيّر النموذج العام».",
+      "title": "تثبيت المكوّنات البصرية لجلسات Claude Code: اشتقاق منتقي النموذج/وضع الأذونات/مستوى التفكير/التوكنز والحصص من مزوّد الجلسة لا من النموذج العام — ثابتة لكل جلسات كلود مهما تغيّر الاختيار العام في نسّاج",
+      "note": "امتداد روح ADR-047 (واصف قدرات UI لكل مزوّد). **✅ منجَز ومبنيّ ومُتحقَّق 2026-07-15 (commit 5a429cd7):** أُنشئ واصف providerCapabilities.ts (11 مزوّداً + getProviderCapabilities نقية، claude محايد حرفياً 1:1 وسقوط آمن لأي مزوّد غير معرَّف). ChatComposer يبوّب منتقي التفكير/عدّاد التوكنز/تلميح الإرفاق على displayProvider (مزوّد الجلسة) لا provider العام؛ الأذونات فوق الواصف مع بذر/تدوير من مزوّد الجلسة؛ أشرطة الحصة موسومة بمزوّد الجلسة (HeaderUsageIndicator/ClaudeUsageSection) وسماً لا حجباً (claudeUsage.crossProviderNote)؛ تصفير thinkingMode عند تبدّل المزوّد. **نتيجة: تبديل النموذج/المزوّد العام لا يغيّر جلسة claude مفتوحة — الأثر على الجلسات الجديدة فقط.** البند T-6 (ختم النموذج عند resume) شخّصه المنفّذ مُغلقاً سلفاً خادمياً بـB-167/T-874 (resolveResumeModel يتجاهل model العميلي) فلم يُضَف كود ميت. تحقّق المنسّق ذاتياً: build:client نظيف، typecheck نظيف، اختبارات chat/quick-settings/main-content 57/57 + coordinator 6/6، qa-critic مقبول بلا عيوب حاجبة (حياد claude محفوظ، opencode لا يفقد عدّاده). ثلاث ملاحظات تحسين غير حاجبة (memoize getProviderCapabilities، توحيد تحفّظ CODEX_WORKSPACE_NETWORK، prop provider معلَن غير مستخدَم) → متابعة طفيفة T-903-UI. **حيّ بعد build:client المنشور؛ لا يحتاج restart (عميلي بحت).**"
+    },
+    {
+      "id": "T-905",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "high",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "طلب المالك 2026-07-15؛ يغطي T-894 (إظهار posture سياسة Codex لا صامتاً).",
+      "title": "دراسة Codex وإدماج مكوّناته البصرية بإعادة استخدام مكوّنات كلود عند تطابق الفئات: الوضع (sandbox/approval)، مستوى التفكير (reasoning effort)، الحصص إن كانت مكشوفة headless، والنموذج",
+      "note": "الدراسة تحسم المتاح فعلاً من بيانات جلسة Codex وما يلزم تمريره من الخادم؛ لا سباكة تخمينية. **✅ منجَز ومبنيّ ومُتحقَّق 2026-07-15 (commit 5a429cd7، يشمل تغييراً خادمياً يلزمه restart):** الدراسة أثبتت أن جلسة codex تملك أصلاً 3 من 4 فئات (أذونات/عدّاد/نموذج) والناقص = مستوى التفكير. **(ب) مستوى التفكير:** عُمِّم ThinkingModeSelector بـprop modes عبر الواصف (لا حجب على claude)، مجموعة codex الفرعية minimal|low|medium|high|xhigh مع قصر آمن (max/ultracode→xhigh، none→حذف)، وإرسال reasoningEffort في codex-command؛ **خادمياً:** resolveCodexReasoningEffort في openai-codex.js يضيف modelReasoningEffort لـthreadOptions بنقطة اختناق واحدة تحقّق ثلاثياً (UI+تصفير+مُحقِّق خادمي) — بدونه يبقى الجهد medium ثابتاً. **(أ) posture/T-894:** صُحِّحت النصوص المضلِّلة وأُظهر السقف عبر CodexPostureInfo. **(ج) الحصص:** أُثبت أنها غير متاحة headless (codex exec --experimental-json لا يبثّ rate_limits) — لم يُبنَ كود تخميني، رُحِّلت متابعةً. تحقّق المنسّق ذاتياً: build:server نظيف، dist-server يحوي modelReasoningEffort، اختبارات openai-codex 38/38 بالمشغّل الصحيح (tsx --tsconfig)، JSON الأربعة سليمة، qa-critic مقبول (النصوص تطابق mapPermissionModeToCodexOptions، القصر الآمن يمنع effort خاماً للـSDK). **يلزم safe-restart لتفعيل تمرير modelReasoningEffort خادمياً** (الجزء العميلي حيّ بـbuild:client). متابعات موثّقة: لوحة rate-limit للـcodex (محجوبة بنيوياً)، نافذة السياق الحقيقية بدل 200000 المفبركة، إظهار cached/reasoning tokens في popover."
+    },
+    {
+      "id": "T-906",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "medium",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "طلب المالك 2026-07-15.",
+      "title": "نقرة اسم المشروع في الشريط الجانبي تفتح/تطوي قائمة جلساته فقط — لا انتقال إلى محادثة جديدة",
+      "note": "إنشاء المحادثة يبقى حصراً بزر «محادثة جديدة»؛ يُحفَظ تحديد المشروع للوحات الأخرى دون فتح جلسة. **✅ منجَز ومبنيّ ومُتحقَّق 2026-07-15 (commit 0b9a7717):** حُذفت selectAndToggleProject من SidebarProjectItem.tsx وربط النقر بـtoggleProject فقط، فصار طيّاً/توسيعاً محضاً؛ handleProjectSelect (setSelectedSession(null)+navigate('/')) لم تعد تُستدعى من النقرة (أُبقيت للاستخدامات المشتركة Presence/الأرشيف/الجوال). تحديد المشروع للوحات الأخرى يبقى عبر النقر على جلسة أو زر «محادثة جديدة». build:client نظيف، qa-critic مقبول (لا مرجع متبقٍّ للدالة المحذوفة). **حيّ بعد build:client؛ لا restart.**"
+    },
     {
       "id": "T-895",
       "kind": "bug",
@@ -4197,13 +4236,14 @@
       "id": "T-894",
       "kind": "feature",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-15",
       "priority": "medium",
       "owner": "frontend-dev",
       "found": "2026-07-14",
       "source": "شرط qa-critic في قرار3 (لجنة 2026-07-14)",
       "title": "إظهار posture سياسة Codex النشطة (workspace-write مقابل full-access) للمستخدم لا صامتاً، وعدم عرض bypassPermissions كخيار نِدّ افتراضي في وضع متعدد المستخدمين (PermissionsContent.tsx:563)",
-      "note": "متابعة لقرار1: العلم يفرض السقف خادمياً، لكن الواجهة يجب ألا تقدّم bypass كخيار عادي ولا تُخفي الوضع الفعّال. مرتبط بواصف القدرات ADR-047/T-224."
+      "note": "متابعة لقرار1: العلم يفرض السقف خادمياً، لكن الواجهة يجب ألا تقدّم bypass كخيار عادي ولا تُخفي الوضع الفعّال. مرتبط بواصف القدرات ADR-047/T-224. **✅ منجَز ضمن T-905 (commit 5a429cd7):** صُحِّحت نصوص posture المضلِّلة في ar/en chat.json + settings.json (كانت تزعم danger-full-access/وصول شبكة كامل بينما السقف الحيّ workspace-write/شبكة OFF)، وأُظهر السقف الفعّال في المحادثة عبر مكوّن CodexPostureInfo (tooltip بجوار زرّ الوضع). مُتحقَّق: qa-critic أكّد تطابق النصوص مع mapPermissionModeToCodexOptions بلا ادعاء جديد خاطئ."
     }
   ],
   "issues": [
