@@ -81,6 +81,31 @@
   ],
   "tasks": [
     {
+      "id": "T-908",
+      "kind": "spike",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "high",
+      "owner": "لجنة (architect+devops+backend-dev+qa-critic)",
+      "found": "2026-07-15",
+      "source": "طلب المالك 2026-07-15: «اجلس لجنة لدراسة مشكلة التيتّم واقتراح حلول جذرية».",
+      "title": "لجنة التيتّم: دراسة جذرية لموت الورشات/الوكلاء الخلفيين بخروج عملية Claude المنسّقة — الحكم النهائي في ADR-060",
+      "note": "✅ **اللجنة خلصت 2026-07-15 (وكلاء متزامنون تفادياً لعين المشكلة). الحكم موثَّق في docs/decisions/060-orphan-committee-2026-07-15.md.** **إعادة تأطير حاسمة بفيتو qa-critic:** المقترح الأصلي «ربط Workflow بـDurableTask يحلّ التيتّم» **مرفوض كتأطير**. السبب الجذري لموت ورشات المنسّق **طوبولوجي لا بنيوي**: نسّاج يمرّر الـprompt نصّاً ⇒ SDK يشتق isSingleUserTurn=true ⇒ يغلق stdin بعد أول نتيجة ⇒ تخرج عملية CLI فيموت الأبناء (B-103-DECISIONS-T827-T829:167-171) — **متعامد على نموذج DurableTask** فالمُغذّي لا يمسّه، وتحويل الدردشة لstreaming-input مرفوض (يُبطل B-130/B-95/no-swap). **وقائع مؤصَّلة حيّاً:** الركيزة الدائمة (workflow-supervisor→systemd-run --user) مبنيّة/مُختبَرة كاملةً خلف علم WORKFLOW_SUPERVISOR مطفأ (T-819..T-823، 146/146، حيّة منذ 07-11)؛ Linger=yes وsupervisor مستقل عن PM2/Claude (ينجو قطع SSH). اعتراض أداة Workflow **مستحيل بنيوياً** (Layer 2 بُني 4bf9af31 ثم أُبطل بـADR-053). «detach-and-tail» البثّ الحيّ **غير موجود في البناء** (systemd.ts:314 output json مُخزَّن). tmux **لا يخفّف حالة المالك** (العملية تخرج عند حدّ السياق لا قطع SSH — أكّده devops مستقلاً). **الحلول الفعّالة المعتمدة:** (1) الانضباط المتزامن (أنجز فعلاً مراراً)؛ (2) escape hatch فوري بلا بناء: systemd-run --user … claude -p للعمل الطويل (ينجو كل شيء)؛ (3) حارس نقطة التفريخ T-829 + انتظار حكم T-714 الكمي قبل أي بناء تسليم durable. **سطح CLI الخارجي (ألم المالك) خارج مدى أي حلّ خادمي بنيوياً.** خطة devops التشغيلية (CollectMode/TasksMax/CPUQuota في systemd.ts، حارس علم حول بوابة exit 3 في safe-restart، تقنين linger+reaper في provision-node.sh) محفوظة في ADR كتحسينات إن فُعّلت الركيزة. قيمة اللجنة: **منعت بناء خطّ تسليم معقّد لمشكلة خطأ.**"
+    },
+    {
+      "id": "T-907",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "todo",
+      "priority": "medium",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "لقطة المالك 2026-07-15 (شارة «Unknown liveness» على جلسة في الديوان).",
+      "title": "معالجة عرَض التيتّم المرئي «Unknown liveness»: آلية إعادة فحص/مصالحة يدوية للحالة، ورفع تباين تجميع المشروع (ProjectBusyDot يُخفي unknown بينما صف الجلسة يُظهره)، وتمييز UNKNOWN الحقيقي عن fallback العميل",
+      "note": "تحقّق المنسّق: «Unknown liveness» حالة **صحيحة مقصودة** (إصلاح الـorphan الكاذب M1/ADR-053: workflow نجا من restart ولا يُثبَت حيّاً/ميتاً) لا خلل، والترجمة العربية موجودة كاملة (اللقطة إنجليزية لأن لغة الواجهة إنجليزية وقتها — لا عيب i18n). **مُصقَل بحكم T-908/ADR-060: صار مستقلاً لا مرهوناً** — بما أن التيتّم طوبولوجي (لن يُبنى خطّ تسليم يزيله من المنبع)، فشارة unknown ستبقى تظهر، فتحسين عرضها/إجرائيتها أوجَه لا مؤجَّل. الفجوات الحقيقية (من مستكشف الواجهة): (1) لا آلية إعادة-فحص/مصالحة يدوية رغم أن unknownHint يوحي بها — تبقى unknown حتى الاكتمال أو استئناف يدوي؛ (2) تباين: useProjectWorkflowRollup يُخفي unknown عمداً بينما WorkflowStatusBadge يُظهره على الصف؛ (3) UNKNOWN الخادمي الحقيقي وfallback العميل الدفاعي يُنتجان نفس الشارة. **قرار سلوك مطلوب من المالك قبل التنفيذ:** ماذا تفعل النقرة على unknown — إعادة فحص (re-probe خادمي)؟ إقرار/إخفاء يدوي؟ كلاهما؟ الملفات: src/shared/view/WorkflowStatusBadge.tsx، src/stores/workflowStatus.ts + workflowStatusStore.ts + useActiveWorkflows.ts، server/services/workflow-liveness.js (classifyWorkflowLiveness:287)، workflow-status.service.ts."
+    },
+    {
       "id": "T-904",
       "kind": "feature",
       "phase": "P0",
