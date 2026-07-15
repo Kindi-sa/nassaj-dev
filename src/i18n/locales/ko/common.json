@@ -333,7 +333,8 @@
     "unknown": "활성 상태 알 수 없음",
     "unknownHint": "활성 상태를 확인할 수 없습니다 — 서버 재시작 후 생존 가능성; 생사를 단정하지 않습니다",
     "projectRunningHint": "이 프로젝트에서 백그라운드 워크플로우가 실행 중입니다",
-    "projectOrphanHint": "이 프로젝트에 주의가 필요한 고아 백그라운드 워크플로우가 있습니다"
+    "projectOrphanHint": "이 프로젝트에 주의가 필요한 고아 백그라운드 워크플로우가 있습니다",
+    "projectUnknownHint": "이 프로젝트에 있는 백그라운드 워크플로우의 활성 상태를 알 수 없습니다 — 생사를 단정하지 않습니다"
   },
   "buildUpdate": {
     "available": "새 빌드가 출시되었습니다",

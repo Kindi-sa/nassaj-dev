@@ -333,7 +333,8 @@
     "unknown": "Canlılık bilinmiyor",
     "unknownHint": "Canlılık doğrulanamıyor — sunucu yeniden başlatmasını atlattı olabilir; ne canlı ne ölü iddia edilir",
     "projectRunningHint": "Bu projede bir arka plan iş akışı çalışıyor",
-    "projectOrphanHint": "Bu projede ilgilenilmesi gereken yetim bir arka plan iş akışı var"
+    "projectOrphanHint": "Bu projede ilgilenilmesi gereken yetim bir arka plan iş akışı var",
+    "projectUnknownHint": "Bu projede bir arka plan iş akışının canlılığı bilinmiyor — ne canlı ne ölü olduğu doğrulanamıyor"
   },
   "buildUpdate": {
     "available": "Yeni bir yapı mevcut",

@@ -333,7 +333,8 @@
     "unknown": "Vitalità sconosciuta",
     "unknownHint": "Impossibile verificare la vitalità — probabilmente sopravvissuto a un riavvio del server; né vivo né morto confermato",
     "projectRunningHint": "Un workflow in background è in esecuzione in questo progetto",
-    "projectOrphanHint": "Un workflow in background orfano in questo progetto richiede attenzione"
+    "projectOrphanHint": "Un workflow in background orfano in questo progetto richiede attenzione",
+    "projectUnknownHint": "La vitalità di un workflow in background in questo progetto è sconosciuta — né vivo né morto confermato"
   },
   "buildUpdate": {
     "available": "È disponibile una nuova build",

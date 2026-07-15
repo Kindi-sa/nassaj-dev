@@ -333,7 +333,8 @@
     "unknown": "Unbekannte Lebendigkeit",
     "unknownHint": "Lebendigkeit konnte nicht bestätigt werden — wahrscheinlich Serverneustart überlebt; weder lebendig noch tot bestätigt",
     "projectRunningHint": "Ein Hintergrundworkflow läuft in diesem Projekt",
-    "projectOrphanHint": "Ein verwaister Hintergrundworkflow in diesem Projekt braucht Aufmerksamkeit"
+    "projectOrphanHint": "Ein verwaister Hintergrundworkflow in diesem Projekt braucht Aufmerksamkeit",
+    "projectUnknownHint": "Die Lebendigkeit eines Hintergrundworkflows in diesem Projekt ist unbekannt — weder lebendig noch tot bestätigt"
   },
   "buildUpdate": {
     "available": "Ein neuer Build ist verfügbar",

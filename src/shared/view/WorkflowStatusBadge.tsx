@@ -185,5 +185,20 @@ function WorkflowRollupDot({
     );
   }
 
+  if (rollup === 'unknown') {
+    // Neutral — same slate cue as the session badge's `unknown` state (never a
+    // death claim, no ping animation): consistent with, not louder than, orphan.
+    return (
+      <span
+        role="status"
+        aria-label={t('workflowStatus.projectUnknownHint')}
+        title={t('workflowStatus.projectUnknownHint')}
+        className={cn('relative inline-flex h-2 w-2 flex-shrink-0', className)}
+      >
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" aria-hidden="true" />
+      </span>
+    );
+  }
+
   return null;
 }

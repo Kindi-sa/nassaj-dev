@@ -32,7 +32,7 @@ export type WorkflowEnvelope = {
 };
 
 /** Project rollup verdict: the most salient workflow state across a project. */
-export type WorkflowRollup = 'running' | 'orphan' | null;
+export type WorkflowRollup = 'running' | 'orphan' | 'unknown' | null;
 
 // Frozen shared empty list so sessions with no workflows return a stable ref.
 const EMPTY_LIST: readonly ActiveWorkflow[] = Object.freeze([]);
@@ -148,15 +148,18 @@ export function useSessionWorkflows(sessionId?: string | null): readonly ActiveW
 /**
  * Reactive project rollup across a set of session ids. Returns the most salient
  * state as a primitive (stable by value): `running` if any session has a live
- * workflow, else `orphan` if any is orphaned, else null. Frozen/unknown are kept
- * quiet at the rollup level (the same "only surface what needs a glance" policy
- * as the busy dot).
+ * workflow, else `orphan` if any is orphaned, else `unknown` if any workflow's
+ * liveness could not be verified (T-907: kept consistent with the per-session
+ * badge, which already surfaces `unknown` via pickPrimaryWorkflow — hiding it
+ * here would contradict what the same session shows on its row), else null.
+ * Frozen stays quiet at the rollup level (unchanged, out of T-907's scope).
  */
 export function useProjectWorkflowRollup(
   sessionIds: ReadonlyArray<string | null | undefined>,
 ): WorkflowRollup {
   return useSyncExternalStore(subscribe, () => {
     let hasOrphan = false;
+    let hasUnknown = false;
     for (const id of sessionIds) {
       if (!id) {
         continue;
@@ -171,10 +174,15 @@ export function useProjectWorkflowRollup(
         }
         if (w.status === 'orphan') {
           hasOrphan = true;
+        } else if (w.status === 'unknown') {
+          hasUnknown = true;
         }
       }
     }
-    return hasOrphan ? 'orphan' : null;
+    if (hasOrphan) {
+      return 'orphan';
+    }
+    return hasUnknown ? 'unknown' : null;
   });
 }
 

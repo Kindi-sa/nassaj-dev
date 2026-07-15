@@ -333,7 +333,8 @@
     "unknown": "Unknown liveness",
     "unknownHint": "Could not verify liveness — likely survived a server restart; neither confirmed alive nor dead",
     "projectRunningHint": "A background workflow is running in this project",
-    "projectOrphanHint": "An orphaned background workflow in this project needs attention"
+    "projectOrphanHint": "An orphaned background workflow in this project needs attention",
+    "projectUnknownHint": "A background workflow's liveness in this project is unknown — neither confirmed alive nor dead"
   },
   "buildUpdate": {
     "available": "A new build is available",

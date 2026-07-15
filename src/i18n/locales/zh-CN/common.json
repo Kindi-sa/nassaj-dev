@@ -333,7 +333,8 @@
     "unknown": "活跃度未知",
     "unknownHint": "无法验证活跃度 — 可能在服务器重启后存活；不断言已死或存活",
     "projectRunningHint": "此项目中有后台工作流正在运行",
-    "projectOrphanHint": "此项目中有需要关注的孤立后台工作流"
+    "projectOrphanHint": "此项目中有需要关注的孤立后台工作流",
+    "projectUnknownHint": "此项目中某个后台工作流的活跃度未知 — 不断言已死或存活"
   },
   "buildUpdate": {
     "available": "有新版本可用",
