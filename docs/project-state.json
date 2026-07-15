@@ -3659,12 +3659,13 @@
       "id": "T-836",
       "kind": "feature",
       "phase": "P7",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-16",
       "owner": "frontend-dev",
       "found": "2026-07-10",
       "source": "تشخيص جلسة e383f7ad الصامتة (backend-dev، 2026-07-10)",
       "title": "فجوة رؤية: بطاقة حالة خفيفة عند دور running كله tool_use بلا نص («الوكيل يعمل — آخر نشاط X منذ Y») بدل الفراغ",
-      "note": "backlog منخفض. الجذر المشخص: جلسة تنتظر تجدد الحصة بحلقة خلفية صامتة (TaskOutput كل ~4.5د بلا نص) فالعارض يرسم فراغاً (MessageComponent.tsx:295 يرجع null للعمليات الصامتة، النافذة ChatMessagesPane.tsx:284). ليست بغة — سلوك صحيح بتجربة سيئة. الحل الأسلوكي الموازي: توجيه المنسقين لإخراج رسالة نصية قبل أي انتظار طويل."
+      "note": "**✅ منجَز ومبنيّ 2026-07-16 (commit 6ed4f39a، عميلي حيّ بعد build:client):** runningActivityGap.ts (دالة نقية + 8 اختبارات) تكشف الحالة المستهدفة (isLoading + يوجد tool_use + لا نص assistant في الدور الحالي، حدّ الدور من آخر رسالة user بشرية)، وRunningActivityGapCard.tsx تعرض «الوكيل يعمل — آخر نشاط منذ Y» (relative time حيّ كل ثانية، RTL، i18n ar/en activityGap.*) بعد قائمة الرسائل، وتختفي فور ظهور نص أو انتهاء الدور (لا تسرّب دور سابق، لا تسرّب مؤقّت). آخر نشاط = أحدث طابع tool_use شامل أدوات الوكلاء الفرعيين. مُرِّر isLoading عبر ChatInterface→ChatMessagesPane. qa-critic: approve بالكامل. الجذر الأصلي (MessageComponent يرجع null للصامت) لم يُمَس — البطاقة طبقة عرض إضافية. مكمّل للحل الأسلوكي (توجيه المنسّقين لإخراج نص قبل انتظار طويل)."
     },
     {
       "id": "T-837",
@@ -4129,13 +4130,14 @@
       "id": "T-915",
       "kind": "bug",
       "phase": "P4",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-16",
       "priority": "high",
       "owner": "frontend-dev",
       "found": "2026-07-16",
       "source": "كشف frontend-dev أثناء تحقّق T-882 (2026-07-16): فجوة خصوصية بنيوية.",
       "title": "ختم engineProvider (Claude via Kimi/DeepSeek/GLM) بالجلسة بدل الحالة العامة — منع توجيه محتوى جلسة Anthropic رسمية عبر مزوّد خارجي دون قصد",
-      "note": "engineProvider (ADR-037/B-ENG) حالة عامة بحتة (localStorage claude-engine-provider) بلا ربط بالجلسة؛ تُصفَّر فقط عند تبديل المزوّد العام بعيداً عن claude، لا عند تبديل الجلسة. dispatchProviderCommand (useChatComposerState:900) يُرفق engineProvider العام بكل أمر claude حتى على resume، بينما effectiveProvider مختومة بالجلسة. **سيناريو الخطر (خصوصية لا UX):** المستخدم يختار «Claude via Kimi» في محادثة جديدة (يثبّت engineProvider=kimi عامّاً)، ثم ينتقل لجلسة claude قائمة أُنشئت على Anthropic الرسمي ويرسل → resume=true وeffectiveProvider=claude لكن engineProvider=kimi يُرفَق → محتوى محادثة رسمية يُوجَّه عبر مزوّد خارجي دون قصد. الإصلاح الصحيح: ختم engineProvider بمعرّف الجلسة (نمط permissionMode-${sessionId}) يُلتقط لحظة session_created — حجم M، لا مجرد تصفير عند resume (يكسر استمرار جلسة أُنشئت أصلاً بالمحرّك البديل من الشوط2+). أُلغيت أولوية low لـT-882 لصالح high هنا (خصوصية). يمسّ useChatProviderState/useChatComposerState."
+      "note": "engineProvider (ADR-037/B-ENG) حالة عامة بحتة (localStorage claude-engine-provider) بلا ربط بالجلسة؛ تُصفَّر فقط عند تبديل المزوّد العام بعيداً عن claude، لا عند تبديل الجلسة. dispatchProviderCommand (useChatComposerState:900) يُرفق engineProvider العام بكل أمر claude حتى على resume، بينما effectiveProvider مختومة بالجلسة. **سيناريو الخطر (خصوصية لا UX):** المستخدم يختار «Claude via Kimi» في محادثة جديدة (يثبّت engineProvider=kimi عامّاً)، ثم ينتقل لجلسة claude قائمة أُنشئت على Anthropic الرسمي ويرسل → resume=true وeffectiveProvider=claude لكن engineProvider=kimi يُرفَق → محتوى محادثة رسمية يُوجَّه عبر مزوّد خارجي دون قصد. الإصلاح الصحيح: ختم engineProvider بمعرّف الجلسة (نمط permissionMode-${sessionId}) يُلتقط لحظة session_created — حجم M، لا مجرد تصفير عند resume (يكسر استمرار جلسة أُنشئت أصلاً بالمحرّك البديل من الشوط2+). أُلغيت أولوية low لـT-882 لصالح high هنا (خصوصية). يمسّ useChatProviderState/useChatComposerState. **✅ منجَز ومبنيّ 2026-07-16 (commit fb40b352، عميلي حيّ بعد build:client):** الحلّ بنمط pending-slot (engineProviderSession.ts، ثلاث خانات: عام/بالجلسة/pending one-shot في sessionStorage): dispatchProviderCommand يكتب pending من effectiveEngineProvider (القيمة المُرسَلة المختومة بالجلسة، لمحادثة جديدة فقط)، وsession_created يستهلكه (consumePendingEngineStamp) بدل قراءة المفتاح العام — فلا تباعُد بين ما أُرسِل وما خُتِم. جلسة بلا ختم = null رسمي (fail-safe، لا رجوع للعام)؛ stale-resume ينسخ ختم القديمة (B-ENG). **مراجعة qa-critic (fix_required) كشفت أن النسخة الأولى أعادت التسريب (ختم من المفتاح العام)** فأُصلح المصدر. تحقّق المنسّق ذاتياً: 10/10 اختبار انحدار + typecheck + eslint + build:client نظيفة. حادثة الـhook: @ts-ignore عقيم أُزيل."
     },
     {
       "id": "T-883",
