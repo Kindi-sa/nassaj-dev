@@ -140,8 +140,7 @@
       "auto": "Otomatik Mod",
       "acceptEdits": "Düzenlemeleri Kabul Et",
       "bypassPermissions": "İzinleri Atla",
-      "plan": "Plan Modu",
-      "coordinator": "Coordinator"
+      "plan": "Plan Modu"
     },
     "descriptions": {
       "default": "Sadece güvenilir komutlar (ls, cat, grep, git status, vb.) otomatik çalışır. Diğer komutlar atlanır. Çalışma alanına yazabilir.",

@@ -753,10 +753,6 @@
         "bypassPermissions": {
           "title": "تجاوز الأذونات",
           "description": "وصول كامل للنظام دون قيود. تعمل جميع الأوامر تلقائياً مع كامل الوصول للقرص والشبكة. استخدم بحذر."
-        },
-        "coordinator": {
-          "title": "منسّق",
-          "description": "يفوّض للوكلاء المتخصّصين ولا ينفّذ — تنسيق فقط (Codex)."
         }
       },
       "technicalDetails": "تفاصيل تقنية",
@@ -764,8 +760,7 @@
         "default": "sandboxMode=workspace-write، approvalPolicy=untrusted. أوامر موثوقة: cat، cd، grep، head، ls، pwd، tail، git status/log/diff/show، find (بدون -exec)، إلخ.",
         "acceptEdits": "sandboxMode=workspace-write، approvalPolicy=never. جميع الأوامر تنفّذ تلقائياً داخل مجلد المشروع.",
         "bypassPermissions": "sandboxMode=danger-full-access، approvalPolicy=never. وصول كامل للنظام، استخدم في البيئات الموثوقة فقط.",
-        "overrideNote": "يمكنك تجاوز ذلك لكل جلسة باستخدام زر الوضع في واجهة المحادثة.",
-        "coordinator": "permissionMode=coordinator. يفوّض جميع المهام للوكلاء المتخصّصين؛ لا تنفيذ مباشر للأدوات. يلزمه دعم الخادم (safe-restart)."
+        "overrideNote": "يمكنك تجاوز ذلك لكل جلسة باستخدام زر الوضع في واجهة المحادثة."
       }
     },
     "antigravity": {

@@ -53,7 +53,7 @@ function readStoredEngineProvider(): EngineProvider {
 
 export const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
   if (provider === 'codex') {
-    return ['default', 'acceptEdits', 'bypassPermissions', 'coordinator'];
+    return ['default', 'acceptEdits', 'bypassPermissions'];
   }
   if (provider === 'claude') {
     return ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'];

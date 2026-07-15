@@ -1,12 +1,9 @@
 /**
- * T-886 — اختبارات وضع coordinator لـCodex
+ * T-886 (revert) — يؤكّد أن وضع coordinator غُيِّل من Codex
  *
  * يغطّي:
- *   - ظهور 'coordinator' في قائمة أوضاع codex
- *   - غياب 'coordinator' عن قوائم المزوّدين الآخرين (claude / gemini / cursor / opencode)
- *   - تسلسل الدوران يشمل coordinator لـcodex
- *
- * الدالة مُصدَّرة لأغراض الاختبار: getPermissionModesForProvider
+ *   - أوضاع codex ثلاثة فقط (default / acceptEdits / bypassPermissions)
+ *   - 'coordinator' غائب عن كل المزوّدين
  *
  * Run: npm run test:client -- src/components/chat/hooks/useChatProviderState.coordinator.test.ts
  */
@@ -14,34 +11,29 @@
 import { describe, it, expect } from 'vitest';
 import { getPermissionModesForProvider } from './useChatProviderState';
 
-describe('getPermissionModesForProvider — coordinator mode (T-886)', () => {
-  it('includes coordinator in the codex cycle', () => {
+describe('getPermissionModesForProvider — no coordinator mode', () => {
+  it('codex cycle contains exactly the three expected modes', () => {
     const modes = getPermissionModesForProvider('codex');
-    expect(modes).toContain('coordinator');
+    expect(modes).toEqual(['default', 'acceptEdits', 'bypassPermissions']);
   });
 
-  it('excludes coordinator from the claude cycle', () => {
-    const modes = getPermissionModesForProvider('claude');
-    expect(modes).not.toContain('coordinator');
+  it('coordinator is absent from codex', () => {
+    expect(getPermissionModesForProvider('codex')).not.toContain('coordinator');
   });
 
-  it('excludes coordinator from the gemini cycle', () => {
-    const modes = getPermissionModesForProvider('gemini');
-    expect(modes).not.toContain('coordinator');
+  it('coordinator is absent from claude', () => {
+    expect(getPermissionModesForProvider('claude')).not.toContain('coordinator');
   });
 
-  it('excludes coordinator from the cursor cycle', () => {
-    const modes = getPermissionModesForProvider('cursor');
-    expect(modes).not.toContain('coordinator');
+  it('coordinator is absent from gemini', () => {
+    expect(getPermissionModesForProvider('gemini')).not.toContain('coordinator');
   });
 
-  it('excludes coordinator from the opencode cycle', () => {
-    const modes = getPermissionModesForProvider('opencode');
-    expect(modes).not.toContain('coordinator');
+  it('coordinator is absent from cursor', () => {
+    expect(getPermissionModesForProvider('cursor')).not.toContain('coordinator');
   });
 
-  it('codex cycle contains exactly the expected modes', () => {
-    const modes = getPermissionModesForProvider('codex');
-    expect(modes).toEqual(['default', 'acceptEdits', 'bypassPermissions', 'coordinator']);
+  it('coordinator is absent from opencode', () => {
+    expect(getPermissionModesForProvider('opencode')).not.toContain('coordinator');
   });
 });

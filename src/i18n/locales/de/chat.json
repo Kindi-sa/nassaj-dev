@@ -140,8 +140,7 @@
       "auto": "Auto-Modus",
       "acceptEdits": "Bearbeitungen akzeptieren",
       "bypassPermissions": "Berechtigungen umgehen",
-      "plan": "Planungsmodus",
-      "coordinator": "Coordinator"
+      "plan": "Planungsmodus"
     },
     "descriptions": {
       "default": "Nur vertrauenswürdige Befehle (ls, cat, grep, git status usw.) werden automatisch ausgeführt. Andere Befehle werden übersprungen. Kann in den Arbeitsbereich schreiben.",

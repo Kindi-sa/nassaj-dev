@@ -711,10 +711,6 @@
         "bypassPermissions": {
           "title": "绕过权限",
           "description": "完全系统访问，无任何限制。所有命令自动运行，具有完整的磁盘和网络访问权限。请谨慎使用。"
-        },
-        "coordinator": {
-          "title": "Coordinator",
-          "description": "Delegates to specialized agents and does not execute — coordination only (Codex)."
         }
       },
       "technicalDetails": "技术详情",
@@ -722,8 +718,7 @@
         "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。受信任的命令：cat、cd、grep、head、ls、pwd、tail、git status/log/diff/show、find（不带 -exec）等。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。所有命令在项目目录内自动执行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全系统访问权限，仅在可信环境中使用。",
-        "overrideNote": "您可以使用聊天界面中的模式按钮按会话覆盖此设置。",
-        "coordinator": "permissionMode=coordinator. Delegates all tasks to specialized agents; no direct tool execution. Requires server support (safe-restart)."
+        "overrideNote": "您可以使用聊天界面中的模式按钮按会话覆盖此设置。"
       }
     },
     "antigravity": {

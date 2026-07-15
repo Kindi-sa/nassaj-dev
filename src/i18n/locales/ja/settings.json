@@ -711,10 +711,6 @@
         "bypassPermissions": {
           "title": "権限をバイパス",
           "description": "制限なしの完全なシステムアクセス。すべてのコマンドがディスクとネットワークへの完全なアクセスで自動実行されます。注意して使用してください。"
-        },
-        "coordinator": {
-          "title": "Coordinator",
-          "description": "Delegates to specialized agents and does not execute — coordination only (Codex)."
         }
       },
       "technicalDetails": "技術的な詳細",
@@ -722,8 +718,7 @@
         "default": "sandboxMode=workspace-write, approvalPolicy=untrusted。信頼されたコマンド: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find（-execなし）など。",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never。すべてのコマンドがプロジェクトディレクトリ内で自動実行。",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never。完全なシステムアクセス。信頼された環境でのみ使用してください。",
-        "overrideNote": "チャットインターフェースのモードボタンを使用してセッションごとに上書きできます。",
-        "coordinator": "permissionMode=coordinator. Delegates all tasks to specialized agents; no direct tool execution. Requires server support (safe-restart)."
+        "overrideNote": "チャットインターフェースのモードボタンを使用してセッションごとに上書きできます。"
       }
     },
     "antigravity": {

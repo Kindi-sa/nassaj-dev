@@ -586,32 +586,6 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
           </label>
         </div>
 
-        <div
-          className={`cursor-pointer rounded-lg border p-4 transition-all ${permissionMode === 'coordinator'
-            ? 'border-violet-400 bg-violet-50 dark:border-violet-600 dark:bg-violet-900/20'
-            : 'border-border bg-card/50 active:border-border active:bg-accent/50'
-            }`}
-          onClick={() => onPermissionModeChange('coordinator')}
-        >
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="codexPermissionMode"
-              checked={permissionMode === 'coordinator'}
-              onChange={() => onPermissionModeChange('coordinator')}
-              className="mt-1 h-4 w-4 text-violet-600 accent-violet-600"
-            />
-            <div>
-              <div className="font-medium text-violet-900 dark:text-violet-100">
-                {t('permissions.codex.modes.coordinator.title')}
-              </div>
-              <div className="text-sm text-violet-700 dark:text-violet-300">
-                {t('permissions.codex.modes.coordinator.description')}
-              </div>
-            </div>
-          </label>
-        </div>
-
         <details className="text-sm">
           <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
             {t('permissions.codex.technicalDetails')}
@@ -620,7 +594,6 @@ function CodexPermissions({ permissionMode, onPermissionModeChange }: Omit<Codex
             <p><strong>{t('permissions.codex.modes.default.title')}:</strong> {t('permissions.codex.technicalInfo.default')}</p>
             <p><strong>{t('permissions.codex.modes.acceptEdits.title')}:</strong> {t('permissions.codex.technicalInfo.acceptEdits')}</p>
             <p><strong>{t('permissions.codex.modes.bypassPermissions.title')}:</strong> {t('permissions.codex.technicalInfo.bypassPermissions')}</p>
-            <p><strong>{t('permissions.codex.modes.coordinator.title')}:</strong> {t('permissions.codex.technicalInfo.coordinator')}</p>
             <p className="text-xs opacity-75">{t('permissions.codex.technicalInfo.overrideNote')}</p>
           </div>
         </details>
