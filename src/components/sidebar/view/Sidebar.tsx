@@ -230,6 +230,7 @@ function Sidebar({
           onShowVersionModal={() => setShowVersionModal(true)}
           projects={projects}
           onProjectSelect={handleProjectSelect}
+          sessionProvider={selectedSession?.__provider ?? null}
           t={t}
         />
       ) : (

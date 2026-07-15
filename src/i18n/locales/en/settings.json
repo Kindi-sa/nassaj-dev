@@ -83,6 +83,7 @@
     "resetsIn": "Resets {{time}}",
     "extraUsageDetail": "{{used}} of {{limit}} used",
     "crossProviderNote": "Claude account usage — this session runs on {{provider}}",
+    "notApplicable": "Claude quotas don't apply to the current session's provider ({{provider}})",
     "windows": {
       "session": "Current session",
       "weeklyAllModels": "All models (weekly)",

@@ -16,6 +16,8 @@ type SidebarCollapsedProps = {
   projects?: Project[];
   /** Select a project from the active-conversations popover. */
   onProjectSelect?: (project: Project) => void;
+  /** مزوّد الجلسة المفتوحة حالياً — يحجب أشرطة حصة Claude لغير جلسات claude. */
+  sessionProvider?: string | null;
   t: TFunction;
 };
 
@@ -26,6 +28,7 @@ export default function SidebarCollapsed({
   onShowVersionModal,
   projects,
   onProjectSelect,
+  sessionProvider,
   t,
 }: SidebarCollapsedProps) {
   return (
@@ -56,7 +59,7 @@ export default function SidebarCollapsed({
       <SystemStatsCollapsed t={t} />
 
       {/* Claude usage windows — divider rendered inside component */}
-      <ClaudeUsageCollapsed />
+      <ClaudeUsageCollapsed sessionProvider={sessionProvider} />
 
       {/* Active conversations count — divider rendered inside component.
         * Hover/focus/click reveals the per-project breakdown; selecting a row

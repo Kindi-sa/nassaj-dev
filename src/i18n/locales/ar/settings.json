@@ -83,6 +83,7 @@
     "resetsIn": "يُعاد التعيين {{time}}",
     "extraUsageDetail": "{{used}} من {{limit}} مُستخدَم",
     "crossProviderNote": "استخدام حساب Claude — هذه الجلسة تعمل على {{provider}}",
+    "notApplicable": "حصص Claude لا تنطبق على مزوّد الجلسة الحالية ({{provider}})",
     "windows": {
       "session": "الجلسة الحالية",
       "weeklyAllModels": "كل النماذج (أسبوعي)",

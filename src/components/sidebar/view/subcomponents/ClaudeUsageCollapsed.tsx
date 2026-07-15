@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import { useClaudeUsage } from '../../../quick-settings-panel/hooks/useClaudeUsage';
 import {
   clampUtilization,
@@ -8,6 +9,7 @@ import {
   usageTextColorClass,
 } from '../../../quick-settings-panel/claudeUsageHelpers';
 import type { ClaudeUsage } from '../../../quick-settings-panel/claudeUsageTypes';
+import { getProviderCapabilities } from '../../../chat/constants/providerCapabilities';
 
 // ---------------------------------------------------------------------------
 // useMediaQuery — copied from HeaderUsageIndicator; tracks matchMedia reactively.
@@ -55,6 +57,15 @@ const WINDOWS: WindowEntry[] = [
   { letter: 'O', key: 'weeklyOpus' },
 ];
 
+type ClaudeUsageCollapsedProps = {
+  /**
+   * مزوّد الجلسة المفتوحة حالياً (selectedSession?.__provider ?? null).
+   * أشرطة الحصة بيانات حساب Claude حصراً ولا تنطبق على أي مزوّد آخر — لذا
+   * تُحجَب هذه الأعمدة كلياً حين الجلسة ليست claude (مطابقة HeaderUsageIndicator).
+   */
+  sessionProvider?: string | null;
+};
+
 /**
  * Collapsed-rail variant for Claude usage windows.
  * Mirrors the style of SystemStatsCollapsed: tiny vertical stacks.
@@ -64,14 +75,21 @@ const WINDOWS: WindowEntry[] = [
  * we return null to avoid duplication. A CSS double-guard (xl:hidden) is also
  * applied to cover any SSR/hydration timing gap.
  *
- * Renders nothing on loading / error / all-null windows.
+ * Renders nothing on loading / error / all-null windows, and nothing at all
+ * when the open session's provider isn't claude (this is Claude account
+ * quota data — it doesn't apply to Codex/other providers).
  */
-export function ClaudeUsageCollapsed() {
+export function ClaudeUsageCollapsed({ sessionProvider }: ClaudeUsageCollapsedProps) {
   // All hooks must be called unconditionally before any conditional return.
   const { t, i18n } = useTranslation('settings');
-  const usage = useClaudeUsage(true);
+  const isClaudeSession = getProviderCapabilities(sessionProvider).quota.isClaudeAccount;
+  // enabled=isClaudeSession: stop polling entirely for non-claude sessions.
+  const usage = useClaudeUsage(isClaudeSession);
   // Complementary to HeaderUsageIndicator's (min-width: 1280px) guard.
   const isNarrow = useMediaQuery('(max-width: 1279px)');
+
+  // Claude account usage doesn't apply to non-claude sessions — hide entirely.
+  if (!isClaudeSession) return null;
 
   // On wide viewports the header already shows usage — skip rendering here.
   if (!isNarrow) return null;
@@ -111,7 +129,7 @@ export function ClaudeUsageCollapsed() {
               {letter}
             </span>
             <span
-              className={`text-[11px] leading-none tabular-nums ${usageTextColorClass(clamped)}`}
+              className={`text-[11px] tabular-nums leading-none ${usageTextColorClass(clamped)}`}
             >
               {percent}
             </span>

@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+
 import { useClaudeUsage } from '../../../quick-settings-panel/hooks/useClaudeUsage';
 import {
   clampUtilization,
@@ -31,8 +32,9 @@ interface HeaderUsageIndicatorProps {
   tabsMode?: 'full' | 'compact' | 'minimal' | 'hidden';
   /**
    * مزوّد الجلسة المفتوحة حالياً (selectedSession?.__provider). أشرطة الحصة
-   * تبقى بيانات حساب Claude دوماً (T-5) — لا تُحجَب حين الجلسة ليست claude،
-   * لكنها تُوسَم بذلك صراحةً كي لا تُفهَم خطأً كبيانات مزوّد الجلسة الحالية.
+   * بيانات حساب Claude حصراً ولا تنطبق على أي مزوّد آخر (لا بديل headless
+   * لحصص Codex مثلاً، T-905) — لذا يُحجَب المؤشّر كلياً حين الجلسة ليست
+   * claude، بدل عرضه موسوماً (تعديل على T-5/T-904).
    */
   sessionProvider?: string | null;
 }
@@ -50,7 +52,13 @@ export default function HeaderUsageIndicator({ tabsMode, sessionProvider }: Head
   // no longer needs a width gate of its own.
   const isWide = tabsMode !== 'hidden';
 
-  const usageState = useClaudeUsage(isWide);
+  // Hooks must run unconditionally (rules-of-hooks); gate the hook's argument
+  // so it stops polling for non-claude sessions instead of gating the call site.
+  const usageState = useClaudeUsage(isWide && isClaudeSession);
+
+  // Claude account usage doesn't apply to non-claude sessions — hide entirely
+  // rather than show it with a disambiguation note (T-5/T-904 superseded).
+  if (!isClaudeSession) return null;
 
   // "hidden" mode is the only mode that suppresses the indicator (together
   // with the tab bar). full/compact/minimal all keep it visible regardless of
@@ -74,21 +82,10 @@ export default function HeaderUsageIndicator({ tabsMode, sessionProvider }: Head
   // Nothing to show — all windows are null.
   if (items.length === 0) return null;
 
-  // T-5: the indicator always reflects the Claude ACCOUNT's usage (the API has
-  // no per-provider quota concept), never hidden for a non-claude session —
-  // but a non-claude session gets an explicit disambiguation note so it never
-  // reads as "this session's" quota.
-  const crossProviderNote = !isClaudeSession
-    ? t('claudeUsage.crossProviderNote', {
-        provider: getProviderCapabilities(sessionProvider).displayName,
-      })
-    : null;
-
   return (
     <div
-      className="flex items-center gap-3 flex-shrink-0 select-none"
-      aria-label={crossProviderNote ? `${t('claudeUsage.title')} — ${crossProviderNote}` : t('claudeUsage.title')}
-      title={crossProviderNote ?? undefined}
+      className="flex flex-shrink-0 select-none items-center gap-3"
+      aria-label={t('claudeUsage.title')}
     >
       {items.map(({ letter, clamped, resetsAt }) => {
         const percent = formatPercent(clamped, i18n.language);
@@ -96,21 +93,18 @@ export default function HeaderUsageIndicator({ tabsMode, sessionProvider }: Head
         // Resolve the human-readable window label for aria/title.
         const windowKey = WINDOWS.find((w) => w.letter === letter)!.key;
         const label = t(`claudeUsage.windows.${windowKey}`);
-        // Build tooltip: show reset time when available, label-only otherwise,
-        // plus the cross-provider disambiguation note when relevant (T-5).
+        // Build tooltip: show reset time when available, label-only otherwise.
         const resetText = formatResetTime(resetsAt, i18n.language);
-        const baseTooltip = resetText
+        const tooltip = resetText
           ? `${label} — ${t('claudeUsage.resetsIn', { time: resetText })}`
           : label;
-        const tooltip = crossProviderNote ? `${baseTooltip} — ${crossProviderNote}` : baseTooltip;
         // aria-label carries both the percentage and optional reset time so
         // screen-reader users receive the full context (the percentage is
         // visually rendered but the tooltip alone omits it when no reset time
         // is present, and even with it the percentage is buried).
-        const baseAriaLabel = resetText
+        const ariaLabel = resetText
           ? `${label}: ${percent} — ${t('claudeUsage.resetsIn', { time: resetText })}`
           : `${label}: ${percent}`;
-        const ariaLabel = crossProviderNote ? `${baseAriaLabel} — ${crossProviderNote}` : baseAriaLabel;
 
         return (
           <span

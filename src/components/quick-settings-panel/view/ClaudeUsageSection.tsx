@@ -1,9 +1,11 @@
 import { AlertCircle, Database, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+
 import type { ClaudeUsage } from '../claudeUsageTypes';
 import { useClaudeUsage } from '../hooks/useClaudeUsage';
-import { formatCredits, formatPercent } from '../claudeUsageHelpers';
+import { formatCredits } from '../claudeUsageHelpers';
 import { getProviderCapabilities } from '../../chat/constants/providerCapabilities';
+
 import QuickSettingsSection from './QuickSettingsSection';
 import ClaudeUsageBar from './ClaudeUsageBar';
 
@@ -12,8 +14,8 @@ type ClaudeUsageSectionProps = {
   isOpen: boolean;
   /**
    * مزوّد الجلسة المفتوحة حالياً (selectedSession?.__provider)، إن وُجدت.
-   * البيانات تبقى بيانات حساب Claude دوماً (T-5) — تُوسَم لا تُحجَب حين
-   * الجلسة المفتوحة ليست claude.
+   * بيانات حساب Claude لا تنطبق على مزوّد آخر — تُحجَب أشرطة الحصة ويُعرَض
+   * بدلها سطر توضيحي حين الجلسة المفتوحة ليست claude (تعديل على T-5/T-904).
    */
   sessionProvider?: string | null;
 };
@@ -78,18 +80,15 @@ function UsageContent({ data }: { data: ClaudeUsage }) {
  */
 export default function ClaudeUsageSection({ isOpen, sessionProvider }: ClaudeUsageSectionProps) {
   const { t } = useTranslation('settings');
-  const usage = useClaudeUsage(isOpen);
+
+  // Claude account usage doesn't apply to a non-claude session (T-5/T-904
+  // superseded) — skip fetching it and show a note instead of the bars.
+  const capabilities = getProviderCapabilities(sessionProvider);
+  const isClaudeSession = capabilities.quota.isClaudeAccount;
+  const usage = useClaudeUsage(isOpen && isClaudeSession);
 
   // Title row carries the plan badge once data is available.
-  const plan = usage.status === 'success' ? usage.data.plan : null;
-
-  // T-5: label (never hide) when the currently open session isn't claude, so
-  // this always-Claude-account data is never mistaken for the session's own
-  // provider usage.
-  const capabilities = getProviderCapabilities(sessionProvider);
-  const crossProviderNote = !capabilities.quota.isClaudeAccount
-    ? t('claudeUsage.crossProviderNote', { provider: capabilities.displayName })
-    : null;
+  const plan = isClaudeSession && usage.status === 'success' ? usage.data.plan : null;
 
   const title = (
     <span className="flex items-center gap-2">
@@ -104,25 +103,27 @@ export default function ClaudeUsageSection({ isOpen, sessionProvider }: ClaudeUs
 
   return (
     <QuickSettingsSection title={title}>
-      {crossProviderNote && (
-        <p className="mb-1 text-xs text-muted-foreground/80">{crossProviderNote}</p>
+      {!isClaudeSession && (
+        <p className="py-2 text-xs text-muted-foreground/80">
+          {t('claudeUsage.notApplicable', { provider: capabilities.displayName })}
+        </p>
       )}
 
-      {(usage.status === 'idle' || usage.status === 'loading') && (
+      {isClaudeSession && (usage.status === 'idle' || usage.status === 'loading') && (
         <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           {t('claudeUsage.loading')}
         </div>
       )}
 
-      {usage.status === 'error' && (
+      {isClaudeSession && usage.status === 'error' && (
         <div className="flex items-start gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{t('claudeUsage.error')}</span>
         </div>
       )}
 
-      {usage.status === 'success' && <UsageContent data={usage.data} />}
+      {isClaudeSession && usage.status === 'success' && <UsageContent data={usage.data} />}
     </QuickSettingsSection>
   );
 }
