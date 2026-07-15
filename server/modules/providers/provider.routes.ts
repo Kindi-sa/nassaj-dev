@@ -6,6 +6,7 @@ import { providerAuthService } from '@/modules/providers/services/provider-auth.
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { providerCredentialsService } from '@/modules/providers/services/provider-credentials.service.js';
+import { providerGovernanceService } from '@/modules/providers/services/provider-governance.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
@@ -532,6 +533,24 @@ router.get(
     const provider = parseProvider(req.params.provider);
     const capability = providerCredentialsService.getCapability(provider);
     res.json(createApiSuccessResponse({ provider, ...capability }));
+  }),
+);
+
+// Reports the ENGINE GOVERNANCE state of a provider for the badge (T-900): whether
+// THIS user's resolved provider home is running under authentic nassaj governance
+// right now — { status, enforced, mechanism }. Mirrors the capability route (same
+// authenticateToken guard on the router) but forwards the userId, like
+// /:provider/auth/status, so a credential-isolated user sees THEIR own governance,
+// not the operator's. Read-only: it reflects the current disk state and never
+// materializes or self-heals — a later spawn's repair is picked up on the next fetch.
+// An unknown/hosted provider is honestly 'ungoverned' (never a 404 on a fresh server).
+router.get(
+  '/:provider/governance',
+  asyncHandler(async (req: Request, res: Response) => {
+    const provider = parseProvider(req.params.provider);
+    const userId = readAuthenticatedUserId(req);
+    const governance = providerGovernanceService.getGovernance(provider, userId);
+    res.json(createApiSuccessResponse({ provider, ...governance }));
   }),
 );
 
