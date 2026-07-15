@@ -81,6 +81,45 @@
   ],
   "tasks": [
     {
+      "id": "T-909",
+      "kind": "bug",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "high",
+      "owner": "backend-dev",
+      "found": "2026-07-15",
+      "source": "لقطة المالك 2026-07-15: منسّق Codex بلّغ «ملف التعريف الكامل المشار إليه agents/agents.md غير موجود فعلياً».",
+      "title": "مرجع معلّق لـ.agents/agents.md في المصدر المحايد AGENTS.md غير قابل للحلّ من شجرة Codex المعزولة — يبلّغه منسّق Codex قيداً تنظيمياً",
+      "note": "AGENTS.md مولَّد يشير إلى «.agents/agents.md» (شخصيات Antigravity في ~/.claude)، غير مُمثَّل لـCodex فيبدو مفقوداً. **✅ منجَز ومبنيّ 2026-07-15 (commit a22d1472، self-contained في nassaj-dev بلا مساس nassaj-core):** أُضيفت materializePersonaCopy في codex-governance-material.js تكتب نسخة قراءة-فقط 0444 من ~/.claude/.agents/agents.md إلى <codexHome>/.agents/agents.md فيُحلّ المسار النسبي من موضع AGENTS.md الذي يقرؤه Codex؛ **معزولة عن بصمة/آلية T-883** (best-effort non-blocking، لا تمسّ ensureCodexGovernance/governanceMatchesSource) ولا تكسر Antigravity. تُستدعى عند التزويد (provision-user-dirs.js) وعند **كل** إطلاق Codex (openai-codex.js:491، ليشمل المستخدمين المزوَّدين سابقاً رغم قصر دارة فحص البصمة). تحقّق المنسّق ذاتياً: 12/12 اختبار governance-material (سعيد/idempotent/رفض symlink/غياب المصدر بلا كسر)، typecheck+build:server نظيفان، dist-server يحوي الدالة. **يلزم safe-restart للتفعيل حيّاً** (يُجمَع مع T-911). لا حاجة nassaj-core ولا push. مرتبط T-890/T-903."
+    },
+    {
+      "id": "T-910",
+      "kind": "bug",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "medium",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "لقطة المالك 2026-07-15 (العرض الضيّق: شارة 💬 عدّاد الأوامر تلتفّ لسطر ثانٍ أسفل المُؤلِّف).",
+      "title": "أيقونات شريط أسفل المُؤلِّف تلتفّ لأسطر متعددة في العرض الضيّق — صفّها في سطر واحد بلا التفاف",
+      "note": "**✅ منجَز ومبنيّ 2026-07-15 (commit 708481b2، عميلي بحت):** السبب = PromptInputTools له flex-wrap افتراضاً. الإصلاح في ChatComposer.tsx عند الاستخدام (بلا مساس الملف المشترك PromptInput.tsx): تجاوز بـflex-nowrap + overflow-x-auto + scrollbar-hide، وshrink-0 على كل طفل، فيبقى الكل (الأيقونات + العدّاد + الإرسال) سطراً واحداً بلا حذف؛ فائض العرض النادر يُمرَّر أفقياً خفيّاً لا يلتفّ. العرض الواسع دون تغيير. typecheck+build:client نظيفان. **حيّ بعد build:client المنشور (لا restart).** ملاحظة طرفية خارج النطاق رصدها المنفّذ: زر «مسح الإدخال» يحمل صنف Tailwind غير صالح `No-flex` فيبقى مخفياً — تذكرة منفصلة إن رغب المالك بإظهاره (T-912-cand)."
+    },
+    {
+      "id": "T-911",
+      "kind": "bug",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "high",
+      "owner": "backend-dev",
+      "found": "2026-07-15",
+      "source": "لقطة المالك 2026-07-15 (عدّاد جلسة Codex «0/200K» رقم مفبرك) + متابعة موثّقة من T-905.",
+      "title": "نافذة سياق Codex الحقيقية بدل 200000 المفبركة: خريطة model→context window في extractCodexTokenBudget (openai-codex.js:108)",
+      "note": "**✅ منجَز ومبنيّ 2026-07-15 (commit a22d1472، خادمي يلزمه restart):** أُنشئ codex-token-budget.ts فيه CODEX_MODEL_CONTEXT_WINDOWS بنوافذ منشورة حقيقية (عائلة gpt-5/gpt-5-codex=400K، gpt-4.1=1M، o3/o4-mini/o1/codex-mini=200K، o1-mini/gpt-4o=128K) + windowForModel + تطبيع اسم النموذج (تجريد لواحق effort/speed المتراكمة والتاريخ، ومطابقة عائلة تغطي كتالوج نسّاج gpt-5.2..5.5). نُقلت extractCodexTokenBudget للملف الجديد وتأخذ resolvedModel (المُمرَّر في queryCodexUnlocked:677)؛ الأولوية: model_context_window من الحدث إن وُجد ← windowForModel ← 200000 آخر ملاذ للمجهول. تحقّق المنسّق ذاتياً بالمشغّل الصحيح (tsx --tsconfig): 8/8 اختبار جديد + 42/42 قائم، typecheck+build:server نظيفان، dist-server يحوي الملف. عميلياً TokenUsageSummary يقرأ total تلقائياً. **يلزم safe-restart للتفعيل** (يُجمَع مع T-909). يبقى إظهار cached/reasoning tokens في popover مؤجَّلاً (متابعة T-905)."
+    },
+    {
       "id": "T-908",
       "kind": "spike",
       "phase": "P0",
