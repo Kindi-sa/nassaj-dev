@@ -81,6 +81,19 @@
   ],
   "tasks": [
     {
+      "id": "T-912",
+      "kind": "bug",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-15",
+      "priority": "medium",
+      "owner": "frontend-dev",
+      "found": "2026-07-15",
+      "source": "المالك 2026-07-15: «لسا تظهرلي حصة كلود وأنا أكلّم كوديكس» — تعديل قرار على T-5/T-904.",
+      "title": "حجب أشرطة حصة حساب Claude (C/W/S/O) كلياً في الجلسات غير-claude بدل وسمها — الترويسة ولوحة الإعدادات والشريط المطوي",
+      "note": "**✅ منجَز ومبنيّ 2026-07-15 (commit 7b6a013e، عميلي بحت حيّ بعد build:client بلا restart):** قرار المالك يعدّل «وسم لا حجب» (T-5/T-904) إلى **حجب كامل**: حصص حساب Claude لا تُعرَض حين مزوّد الجلسة المفتوحة ليس claude (Codex بلا حصص headless — T-905، فلا بديل). ثلاثة مسارات: (1) HeaderUsageIndicator يعيد null لغير claude — الـhook يُستدعى دائماً مُبوَّباً بوسيطه (useClaudeUsage(isWide && isClaudeSession)) احتراماً لـrules-of-hooks؛ (2) ClaudeUsageSection يعرض سطر claudeUsage.notApplicable البديل بدل الأشرطة؛ (3) ClaudeUsageCollapsed مُرِّر إليه sessionProvider عبر Sidebar→SidebarCollapsed ويُحجَب كلياً. **حادثة تحقّق:** pre-commit hook أمسك خطأ rules-of-hooks الذي أدخله وكيل الترويسة (return null قبل الـhook) — أصلحه المنسّق يدوياً؛ درس: الـhook يبوّب وسيطه لا موقع استدعائه. تحقّق ذاتي: typecheck+eslint+build:client نظيفة، JSON ar/en سليم. مفتاح جديد claudeUsage.notApplicable في ar+en."
+    },
+    {
       "id": "T-909",
       "kind": "bug",
       "phase": "P0",
