@@ -5,6 +5,7 @@ import { Copy, Check } from 'lucide-react';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import SessionProcessBadge from '../../../../shared/view/SessionProcessBadge';
 import WorkflowStatusBadge from '../../../../shared/view/WorkflowStatusBadge';
+import GovernanceBadge from '../../../../shared/view/GovernanceBadge';
 import { useWorkflowsEnvelope } from '../../../../stores/workflowStatusStore';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
@@ -132,6 +133,7 @@ export default function MainContentTitle({
               </h2>
               <SessionProcessBadge sessionId={selectedSession.id} />
               <WorkflowStatusBadge sessionId={selectedSession.id} />
+              <GovernanceBadge provider={selectedSession.__provider} />
               {workflowEnvelope.capped && (
                 <span
                   role="status"

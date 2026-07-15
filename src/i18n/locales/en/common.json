@@ -340,5 +340,14 @@
     "reload": "Reload",
     "ariaLabel": "New build update notification",
     "dismiss": "Dismiss"
+  },
+  "governanceBadge": {
+    "governed": "Governed",
+    "ungoverned": "Ungoverned",
+    "tooltip": {
+      "enforced": "Governance enforced — policy hash verified at every turn",
+      "present": "Governance present but not enforced — policy is set, not verified at runtime",
+      "none": "No governance mechanism — this provider has no policy enforcement"
+    }
   }
 }
