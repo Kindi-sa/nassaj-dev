@@ -320,13 +320,14 @@
       "id": "T-903",
       "kind": "chore",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-16",
       "priority": "medium",
       "owner": "backend-dev",
       "found": "2026-07-15",
       "source": "متابعات qa-critic غير الحاجبة على تنفيذ T-886 (2026-07-15)",
       "title": "متابعات منسّق Codex غير الحاجبة: تحقّق حيّ من حجب الحفيد (Gate 2 max_depth=1)، تنظيف TOMLs الوكلاء بعد الجلسة، توثيق owner-only، تكافؤ Claude (disallowedTools)",
-      "note": "من مراجعة qa-critic (مقبول بلا فيتو): [مهم-معالَج] تعداد الطاقم في العقد أُصلح (41f502bd). [مهم متبقٍّ] حجب الحفيد المستوى-2 غير مُتحقَّق حيّاً (دفاع-في-العمق فقط؛ كل النسل read-only فلا كتابة/تسريب، أقصى ضرر استهلاك حصة) — فحص حيّ واحد أو خفض المعيار توثيقاً. [طفيف] TOMLs الوكلاء تبقى في CODEX_HOME/agents بعد الجلسة (حميدة، تُصحَّح ذاتياً على drift). [طفيف] owner-only غير مفروض كوداً (المنسّق تخفيض قدرة ⊂ الافتراضي، مقبول حتى عزل-القراءة T-893). [مؤجَّل] تكافؤ Claude يلزمه سباكة origin.kind=coordinator في claude-sdk (mapCliOptionsToSDK)."
+      "note": "**✅ منجَز ومبنيّ 2026-07-16 (commit 2dd5a186، خادمي يلزمه restart):** (1) كنس أيتام TOML: pruneStaleCoordinatorAgents في codex-coordinator-agents.js يحذف بطاقات الوكلاء ببصمتنا فقط والخارجة عن الروستر، عند بدء الجلسة التالية (آمن للجلسة الحيّة، best-effort). (2) حجب الحفيد: مُتحقَّق كوداً أن agents.max_depth=1 عند نقطة الاختناق الوحيدة (new Codex، openai-codex.js:542) التي يمرّ بها مسارا REST+WS؛ اختبار single-chokepoint يفشل إن أُضيف مسار spawn ثانٍ بلا السقف (التحقّق السلوكي الحيّ يبقى R2). (3) owner-only موثَّق بتعليق صريح عند الطبقة (تخفيض قدرة موحّد نصّي، مقبول حتى T-893). (4) تكافؤ Claude (origin.kind=coordinator) **مؤجَّل متابعةً مستقلّة بحق** — يمسّ مسار claude الحرج (claude-sdk.js:~1830) ويلزمه فيتو qa-critic وقرار أدوات؛ نموذج تهديد claude (عزل per-user) يختلف عن uid Codex المشترك فلا يُنسخ الحجب حرفياً؛ يُفتح عند/بعد T-893. تحقّق المنسّق ذاتياً: 36/36 اختبار (24 coordinator-agents + 12 openai-codex.coordinator) + 33/33 انحدار، typecheck+build:server نظيفان."
     },
     {
       "id": "T-899",
@@ -4115,13 +4116,26 @@
       "id": "T-882",
       "kind": "chore",
       "phase": "P4",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-16",
       "priority": "low",
       "owner": "frontend-dev",
       "found": "2026-07-11",
       "source": "متابعة T-874(3)/T-875 — رصدها frontend-dev كفجوة بنيوية أكبر من الإصلاح الأدنى",
       "title": "اشتقاق حالة provider/model في المؤلِّف من الجلسة المفتوحة (selectedSession) بدل الاختيار العام الوحيد في localStorage — يمسّ useChatProviderState/useChatComposerState ومسار WS session-attach",
-      "note": "اليوم المؤلِّف يقود provider/model باختيار عام صريح فقط (تعليق useChatProviderState: «Session __provider informational only»). إصلاح MODEL_PROVIDERS (48622084) سدّ العَرَض الأظهر (مودال /model يُكره على claude) بلا هذا الإعادة-اشتقاق الكبير. حجم M/L، منخفض الأولوية، لا يمسّ عزل الإرسال (مغلق بـdc028f58)."
+      "note": "**✅ مُغلقة (مغطّاة) 2026-07-16 — تحقّق frontend-dev بالملف:السطر:** T-904/B-167/T-874 غطّت كل نطاقها الفعّال: displayProvider=selectedSession?.__provider??provider يقود كامل قدرات المؤلِّف (ChatInterface:240، ChatComposer:197)، permissionMode يُبذر/يُدوّر من مزوّد الجلسة (useChatProviderState:457,514)، thinkingMode يُصفَّر بتبدّل مزوّد الجلسة (useChatComposerState:1162)، النموذج عند resume مُتجاهَل عميلياً خادمياً (resolveResumeModel، claude-sdk:1352)، وabort-provider يُصحَّح خادمياً (resolveSessionControlProvider، chat-websocket:172). **فجوة واحدة متبقّية فُصلت لـ[[T-915]]:** engineProvider («Claude عبر Kimi») حالة عامة غير مختومة بالجلسة — أثر خصوصية محتمل."
+    },
+    {
+      "id": "T-915",
+      "kind": "bug",
+      "phase": "P4",
+      "status": "todo",
+      "priority": "high",
+      "owner": "frontend-dev",
+      "found": "2026-07-16",
+      "source": "كشف frontend-dev أثناء تحقّق T-882 (2026-07-16): فجوة خصوصية بنيوية.",
+      "title": "ختم engineProvider (Claude via Kimi/DeepSeek/GLM) بالجلسة بدل الحالة العامة — منع توجيه محتوى جلسة Anthropic رسمية عبر مزوّد خارجي دون قصد",
+      "note": "engineProvider (ADR-037/B-ENG) حالة عامة بحتة (localStorage claude-engine-provider) بلا ربط بالجلسة؛ تُصفَّر فقط عند تبديل المزوّد العام بعيداً عن claude، لا عند تبديل الجلسة. dispatchProviderCommand (useChatComposerState:900) يُرفق engineProvider العام بكل أمر claude حتى على resume، بينما effectiveProvider مختومة بالجلسة. **سيناريو الخطر (خصوصية لا UX):** المستخدم يختار «Claude via Kimi» في محادثة جديدة (يثبّت engineProvider=kimi عامّاً)، ثم ينتقل لجلسة claude قائمة أُنشئت على Anthropic الرسمي ويرسل → resume=true وeffectiveProvider=claude لكن engineProvider=kimi يُرفَق → محتوى محادثة رسمية يُوجَّه عبر مزوّد خارجي دون قصد. الإصلاح الصحيح: ختم engineProvider بمعرّف الجلسة (نمط permissionMode-${sessionId}) يُلتقط لحظة session_created — حجم M، لا مجرد تصفير عند resume (يكسر استمرار جلسة أُنشئت أصلاً بالمحرّك البديل من الشوط2+). أُلغيت أولوية low لـT-882 لصالح high هنا (خصوصية). يمسّ useChatProviderState/useChatComposerState."
     },
     {
       "id": "T-883",
