@@ -135,14 +135,6 @@ export default function SidebarProjectItem({
     onSaveProjectName(project.projectId);
   };
 
-  const selectAndToggleProject = () => {
-    if (selectedProject?.projectId !== project.projectId) {
-      onProjectSelect(project);
-    }
-
-    toggleProject();
-  };
-
   return (
     <div className={cn('md:space-y-1', isDeleting && 'opacity-50 pointer-events-none')}>
       <div className="md:group group" onMouseEnter={markInteracted} onTouchStart={markInteracted}>
@@ -330,7 +322,7 @@ export default function SidebarProjectItem({
               !isSelected &&
               'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
           )}
-          onClick={selectAndToggleProject}
+          onClick={toggleProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div
