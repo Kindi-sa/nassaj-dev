@@ -140,7 +140,8 @@
       "auto": "自動モード",
       "acceptEdits": "編集を許可",
       "bypassPermissions": "権限をバイパス",
-      "plan": "プランモード"
+      "plan": "プランモード",
+      "coordinator": "Coordinator"
     },
     "descriptions": {
       "default": "信頼されたコマンド（ls、cat、grep、git statusなど）のみ自動実行。その他のコマンドはスキップ。ワークスペースへの書き込みは可能。",

@@ -8,7 +8,7 @@ export type AgentProvider = LLMProvider;
 export type AgentCategory = 'account' | 'permissions' | 'mcp' | 'setup';
 export type ProjectSortOrder = 'name' | 'date';
 export type SaveStatus = 'success' | 'error' | null;
-export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions';
+export type CodexPermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'coordinator';
 export type GeminiPermissionMode = 'default' | 'auto_edit' | 'yolo';
 
 export type SettingsProject = {

@@ -140,7 +140,8 @@
       "auto": "자동 모드",
       "acceptEdits": "편집 허용",
       "bypassPermissions": "권한 우회",
-      "plan": "Plan 모드"
+      "plan": "Plan 모드",
+      "coordinator": "Coordinator"
     },
     "descriptions": {
       "default": "신뢰할 수 있는 명령어(ls, cat, grep, git status 등)만 자동 실행됩니다. 다른 명령어는 건너뜁니다. 워크스페이스에 쓰기 가능.",

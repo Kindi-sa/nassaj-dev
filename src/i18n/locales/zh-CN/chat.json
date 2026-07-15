@@ -140,7 +140,8 @@
       "auto": "自动模式",
       "acceptEdits": "编辑模式",
       "bypassPermissions": "无限制模式",
-      "plan": "计划模式"
+      "plan": "计划模式",
+      "coordinator": "Coordinator"
     },
     "descriptions": {
       "default": "只有受信任的命令（ls、cat、grep、git status 等）自动运行。其他命令将被跳过。可以写入工作区。",

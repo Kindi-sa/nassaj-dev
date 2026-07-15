@@ -711,6 +711,10 @@
         "bypassPermissions": {
           "title": "Berechtigungen umgehen",
           "description": "Vollständiger Systemzugriff ohne Einschränkungen. Alle Befehle werden automatisch mit vollem Festplatten- und Netzwerkzugriff ausgeführt. Mit Vorsicht verwenden."
+        },
+        "coordinator": {
+          "title": "Coordinator",
+          "description": "Delegates to specialized agents and does not execute — coordination only (Codex)."
         }
       },
       "technicalDetails": "Technische Details",
@@ -718,7 +722,8 @@
         "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Vertrauenswürdige Befehle: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (ohne -exec) usw.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Alle Befehle werden automatisch innerhalb des Projektverzeichnisses ausgeführt.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Vollständiger Systemzugriff, nur in vertrauenswürdigen Umgebungen verwenden.",
-        "overrideNote": "Du kannst dies pro Sitzung über die Modusschaltfläche in der Chat-Oberfläche überschreiben."
+        "overrideNote": "Du kannst dies pro Sitzung über die Modusschaltfläche in der Chat-Oberfläche überschreiben.",
+        "coordinator": "permissionMode=coordinator. Delegates all tasks to specialized agents; no direct tool execution. Requires server support (safe-restart)."
       }
     },
     "antigravity": {

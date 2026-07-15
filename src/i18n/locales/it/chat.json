@@ -140,7 +140,8 @@
       "auto": "Modalità automatica",
       "acceptEdits": "Accetta modifiche",
       "bypassPermissions": "Ignora permessi",
-      "plan": "Modalità piano"
+      "plan": "Modalità piano",
+      "coordinator": "Coordinator"
     },
     "descriptions": {
       "default": "Solo i comandi attendibili (ls, cat, grep, git status, ecc.) vengono eseguiti automaticamente. Gli altri comandi vengono saltati. Può scrivere nell'area di lavoro.",

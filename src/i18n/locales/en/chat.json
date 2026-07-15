@@ -140,7 +140,8 @@
       "auto": "Auto Mode",
       "acceptEdits": "Accept Edits",
       "bypassPermissions": "Bypass Permissions",
-      "plan": "Plan Mode"
+      "plan": "Plan Mode",
+      "coordinator": "Coordinator"
     },
     "descriptions": {
       "default": "Only trusted commands (ls, cat, grep, git status, etc.) run automatically. Other commands are skipped. Can write to workspace.",

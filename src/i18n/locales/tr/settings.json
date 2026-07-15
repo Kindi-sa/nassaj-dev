@@ -711,6 +711,10 @@
         "bypassPermissions": {
           "title": "İzinleri Atla",
           "description": "Kısıtlama olmadan tam sistem erişimi. Tüm komutlar tam disk ve ağ erişimiyle otomatik çalışır. Dikkatli kullan."
+        },
+        "coordinator": {
+          "title": "Coordinator",
+          "description": "Delegates to specialized agents and does not execute — coordination only (Codex)."
         }
       },
       "technicalDetails": "Teknik ayrıntılar",
@@ -718,7 +722,8 @@
         "default": "sandboxMode=workspace-write, approvalPolicy=untrusted. Güvenilir komutlar: cat, cd, grep, head, ls, pwd, tail, git status/log/diff/show, find (-exec olmadan), vb.",
         "acceptEdits": "sandboxMode=workspace-write, approvalPolicy=never. Tüm komutlar proje dizini içinde otomatik çalışır.",
         "bypassPermissions": "sandboxMode=danger-full-access, approvalPolicy=never. Tam sistem erişimi, yalnızca güvenilir ortamlarda kullan.",
-        "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin."
+        "overrideNote": "Sohbet arayüzündeki mod düğmesini kullanarak bunu oturum başına geçersiz kılabilirsin.",
+        "coordinator": "permissionMode=coordinator. Delegates all tasks to specialized agents; no direct tool execution. Requires server support (safe-restart)."
       }
     },
     "antigravity": {

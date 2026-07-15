@@ -51,9 +51,9 @@ function readStoredEngineProvider(): EngineProvider {
 // source of truth). The former local copy had claude:'opus' which is not a
 // valid Claude model value, and was missing hermes and sakana entries.
 
-const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
+export const getPermissionModesForProvider = (provider: LLMProvider): PermissionMode[] => {
   if (provider === 'codex') {
-    return ['default', 'acceptEdits', 'bypassPermissions'];
+    return ['default', 'acceptEdits', 'bypassPermissions', 'coordinator'];
   }
   if (provider === 'claude') {
     return ['default', 'auto', 'acceptEdits', 'bypassPermissions', 'plan'];
