@@ -43,7 +43,7 @@
  * is applied and the base environment is returned unchanged — preserving the
  * single-user behavior the app had before multi-user.
  *
- * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'|'opencode'|'kimi'|'deepseek'|'glm'} ProviderName
+ * @typedef {'claude'|'gemini'|'codex'|'agy'|'cursor'|'opencode'|'hermes'|'kimi'|'deepseek'|'glm'} ProviderName
  */
 
 import { isProviderIsolated } from '../provider-sharing.js';
