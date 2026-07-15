@@ -385,6 +385,10 @@
     "toolSuccess": "اكتمل",
     "toolRunning": "يعمل"
   },
+  "activityGap": {
+    "status": "الوكيل يعمل — آخر نشاط منذ {{time}}",
+    "ariaLabel": "الوكيل ما زال يعمل، آخر نشاط منذ {{time}}"
+  },
   "projectSelection": {
     "startChatWithProvider": "اختر مشروعاً لبدء المحادثة مع {{provider}}"
   },

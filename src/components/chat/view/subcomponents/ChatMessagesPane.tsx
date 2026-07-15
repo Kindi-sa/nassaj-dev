@@ -17,6 +17,8 @@ import { getIntrinsicMessageKey } from '../../utils/messageKeys';
 import MessageComponent from './MessageComponent';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
 import DateSeparator from './DateSeparator';
+import RunningActivityGapCard from './RunningActivityGapCard';
+import { getRunningActivityGap } from './runningActivityGap';
 
 // Parse a ChatMessage timestamp (string | number | Date) into a valid Date, or null.
 function toValidDate(timestamp: string | number | Date | undefined): Date | null {
@@ -30,6 +32,13 @@ interface ChatMessagesPaneProps {
   onWheel: () => void;
   onTouchMove: () => void;
   isLoadingSessionMessages: boolean;
+  /**
+   * Whether the current reply is in flight (run-loading, NOT the session's
+   * initial-load/pagination flags above). Used only to detect the T-836
+   * "silent running" gap (see `getRunningActivityGap`) — everything else in
+   * this pane is unaffected by it.
+   */
+  isLoading: boolean;
   chatMessages: ChatMessage[];
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
@@ -102,6 +111,7 @@ export default function ChatMessagesPane({
   onWheel,
   onTouchMove,
   isLoadingSessionMessages,
+  isLoading,
   chatMessages,
   selectedSession,
   currentSessionId,
@@ -207,6 +217,16 @@ export default function ChatMessagesPane({
     messageKeyMapRef.current.set(message, candidateKey);
     return candidateKey;
   }, []);
+
+  // T-836: detect "current reply is running, everything so far is tool_use,
+  // no assistant text yet" — the case where `hideToolCalls` (default ON)
+  // leaves the message list looking empty/stalled. Pure scan over the FULL
+  // transcript (same contract as useRunProgress), memoized on the two inputs
+  // that can actually change its result.
+  const activityGap = useMemo(
+    () => getRunningActivityGap(chatMessages, isLoading),
+    [chatMessages, isLoading],
+  );
 
   return (
     <div
@@ -365,6 +385,10 @@ export default function ChatMessagesPane({
               </Fragment>
             );
           })}
+
+          {activityGap.visible && activityGap.lastActivityAt !== null && (
+            <RunningActivityGapCard lastActivityAt={activityGap.lastActivityAt} />
+          )}
         </>
       )}
     </div>

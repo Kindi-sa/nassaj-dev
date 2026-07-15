@@ -382,6 +382,10 @@
     "toolSuccess": "Done",
     "toolRunning": "Running"
   },
+  "activityGap": {
+    "status": "Agent is working — last activity {{time}} ago",
+    "ariaLabel": "Agent is still working, last activity {{time}} ago"
+  },
   "projectSelection": {
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
   },
