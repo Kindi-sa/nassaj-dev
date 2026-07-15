@@ -14,6 +14,37 @@ function formatToolResultContent(content: unknown): string {
 }
 
 /**
+ * True when a sub-agent container's `tool_result` is a background-launch
+ * ACKNOWLEDGMENT, not the real completion (B-63/T-143 root cause).
+ *
+ * Verified against real production transcripts (this project's
+ * `~/.claude/projects/.../*.jsonl` + `subagents/agent-*.jsonl`, thousands of
+ * real `Agent`-tool delegations): when a sub-agent is launched in the
+ * background (the default execution mode), its container's tool_result
+ * arrives ~3-7ms after the tool_use with `toolUseResult` shaped
+ * `{ isAsync: true, status: 'async_launched', agentId, outputFile, ... }` —
+ * the delegated work has barely started and continues out-of-process for the
+ * rest of the turn (and often past it), reporting real completion later via a
+ * separate task-notification message, never a second tool_result on this same
+ * toolId. Treating that acknowledgment as `isComplete` (as the container
+ * branch below used to, unconditionally) flipped the sub-agent to "done"
+ * within milliseconds of delegation, so useRunProgress's activeSubagent /
+ * agentsDone and the per-agent strip row showed it finished for the rest of
+ * the run even though it was still working — foreclosing any chance of the
+ * live "still working" signal (or a later TodoWrite) ever being attributed to
+ * a container the UI hadn't already written off as resolved.
+ *
+ * Foreground (blocking) delegations are unaffected: their tool_result has no
+ * `isAsync`/`status:'async_launched'` marker and still resolves isComplete
+ * exactly as before.
+ */
+function isAsyncLaunchAck(toolUseResult: unknown): boolean {
+  if (typeof toolUseResult !== 'object' || toolUseResult === null) return false;
+  const tur = toolUseResult as Record<string, unknown>;
+  return tur.isAsync === true && tur.status === 'async_launched';
+}
+
+/**
  * Convert NormalizedMessage[] from the session store into ChatMessage[]
  * that the existing UI components expect.
  *
@@ -236,7 +267,10 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             ? {
                 childTools,
                 currentToolIndex: childTools.length > 0 ? childTools.length - 1 : -1,
-                isComplete: Boolean(toolResult),
+                // A background-launch acknowledgment is not real completion
+                // (B-63/T-143) — keep the container "running" so the live
+                // agent-working signal survives for the rest of the turn.
+                isComplete: Boolean(toolResult) && !isAsyncLaunchAck(toolResult?.toolUseResult),
               }
             : undefined,
           ...sharedMetadata,
