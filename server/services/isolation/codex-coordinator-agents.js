@@ -17,17 +17,23 @@
  *   - emits an `agentDefinitionHash` over the generating inputs (card bytes + resolved
  *     model + child sandbox + contract-template version) for drift detection and
  *     turn-to-turn idempotence (rewrite only when an input changed).
- *   - FAIL-CLOSED: a missing/malformed card, a missing model, or a write failure yields
- *     ok:false and the caller REFUSES the coordinator launch — a coordinator whose only
- *     write-side output is delegation is broken without its delegates.
+ *   - returns ok:false (never throws) on a missing/malformed card, a missing model, or a
+ *     write failure. The caller (openai-codex.js) treats this FAIL-OPEN as of the
+ *     2026-07-15 redirect: it logs loudly and STILL launches — coordination is now a
+ *     PERMANENT textual layer, so a transient materialization glitch must not take down
+ *     all Codex. (This module used to be consumed fail-closed by an opt-in coordinator
+ *     MODE; that mode was removed.)
  *
- * Security posture (R3 honesty — NOT overclaimed): sandbox_mode="read-only" in the
- * child TOML aligns with what E12 enforces anyway (a read-only parent re-applies its
- * sandbox over the child's TOML), belt-and-suspenders. read-only means "no writes /
- * no network", NOT "no execution": read-exec analysis stays. This floors the delegate
- * at Write-Enforced, not Full-Coordinator. The agentDefinitionHash detects INPUT drift
- * (card/model/template changed); it is not a tamper-seal — the read-only coordinator
- * cannot write these files and the agents dir is 0700-isolated per user.
+ * Security posture (R3 honesty — NOT overclaimed): sandbox_mode="read-only" in the child
+ * TOML is the delegate's OWN declared sandbox for these read-analysis roles (architect,
+ * qa-critic) — "no writes / no network", NOT "no execution": read-exec analysis stays.
+ * It is NO LONGER backed by a read-only parent: after the 2026-07-15 redirect the
+ * coordinator root follows the session's ACTUAL mode (workspace-write for default/
+ * acceptEdits), so there is no OS-enforced read-only floor over the root to "align" with.
+ * The delegate-first guarantee is now TEXTUAL (the root contract), mirroring Claude
+ * Code's zero-rule; a structural OS guard for the Codex root is a separate future
+ * follow-up. The agentDefinitionHash detects INPUT drift (card/model/template changed);
+ * it is not a tamper-seal — the agents dir is 0700-isolated per user.
  *
  * No project-internal imports beyond node builtins (mirrors codex-governance-material):
  * safe to import from BOTH the spawn path (openai-codex.js) and provisioning
@@ -42,10 +48,10 @@ import os from 'node:os';
 import path from 'node:path';
 
 /**
- * The read-only delegate roster the coordinator MVP may spawn. Deliberately
- * read-heavy roles only (D2): a read-only parent forces read-only children via E12,
- * so write agents (backend-dev …) are OUT of this MVP and ship later as sibling
- * dispatcher sessions, not inherited children.
+ * The delegate roster the coordinator layer may spawn. Deliberately read-analysis roles
+ * only for this MVP (D2): each delegate TOML declares its own sandbox_mode="read-only",
+ * so these delegates do not write. Write agents (backend-dev …) are OUT of this MVP and
+ * ship later once a Codex-native write-delegate story lands.
  */
 export const COORDINATOR_AGENT_NAMES = ['architect', 'qa-critic'];
 
@@ -80,8 +86,10 @@ export const COORDINATOR_AGENTS_MISSING_MESSAGE =
 const CONTRACT_TEMPLATE_VERSION = 'v1';
 
 /**
- * Child sandbox floor written into every delegate TOML. read-only aligns with the E12
- * parent-inheritance a read-only coordinator already imposes (see module header).
+ * The delegate's OWN declared sandbox, written into every delegate TOML. read-only keeps
+ * these read-analysis delegates (architect, qa-critic) from writing/networking. It is the
+ * child's self-declaration — NOT a re-application of a read-only parent (the coordinator
+ * root now follows the session's actual mode; see module header).
  */
 const CHILD_SANDBOX_MODE = 'read-only';
 
@@ -258,9 +266,11 @@ function existingAgentHash(tomlPath) {
 /**
  * Materializes ALL coordinator delegate TOMLs into <codexHome>/agents/, bound to the
  * session-resolved `model`. Idempotent: a delegate whose embedded input-hash already
- * matches is left untouched; a missing/drifted one is (re)written. FAIL-CLOSED — the
- * first unusable model, missing/malformed card, or write failure aborts with ok:false
- * so the caller REFUSES the coordinator launch. Never throws.
+ * matches is left untouched; a missing/drifted one is (re)written. The first unusable
+ * model, missing/malformed card, or write failure aborts with ok:false. Never throws.
+ * The caller (openai-codex.js) is now FAIL-OPEN: on ok:false it logs and still launches
+ * (coordination is a permanent textual layer), so ok:false degrades delegation rather
+ * than blocking the whole Codex launch.
  *
  * @param {string} codexHome the effective CODEX_HOME whose agents/ to populate
  * @param {string} model     the session-resolved Codex model (bare or `@`-prefixed)

@@ -1,17 +1,22 @@
 /**
- * openai-codex.coordinator.test.ts — T-886: proves the OPT-IN coordinator role at the
- * single Codex launch chokepoint. @openai/codex-sdk is mocked at the module boundary
- * (no real codex binary, no network, NO ChatGPT quota — R2 live verification is the
- * coordinator's job, separately). queryCodex is driven end-to-end and the ACTUAL launch
- * surface is asserted for a coordinator vs a default (regression) spawn:
- *   - sandbox:  coordinator ⇒ read-only / never;  default ⇒ workspace-write / untrusted (R1).
- *   - Gate 2:   coordinator ⇒ config carries agents.max_depth=1;  default ⇒ it is absent.
- *   - D3:       coordinator ⇒ the ROOT turn input is prepended with the delegate-only
- *               contract;  default ⇒ the input is the raw command (no prepend).
- *   - delegates: a coordinator spawn materializes architect.toml + qa-critic.toml into
- *               $CODEX_HOME/agents (REAL fs), bound to the resolved model, read-only, no @.
- *   - FAIL-CLOSED: a coordinator spawn with a missing delegate card is REFUSED — no thread
- *               starts and a structural coordinator_agents_missing error is emitted.
+ * openai-codex.coordinator.test.ts — T-886 (redirected 2026-07-15): proves the PERMANENT,
+ * always-on coordinator governance LAYER at the single Codex launch chokepoint. Coordination
+ * is no longer an opt-in sandbox MODE — like Claude Code's zero-rule it is applied to EVERY
+ * Codex launch across all three real modes (default/acceptEdits/bypassPermissions).
+ * @openai/codex-sdk is mocked at the module boundary (no real codex binary, no network, NO
+ * ChatGPT quota — R2 live verification is separate). queryCodex is driven end-to-end and the
+ * ACTUAL launch surface is asserted:
+ *   - LAYER (all 3 modes): config carries agents.max_depth=1 + project_doc_max_bytes=0, the
+ *               ROOT turn input is prepended with the delegate-only contract, and the delegate
+ *               TOMLs (architect + qa-critic) are materialized into $CODEX_HOME/agents.
+ *   - SANDBOX follows the ACTUAL mode (no 'coordinator' branch): default ⇒ workspace-write/
+ *               untrusted; acceptEdits ⇒ workspace-write/never; bypassPermissions ⇒ capped to
+ *               workspace-write/never (no flag). 'coordinator' as a mode string is inert now.
+ *   - FAIL-OPEN: a missing delegate card no longer REFUSES — the launch STILL proceeds
+ *               (one thread starts), a loud warning is logged, and NO coordinator_agents_missing
+ *               error frame is emitted. The root contract is still injected (constant string).
+ *   - ROOT-ONLY: the root contract is NOT written into any delegate TOML, so it never leaks
+ *               into a child's context (children take their persona from their own TOML).
  *
  * REAL filesystem for HOME / CODEX_HOME / cards (no fs mocks — synthetic-fixtures lesson).
  * Runner: node:test + node:assert/strict via
@@ -32,6 +37,7 @@ import path from 'path';
 const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'nassaj-codex-coord-'));
 const ORIGINAL_HOME = process.env.HOME;
 const ORIGINAL_DB = process.env.DATABASE_PATH;
+const ORIGINAL_FULL_ACCESS = process.env.CODEX_ALLOW_FULL_ACCESS;
 
 const sandboxHome = path.join(sandbox, 'home');
 const sandboxCwd = path.join(sandbox, 'project'); // a real cwd so checkCwdExists passes
@@ -66,6 +72,8 @@ seedCards();
 
 process.env.HOME = sandboxHome;
 process.env.DATABASE_PATH = path.join(sandbox, 'test-db.sqlite');
+// Known-clean escape-hatch state: bypassPermissions must cap to workspace-write.
+delete process.env.CODEX_ALLOW_FULL_ACCESS;
 assert.equal(os.homedir(), sandboxHome, 'os.homedir() must honor the sandboxed $HOME');
 
 // Neutralize openai-codex.js's module-level session-cleanup setInterval so the runner is
@@ -79,7 +87,7 @@ globalThis.setInterval = function patchedSetInterval(this: unknown, ...callArgs:
 
 // --- Mock the Codex SDK: capture the constructor options (config → agents.max_depth),
 // the startThread/resumeThread options (sandbox floor) and the runStreamed input (the
-// D3 contract prepend). The event stream is empty so queryCodex runs to completion. ---
+// contract prepend). The event stream is empty so queryCodex runs to completion. ---
 type ThreadOptions = { sandboxMode?: string; approvalPolicy?: string; model?: string; [k: string]: unknown };
 type CodexConstruct = { config?: Record<string, unknown>; [k: string]: unknown };
 
@@ -139,6 +147,8 @@ after(() => {
   else process.env.HOME = ORIGINAL_HOME;
   if (ORIGINAL_DB === undefined) delete process.env.DATABASE_PATH;
   else process.env.DATABASE_PATH = ORIGINAL_DB;
+  if (ORIGINAL_FULL_ACCESS === undefined) delete process.env.CODEX_ALLOW_FULL_ACCESS;
+  else process.env.CODEX_ALLOW_FULL_ACCESS = ORIGINAL_FULL_ACCESS;
   fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
@@ -158,113 +168,155 @@ async function spawn(
   return { ws, threadsStarted: threadStarts.length - before };
 }
 
-// The operator (anonymous) CODEX_HOME under the sandboxed HOME — where a coordinator
-// spawn materializes its delegates.
+// The operator (anonymous) CODEX_HOME under the sandboxed HOME — where a spawn
+// materializes its delegates.
 const CODEX_AGENTS = path.join(sandboxHome, '.codex', 'agents');
 
 // ===========================================================================
-// Part 1 — parser: the coordinator branch + the default regression.
+// Part 1 — parser: coordination is NOT a sandbox mode; the three real modes map
+// to their real sandbox, and a stray 'coordinator' string is inert (falls to default).
 // ===========================================================================
-describe('mapPermissionModeToCodexOptions — coordinator branch (T-886)', () => {
-  it('coordinator ⇒ read-only / never, env-independent', () => {
-    assert.deepEqual(mapPermissionModeToCodexOptions('coordinator', {}), {
-      sandboxMode: 'read-only',
-      approvalPolicy: 'never',
-    });
-    assert.deepEqual(
-      mapPermissionModeToCodexOptions('coordinator', { CODEX_ALLOW_FULL_ACCESS: 'true' }),
-      { sandboxMode: 'read-only', approvalPolicy: 'never' },
-    );
-  });
-
-  it('default stays workspace-write / untrusted (R1 regression)', () => {
+describe('mapPermissionModeToCodexOptions — no coordinator branch (T-886 redirect)', () => {
+  it('default ⇒ workspace-write / untrusted', () => {
     assert.deepEqual(mapPermissionModeToCodexOptions('default', {}), {
       sandboxMode: 'workspace-write',
       approvalPolicy: 'untrusted',
     });
   });
+
+  it('acceptEdits ⇒ workspace-write / never', () => {
+    assert.deepEqual(mapPermissionModeToCodexOptions('acceptEdits', {}), {
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never',
+    });
+  });
+
+  it('bypassPermissions ⇒ capped to workspace-write / never (no flag)', () => {
+    assert.deepEqual(mapPermissionModeToCodexOptions('bypassPermissions', {}), {
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'never',
+    });
+  });
+
+  it("'coordinator' is inert — no read-only branch, falls through to the default", () => {
+    assert.deepEqual(mapPermissionModeToCodexOptions('coordinator', {}), {
+      sandboxMode: 'workspace-write',
+      approvalPolicy: 'untrusted',
+    });
+    assert.deepEqual(
+      mapPermissionModeToCodexOptions('coordinator', { CODEX_ALLOW_FULL_ACCESS: 'true' }),
+      { sandboxMode: 'workspace-write', approvalPolicy: 'untrusted' },
+    );
+  });
 });
 
 // ===========================================================================
-// Part 2 — live spawn: the coordinator floor vs the untouched default.
+// Part 2 — live spawn: the PERMANENT layer rides EVERY mode (contract prepend +
+// agents.max_depth=1 + delegates), while the sandbox follows the actual mode.
 // ===========================================================================
-describe('queryCodex coordinator launch — structural floor (T-886)', () => {
-  it('coordinator ⇒ read-only thread, agents.max_depth=1, contract prepend, delegates materialized', async () => {
-    const beforeConstructs = codexConstructions.length;
-    const beforeInputs = runInputs.length;
+describe('queryCodex — always-on coordinator layer across all modes (T-886 redirect)', () => {
+  const cases: { mode: string; sandboxMode: string; approvalPolicy: string }[] = [
+    { mode: 'default', sandboxMode: 'workspace-write', approvalPolicy: 'untrusted' },
+    { mode: 'acceptEdits', sandboxMode: 'workspace-write', approvalPolicy: 'never' },
+    { mode: 'bypassPermissions', sandboxMode: 'workspace-write', approvalPolicy: 'never' },
+  ];
 
-    const { threadsStarted } = await spawn({ permissionMode: 'coordinator' });
-    assert.equal(threadsStarted, 1, 'coordinator spawn must start exactly one thread');
+  for (const { mode, sandboxMode, approvalPolicy } of cases) {
+    it(`${mode} ⇒ contract prepend + agents.max_depth=1 + delegates; sandbox=${sandboxMode}/${approvalPolicy}`, async () => {
+      const beforeConstructs = codexConstructions.length;
+      const beforeInputs = runInputs.length;
 
-    // Sandbox floor.
-    const opts = threadStarts[threadStarts.length - 1].options;
-    assert.equal(opts?.sandboxMode, 'read-only');
-    assert.equal(opts?.approvalPolicy, 'never');
+      const { threadsStarted } = await spawn({ permissionMode: mode });
+      assert.equal(threadsStarted, 1, `${mode} spawn must start exactly one thread`);
 
-    // Gate 2 — recursion cap present alongside the governance byte-cap.
-    const construct = codexConstructions[codexConstructions.length - 1];
-    assert.equal(construct.config?.['agents.max_depth'], 1, 'Gate 2: agents.max_depth=1');
-    assert.equal(construct.config?.project_doc_max_bytes, 0, 'governance byte-cap preserved');
+      // Sandbox follows the ACTUAL mode (no coordinator read-only override).
+      const opts = threadStarts[threadStarts.length - 1].options;
+      assert.equal(opts?.sandboxMode, sandboxMode);
+      assert.equal(opts?.approvalPolicy, approvalPolicy);
 
-    // D3 — root turn input carries the delegate-only contract, prepended to the command.
-    const input = runInputs[runInputs.length - 1];
-    assert.equal(typeof input, 'string', 'no images ⇒ raw string turn input');
-    assert.ok((input as string).startsWith(COORDINATOR_ROOT_CONTRACT), 'contract prepended at the root');
-    assert.ok((input as string).includes('ping'), 'the original command survives the prepend');
+      // Layer — recursion cap present alongside the governance byte-cap, on EVERY mode.
+      const construct = codexConstructions[codexConstructions.length - 1];
+      assert.equal(construct.config?.['agents.max_depth'], 1, 'Gate 2: agents.max_depth=1 on every launch');
+      assert.equal(construct.config?.project_doc_max_bytes, 0, 'governance byte-cap preserved');
 
-    // Delegates materialized into $CODEX_HOME/agents (real fs), read-only, no @.
+      // Root turn input carries the delegate-only contract, prepended to the command.
+      const input = runInputs[runInputs.length - 1];
+      assert.equal(typeof input, 'string', 'no images ⇒ raw string turn input');
+      assert.ok((input as string).startsWith(COORDINATOR_ROOT_CONTRACT), 'contract prepended at the root');
+      assert.ok((input as string).includes('ping'), 'the original command survives the prepend');
+
+      // Delegates materialized into $CODEX_HOME/agents (real fs), read-only, no @.
+      for (const name of ['architect', 'qa-critic']) {
+        const p = path.join(CODEX_AGENTS, `${name}.toml`);
+        assert.equal(fs.existsSync(p), true, `${name}.toml must be materialized`);
+        const toml = fs.readFileSync(p, 'utf8');
+        assert.match(toml, new RegExp(`^name = "${name}"$`, 'm'));
+        assert.match(toml, /^sandbox_mode = "read-only"$/m);
+        assert.match(toml, /^model = "gpt-5-codex"$/m);
+        assert.equal(toml.includes(`@${name}`), false, 'no @-prefixed delegate name');
+      }
+
+      assert.equal(codexConstructions.length, beforeConstructs + 1);
+      assert.equal(runInputs.length, beforeInputs + 1);
+    });
+  }
+
+  it('ROOT-ONLY: the root contract is NOT written into any delegate TOML (no child leak)', async () => {
+    await spawn({ permissionMode: 'default' });
     for (const name of ['architect', 'qa-critic']) {
-      const p = path.join(CODEX_AGENTS, `${name}.toml`);
-      assert.equal(fs.existsSync(p), true, `${name}.toml must be materialized`);
-      const toml = fs.readFileSync(p, 'utf8');
-      assert.match(toml, new RegExp(`^name = "${name}"$`, 'm'));
-      assert.match(toml, /^sandbox_mode = "read-only"$/m);
-      assert.match(toml, /^model = "gpt-5-codex"$/m);
-      assert.equal(toml.includes(`@${name}`), false, 'no @-prefixed delegate name');
+      const toml = fs.readFileSync(path.join(CODEX_AGENTS, `${name}.toml`), 'utf8');
+      assert.equal(
+        toml.includes(COORDINATOR_ROOT_CONTRACT),
+        false,
+        `${name}.toml must NOT carry the ROOT contract — children take persona from their own TOML`,
+      );
     }
-
-    assert.equal(codexConstructions.length, beforeConstructs + 1);
-    assert.equal(runInputs.length, beforeInputs + 1);
   });
+});
 
-  it('default (non-coordinator) spawn is byte-for-byte unchanged (R1)', async () => {
-    const { threadsStarted } = await spawn({ permissionMode: 'default' });
-    assert.equal(threadsStarted, 1);
-
-    const opts = threadStarts[threadStarts.length - 1].options;
-    assert.equal(opts?.sandboxMode, 'workspace-write');
-    assert.equal(opts?.approvalPolicy, 'untrusted');
-
-    const construct = codexConstructions[codexConstructions.length - 1];
-    assert.equal(construct.config?.['agents.max_depth'], undefined, 'no max_depth on a default spawn');
-    assert.deepEqual(construct.config, { project_doc_max_bytes: 0 }, 'default config unchanged');
-
-    const input = runInputs[runInputs.length - 1];
-    assert.equal(input, 'ping', 'no contract prepend on a default spawn');
-  });
-
-  it('FAIL-CLOSED: coordinator spawn with a missing delegate card is REFUSED (no thread)', async () => {
+// ===========================================================================
+// Part 3 — FAIL-OPEN: a missing delegate card degrades delegation but must NOT
+// block the launch (opposite of the removed opt-in mode's fail-closed).
+// ===========================================================================
+describe('queryCodex — fail-open when delegates cannot be materialized (T-886 redirect)', () => {
+  it('missing delegate card ⇒ launch STILL proceeds, warns loudly, no error frame', async () => {
     const qaPath = path.join(CARDS_DIR, 'qa-critic.md');
     const saved = fs.readFileSync(qaPath, 'utf8');
     fs.rmSync(qaPath, { force: true });
+
+    const warnings: string[] = [];
+    const realWarn = console.warn;
+    console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(' ')); };
     try {
       const before = threadStarts.length;
+      const beforeInputs = runInputs.length;
       const ws = makeWs(null);
       await queryCodex(
         'ping',
-        { cwd: sandboxCwd, model: 'gpt-5-codex', permissionMode: 'coordinator' },
+        { cwd: sandboxCwd, model: 'gpt-5-codex', permissionMode: 'default' },
         ws,
       );
+
       assert.equal(
         threadStarts.length,
-        before,
-        'no thread may start when delegates cannot be prepared',
+        before + 1,
+        'fail-open: the thread must STILL start when a delegate card is missing',
       );
-      assert.ok(
+      assert.equal(
         ws.sent.some((m) => JSON.stringify(m).includes('coordinator_agents_missing')),
-        'a structural coordinator_agents_missing error must be emitted',
+        false,
+        'no coordinator_agents_missing error frame may be emitted (fail-open, not fail-closed)',
+      );
+      // The root contract is a constant string — always injected even without delegates.
+      const input = runInputs[runInputs.length - 1];
+      assert.ok(runInputs.length === beforeInputs + 1 && (input as string).startsWith(COORDINATOR_ROOT_CONTRACT));
+      // A loud warning must record the degradation.
+      assert.ok(
+        warnings.some((w) => w.includes('fail-open') && w.toLowerCase().includes('coordinator')),
+        'a loud fail-open warning must be logged',
       );
     } finally {
+      console.warn = realWarn;
       fs.writeFileSync(qaPath, saved);
     }
   });

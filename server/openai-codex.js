@@ -36,8 +36,6 @@ import {
 import {
   materializeCoordinatorAgents,
   COORDINATOR_ROOT_CONTRACT,
-  COORDINATOR_AGENTS_MISSING_CODE,
-  COORDINATOR_AGENTS_MISSING_MESSAGE,
 } from './services/isolation/codex-coordinator-agents.js';
 
 // Track active sessions
@@ -270,13 +268,17 @@ function transformCodexEvent(event) {
  *     flag CODEX_ALLOW_FULL_ACCESS==='true' (default OFF, read from the SERVER env —
  *     never a per-user or client-controlled value).
  *
- * COORDINATOR ROLE (T-886): an OPT-IN launch identity STRUCTURALLY denied writes,
- * network and effectful execution by the OS sandbox — read-only + approvalPolicy
- * 'never' — so delegation (spawn_agent) is its only write-side output. Not prompt-toggleable and
- * not env-gated. It is opt-in ONLY: the 'default' below stays workspace-write, so every
- * pre-existing direct-write session is unaffected (R1).
+ * COORDINATOR ROLE (T-886, redirected 2026-07-15): coordination is NO LONGER a sandbox
+ * mode. It is a PERMANENT, always-on textual governance layer applied to EVERY Codex
+ * launch across all three modes below — mirroring Claude Code's zero-rule (governance
+ * sits ABOVE the modes; it is not a mode you pick). That layer lives at the spawn
+ * chokepoint (queryCodexUnlocked), not here. This parser therefore has no coordinator
+ * branch: the sandbox always follows the session's actual mode. There is no OS-enforced
+ * read-only floor for the root anymore — the delegate-first guarantee is textual (the
+ * root contract), exactly like the zero-rule; a structural Codex-root guard is a separate
+ * future follow-up.
  *
- * @param {string} permissionMode - 'default', 'acceptEdits', 'bypassPermissions', or 'coordinator'
+ * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
  * @param {object} [env] - environment carrying the escape-hatch flag (defaults to process.env)
  * @returns {{ sandboxMode: string, approvalPolicy: string }}
  */
@@ -290,15 +292,6 @@ function mapPermissionModeToCodexOptions(permissionMode, env = process.env) {
   };
 
   switch (permissionMode) {
-    case 'coordinator':
-      // Coordinator launch identity (T-886): read-only denies writes/network/apply_patch
-      // and effectful exec at the OS sandbox — the delegation-only floor, unforgeable by
-      // prompt injection. approvalPolicy 'never' keeps it headless (read-only already has
-      // nothing to approve). Env-independent by design (not an escape-hatch mode).
-      return {
-        sandboxMode: 'read-only',
-        approvalPolicy: 'never',
-      };
     case 'acceptEdits':
       return workspaceWriteAutonomous;
     case 'bypassPermissions':
@@ -448,33 +441,30 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   const networkAccessEnabled =
     sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess() : undefined;
 
-  // Coordinator role (T-886, OPT-IN): a read-only launch whose ONLY write-side output is
-  // delegation. Everything coordinator-specific is gated behind this flag so every
-  // non-coordinator spawn stays byte-for-byte unchanged (R1 regression safety).
-  const isCoordinator = permissionMode === 'coordinator';
-  if (isCoordinator) {
-    // FAIL-CLOSED: materialize the read-only delegate agents (architect, qa-critic)
-    // into $CODEX_HOME/agents/ bound to the session-resolved model BEFORE the thread
-    // starts. A coordinator whose delegates cannot be prepared (missing card, no model,
-    // unwritable dir) is broken — refuse the launch, no thread is constructed. The model
-    // is passed explicitly (Gate 1B: a delegate REQUIRES a bare Codex model, no `@`).
-    const materialized = materializeCoordinatorAgents(governance.codexHome, resolvedModel);
-    if (!materialized.ok) {
-      console.error('[Codex] coordinator launch REFUSED — delegate agents unavailable', {
-        userId: ws?.userId ?? null,
-        codexHome: governance.codexHome,
-        agentsDir: materialized.agentsDir,
-        reason: materialized.reason,
-      });
-      sendMessage(ws, createNormalizedMessage({
-        kind: 'error',
-        code: COORDINATOR_AGENTS_MISSING_CODE,
-        content: COORDINATOR_AGENTS_MISSING_MESSAGE,
-        sessionId: options.sessionId || null,
-        provider: 'codex',
-      }));
-      return;
-    }
+  // Coordinator governance layer (T-886, redirected 2026-07-15): nassaj's "delegate,
+  // don't execute" rule is a PERMANENT, always-on layer applied to EVERY Codex launch —
+  // across all three modes (default/acceptEdits/bypassPermissions) — not an opt-in mode.
+  // It mirrors Claude Code's zero-rule: governance sits ABOVE the modes. This is the one
+  // spawn chokepoint (queryCodexUnlocked) that BOTH live paths funnel through — REST
+  // (/api/agent) and the interactive WS path — so applying it here covers both.
+  //
+  // FAIL-OPEN (deliberate — the exact opposite of the earlier opt-in's fail-closed):
+  // materialize the delegate agents (architect, qa-critic) into $CODEX_HOME/agents/ bound
+  // to the session-resolved model. If that fails (missing card, no model, unwritable dir,
+  // transient fs error), LOG loudly and STILL launch — a permanent layer that refused on a
+  // transient glitch would take down ALL Codex. The root contract below is a constant
+  // string that cannot fail, so the delegate-first instruction is ALWAYS injected even
+  // when the TOMLs could not be written. The model is passed explicitly (Gate 1B: a
+  // delegate REQUIRES a bare Codex model, no `@`). NOTE: T-883 governance (the AGENTS.md
+  // fingerprint) stays fail-closed and is entirely separate — untouched here.
+  const materialized = materializeCoordinatorAgents(governance.codexHome, resolvedModel);
+  if (!materialized.ok) {
+    console.warn('[Codex] coordinator delegate agents unavailable — launching WITHOUT them (fail-open)', {
+      userId: ws?.userId ?? null,
+      codexHome: governance.codexHome,
+      agentsDir: materialized.agentsDir,
+      reason: materialized.reason,
+    });
   }
 
   let codex;
@@ -521,12 +511,12 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       // Passed as a per-spawn `--config` CLI arg (not written to config.toml), so a
       // danger-full-access turn cannot strip it from the parent-controlled spawn.
       //
-      // Gate 2 (T-886): for a coordinator launch ONLY, cap agent recursion at depth 1
-      // so a delegate cannot spawn a grandchild (defense-in-depth against delegation
-      // loops). Omitted for every other spawn so the default config is unchanged (R1).
+      // Gate 2 (T-886): cap agent recursion at depth 1 on EVERY launch so a delegate
+      // cannot spawn a grandchild (defense-in-depth against delegation loops). Part of
+      // the always-on coordinator layer now, so it is unconditional.
       config: {
         project_doc_max_bytes: 0,
-        ...(isCoordinator ? { 'agents.max_depth': 1 } : {}),
+        'agents.max_depth': 1,
       },
     });
 
@@ -575,14 +565,14 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       recordParticipant(capturedSessionId);
     }
 
-    // Coordinator contract (T-886, D3): injected at the ROOT turn input ONLY — never
-    // into AGENTS.md (keeps the T-883 fingerprint intact) and never inherited by
-    // spawned children (they carry their own leaf contract from their TOML). This is
-    // the "delegate, don't execute" instruction that authorizes the root to spawn
-    // specialists; sub-agents receive the coordinator's per-delegation prompt instead.
-    const effectiveCommand = isCoordinator
-      ? `${COORDINATOR_ROOT_CONTRACT}\n\n${command}`
-      : command;
+    // Coordinator contract (T-886, D3): ALWAYS injected at the ROOT turn input — never
+    // into AGENTS.md (keeps the T-883 fingerprint intact) and never inherited by spawned
+    // children (they carry their own leaf contract from their TOML, so the root contract
+    // does not leak into their context). This is the permanent "delegate, don't execute"
+    // instruction that authorizes the root to spawn specialists; sub-agents receive the
+    // coordinator's per-delegation prompt instead. A constant string, so this never fails
+    // even when delegate materialization above did (fail-open).
+    const effectiveCommand = `${COORDINATOR_ROOT_CONTRACT}\n\n${command}`;
     const preparedInput = await prepareCodexInput(effectiveCommand, images);
     imagesTempDir = preparedInput.tempDir;
 
