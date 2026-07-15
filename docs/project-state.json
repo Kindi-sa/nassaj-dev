@@ -81,6 +81,19 @@
   ],
   "tasks": [
     {
+      "id": "T-914",
+      "kind": "bug",
+      "phase": "P0",
+      "status": "done",
+      "closed": "2026-07-16",
+      "priority": "low",
+      "owner": "frontend-dev",
+      "found": "2026-07-16",
+      "source": "لقطة المالك: عناصر شريط أسفل المُؤلِّف «صالقة/ملتصقة» في جلسة Codex (كثرة أزرار: صورة/وضع/posture/إيفورت/توكنز/إرسال).",
+      "title": "توسيع تباعد أزرار PromptInputTools من gap-1 إلى gap-2 فلا تتلاصق العناصر في العرض الضيّق/جلسات Codex",
+      "note": "**✅ منجَز ومبنيّ 2026-07-16 (commit d8b1c4f2، عميلي حيّ بعد build:client):** المجموعة اليسرى كانت gap-1 (4px) الافتراضي فتزدحم مع كثرة عناصر Codex؛ رُفعت لـgap-2 (8px) عند الاستعمال في ChatComposer:404 (tailwind-merge يتجاوز الافتراض المشترك في PromptInput.tsx دون لمسه)؛ overflow-x-auto (T-910) يمرّر أي فائض عرض بلا قصّ. لا مساس بأحجام الأزرار (T-913) ولا ببنية PromptInputFooter (justify-between سليم). typecheck+eslint+build نظيفة. مكمّل لـT-910/T-913 في تلميع شريط المُؤلِّف."
+    },
+    {
       "id": "T-913",
       "kind": "bug",
       "phase": "P0",
