@@ -471,6 +471,16 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   // when the TOMLs could not be written. The model is passed explicitly (Gate 1B: a
   // delegate REQUIRES a bare Codex model, no `@`). NOTE: T-883 governance (the AGENTS.md
   // fingerprint) stays fail-closed and is entirely separate — untouched here.
+  //
+  // OWNER-ONLY NOT ENFORCED (T-903 §3, honest scope): this coordinator layer is a
+  // capability REDUCTION — "delegate, don't execute" is a subset (⊂) of the session's
+  // actual sandbox capability — applied UNIFORMLY to EVERY user's every Codex launch. It
+  // is NOT restricted to (nor gated on) the owner in code, and the root sandbox still
+  // follows the session's real mode (no OS-enforced read-only floor — see
+  // mapPermissionModeToCodexOptions). The delegate-first guarantee is TEXTUAL (the root
+  // contract), like Claude's zero-rule. That is an ACCEPTED gap until system-level read
+  // isolation lands (T-893): on the shared uid a per-user owner-only privilege can't be
+  // meaningfully enforced anyway. Revisit owner-scoping once T-893 gives real isolation.
   const materialized = materializeCoordinatorAgents(governance.codexHome, resolvedModel);
   if (!materialized.ok) {
     console.warn('[Codex] coordinator delegate agents unavailable — launching WITHOUT them (fail-open)', {

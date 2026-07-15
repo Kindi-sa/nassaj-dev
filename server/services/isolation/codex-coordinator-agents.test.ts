@@ -100,6 +100,7 @@ const {
   coordinatorAgentCardPath,
   buildAgentToml,
   materializeCoordinatorAgents,
+  pruneStaleCoordinatorAgents,
 } = await import('./codex-coordinator-agents.js');
 
 // Reseed cards before EACH case so drift/missing/malformed cases stay independent.
@@ -323,5 +324,44 @@ describe('materializeCoordinatorAgents — dynamic roster, idempotent, drift, fa
       false,
       'the malformed delegate must not have a TOML',
     );
+  });
+});
+
+describe('sweep — orphan delegate TOMLs are pruned on the next materialize (T-903 §1)', () => {
+  it('a card removed from the roster has its stale TOML swept on the next run', () => {
+    const home = freshHome('home-sweep');
+    // First launch materializes both delegates.
+    assert.deepEqual(materializeCoordinatorAgents(home, 'gpt-5-codex').agents, ['architect', 'qa-critic']);
+    const orphanPath = path.join(home, 'agents', 'qa-critic.toml');
+    assert.equal(fs.existsSync(orphanPath), true, 'qa-critic.toml must exist before removal');
+
+    // Owner removes the qa-critic card; the NEXT launch (materialize) must sweep it.
+    fs.rmSync(path.join(CARDS_DIR, 'qa-critic.md'), { force: true });
+    const res = materializeCoordinatorAgents(home, 'gpt-5-codex');
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.agents, ['architect'], 'roster shrank to the surviving card');
+    assert.deepEqual(res.pruned, ['qa-critic'], 'the removed card’s TOML must be reported pruned');
+    assert.equal(fs.existsSync(orphanPath), false, 'the orphan TOML must be deleted');
+    assert.equal(
+      fs.existsSync(path.join(home, 'agents', 'architect.toml')),
+      true,
+      'a current-roster delegate must be preserved',
+    );
+  });
+
+  it('never deletes a FOREIGN/hand-placed TOML (no agentDefinitionHash marker)', () => {
+    const home = freshHome('home-sweep-foreign');
+    materializeCoordinatorAgents(home, 'gpt-5-codex');
+    const foreignPath = path.join(home, 'agents', 'not-ours.toml');
+    fs.writeFileSync(foreignPath, 'name = "not-ours"\n# hand-placed, no hash marker\n');
+
+    const pruned = pruneStaleCoordinatorAgents(path.join(home, 'agents'), coordinatorAgentNames());
+    assert.equal(pruned.includes('not-ours'), false, 'a foreign TOML must never be pruned');
+    assert.equal(fs.existsSync(foreignPath), true, 'the foreign TOML must survive the sweep');
+  });
+
+  it('is a no-op (never throws, returns []) on a non-existent agents dir', () => {
+    const pruned = pruneStaleCoordinatorAgents(path.join(sandbox, 'no-such-dir', 'agents'), ['architect']);
+    assert.deepEqual(pruned, []);
   });
 });

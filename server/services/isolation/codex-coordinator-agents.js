@@ -277,11 +277,71 @@ function existingAgentHash(tomlPath) {
 }
 
 /**
+ * Prunes ORPHAN delegate TOMLs from `agentsDir`: any `*.toml` that (a) carries OUR
+ * generated `agentDefinitionHash` marker — proving it is a nassaj-generated delegate,
+ * not a foreign/hand-placed file — and (b) whose base name is NOT in `keepNames` (the
+ * current roster). This self-heals the accumulation the review flagged (T-903 §1): a
+ * source card removed from ~/.claude/agents would otherwise leave a stale, still-
+ * spawnable delegate TOML behind that Codex keeps ingesting. Safe by construction:
+ *   - only ever removes files bearing OUR marker — a foreign TOML in the dir is left
+ *     untouched (a hand-placed file has no agentDefinitionHash line);
+ *   - runs at the START of the NEXT session's materialize (a benign, self-correcting
+ *     sweep), never mid-turn — a live session's already-ingested delegates are not
+ *     yanked out from under it, and only orphans (cards that no longer exist for ANY
+ *     session, roster being filesystem-global) are candidates, so a concurrent session
+ *     can never lose a delegate it legitimately needs;
+ *   - best-effort: a readdir/unlink failure is logged and swallowed — the freshly
+ *     written current roster is already correct, a leftover orphan is not fatal.
+ * Never throws.
+ *
+ * @param {string} agentsDir the $CODEX_HOME/agents dir to sweep
+ * @param {Iterable<string>} keepNames current-roster names to PRESERVE
+ * @returns {string[]} the base names actually pruned
+ */
+export function pruneStaleCoordinatorAgents(agentsDir, keepNames) {
+  const keep = new Set(keepNames);
+  const pruned = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(agentsDir);
+  } catch {
+    // Dir absent/unreadable — nothing materialized yet, nothing to prune.
+    return pruned;
+  }
+  for (const entry of entries) {
+    if (!entry.endsWith('.toml')) {
+      continue;
+    }
+    const name = entry.slice(0, -5);
+    if (keep.has(name)) {
+      continue;
+    }
+    const tomlPath = path.join(agentsDir, entry);
+    // Guard: only prune a delegate WE generated (bears the agentDefinitionHash
+    // marker). A foreign/hand-placed TOML has no such line and is never deleted.
+    if (existingAgentHash(tomlPath) === null) {
+      continue;
+    }
+    try {
+      fs.rmSync(tomlPath, { force: true });
+      pruned.push(name);
+    } catch (err) {
+      console.warn('[Codex] stale coordinator delegate prune failed (non-fatal)', {
+        tomlPath,
+        error: errMessage(err),
+      });
+    }
+  }
+  return pruned;
+}
+
+/**
  * Result of a coordinator-agents materialization.
  * @typedef {Object} MaterializeResult
  * @property {boolean} ok               true iff EVERY delegate TOML is present & current
  * @property {string}  agentsDir        the $CODEX_HOME/agents dir targeted
  * @property {string[]} agents          delegate names that ended up materialized/current
+ * @property {string[]} [pruned]        orphan delegate names swept on the ok path (T-903 §1)
  * @property {string}  [reason]         diagnostic reason on failure
  */
 
@@ -352,5 +412,10 @@ export function materializeCoordinatorAgents(codexHome, model) {
     materialized.push(name);
   }
 
-  return { ok: true, agentsDir, agents: materialized };
+  // Sweep orphan delegates left by a card that was removed from ~/.claude/agents
+  // (T-903 §1): the current roster is materialized above; prune any of OUR generated
+  // TOMLs no longer in it. Best-effort — a prune failure never fails the materialize.
+  const pruned = pruneStaleCoordinatorAgents(agentsDir, roster);
+
+  return { ok: true, agentsDir, agents: materialized, pruned };
 }

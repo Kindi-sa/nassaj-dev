@@ -278,6 +278,44 @@ describe('queryCodex — always-on coordinator layer across all modes (T-886 red
 });
 
 // ===========================================================================
+// Part 2b — SINGLE-CHOKEPOINT invariant (T-903 §2): agents.max_depth=1 covers BOTH
+// live spawn paths (REST /api/agent + interactive WS) because both funnel through the
+// one queryCodex → queryCodexUnlocked → `new Codex({ config })` construction. This
+// source-level guard fails if a SECOND `new Codex(` spawn path is ever added without
+// the recursion cap (which would silently let a delegate spawn a grandchild on that
+// path). Complements the runtime assertion above (config on every mode).
+// ===========================================================================
+describe('grandchild block — single Codex construction carries agents.max_depth=1 (T-903 §2)', () => {
+  const codexSrc = fs.readFileSync(path.join(import.meta.dirname, 'openai-codex.js'), 'utf8');
+
+  it('production openai-codex.js constructs Codex exactly once', () => {
+    const constructions = codexSrc.match(/new Codex\(/g) || [];
+    assert.equal(
+      constructions.length,
+      1,
+      'exactly one `new Codex(` may exist — a second spawn path could bypass agents.max_depth',
+    );
+  });
+
+  it('that construction pins agents.max_depth=1 (grandchild cap on every launch)', () => {
+    assert.match(codexSrc, /'agents\.max_depth':\s*1/, 'the depth cap must be present in the Codex config');
+  });
+
+  it('both live callers route through queryCodex (no direct SDK spawn)', () => {
+    const restSrc = fs.readFileSync(path.join(import.meta.dirname, 'routes', 'agent.js'), 'utf8');
+    const wsSrc = fs.readFileSync(
+      path.join(import.meta.dirname, 'modules', 'websocket', 'services', 'chat-websocket.service.ts'),
+      'utf8',
+    );
+    assert.ok(restSrc.includes('queryCodex('), 'REST /api/agent must dispatch via queryCodex');
+    assert.ok(wsSrc.includes('queryCodex('), 'WS chat path must dispatch via queryCodex');
+    for (const [label, src] of [['routes/agent.js', restSrc], ['chat-websocket.service.ts', wsSrc]] as const) {
+      assert.equal(src.includes('new Codex('), false, `${label} must NOT construct Codex directly`);
+    }
+  });
+});
+
+// ===========================================================================
 // Part 3 — FAIL-OPEN: a missing delegate card degrades delegation but must NOT
 // block the launch (opposite of the removed opt-in mode's fail-closed).
 // ===========================================================================
