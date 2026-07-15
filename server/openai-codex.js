@@ -33,6 +33,12 @@ import {
   GOVERNANCE_MISSING_CODE,
   GOVERNANCE_MISSING_MESSAGE,
 } from './modules/providers/list/codex/codex-governance.js';
+import {
+  materializeCoordinatorAgents,
+  COORDINATOR_ROOT_CONTRACT,
+  COORDINATOR_AGENTS_MISSING_CODE,
+  COORDINATOR_AGENTS_MISSING_MESSAGE,
+} from './services/isolation/codex-coordinator-agents.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
@@ -264,7 +270,13 @@ function transformCodexEvent(event) {
  *     flag CODEX_ALLOW_FULL_ACCESS==='true' (default OFF, read from the SERVER env —
  *     never a per-user or client-controlled value).
  *
- * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
+ * COORDINATOR ROLE (T-886): an OPT-IN launch identity STRUCTURALLY denied writes,
+ * network and effectful execution by the OS sandbox — read-only + approvalPolicy
+ * 'never' — so delegation (spawn_agent) is its only output. Not prompt-toggleable and
+ * not env-gated. It is opt-in ONLY: the 'default' below stays workspace-write, so every
+ * pre-existing direct-write session is unaffected (R1).
+ *
+ * @param {string} permissionMode - 'default', 'acceptEdits', 'bypassPermissions', or 'coordinator'
  * @param {object} [env] - environment carrying the escape-hatch flag (defaults to process.env)
  * @returns {{ sandboxMode: string, approvalPolicy: string }}
  */
@@ -278,6 +290,15 @@ function mapPermissionModeToCodexOptions(permissionMode, env = process.env) {
   };
 
   switch (permissionMode) {
+    case 'coordinator':
+      // Coordinator launch identity (T-886): read-only denies writes/network/apply_patch
+      // and effectful exec at the OS sandbox — the delegation-only floor, unforgeable by
+      // prompt injection. approvalPolicy 'never' keeps it headless (read-only already has
+      // nothing to approve). Env-independent by design (not an escape-hatch mode).
+      return {
+        sandboxMode: 'read-only',
+        approvalPolicy: 'never',
+      };
     case 'acceptEdits':
       return workspaceWriteAutonomous;
     case 'bypassPermissions':
@@ -427,6 +448,35 @@ async function queryCodexUnlocked(command, options = {}, ws) {
   const networkAccessEnabled =
     sandboxMode === 'workspace-write' ? resolveCodexNetworkAccess() : undefined;
 
+  // Coordinator role (T-886, OPT-IN): a read-only launch whose ONLY output is
+  // delegation. Everything coordinator-specific is gated behind this flag so every
+  // non-coordinator spawn stays byte-for-byte unchanged (R1 regression safety).
+  const isCoordinator = permissionMode === 'coordinator';
+  if (isCoordinator) {
+    // FAIL-CLOSED: materialize the read-only delegate agents (architect, qa-critic)
+    // into $CODEX_HOME/agents/ bound to the session-resolved model BEFORE the thread
+    // starts. A coordinator whose delegates cannot be prepared (missing card, no model,
+    // unwritable dir) is broken — refuse the launch, no thread is constructed. The model
+    // is passed explicitly (Gate 1B: a delegate REQUIRES a bare Codex model, no `@`).
+    const materialized = materializeCoordinatorAgents(governance.codexHome, resolvedModel);
+    if (!materialized.ok) {
+      console.error('[Codex] coordinator launch REFUSED — delegate agents unavailable', {
+        userId: ws?.userId ?? null,
+        codexHome: governance.codexHome,
+        agentsDir: materialized.agentsDir,
+        reason: materialized.reason,
+      });
+      sendMessage(ws, createNormalizedMessage({
+        kind: 'error',
+        code: COORDINATOR_AGENTS_MISSING_CODE,
+        content: COORDINATOR_AGENTS_MISSING_MESSAGE,
+        sessionId: options.sessionId || null,
+        provider: 'codex',
+      }));
+      return;
+    }
+  }
+
   let codex;
   let thread;
   let capturedSessionId = sessionId;
@@ -470,7 +520,14 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       // (empirically verified on codex-cli 0.144.1 via `codex debug prompt-input`).
       // Passed as a per-spawn `--config` CLI arg (not written to config.toml), so a
       // danger-full-access turn cannot strip it from the parent-controlled spawn.
-      config: { project_doc_max_bytes: 0 },
+      //
+      // Gate 2 (T-886): for a coordinator launch ONLY, cap agent recursion at depth 1
+      // so a delegate cannot spawn a grandchild (defense-in-depth against delegation
+      // loops). Omitted for every other spawn so the default config is unchanged (R1).
+      config: {
+        project_doc_max_bytes: 0,
+        ...(isCoordinator ? { 'agents.max_depth': 1 } : {}),
+      },
     });
 
     // Thread options with sandbox and approval settings. networkAccessEnabled is
@@ -518,7 +575,15 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       recordParticipant(capturedSessionId);
     }
 
-    const preparedInput = await prepareCodexInput(command, images);
+    // Coordinator contract (T-886, D3): injected at the ROOT turn input ONLY — never
+    // into AGENTS.md (keeps the T-883 fingerprint intact) and never inherited by
+    // spawned children (they carry their own leaf contract from their TOML). This is
+    // the "delegate, don't execute" instruction that authorizes the root to spawn
+    // specialists; sub-agents receive the coordinator's per-delegation prompt instead.
+    const effectiveCommand = isCoordinator
+      ? `${COORDINATOR_ROOT_CONTRACT}\n\n${command}`
+      : command;
+    const preparedInput = await prepareCodexInput(effectiveCommand, images);
     imagesTempDir = preparedInput.tempDir;
 
     // Execute with streaming

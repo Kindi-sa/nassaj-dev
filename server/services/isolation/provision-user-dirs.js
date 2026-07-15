@@ -61,6 +61,7 @@ import path from 'path';
 
 import { auditLogDb, userDb } from '../../modules/database/index.js';
 import { materializeGovernanceCopy } from './codex-governance-material.js';
+import { CODEX_AGENTS_SUBDIR } from './codex-coordinator-agents.js';
 
 // Per-user isolated config trees are owner-only (0700): under a shared system
 // uid this prevents any other local reader from listing another user's tree.
@@ -360,6 +361,13 @@ export function provisionUserDirs(userId) {
     // marker when the neutral source is absent (owner decision 2026-07-12); the
     // spawn-time guard is the hard enforcement if this fast path fails.
     materializeGovernanceCopy(codexDir);
+
+    // Coordinator delegate agents dir (T-886): pre-create the (empty)
+    // $CODEX_HOME/agents dir so a coordinator-role launch materializes its read-only
+    // delegate TOMLs into an existing 0700 dir. The TOMLs themselves are written at
+    // LAUNCH (the resolved model is only known then), not during provisioning — this
+    // just guarantees the directory exists and is owner-only.
+    ensureDir(path.join(codexDir, CODEX_AGENTS_SUBDIR));
 
     // Since B-136 wired the per-user CODEX_HOME on the spawn path, the bootstrap
     // owner reuses the operator's real Codex credential (~/.codex/auth.json) so an
