@@ -394,8 +394,16 @@ export default function ChatComposer({
         </PromptInputBody>
 
         <PromptInputFooter>
-          <PromptInputTools>
+          {/* T-910: flex-nowrap + overflow-x-auto (scrollbar-hide) replace the
+              PromptInputTools default flex-wrap — every child below is pinned
+              shrink-0 so icons never get crushed; if the sum still exceeds the
+              pane width (very narrow viewport, OS text-zoom, mid-breakpoint
+              tablet widths where sm: reveals extra labels) the row scrolls
+              horizontally instead of wrapping the badge/send button onto a
+              second line. */}
+          <PromptInputTools className="scrollbar-hide flex-nowrap overflow-x-auto">
             <PromptInputButton
+              className="shrink-0"
               tooltip={{
                 content: !capabilities.command.supportsImages
                   ? t('input.nonClaudeAttachmentHint')
@@ -414,7 +422,7 @@ export default function ChatComposer({
             <button
               type="button"
               onClick={onModeSwitch}
-              className={`rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
+              className={`shrink-0 rounded-lg border p-2 text-xs font-medium transition-all duration-200 sm:px-2.5 sm:py-1 ${
                 permissionMode === 'default'
                   ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
                   : permissionMode === 'acceptEdits'
@@ -456,7 +464,9 @@ export default function ChatComposer({
                 bypassPermissions بأنه وصول كامل للقرص/الشبكة بينما السقف الحيّ
                 مقصور على workspace-write وشبكة OFF (ADR-058/T-884). */}
             {capabilities.posture.supported && (
-              <CodexPostureInfo permissionMode={permissionMode} />
+              <span className="inline-flex shrink-0">
+                <CodexPostureInfo permissionMode={permissionMode} />
+              </span>
             )}
 
             {capabilities.effort.supported && (
@@ -465,12 +475,12 @@ export default function ChatComposer({
                   selectedMode={thinkingMode}
                   onModeChange={setThinkingMode}
                   onClose={() => {}}
-                  className=""
+                  className="shrink-0"
                   modes={effortModesForProvider}
                 />
                 {thinkingMode === 'ultracode' && (
                   <span
-                    className="hidden items-center rounded border border-red-400 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-700 shadow-[0_0_8px_rgba(239,68,68,0.40)] dark:border-red-600 dark:bg-red-950 dark:text-red-300 dark:shadow-[0_0_10px_rgba(239,68,68,0.55)] sm:flex"
+                    className="hidden shrink-0 items-center rounded border border-red-400 bg-red-50 px-1.5 py-0.5 text-[10px] font-bold tracking-widest text-red-700 shadow-[0_0_8px_rgba(239,68,68,0.40)] dark:border-red-600 dark:bg-red-950 dark:text-red-300 dark:shadow-[0_0_10px_rgba(239,68,68,0.55)] sm:flex"
                     aria-label={t('effortMode.ultracodeActive')}
                   >
                     ULTRACODE
@@ -488,7 +498,9 @@ export default function ChatComposer({
                 counter never disappears/appears out of sync with the
                 conversation actually shown. */}
             {capabilities.tokenCounter.supported && (
-              <TokenUsageSummary usage={tokenBudget} />
+              <span className="inline-flex shrink-0">
+                <TokenUsageSummary usage={tokenBudget} />
+              </span>
             )}
 
             {/* Wrapper span establishes the containing block for the badge.
@@ -497,7 +509,7 @@ export default function ChatComposer({
               * the badge must be a SIBLING of the button inside a non-button
               * positioned ancestor — otherwise it escapes and the form's
               * overflow-hidden clips it (works in Chromium, hidden in FF/Zen). */}
-            <span className="relative inline-flex">
+            <span className="relative inline-flex shrink-0">
               <PromptInputButton
                 tooltip={{ content: t('input.showAllCommands') }}
                 onClick={onToggleCommandMenu}
@@ -517,7 +529,7 @@ export default function ChatComposer({
               <PromptInputButton
                 tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
                 onClick={onClearInput}
-                className="sm:No-flex hidden"
+                className="sm:No-flex hidden shrink-0"
               >
                 <XIcon />
               </PromptInputButton>
