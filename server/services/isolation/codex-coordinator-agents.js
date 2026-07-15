@@ -1,8 +1,11 @@
 /**
- * codex-coordinator-agents — materializes the nassaj coordinator's read-only
- * delegate agents (architect, qa-critic) as Codex custom-agent TOMLs into
- * $CODEX_HOME/agents/, so a coordinator-role Codex launch (a read-only parent) can
- * delegate to them via spawn_agent (T-886).
+ * codex-coordinator-agents — materializes the nassaj coordinator's FULL delegate
+ * roster (every ~/.claude/agents/*.md card — architect, backend-dev, frontend-dev,
+ * tester, devops, ui-designer, qa-critic …) as Codex custom-agent TOMLs into
+ * $CODEX_HOME/agents/, so a coordinator-role Codex launch can delegate the actual
+ * WORK (not analysis only) to them via spawn_agent (T-886). The roster is read from
+ * the filesystem at launch, not a hardcoded pair, so adding an agent card enrolls it
+ * automatically.
  *
  * This is the clean PRODUCT port of docs/plans/spike-artifacts/gen-codex-agent-toml.cjs
  * (the Gate 1B spike). Differences from the spike:
@@ -24,16 +27,17 @@
  *     all Codex. (This module used to be consumed fail-closed by an opt-in coordinator
  *     MODE; that mode was removed.)
  *
- * Security posture (R3 honesty — NOT overclaimed): sandbox_mode="read-only" in the child
- * TOML is the delegate's OWN declared sandbox for these read-analysis roles (architect,
- * qa-critic) — "no writes / no network", NOT "no execution": read-exec analysis stays.
- * It is NO LONGER backed by a read-only parent: after the 2026-07-15 redirect the
- * coordinator root follows the session's ACTUAL mode (workspace-write for default/
- * acceptEdits), so there is no OS-enforced read-only floor over the root to "align" with.
- * The delegate-first guarantee is now TEXTUAL (the root contract), mirroring Claude
- * Code's zero-rule; a structural OS guard for the Codex root is a separate future
- * follow-up. The agentDefinitionHash detects INPUT drift (card/model/template changed);
- * it is not a tamper-seal — the agents dir is 0700-isolated per user.
+ * Security posture (R3 honesty — NOT overclaimed): the child TOMLs deliberately OMIT
+ * sandbox_mode, so each delegate INHERITS the session's sandbox (workspace-write for
+ * default/acceptEdits). This is required for real delegation of WORK (E12): a write
+ * agent (backend-dev …) pinned to read-only could not write, defeating the point. The
+ * coordinator root likewise follows the session's ACTUAL mode after the 2026-07-15
+ * redirect — there is no OS-enforced read-only floor. The delegate-first guarantee is
+ * TEXTUAL (the root contract + each delegate's leaf contract carrying its card's own
+ * refusal gates), mirroring Claude Code's zero-rule; a structural OS guard for the
+ * Codex root is a separate future follow-up. The agentDefinitionHash detects INPUT
+ * drift (card/model/template changed); it is not a tamper-seal — the agents dir is
+ * 0700-isolated per user.
  *
  * No project-internal imports beyond node builtins (mirrors codex-governance-material):
  * safe to import from BOTH the spawn path (openai-codex.js) and provisioning
@@ -47,16 +51,41 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-/**
- * The delegate roster the coordinator layer may spawn. Deliberately read-analysis roles
- * only for this MVP (D2): each delegate TOML declares its own sandbox_mode="read-only",
- * so these delegates do not write. Write agents (backend-dev …) are OUT of this MVP and
- * ship later once a Codex-native write-delegate story lands.
- */
-export const COORDINATOR_AGENT_NAMES = ['architect', 'qa-critic'];
-
 /** Subdir under $CODEX_HOME from which Codex ingests custom-agent TOMLs. */
 export const CODEX_AGENTS_SUBDIR = 'agents';
+
+/**
+ * A card filename (minus `.md`) is a delegate iff it is a bare lowercase identity:
+ * `[a-z][a-z0-9-]*`. This includes every real agent (architect, backend-dev,
+ * a11y-architect, qa-critic …) and EXCLUDES the structural docs that also live in
+ * ~/.claude/agents (INDEX.md, README.md, AGENTS.md — uppercase; _format.md — leading
+ * underscore). Content isn't parsed here: a listed-but-malformed card still enrolls in
+ * the roster and fails closed later at buildAgentToml (card_unavailable).
+ */
+const CARD_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * The delegate roster the coordinator layer may spawn — the FULL set of nassaj agent
+ * cards, read fresh from ~/.claude/agents/*.md at launch (no hardcoded pair). Write
+ * agents (backend-dev, frontend-dev, devops …) are now IN: with the child sandbox left
+ * to the session's mode, a coordinator can delegate real WORK, not analysis only.
+ * Returns a sorted, de-duplicated list; empty (never throws) when the dir is unreadable.
+ *
+ * @returns {string[]} sorted delegate identities (filenames without `.md`)
+ */
+export function coordinatorAgentNames() {
+  let entries;
+  try {
+    entries = fs.readdirSync(agentsCardsRoot());
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => e.endsWith('.md'))
+    .map((e) => e.slice(0, -3))
+    .filter((n) => CARD_NAME_RE.test(n))
+    .sort();
+}
 
 /**
  * The coordinator's ROOT-ONLY contract (D3). Injected into the coordinator's turn
@@ -67,9 +96,10 @@ export const CODEX_AGENTS_SUBDIR = 'agents';
 export const COORDINATOR_ROOT_CONTRACT =
   'أنت منسّق نسّاج: فوّض ولا تنفّذ؛ لأي مهمة متخصصة استدعِ الوكيل المطابق بالاسم بلا @ ' +
   'عبر spawn_agent وانتظر wait_agent ثم ادمج؛ لا تنفّذ العمل المتخصص بنفسك. ' +
-  `الوكلاء المتاحون للتفويض حصراً هم: ${COORDINATOR_AGENT_NAMES.join('، ')}. ` +
-  'فوّض فقط إلى هؤلاء؛ وإن تطلّبت المهمة تخصصاً غير متاح فأبلغ المالك ولا ' +
-  'تُفرّخ وكيلاً غير مُهيّأ ولا تنفّذ العمل بنفسك.';
+  'طاقم التفويض هو كامل وكلاء نسّاج المتاحين في مجلد الوكلاء — تحليلاً وتنفيذاً — ' +
+  'ومنهم architect وbackend-dev وfrontend-dev وtester وdevops وui-designer وqa-critic وغيرهم. ' +
+  'فوّض فقط إلى وكيلٍ مُهيّأ له تعريف متاح؛ وإن تطلّبت المهمة تخصصاً غير متاح فأبلغ المالك ' +
+  'ولا تُفرّخ وكيلاً غير مُهيّأ ولا تنفّذ العمل بنفسك.';
 
 /** Structural error code when a coordinator launch cannot prepare its delegates. */
 export const COORDINATOR_AGENTS_MISSING_CODE = 'coordinator_agents_missing';
@@ -83,15 +113,7 @@ export const COORDINATOR_AGENTS_MISSING_MESSAGE =
  * so every already-materialized TOML drifts (input-hash mismatch) and is rewritten on
  * the next coordinator spawn.
  */
-const CONTRACT_TEMPLATE_VERSION = 'v1';
-
-/**
- * The delegate's OWN declared sandbox, written into every delegate TOML. read-only keeps
- * these read-analysis delegates (architect, qa-critic) from writing/networking. It is the
- * child's self-declaration — NOT a re-application of a read-only parent (the coordinator
- * root now follows the session's actual mode; see module header).
- */
-const CHILD_SANDBOX_MODE = 'read-only';
+const CONTRACT_TEMPLATE_VERSION = 'v2';
 
 /** Dir mode for the per-user agents dir (matches the 0700 isolation tree). */
 const DIR_MODE = 0o700;
@@ -222,9 +244,7 @@ export function buildAgentToml(name, model) {
   const developerInstructions = buildDeveloperInstructions(fm, body, identityName);
 
   // Drift/idempotence fingerprint over the INPUTS that determine the output.
-  const hash = sha256(
-    [CONTRACT_TEMPLATE_VERSION, cleanModel, CHILD_SANDBOX_MODE, raw].join(' '),
-  );
+  const hash = sha256([CONTRACT_TEMPLATE_VERSION, cleanModel, raw].join('\0'));
 
   const lines = [
     '# nassaj coordinator delegate — generated at launch (T-886). Do not hand-edit.',
@@ -234,7 +254,9 @@ export function buildAgentToml(name, model) {
     // simple ASCII values (matches the spike). Identity name carries NO `@`.
     `name = ${JSON.stringify(identityName)}`,
     `description = ${JSON.stringify(description)}`,
-    `sandbox_mode = ${JSON.stringify(CHILD_SANDBOX_MODE)}`,
+    // No sandbox_mode: the delegate INHERITS the session's sandbox (workspace-write for
+    // default/acceptEdits) so a write agent can actually write (E12). The leaf contract
+    // + the card's own refusal gates constrain the role textually.
     `model = ${JSON.stringify(cleanModel)}`,
     'developer_instructions = """',
     tomlMultiline(developerInstructions),
@@ -295,8 +317,14 @@ export function materializeCoordinatorAgents(codexHome, model) {
     return { ok: false, agentsDir, agents: [], reason: 'agents_dir_unwritable' };
   }
 
+  const roster = coordinatorAgentNames();
+  if (roster.length === 0) {
+    // No readable agent cards ⇒ nothing to delegate to. Fail-open upstream logs & launches.
+    return { ok: false, agentsDir, agents: [], reason: 'roster_empty' };
+  }
+
   const materialized = [];
-  for (const name of COORDINATOR_AGENT_NAMES) {
+  for (const name of roster) {
     const built = buildAgentToml(name, model);
     if (!built) {
       // A missing/malformed delegate card ⇒ the coordinator cannot delegate to it.

@@ -7,14 +7,16 @@
  * ChatGPT quota — R2 live verification is separate). queryCodex is driven end-to-end and the
  * ACTUAL launch surface is asserted:
  *   - LAYER (all 3 modes): config carries agents.max_depth=1 + project_doc_max_bytes=0, the
- *               ROOT turn input is prepended with the delegate-only contract, and the delegate
- *               TOMLs (architect + qa-critic) are materialized into $CODEX_HOME/agents.
+ *               ROOT turn input is prepended with the delegate-only contract, and a delegate
+ *               TOML is materialized into $CODEX_HOME/agents for EVERY present agent card
+ *               (dynamic roster; here the seeded architect + qa-critic).
  *   - SANDBOX follows the ACTUAL mode (no 'coordinator' branch): default ⇒ workspace-write/
  *               untrusted; acceptEdits ⇒ workspace-write/never; bypassPermissions ⇒ capped to
  *               workspace-write/never (no flag). 'coordinator' as a mode string is inert now.
- *   - FAIL-OPEN: a missing delegate card no longer REFUSES — the launch STILL proceeds
- *               (one thread starts), a loud warning is logged, and NO coordinator_agents_missing
- *               error frame is emitted. The root contract is still injected (constant string).
+ *   - FAIL-OPEN: an unusable roster (e.g. no readable cards) no longer REFUSES — the launch
+ *               STILL proceeds (one thread starts), a loud warning is logged, and NO
+ *               coordinator_agents_missing error frame is emitted. The root contract is still
+ *               injected (constant string). The delegate roster is DYNAMIC (all agent cards).
  *   - ROOT-ONLY: the root contract is NOT written into any delegate TOML, so it never leaks
  *               into a child's context (children take their persona from their own TOML).
  *
@@ -245,13 +247,14 @@ describe('queryCodex — always-on coordinator layer across all modes (T-886 red
       assert.ok((input as string).startsWith(COORDINATOR_ROOT_CONTRACT), 'contract prepended at the root');
       assert.ok((input as string).includes('ping'), 'the original command survives the prepend');
 
-      // Delegates materialized into $CODEX_HOME/agents (real fs), read-only, no @.
+      // Delegates materialized into $CODEX_HOME/agents (real fs), no @, and with NO
+      // sandbox_mode pin so each inherits the session sandbox (E12: a write agent writes).
       for (const name of ['architect', 'qa-critic']) {
         const p = path.join(CODEX_AGENTS, `${name}.toml`);
         assert.equal(fs.existsSync(p), true, `${name}.toml must be materialized`);
         const toml = fs.readFileSync(p, 'utf8');
         assert.match(toml, new RegExp(`^name = "${name}"$`, 'm'));
-        assert.match(toml, /^sandbox_mode = "read-only"$/m);
+        assert.equal(/^sandbox_mode/m.test(toml), false, `${name} must inherit the session sandbox`);
         assert.match(toml, /^model = "gpt-5-codex"$/m);
         assert.equal(toml.includes(`@${name}`), false, 'no @-prefixed delegate name');
       }
@@ -279,10 +282,15 @@ describe('queryCodex — always-on coordinator layer across all modes (T-886 red
 // block the launch (opposite of the removed opt-in mode's fail-closed).
 // ===========================================================================
 describe('queryCodex — fail-open when delegates cannot be materialized (T-886 redirect)', () => {
-  it('missing delegate card ⇒ launch STILL proceeds, warns loudly, no error frame', async () => {
-    const qaPath = path.join(CARDS_DIR, 'qa-critic.md');
-    const saved = fs.readFileSync(qaPath, 'utf8');
-    fs.rmSync(qaPath, { force: true });
+  it('unusable roster ⇒ launch STILL proceeds, warns loudly, no error frame', async () => {
+    // Empty the whole cards dir so the roster is empty (materialize ⇒ ok:false). With a
+    // DYNAMIC roster, removing a single card just shrinks it; only a fully unusable roster
+    // degrades delegation — and even then the launch must proceed (fail-open).
+    const saved = fs.readdirSync(CARDS_DIR).map((e) => ({
+      p: path.join(CARDS_DIR, e),
+      body: fs.readFileSync(path.join(CARDS_DIR, e), 'utf8'),
+    }));
+    for (const c of saved) fs.rmSync(c.p, { force: true });
 
     const warnings: string[] = [];
     const realWarn = console.warn;
@@ -300,7 +308,7 @@ describe('queryCodex — fail-open when delegates cannot be materialized (T-886 
       assert.equal(
         threadStarts.length,
         before + 1,
-        'fail-open: the thread must STILL start when a delegate card is missing',
+        'fail-open: the thread must STILL start when the roster is unusable',
       );
       assert.equal(
         ws.sent.some((m) => JSON.stringify(m).includes('coordinator_agents_missing')),
@@ -317,7 +325,7 @@ describe('queryCodex — fail-open when delegates cannot be materialized (T-886 
       );
     } finally {
       console.warn = realWarn;
-      fs.writeFileSync(qaPath, saved);
+      for (const c of saved) fs.writeFileSync(c.p, c.body);
     }
   });
 });

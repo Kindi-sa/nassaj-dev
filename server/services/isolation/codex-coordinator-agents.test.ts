@@ -4,14 +4,19 @@
  * synthetic-fixtures lesson — every path is a real temp file under a sandboxed $HOME).
  *
  * Proves:
- *  - the read-only delegate roster + root-contract constants;
+ *  - coordinatorAgentNames() reads the FULL roster from ~/.claude/agents/*.md (dynamic,
+ *    not a hardcoded pair), sorted, and EXCLUDES structural non-cards (INDEX/README/
+ *    _format);
+ *  - the root contract is delegate-only, names bare (بلا @), and references the whole
+ *    available roster (analysis AND execution agents);
  *  - normalizeCodexModel yields a BARE id (بلا @) and rejects the unusable;
- *  - buildAgentToml emits name (no @) + description + sandbox_mode="read-only" + the
- *    session model (DROPPING the card's Claude id) + the leaf contract + an
- *    agentDefinitionHash, and returns null for a missing/malformed card;
- *  - materializeCoordinatorAgents writes both delegate TOMLs, is idempotent, rewrites on
- *    card/model drift, and FAILS CLOSED (ok:false, nothing half-written) on a missing
- *    model or a missing delegate card.
+ *  - buildAgentToml emits name (no @) + description + the session model (DROPPING the
+ *    card's Claude id) + a leaf contract + an agentDefinitionHash, OMITS sandbox_mode so
+ *    the delegate inherits the session sandbox (E12: a write agent can write), and
+ *    returns null for a missing/malformed card;
+ *  - materializeCoordinatorAgents writes a TOML for EVERY present card (incl. write
+ *    agents), is idempotent, rewrites on card/model drift, and FAILS CLOSED (ok:false,
+ *    nothing half-written) on a missing model, an empty roster, or a malformed card.
  *
  * HOME is sandboxed before importing the module so coordinatorAgentCardPath() (which
  * reads $HOME/.claude/agents/<name>.md) resolves into the temp tree. Runner: node:test/tsx.
@@ -65,13 +70,30 @@ scope: engineering
 الناقد الصارم. يملك صلاحية فيتو.
 `;
 
+// A WRITE agent — proves the roster is no longer analysis-only and that its TOML omits
+// sandbox_mode (so it inherits the session's workspace-write and can actually write).
+const BACKEND_CARD = `---
+name: backend-dev
+model: claude-opus-4-8
+name_ar: البنّاء
+description: بناء APIs ومنطق الأعمال وطبقة البيانات.
+role: بناء APIs ومنطق الأعمال وطبقة البيانات على السيرفر
+scope: engineering
+---
+
+## الدور
+يُستدعى عند تنفيذ endpoint أو migration.
+`;
+
 function seedCards(): void {
+  // Clear the dir so each case starts from a known roster (drift/missing independence).
+  for (const e of fs.readdirSync(CARDS_DIR)) fs.rmSync(path.join(CARDS_DIR, e), { force: true });
   fs.writeFileSync(path.join(CARDS_DIR, 'architect.md'), ARCHITECT_CARD);
   fs.writeFileSync(path.join(CARDS_DIR, 'qa-critic.md'), QA_CARD);
 }
 
 const {
-  COORDINATOR_AGENT_NAMES,
+  coordinatorAgentNames,
   CODEX_AGENTS_SUBDIR,
   COORDINATOR_ROOT_CONTRACT,
   normalizeCodexModel,
@@ -80,7 +102,7 @@ const {
   materializeCoordinatorAgents,
 } = await import('./codex-coordinator-agents.js');
 
-// Reseed both cards before EACH case so drift/missing/malformed cases stay independent.
+// Reseed cards before EACH case so drift/missing/malformed cases stay independent.
 beforeEach(seedCards);
 
 after(() => {
@@ -96,31 +118,46 @@ function freshHome(name: string): string {
   return home;
 }
 
-describe('codex-coordinator-agents — constants', () => {
-  it('roster is the read-only delegates architect + qa-critic', () => {
-    assert.deepEqual(COORDINATOR_AGENT_NAMES, ['architect', 'qa-critic']);
+describe('coordinatorAgentNames — dynamic roster from the cards dir', () => {
+  it('returns the present cards, sorted, without .md', () => {
+    assert.deepEqual(coordinatorAgentNames(), ['architect', 'qa-critic']);
     assert.equal(CODEX_AGENTS_SUBDIR, 'agents');
   });
 
+  it('enrolls a newly added card automatically (roster is not a hardcoded pair)', () => {
+    fs.writeFileSync(path.join(CARDS_DIR, 'backend-dev.md'), BACKEND_CARD);
+    assert.deepEqual(coordinatorAgentNames(), ['architect', 'backend-dev', 'qa-critic']);
+  });
+
+  it('excludes structural non-cards (INDEX/README/_format), keeps hyphenated ids', () => {
+    fs.writeFileSync(path.join(CARDS_DIR, 'INDEX.md'), '# فهرس');
+    fs.writeFileSync(path.join(CARDS_DIR, 'README.md'), '# readme');
+    fs.writeFileSync(path.join(CARDS_DIR, '_format.md'), '# format contract');
+    fs.writeFileSync(path.join(CARDS_DIR, 'a11y-architect.md'), BACKEND_CARD);
+    const names = coordinatorAgentNames();
+    assert.deepEqual(names, ['a11y-architect', 'architect', 'qa-critic']);
+    for (const junk of ['INDEX', 'README', '_format']) {
+      assert.equal(names.includes(junk), false, `${junk} must be excluded from the roster`);
+    }
+  });
+});
+
+describe('codex-coordinator-agents — contract constant', () => {
   it('root contract is delegate-only and names agents by bare name (بلا @)', () => {
     assert.match(COORDINATOR_ROOT_CONTRACT, /منسّق نسّاج/);
     assert.match(COORDINATOR_ROOT_CONTRACT, /spawn_agent/);
     assert.match(COORDINATOR_ROOT_CONTRACT, /بلا @/);
   });
 
-  it('root contract enumerates the delegate roster and forbids unconfigured spawns', () => {
-    // Roster is derived from COORDINATOR_AGENT_NAMES — every name must appear verbatim
-    // (no hand-maintained duplicate list in the contract text).
-    for (const name of COORDINATOR_AGENT_NAMES) {
-      assert.ok(
-        COORDINATOR_ROOT_CONTRACT.includes(name),
-        `contract must enumerate the delegate «${name}»`,
-      );
-    }
-    // Directive: delegate ONLY to the roster; an unavailable specialization ⇒ tell the
-    // owner, do NOT spawn an unconfigured agent, do NOT self-execute (guards the silent
-    // degradation of forking a write agent that has no TOML).
-    assert.match(COORDINATOR_ROOT_CONTRACT, /فوّض فقط إلى هؤلاء/);
+  it('root contract references the full roster (analysis AND execution) + forbids unconfigured spawns', () => {
+    // Concise practical phrasing — points at the whole available roster (not a hand-kept
+    // list of 25), and names representative analysis + WRITE agents so the model knows
+    // execution delegation is in scope.
+    assert.match(COORDINATOR_ROOT_CONTRACT, /كامل وكلاء نسّاج/);
+    assert.ok(COORDINATOR_ROOT_CONTRACT.includes('architect'), 'names an analysis agent');
+    assert.ok(COORDINATOR_ROOT_CONTRACT.includes('backend-dev'), 'names a write agent');
+    // Directive: an unavailable specialization ⇒ tell the owner, do NOT spawn an
+    // unconfigured agent, do NOT self-execute.
     assert.match(COORDINATOR_ROOT_CONTRACT, /غير مُهيّأ/);
   });
 
@@ -148,7 +185,7 @@ describe('normalizeCodexModel — bare id, no @ (Gate 1B)', () => {
   });
 });
 
-describe('buildAgentToml — schema, identity, model, leaf, hash, no @', () => {
+describe('buildAgentToml — schema, identity, model, leaf, hash, no @, no sandbox_mode', () => {
   it('emits the full delegate TOML and DROPS the card Claude id', () => {
     const built = buildAgentToml('architect', 'gpt-5-codex');
     assert.ok(built, 'must build for a present card');
@@ -163,8 +200,8 @@ describe('buildAgentToml — schema, identity, model, leaf, hash, no @', () => {
     assert.match(toml, /^model = "gpt-5-codex"$/m);
     assert.equal(toml.includes('claude-opus-4-8'), false, 'Claude model id must not leak into the TOML');
 
-    // read-only child sandbox (aligns with E12 parent inheritance).
-    assert.match(toml, /^sandbox_mode = "read-only"$/m);
+    // No sandbox_mode line — the delegate inherits the session sandbox (E12).
+    assert.equal(/^sandbox_mode/m.test(toml), false, 'must NOT pin a child sandbox_mode');
 
     // Leaf contract + the card's own refusal gate carried into developer_instructions.
     assert.match(toml, /developer_instructions = """/);
@@ -199,20 +236,21 @@ describe('buildAgentToml — schema, identity, model, leaf, hash, no @', () => {
   });
 });
 
-describe('materializeCoordinatorAgents — fail-closed, idempotent, drift', () => {
-  it('writes both delegate TOMLs into <codexHome>/agents and returns ok', () => {
+describe('materializeCoordinatorAgents — dynamic roster, idempotent, drift, fail-closed', () => {
+  it('writes a TOML for EVERY present card — including a write agent (no sandbox_mode)', () => {
+    fs.writeFileSync(path.join(CARDS_DIR, 'backend-dev.md'), BACKEND_CARD);
     const home = freshHome('home-ok');
     const res = materializeCoordinatorAgents(home, 'gpt-5-codex');
     assert.equal(res.ok, true);
-    assert.deepEqual(res.agents, ['architect', 'qa-critic']);
+    assert.deepEqual(res.agents, ['architect', 'backend-dev', 'qa-critic']);
     assert.equal(res.agentsDir, path.join(home, 'agents'));
 
-    for (const name of ['architect', 'qa-critic']) {
+    for (const name of ['architect', 'backend-dev', 'qa-critic']) {
       const p = path.join(home, 'agents', `${name}.toml`);
       assert.equal(fs.existsSync(p), true, `${name}.toml must exist`);
       const toml = fs.readFileSync(p, 'utf8');
       assert.match(toml, new RegExp(`^name = "${name}"$`, 'm'));
-      assert.match(toml, /^sandbox_mode = "read-only"$/m);
+      assert.equal(/^sandbox_mode/m.test(toml), false, `${name} must inherit the session sandbox`);
       assert.match(toml, /^model = "gpt-5-codex"$/m);
       assert.match(toml, /^# agentDefinitionHash = "[0-9a-f]{64}"$/m);
       assert.equal(toml.includes(`@${name}`), false, 'no @-prefixed delegate name');
@@ -264,16 +302,26 @@ describe('materializeCoordinatorAgents — fail-closed, idempotent, drift', () =
     assert.equal(fs.existsSync(path.join(home, 'agents')), false, 'no dir/files created without a model');
   });
 
-  it('FAIL-CLOSED: refuses when a delegate card is missing', () => {
-    const home = freshHome('home-nocard');
-    fs.rmSync(path.join(CARDS_DIR, 'qa-critic.md'), { force: true });
+  it('FAIL-CLOSED: refuses (ok:false) when the roster is empty', () => {
+    for (const e of fs.readdirSync(CARDS_DIR)) fs.rmSync(path.join(CARDS_DIR, e), { force: true });
+    const home = freshHome('home-empty');
     const res = materializeCoordinatorAgents(home, 'gpt-5-codex');
     assert.equal(res.ok, false);
-    assert.equal(res.reason, 'card_unavailable:qa-critic');
+    assert.equal(res.reason, 'roster_empty');
+  });
+
+  it('FAIL-CLOSED: refuses when a rostered card is malformed (no frontmatter)', () => {
+    // architect.md is present (so it enrolls in the roster) but has no frontmatter, so
+    // buildAgentToml returns null ⇒ materialize aborts before writing it.
+    fs.writeFileSync(path.join(CARDS_DIR, 'architect.md'), 'no frontmatter at all');
+    const home = freshHome('home-malformed');
+    const res = materializeCoordinatorAgents(home, 'gpt-5-codex');
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, 'card_unavailable:architect');
     assert.equal(
-      fs.existsSync(path.join(home, 'agents', 'qa-critic.toml')),
+      fs.existsSync(path.join(home, 'agents', 'architect.toml')),
       false,
-      'the missing delegate must not have a TOML',
+      'the malformed delegate must not have a TOML',
     );
   });
 });
