@@ -400,8 +400,12 @@ export default function ChatComposer({
               pane width (very narrow viewport, OS text-zoom, mid-breakpoint
               tablet widths where sm: reveals extra labels) the row scrolls
               horizontally instead of wrapping the badge/send button onto a
-              second line. */}
-          <PromptInputTools className="scrollbar-hide flex-nowrap overflow-x-auto">
+              second line.
+              T-914: gap-2 (was the default gap-1/4px) — six-plus shrink-0
+              controls sitting at 4px apart read as crushed together; 8px
+              gives each icon room to breathe while the overflow-x-auto
+              safety net above still absorbs any narrow-viewport overflow. */}
+          <PromptInputTools className="scrollbar-hide flex-nowrap gap-2 overflow-x-auto">
             <PromptInputButton
               className="shrink-0"
               tooltip={{
@@ -498,7 +502,15 @@ export default function ChatComposer({
                 counter never disappears/appears out of sync with the
                 conversation actually shown. */}
             {capabilities.tokenCounter.supported && (
-              <span className="inline-flex shrink-0">
+              // T-913-follow-up: min-w-0 (not shrink-0) — TokenUsageSummary is
+              // already built to shrink/ellipsize internally (min-w-0 +
+              // overflow-hidden + truncate on its own root, and the used/total
+              // sub-span is hidden below sm:). Pinning this wrapper shrink-0
+              // forced the pill to keep its full intrinsic width and crowd out
+              // the buttons beside it; letting it shrink first means the row
+              // stays comfortably spaced and only the token pill narrows when
+              // the pane is tight — no wrap, no overflow.
+              <span className="inline-flex min-w-0">
                 <TokenUsageSummary usage={tokenBudget} />
               </span>
             )}
