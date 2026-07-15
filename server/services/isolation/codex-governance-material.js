@@ -153,3 +153,126 @@ export function materializeGovernanceCopy(codexHome) {
   }
   return governanceMatchesSource(agentsPath);
 }
+
+// ---------------------------------------------------------------------------
+// Persona reference material (T-909): AGENTS.md's own text tells the reader
+// ("Antigravity أو أي أداة تدعم المعيار") that each agent's full persona lives at
+// `.agents/agents.md` (a path RELATIVE to AGENTS.md's own directory). A Codex
+// coordinator turn reads $CODEX_HOME/AGENTS.md and, following that reference,
+// looked for $CODEX_HOME/.agents/agents.md — which provisioning never materialized
+// for Codex (only Antigravity's ~/.claude/.agents/agents.md existed), so the
+// coordinator reported the referenced file as missing.
+//
+// This is DELIBERATELY a separate, best-effort primitive from the governance
+// functions above, NOT a security boundary: the persona file is supplementary
+// reference prose (the same content each ~/.claude/agents/<name>.md card already
+// carries, aggregated), not enforced governance. A Codex coordinator already gets
+// the authoritative, per-agent version of this material at launch — the full card
+// body embedded in each delegate's developer_instructions
+// (codex-coordinator-agents.js buildDeveloperInstructions) — so a missing/stale
+// persona copy must never block a launch (unlike AGENTS.md via
+// ensureCodexGovernance): it only makes the textual cross-reference resolvable.
+// Still written as a real read-only (0444) COPY, never a symlink, for the same
+// write-through reason as the governance file (a danger-full-access Codex turn
+// must never be able to reach the shared ~/.claude/.agents/agents.md through a link).
+// ---------------------------------------------------------------------------
+
+/** Subdir under $CODEX_HOME mirroring Antigravity's `.agents/` persona location. */
+export const CODEX_PERSONA_SUBDIR = '.agents';
+
+/** The persona filename AGENTS.md's own text references. */
+export const CODEX_PERSONA_FILENAME = 'agents.md';
+
+const PERSONA_FILE_MODE = 0o444;
+
+/**
+ * The neutral persona source: ~/.claude/.agents/agents.md — the merged, full-persona
+ * document build-agents renders for Antigravity (see nassaj-core/scripts/build-agents).
+ *
+ * @returns {string}
+ */
+export function neutralPersonaSource() {
+  return path.join(os.homedir(), '.claude', CODEX_PERSONA_SUBDIR, CODEX_PERSONA_FILENAME);
+}
+
+/**
+ * Reads the neutral persona source content, mirroring readNeutralGovernance.
+ *
+ * @returns {{ content: Buffer, fingerprint: string } | null} null when absent/empty.
+ */
+export function readNeutralPersonaMaterial() {
+  try {
+    const content = fs.readFileSync(neutralPersonaSource());
+    if (content.length === 0) {
+      return null;
+    }
+    return { content, fingerprint: fingerprintOf(content) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * True iff the persona copy at `personaPath` is a real, non-empty regular file (NOT
+ * a symlink) whose fingerprint matches the current neutral source. Mirrors
+ * governanceMatchesSource; see that function for the symlink-rejection rationale.
+ *
+ * @param {string} personaPath
+ * @returns {boolean}
+ */
+export function personaMatchesSource(personaPath) {
+  const src = readNeutralPersonaMaterial();
+  if (!src) {
+    return false;
+  }
+  try {
+    const st = fs.lstatSync(personaPath);
+    if (!st.isFile()) {
+      return false;
+    }
+    const current = fs.readFileSync(personaPath);
+    if (current.length === 0) {
+      return false;
+    }
+    return fingerprintOf(current) === src.fingerprint;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Best-effort materialization of the persona reference at
+ * <codexHome>/.agents/agents.md, mirroring materializeGovernanceCopy's read-only-COPY
+ * mechanics but WITHOUT its fail-closed contract: a missing neutral source or a write
+ * failure here must never block a Codex launch (see module-header rationale above).
+ * Never throws.
+ *
+ * @param {string} codexHome the effective CODEX_HOME to populate
+ * @returns {boolean} whether the persona copy matches the source after the attempt
+ */
+export function materializePersonaCopy(codexHome) {
+  const personaDir = path.join(codexHome, CODEX_PERSONA_SUBDIR);
+  const personaPath = path.join(personaDir, CODEX_PERSONA_FILENAME);
+  if (personaMatchesSource(personaPath)) {
+    return true;
+  }
+  const src = readNeutralPersonaMaterial();
+  if (!src) {
+    // No neutral persona doc on this node — leave the textual reference unresolved;
+    // this is informational only, so no launch is blocked for it.
+    return false;
+  }
+  try {
+    fs.mkdirSync(personaDir, { recursive: true });
+    fs.rmSync(personaPath, { force: true });
+    fs.writeFileSync(personaPath, src.content, { mode: 0o600 });
+    fs.chmodSync(personaPath, PERSONA_FILE_MODE);
+  } catch (err) {
+    console.warn('[Codex] persona copy materialize failed (non-blocking)', {
+      codexHome,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+  return personaMatchesSource(personaPath);
+}

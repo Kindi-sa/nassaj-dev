@@ -34,12 +34,22 @@ assert.equal(os.homedir(), sandboxHome, 'os.homedir() must honor the sandboxed $
 const SOURCE = path.join(sandboxHome, '.claude', 'AGENTS.md');
 const NEUTRAL = '# AGENTS.md — neutral nassaj governance\nplatform-agnostic instructions.\n';
 
+const PERSONA_SOURCE = path.join(sandboxHome, '.claude', '.agents', 'agents.md');
+const PERSONA_NEUTRAL = '# agents.md — full personas\n## backend-dev\nfull persona body.\n';
+fs.mkdirSync(path.dirname(PERSONA_SOURCE), { recursive: true });
+
 const {
   CODEX_AGENTS_FILENAME,
   neutralGovernanceSource,
   readNeutralGovernance,
   governanceMatchesSource,
   materializeGovernanceCopy,
+  CODEX_PERSONA_SUBDIR,
+  CODEX_PERSONA_FILENAME,
+  neutralPersonaSource,
+  readNeutralPersonaMaterial,
+  personaMatchesSource,
+  materializePersonaCopy,
 } = await import('./codex-governance-material.js');
 
 const sha256 = (buf: Buffer | string): string =>
@@ -58,7 +68,15 @@ function setSource(content: string | null): void {
   else fs.writeFileSync(SOURCE, content);
 }
 
-beforeEach(() => setSource(NEUTRAL));
+function setPersonaSource(content: string | null): void {
+  if (content === null) fs.rmSync(PERSONA_SOURCE, { force: true });
+  else fs.writeFileSync(PERSONA_SOURCE, content);
+}
+
+beforeEach(() => {
+  setSource(NEUTRAL);
+  setPersonaSource(PERSONA_NEUTRAL);
+});
 
 after(() => {
   if (ORIGINAL_HOME === undefined) delete process.env.HOME;
@@ -148,5 +166,68 @@ describe('governanceMatchesSource / materialize — security invariants', () => 
     assert.equal(materializeGovernanceCopy(home), false, 'no source ⇒ materialize fails');
     assert.equal(governanceMatchesSource(gov), false, 'no source ⇒ nothing is governed');
     assert.equal(fs.existsSync(gov), false, 'no copy is written without a source');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Persona reference material (T-909): best-effort, non-blocking mirror of the
+// governance mechanics above. The key behavioral difference under test: a missing
+// source or write failure must return false WITHOUT ever being treated as fatal by
+// a caller (there is no fail-closed contract here, unlike governance).
+// ---------------------------------------------------------------------------
+
+describe('codex-governance-material — persona source resolution', () => {
+  it('resolves the source to $HOME/.claude/.agents/agents.md', () => {
+    assert.equal(neutralPersonaSource(), PERSONA_SOURCE);
+    assert.equal(CODEX_PERSONA_SUBDIR, '.agents');
+    assert.equal(CODEX_PERSONA_FILENAME, 'agents.md');
+  });
+
+  it('readNeutralPersonaMaterial returns content+fingerprint when present, null when absent/empty', () => {
+    const got = readNeutralPersonaMaterial();
+    assert.ok(got, 'present source must read');
+    assert.equal(got.fingerprint, sha256(PERSONA_NEUTRAL));
+
+    setPersonaSource(null);
+    assert.equal(readNeutralPersonaMaterial(), null, 'absent source ⇒ null');
+
+    setPersonaSource('');
+    assert.equal(readNeutralPersonaMaterial(), null, 'empty source ⇒ null');
+  });
+});
+
+describe('materializePersonaCopy — happy path, idempotence & non-blocking absence', () => {
+  it('creates a real, read-only (0444) copy at <codexHome>/.agents/agents.md; is idempotent', () => {
+    const home = freshHome('home-persona-ok');
+    const persona = path.join(home, CODEX_PERSONA_SUBDIR, CODEX_PERSONA_FILENAME);
+
+    assert.equal(materializePersonaCopy(home), true, 'materialization must succeed');
+    const st = fs.lstatSync(persona);
+    assert.equal(st.isSymbolicLink(), false, 'must be a real file, never a symlink');
+    assert.equal(st.mode & 0o777, 0o444, 'copy must be read-only 0444');
+    assert.equal(sha256(fs.readFileSync(persona)), sha256(PERSONA_NEUTRAL));
+    assert.equal(personaMatchesSource(persona), true);
+
+    assert.equal(materializePersonaCopy(home), true, 'idempotent success');
+  });
+
+  it('rejects a SYMLINK and replaces it with a real copy', () => {
+    const home = freshHome('home-persona-symlink');
+    fs.mkdirSync(path.join(home, CODEX_PERSONA_SUBDIR), { recursive: true });
+    const persona = path.join(home, CODEX_PERSONA_SUBDIR, CODEX_PERSONA_FILENAME);
+    fs.symlinkSync(PERSONA_SOURCE, persona);
+
+    assert.equal(personaMatchesSource(persona), false, 'a symlink must NOT be accepted');
+    assert.equal(materializePersonaCopy(home), true, 'materialize must replace the symlink');
+    assert.equal(fs.lstatSync(persona).isSymbolicLink(), false);
+  });
+
+  it('returns false (never throws) and leaves no copy when the neutral source is absent', () => {
+    const home = freshHome('home-persona-nosrc');
+    const persona = path.join(home, CODEX_PERSONA_SUBDIR, CODEX_PERSONA_FILENAME);
+    setPersonaSource(null);
+
+    assert.equal(materializePersonaCopy(home), false, 'no source ⇒ materialize fails softly');
+    assert.equal(fs.existsSync(persona), false, 'no copy is written without a source');
   });
 });

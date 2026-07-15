@@ -60,7 +60,10 @@ import os from 'os';
 import path from 'path';
 
 import { auditLogDb, userDb } from '../../modules/database/index.js';
-import { materializeGovernanceCopy } from './codex-governance-material.js';
+import {
+  materializeGovernanceCopy,
+  materializePersonaCopy,
+} from './codex-governance-material.js';
 import { CODEX_AGENTS_SUBDIR } from './codex-coordinator-agents.js';
 
 // Per-user isolated config trees are owner-only (0700): under a shared system
@@ -361,6 +364,15 @@ export function provisionUserDirs(userId) {
     // marker when the neutral source is absent (owner decision 2026-07-12); the
     // spawn-time guard is the hard enforcement if this fast path fails.
     materializeGovernanceCopy(codexDir);
+
+    // Persona reference material (T-909, best-effort — NOT governance): AGENTS.md's
+    // own text points readers at `.agents/agents.md` (relative to itself) for each
+    // agent's full persona. Antigravity gets this from ~/.claude/.agents/agents.md
+    // directly; Codex never had a materialized copy at $CODEX_HOME/.agents/agents.md,
+    // so a coordinator turn following that reference found it missing and reported it
+    // as a limitation. Mirrors materializeGovernanceCopy's read-only COPY mechanics
+    // but is deliberately non-blocking: see codex-governance-material.js.
+    materializePersonaCopy(codexDir);
 
     // Coordinator delegate agents dir (T-886): pre-create the (empty)
     // $CODEX_HOME/agents dir so a coordinator-role launch materializes its read-only

@@ -28,6 +28,7 @@ import { mapSpawnError } from './shared/spawn-error.js';
 import { participantsDb } from './modules/database/index.js';
 import { resolveProviderEnv } from './services/isolation/resolve-provider-env.js';
 import { classifyCodexFailure } from './modules/providers/list/codex/codex-failure.js';
+import { extractCodexTokenBudget } from './modules/providers/list/codex/codex-token-budget.js';
 import {
   ensureCodexGovernance,
   GOVERNANCE_MISSING_CODE,
@@ -37,6 +38,7 @@ import {
   materializeCoordinatorAgents,
   COORDINATOR_ROOT_CONTRACT,
 } from './services/isolation/codex-coordinator-agents.js';
+import { materializePersonaCopy } from './services/isolation/codex-governance-material.js';
 
 // Track active sessions
 const activeCodexSessions = new Map();
@@ -85,34 +87,6 @@ async function prepareCodexInput(command, images) {
       });
     }
   }
-}
-
-function readUsageNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function extractCodexTokenBudget(event) {
-  const info = event?.info || event?.payload?.info || event?.usage?.info;
-  const usage = info?.total_token_usage || event?.usage?.total_token_usage || event?.usage;
-  if (!usage || typeof usage !== 'object') {
-    return null;
-  }
-
-  const inputTokens = readUsageNumber(usage.input_tokens);
-  const outputTokens = readUsageNumber(usage.output_tokens);
-  const used = readUsageNumber(usage.total_tokens) || inputTokens + outputTokens;
-
-  return {
-    used,
-    total: readUsageNumber(info?.model_context_window || event?.usage?.model_context_window) || 200000,
-    inputTokens,
-    outputTokens,
-    breakdown: {
-      input: inputTokens,
-      output: outputTokens,
-    },
-  };
 }
 
 /**
@@ -507,6 +481,15 @@ async function queryCodexUnlocked(command, options = {}, ws) {
     });
   }
 
+  // Persona reference material (T-909, best-effort, non-blocking): re-check/refresh
+  // $CODEX_HOME/.agents/agents.md on every launch too — unlike AGENTS.md governance,
+  // whose fingerprint match short-circuits ensureCodexGovernance's repair path above
+  // and so never revisits this file, an already-provisioned user's tree would
+  // otherwise keep a missing/stale persona copy until their next fresh provision.
+  // Failure here only leaves AGENTS.md's `.agents/agents.md` cross-reference
+  // unresolved; it never affects governance or delegation and must never block launch.
+  materializePersonaCopy(governance.codexHome);
+
   let codex;
   let thread;
   let capturedSessionId = sessionId;
@@ -691,7 +674,7 @@ async function queryCodexUnlocked(command, options = {}, ws) {
       }
 
       if (event.type === 'turn.completed') {
-        const tokenBudget = extractCodexTokenBudget(event);
+        const tokenBudget = extractCodexTokenBudget(event, resolvedModel);
         if (tokenBudget) {
           sendMessage(ws, createNormalizedMessage({
             kind: 'status',
