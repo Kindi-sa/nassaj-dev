@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Check, Edit2, Star, Trash2, X } from 'lucide-react';
+import { Check, Copy, Edit2, ExternalLink, Star, Trash2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 
@@ -24,6 +24,25 @@ const buildSessionUrl = (sessionId: string): string => {
   const basename = window.__ROUTER_BASENAME__ || '';
   return `${window.location.origin}${basename}/session/${encodeURIComponent(sessionId)}`;
 };
+
+const SESSION_CONTEXT_MENU_WIDTH = 180;
+const SESSION_CONTEXT_MENU_HEIGHT = 110;
+const SESSION_CONTEXT_MENU_VIEWPORT_PADDING = 10;
+
+function calcSafeContextMenuPosition(clientX: number, clientY: number) {
+  const safeX =
+    clientX + SESSION_CONTEXT_MENU_WIDTH > window.innerWidth
+      ? window.innerWidth - SESSION_CONTEXT_MENU_WIDTH - SESSION_CONTEXT_MENU_VIEWPORT_PADDING
+      : clientX;
+  const safeY =
+    clientY + SESSION_CONTEXT_MENU_HEIGHT > window.innerHeight
+      ? window.innerHeight - SESSION_CONTEXT_MENU_HEIGHT - SESSION_CONTEXT_MENU_VIEWPORT_PADDING
+      : clientY;
+  return {
+    x: Math.max(SESSION_CONTEXT_MENU_VIEWPORT_PADDING, safeX),
+    y: Math.max(SESSION_CONTEXT_MENU_VIEWPORT_PADDING, safeY),
+  };
+}
 
 type SidebarSessionItemProps = {
   project: Project;
@@ -117,6 +136,8 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id;
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   // Session owner badge (C-MU-UX-OWNER-BADGE): a single coloured avatar that
   // attributes the session to one human. `owner` is null for legacy sessions
@@ -142,6 +163,48 @@ export default function SidebarSessionItem({
     document.addEventListener('mousedown', handlePointerDown);
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [isEditing, onCancelEditingSession]);
+
+  // Close context menu on outside click or ESC key.
+  useEffect(() => {
+    if (!contextMenu) {
+      return;
+    }
+
+    const handleOutsideMouseDown = (event: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setContextMenu(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [contextMenu]);
+
+  const handleContextMenu = (event: ReactMouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu(calcSafeContextMenuPosition(event.clientX, event.clientY));
+  };
+
+  const openInNewTab = () => {
+    window.open(buildSessionUrl(session.id), '_blank', 'noopener');
+    setContextMenu(null);
+  };
+
+  const copySessionLink = () => {
+    navigator.clipboard.writeText(buildSessionUrl(session.id)).catch(() => {});
+    setContextMenu(null);
+  };
 
   // Sessions are owned by a project identified by `projectId` (DB primary key)
   // after the projectName → projectId migration.
@@ -181,6 +244,7 @@ export default function SidebarSessionItem({
   };
 
   return (
+    <>
     <div className="group relative">
       {sessionView.isActive && (
         <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
@@ -204,6 +268,7 @@ export default function SidebarSessionItem({
               : 'border-border/30',
           )}
           onClick={selectMobileSession}
+          onContextMenu={handleContextMenu}
         >
           <div className="flex items-center gap-2">
             <div
@@ -280,6 +345,7 @@ export default function SidebarSessionItem({
         <a
           href={buildSessionUrl(session.id)}
           onClick={handleSessionLinkClick}
+          onContextMenu={handleContextMenu}
           className={cn(
             'no-underline flex w-full items-center justify-start rounded-md p-2 h-auto text-sm font-normal text-start text-foreground hover:bg-accent/50 transition-colors duration-200',
             isSelected && 'bg-accent text-accent-foreground',
@@ -421,5 +487,35 @@ export default function SidebarSessionItem({
           </div>
       </div>
     </div>
+
+    {contextMenu && (
+      <div
+        ref={contextMenuRef}
+        role="menu"
+        aria-label={t('tooltips.sessionContextMenu')}
+        style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 9999 }}
+        className="min-w-[180px] py-1 px-1 bg-popover border border-border rounded-lg shadow-lg animate-in fade-in-0 zoom-in-95"
+      >
+        <button
+          role="menuitem"
+          type="button"
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-start rounded-md transition-colors hover:bg-accent focus:outline-none focus:bg-accent"
+          onClick={openInNewTab}
+        >
+          <ExternalLink className="h-4 w-4 flex-shrink-0" />
+          <span className="flex-1">{t('tooltips.openInNewTab')}</span>
+        </button>
+        <button
+          role="menuitem"
+          type="button"
+          className="w-full flex items-center gap-3 px-3 py-2 text-sm text-start rounded-md transition-colors hover:bg-accent focus:outline-none focus:bg-accent"
+          onClick={copySessionLink}
+        >
+          <Copy className="h-4 w-4 flex-shrink-0" />
+          <span className="flex-1">{t('tooltips.copyLink')}</span>
+        </button>
+      </div>
+    )}
+    </>
   );
 }

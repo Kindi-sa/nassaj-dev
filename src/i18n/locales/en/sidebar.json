@@ -58,7 +58,11 @@
     "clearSearch": "Clear search",
     "openCommandPalette": "Open command palette",
     "openWiki": "Open Nassaj Wiki",
-    "goHome": "Go to home"
+    "goHome": "Go to home",
+    "openInNewTab": "Open in new tab",
+    "copyLink": "Copy link",
+    "sessionContextMenu": "Session options",
+    "newSessionContextMenu": "New session options"
   },
   "navigation": {
     "chat": "Chat",

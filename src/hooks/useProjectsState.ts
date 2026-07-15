@@ -331,6 +331,14 @@ export function useProjectsState({
   const loadingProgressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastHandledMessageRef = useRef<AppSocketMessage | null>(null);
 
+  // Captured once at mount from the URL that "Open in new tab → New Session" writes.
+  // Cleared after first consumption so subsequent project-list re-renders are no-ops.
+  const newSessionProjectParamRef = useRef<string | null>(
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('newSessionProject')
+      : null,
+  );
+
   const fetchProjects = useCallback(async ({ showLoadingState = true }: FetchProjectsOptions = {}) => {
     try {
       if (showLoadingState) {
@@ -430,6 +438,35 @@ export function useProjectsState({
       setSelectedProject(projects[0]);
     }
   }, [isLoadingProjects, projects, selectedProject, sessionId]);
+
+  // Restore new-session intent from the `?newSessionProject=<id>` param written
+  // by SidebarProjectSessions's "Open in new tab" context menu item.
+  // Mirrors handleNewSession (minus navigate('/') — we're already at root).
+  useEffect(() => {
+    const param = newSessionProjectParamRef.current;
+    if (!param || isLoadingProjects || projects.length === 0 || sessionId) {
+      return;
+    }
+
+    // Consume once — clear the ref before acting so re-renders are no-ops.
+    newSessionProjectParamRef.current = null;
+
+    const target = projects.find((p) => p.projectId === param);
+
+    // Remove the param from the address bar without a React Router navigation
+    // (the route is still '/'; query params are transparent to route matching).
+    window.history.replaceState(null, '', window.location.pathname);
+
+    if (!target) {
+      // Project not found (renamed/deleted?): stay on home screen silently.
+      return;
+    }
+
+    setSelectedProject(target);
+    setSelectedSession(null);
+    setActiveTab('chat');
+    setNewSessionTrigger((previous) => previous + 1);
+  }, [isLoadingProjects, projects, sessionId]);
 
   useEffect(() => {
     if (!latestMessage) {

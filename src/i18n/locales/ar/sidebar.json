@@ -58,7 +58,11 @@
     "clearSearch": "مسح البحث",
     "openCommandPalette": "فتح لوحة الأوامر",
     "openWiki": "فتح ويكي نسّاج",
-    "goHome": "الرئيسية"
+    "goHome": "الرئيسية",
+    "openInNewTab": "فتح في تبويب جديد",
+    "copyLink": "نسخ الرابط",
+    "sessionContextMenu": "خيارات الجلسة",
+    "newSessionContextMenu": "خيارات الجلسة الجديدة"
   },
   "navigation": {
     "chat": "محادثة",
