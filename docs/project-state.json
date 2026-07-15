@@ -139,7 +139,8 @@
       "id": "T-899",
       "kind": "security",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
+      "closed": "2026-07-15",
       "priority": "high",
       "owner": "المالك",
       "issue": "B-170",
@@ -5958,7 +5959,7 @@
       "found": "2026-07-14",
       "title": "uid الخدمة nassaj عضو مجموعة docker (وsudo): أي Codex turn بذات uid يشغّل docker run -v /:/host = جذر المضيف الكامل، يتجاوز أي sandbox قراءة/كتابة (Landlock/bwrap) — تصعيد امتياز أشدّ من قراءة الاعتمادات",
       "source": "اكتشاف architect (لجنة T-893 2026-07-14)، مؤكَّد بالمنسّق: id nassaj → 989(docker),27(sudo)؛ docker ps بلا sudo تُظهر حاويات حيّة. devops: sudo -n يفشل (لا NOPASSWD) لكن docker rootful+العضوية = مكافئ root بلا كلمة سر.",
-      "triage": "critical → T-896 (degroup docker/sudo من هوية Codex، fail-safe، شرط لازم مُقدَّم قبل T-893). قرار المالك: هل تحتاج العقدة عضوية nassaj في docker لأحمال أخرى (حاويات wafeq-* حيّة)؟ إن لا فإزالة العضوية أبسط تخفيف. **التخفيف مُنجَز جزئياً على nassaj-dev لا الإغلاق (2026-07-14): سُحبت عضوية docker من حساب nassaj + عفريت pm2 والعملية الحاليّة (1014328) نظيفان بلا 989 + حارس إقلاع fail-closed مُلتزَم (nassaj-dev 744b88b8، فحص gid رقمي يمنع عودة الثغرة على أي restart) + تقنين degroup أسطولي مُلتزَم (nassaj-core 34a0dd3). الثغرة غير مُغلقة: فحص المنسّق الحيّ 2026-07-14 18:16 أثبت 13 عملية سابقة للـdegroup ما زالت تحمل 989 — أخطرها workflow-supervisor الخاص بنسّاج (pid 900510، أُعيدت أبوّته لـsystemd --user فيبقى بعد كل safe-restart بحكم treekill:false + kill_timeout=24h؛ أي وكيل يولّده يرث 989 → هروب docker حيّ داخل مسار التنسيق) + 3 عمليات codex مستقلة عمرها 3 أيام + جلسات SSH وcloudflared. الإغلاق الفعلي على nassaj-dev = قتل شجرة العمليات الحاملة لـ989 أو reboot بيد المالك في نافذة هادئة (T-899؛ safe-restart وحده لا يكفي بحكم treekill:false). rukhaimi/traventure مكشوفتان كلياً حتى نشر الأسطول (T-896). فيتو qa-critic 2026-07-14 على تبليغ B-170 كـ«مُغلق»؛ status=open حتى تُصفّى البقايا.**"
+      "triage": "critical → T-896 (degroup docker/sudo من هوية Codex، fail-safe، شرط لازم مُقدَّم قبل T-893). قرار المالك: هل تحتاج العقدة عضوية nassaj في docker لأحمال أخرى (حاويات wafeq-* حيّة)؟ إن لا فإزالة العضوية أبسط تخفيف. **التخفيف مُنجَز جزئياً على nassaj-dev لا الإغلاق (2026-07-14): سُحبت عضوية docker من حساب nassaj + عفريت pm2 والعملية الحاليّة (1014328) نظيفان بلا 989 + حارس إقلاع fail-closed مُلتزَم (nassaj-dev 744b88b8، فحص gid رقمي يمنع عودة الثغرة على أي restart) + تقنين degroup أسطولي مُلتزَم (nassaj-core 34a0dd3). الثغرة غير مُغلقة: فحص المنسّق الحيّ 2026-07-14 18:16 أثبت 13 عملية سابقة للـdegroup ما زالت تحمل 989 — أخطرها workflow-supervisor الخاص بنسّاج (pid 900510، أُعيدت أبوّته لـsystemd --user فيبقى بعد كل safe-restart بحكم treekill:false + kill_timeout=24h؛ أي وكيل يولّده يرث 989 → هروب docker حيّ داخل مسار التنسيق) + 3 عمليات codex مستقلة عمرها 3 أيام + جلسات SSH وcloudflared. الإغلاق الفعلي على nassaj-dev = قتل شجرة العمليات الحاملة لـ989 أو reboot بيد المالك في نافذة هادئة (T-899؛ safe-restart وحده لا يكفي بحكم treekill:false). rukhaimi/traventure مكشوفتان كلياً حتى نشر الأسطول (T-896). فيتو qa-critic 2026-07-14 على تبليغ B-170 كـ«مُغلق»؛ **مُنفَّذ ومتحقَّق حيّاً 2026-07-15: المالك نفّذ reboot فصُفِّيت الـ13 عملية (0 تحمل 989 الآن)، والسيرفر رجع http 200 عبر الحارس الحيّ (إثبات ميداني أن الحارس لا يعطّل عقدة نظيفة) = هروب docker مُغلق ومتحقَّق على nassaj-dev، T-899 done. push تمّ فالرخيمي/ترافنشر جاهزتان للسحب. يبقى status=open حتى إغلاق الأسطول بالمجموعة ج (T-896).**"
     }
   ],
   "decisions": [
