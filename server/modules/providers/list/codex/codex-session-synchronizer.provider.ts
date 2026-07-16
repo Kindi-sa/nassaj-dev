@@ -17,7 +17,70 @@ type ParsedSession = {
   sessionId: string;
   projectPath: string;
   sessionName?: string;
+  /**
+   * True when this rollout is a CHILD thread — a Codex subagent spawn or a fork —
+   * rather than a top-level user conversation. Child threads are folded under
+   * their parent conversation and never registered as their own session row
+   * (B-CODEX-DEDUP): they carry the same cwd + a near-identical auto-title, so
+   * indexing each one produced the "same conversation repeated 27×" sidebar bug.
+   */
+  isDerivative?: boolean;
+  /** Root/parent conversation id a derivative folds under (bumps its freshness). */
+  parentThreadId?: string | null;
 };
+
+/**
+ * Extracted session_meta fields needed to tell a top-level user conversation
+ * apart from a Codex subagent/fork thread. Codex writes, on the first line:
+ *   - id               → THIS thread's own id (unique per rollout file)
+ *   - session_id       → the ROOT conversation id (== id for a real root)
+ *   - thread_source    → 'user' for a root, 'subagent' for a delegate spawn
+ *   - forked_from_id / parent_thread_id → set (== root) only on a child thread
+ */
+type CodexSessionMeta = {
+  sessionId: string;
+  projectPath: string;
+  threadSource?: string;
+  forkedFromId?: string;
+  parentThreadId?: string;
+  rootSessionId?: string;
+};
+
+/**
+ * Classifies a rollout as a top-level conversation or a folded child thread from
+ * its session_meta.
+ *
+ * NARROW-BY-DESIGN (qa-critic 2026-07-16): the ONLY thing we fold is a Codex
+ * SUBAGENT thread — `thread_source` present and !== 'user'. A back-reference
+ * (forked_from_id / parent_thread_id / a root session_id that differs from the
+ * thread's own id) is a child marker, but `thread_source === 'user'` is
+ * authoritative: a MANUAL user fork is a real, resumable conversation the user
+ * chose to branch, so it MUST surface as its own root row — swallowing it would
+ * silently hide a conversation. The back-ref signals are therefore consulted
+ * ONLY as a FALLBACK when `thread_source` is entirely absent (an older/unknown
+ * rollout format that predates the field); once present, it decides alone.
+ *
+ * The parent id a folded child bumps prefers the explicit parent/fork pointer,
+ * then the root session_id.
+ */
+function classifyCodexThread(meta: CodexSessionMeta): { isDerivative: boolean; parentThreadId: string | null } {
+  const rootDiffers = Boolean(meta.rootSessionId && meta.rootSessionId !== meta.sessionId);
+  const hasThreadSource = typeof meta.threadSource === 'string' && meta.threadSource !== '';
+
+  const isDerivative = hasThreadSource
+    // thread_source is authoritative: fold ONLY explicit subagent (non-user) threads.
+    ? meta.threadSource !== 'user'
+    // Legacy fallback (no thread_source at all): infer a child from back-references.
+    : Boolean(meta.forkedFromId) || Boolean(meta.parentThreadId) || rootDiffers;
+
+  const parentThreadId =
+    meta.parentThreadId ||
+    meta.forkedFromId ||
+    (rootDiffers ? meta.rootSessionId ?? null : null) ||
+    null;
+
+  return { isDerivative, parentThreadId };
+}
 
 /**
  * Session indexer for Codex transcript artifacts.
@@ -56,6 +119,16 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     for (const filePath of files) {
       const parsed = await this.processSessionFile(filePath, nameMap);
       if (!parsed) {
+        continue;
+      }
+
+      // Child thread (subagent/fork): fold under the parent — never its own row.
+      // Best-effort bump keeps the parent conversation surfacing recent activity.
+      if (parsed.isDerivative) {
+        if (parsed.parentThreadId) {
+          const childTimestamps = await readFileTimestamps(filePath);
+          sessionsDb.bumpSessionUpdatedAt(parsed.parentThreadId, childTimestamps.updatedAt);
+        }
         continue;
       }
 
@@ -100,6 +173,17 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    // Child thread (subagent/fork): fold under the parent — never its own row.
+    // The watcher fires this per newly-written rollout, so this is the hot path
+    // that used to spawn a fresh sidebar row per delegate spawn.
+    if (parsed.isDerivative) {
+      if (parsed.parentThreadId) {
+        const childTimestamps = await readFileTimestamps(filePath);
+        sessionsDb.bumpSessionUpdatedAt(parsed.parentThreadId, childTimestamps.updatedAt);
+      }
+      return null;
+    }
+
     const timestamps = await readFileTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
@@ -119,8 +203,15 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     filePath: string,
     nameMap: Map<string, string>
   ): Promise<ParsedSession | null> {
-    const parsed = await extractFirstValidJsonlData(filePath, (rawData) => {
+    const parsed = await extractFirstValidJsonlData<CodexSessionMeta>(filePath, (rawData) => {
       const data = rawData as Record<string, unknown>;
+      // Anchor on the session_meta record specifically (robustness): a future
+      // rollout format could emit an earlier line that happens to carry id+cwd,
+      // and classifying it off the wrong record would mis-fold a real root. Only
+      // the session_meta line carries the authoritative thread identity.
+      if (data.type !== 'session_meta') {
+        return null;
+      }
       const payload = data.payload as Record<string, unknown> | undefined;
       const sessionId = typeof payload?.id === 'string' ? payload.id : undefined;
       const projectPath = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
@@ -132,11 +223,29 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return {
         sessionId,
         projectPath,
+        threadSource: typeof payload?.thread_source === 'string' ? payload.thread_source : undefined,
+        forkedFromId: typeof payload?.forked_from_id === 'string' ? payload.forked_from_id : undefined,
+        parentThreadId: typeof payload?.parent_thread_id === 'string' ? payload.parent_thread_id : undefined,
+        rootSessionId: typeof payload?.session_id === 'string' ? payload.session_id : undefined,
       };
     });
 
     if (!parsed) {
       return null;
+    }
+
+    // Fold subagent/fork threads under the parent conversation: they are NOT
+    // registered as standalone rows (B-CODEX-DEDUP). Returned early with the
+    // parent pointer so the caller can bump the parent's freshness; no name
+    // resolution is done since a folded thread never surfaces its own title.
+    const { isDerivative, parentThreadId } = classifyCodexThread(parsed);
+    if (isDerivative) {
+      return {
+        sessionId: parsed.sessionId,
+        projectPath: parsed.projectPath,
+        isDerivative: true,
+        parentThreadId,
+      };
     }
 
     const existingSession = sessionsDb.getSessionById(parsed.sessionId);

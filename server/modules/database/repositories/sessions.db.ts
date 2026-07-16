@@ -114,6 +114,32 @@ export const sessionsDb = {
     ).run(customName, sessionId);
   },
 
+  /**
+   * Best-effort freshness bump used when a Codex CHILD thread (a subagent spawn
+   * or a fork) is FOLDED under its parent conversation instead of being indexed
+   * as its own session row (codex-session-synchronizer). It advances the parent's
+   * updated_at to `updatedAt` ONLY when the parent row already exists AND the new
+   * value is strictly newer, so:
+   *   - a missing parent is a no-op (no INSERT, no project upsert) — it can never
+   *     create or resurrect a row, unlike createSession;
+   *   - a background rescan of an OLD child never rewinds a parent that has since
+   *     moved on.
+   * Returns nothing; callers treat it as fire-and-forget.
+   */
+  bumpSessionUpdatedAt(sessionId: string, updatedAt?: string): void {
+    const normalized = normalizeTimestamp(updatedAt);
+    if (!sessionId || !normalized) {
+      return;
+    }
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+         SET updated_at = ?
+       WHERE session_id = ?
+         AND (updated_at IS NULL OR datetime(updated_at) < datetime(?))`
+    ).run(normalized, sessionId, normalized);
+  },
+
   getSessionById(sessionId: string): SessionMetadataLookupRow | null {
     const db = getConnection();
     const row = db
