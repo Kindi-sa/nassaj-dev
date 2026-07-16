@@ -298,6 +298,50 @@ const builtInCommands = [
   },
 ];
 
+// OC-19: built-in slash commands that are Claude-Code-specific and do NOT work
+// through a non-Claude CLI. Every hasHandler:false entry is a Claude CLI slash that
+// the web layer forwards as raw text (meaningless to `opencode run`), plus /memory
+// (opens CLAUDE.md; opencode uses AGENTS.md) and /config (Claude Code settings). The
+// four provider-aware handlers — /models, /cost, /status, /help — stay universal
+// (their handlers resolve the session's actual provider), so they are NOT listed here.
+const CLAUDE_ONLY_BUILTINS = new Set([
+  "/memory",
+  "/config",
+  "/clear",
+  "/compact",
+  "/agents",
+  "/init",
+  "/review",
+  "/resume",
+  "/mcp",
+  "/permissions",
+  "/export",
+  "/doctor",
+  "/add-dir",
+  "/hooks",
+  "/vim",
+]);
+
+// Providers whose sessions must NOT be shown the Claude-only built-ins above
+// (OC-19). Scoped to opencode per the OpenCode-compat plan; other non-Claude
+// providers (cursor/codex/gemini/…) keep the full static list unchanged — their
+// command UX is outside this task's scope. Add a provider here to extend the filter.
+const BUILTIN_FILTER_PROVIDERS = new Set(["opencode"]);
+
+/**
+ * The static built-in list a given provider should see. For providers in
+ * BUILTIN_FILTER_PROVIDERS the Claude-only entries are removed; every other
+ * provider gets the full list unchanged (same reference — no behavior change).
+ * @param {string} provider
+ * @returns {Array} built-in commands applicable to the provider
+ */
+function builtInsForProvider(provider) {
+  if (!BUILTIN_FILTER_PROVIDERS.has(provider)) {
+    return builtInCommands;
+  }
+  return builtInCommands.filter((cmd) => !CLAUDE_ONLY_BUILTINS.has(cmd.name));
+}
+
 /**
  * Dynamic built-in command discovery (Claude only).
  *
@@ -486,7 +530,8 @@ function refreshDynamicBuiltIns(provider, context) {
  * Bounded-latency by design (the UI fetches this list ONCE per project
  * selection, so "static now / full next time" would leave the menu incomplete
  * until a refetch — see T-75):
- *  - Non-Claude providers always get the static list unchanged.
+ *  - Non-Claude providers get the static list via builtInsForProvider(): opencode
+ *    is filtered of Claude-only built-ins (OC-19); others get it unchanged.
  *  - Fresh cache entry → merged and returned immediately.
  *  - Expired entry → served STALE immediately while a background refresh runs
  *    (true stale-while-revalidate; never regress to static after a success).
@@ -499,7 +544,7 @@ function refreshDynamicBuiltIns(provider, context) {
  */
 async function resolveDynamicBuiltIns(provider, context) {
   if (provider !== "claude") {
-    return builtInCommands;
+    return builtInsForProvider(provider);
   }
 
   const cacheKey = dynamicCacheKey(provider, context);
@@ -561,11 +606,15 @@ function _seedDynamicBuiltInsForTests(provider, commands, expiresAt, context = {
  */
 const builtInHandlers = {
   "/help": async (args, context) => {
+    // OC-19: list only the built-ins applicable to the session's provider so an
+    // opencode session's /help does not advertise Claude-only commands.
+    const helpProvider = readModelProvider(context?.provider);
+    const applicableBuiltIns = builtInsForProvider(helpProvider);
     const helpText = `# Claude Code Commands
 
 ## Built-in Commands
 
-${builtInCommands
+${applicableBuiltIns
   .map(
     (cmd) => `### ${cmd.name}
 ${cmd.description}
@@ -598,7 +647,7 @@ Custom commands can be created in:
       data: {
         content: helpText,
         format: "markdown",
-        commands: builtInCommands.map((command) => ({
+        commands: applicableBuiltIns.map((command) => ({
           name: command.name,
           description: command.description,
           namespace: command.namespace,
@@ -842,6 +891,27 @@ router.post("/list", async (req, res) => {
     );
     allCommands.push(...userCommands);
 
+    // OC-19: opencode's own commands (~/.config/opencode/command/) so an opencode
+    // session's menu reflects the provider's native commands instead of Claude-only
+    // built-ins. Read-only and ENOENT-safe (empty until the crew is deployed there).
+    // Namespaced 'opencode' so the client can route them to opencode natively — the
+    // client-side execution wiring is tracked separately (see OC-19 client remainder).
+    // NOTE: shared home path today; per-user XDG isolation is OC-07.
+    if (provider === "opencode") {
+      const opencodeCommandsDir = path.join(
+        homeDir,
+        ".config",
+        "opencode",
+        "command",
+      );
+      const opencodeCommands = await scanCommandsDirectory(
+        opencodeCommandsDir,
+        opencodeCommandsDir,
+        "opencode",
+      );
+      allCommands.push(...opencodeCommands);
+    }
+
     // Separate built-in and custom commands
     const customCommands = allCommands.filter(
       (cmd) => cmd.namespace !== "builtin",
@@ -987,6 +1057,8 @@ router.post("/execute", async (req, res) => {
 export {
   mergeBuiltInCommands,
   builtInCommands,
+  builtInsForProvider,
+  CLAUDE_ONLY_BUILTINS,
   resolveDynamicBuiltIns,
   _resetDynamicBuiltInsForTests,
   _seedDynamicBuiltInsForTests,
