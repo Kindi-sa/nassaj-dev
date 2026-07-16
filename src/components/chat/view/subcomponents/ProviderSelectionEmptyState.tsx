@@ -42,6 +42,7 @@ import {
   resolveExpandedNoSearch,
   type CollapsedMap,
 } from "./providerGroupCollapse";
+import { getProviderDisplayName } from "../../constants/providerCapabilities";
 
 // Globally disabled providers (T-864, shared/disabledProviders.ts) never make
 // it into the picker: the full list stays here for upstream-sync friendliness
@@ -127,19 +128,6 @@ function getModelConfig(
 
 function getCurrentModel(p: LLMProvider, models: Record<LLMProvider, string>): string {
   return models[p];
-}
-
-function getProviderDisplayName(p: LLMProvider) {
-  if (p === "claude") return "Claude";
-  if (p === "cursor") return "Cursor";
-  if (p === "codex") return "Codex";
-  if (p === "antigravity") return "Antigravity (agy)";
-  if (p === "opencode") return "OpenCode";
-  if (p === "hermes") return "Hermes (Nous)";
-  if (p === "kimi") return "Kimi";
-  if (p === "deepseek") return "DeepSeek";
-  if (p === "glm") return "GLM";
-  return "Gemini";
 }
 
 /**

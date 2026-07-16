@@ -22,6 +22,7 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../share
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import { shouldHideToolCallMessage } from './hideToolCalls';
+import { getProviderDisplayName } from '../../constants/providerCapabilities';
 
 type DiffLine = {
   type: string;
@@ -535,17 +536,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, o
                     ? t('messageTypes.tool')
                     : coordinatorParticipant && coordinatorParticipant.username
                       ? t('coordinator.withName', { username: coordinatorParticipant.username, defaultValue: 'Coordinator: {{username}}' })
-                      : (provider === 'cursor'
-                        ? t('messageTypes.cursor')
-                        : provider === 'codex'
-                          ? t('messageTypes.codex')
-                          : provider === 'gemini'
-                            ? t('messageTypes.gemini')
-                            : provider === 'antigravity'
-                              ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
-                            : provider === 'opencode'
-                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                              : t('messageTypes.claude'))}
+                      // T-224 (م0): اسم العرض من الواصف — hermes/kimi/deepseek/glm
+                      // تظهر بأسمائها الصحيحة بدل «Claude» الخاطئة.
+                      : getProviderDisplayName(provider)}
               </div>
             </div>
           )}
