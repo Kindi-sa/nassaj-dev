@@ -40,15 +40,21 @@ fs.mkdirSync(sandboxHome, { recursive: true });
 // so "the neutral source" under test is the genuine build-agents output. Falls back
 // to a representative neutral marker on a bare CI node without nassaj-core.
 let neutralContent: string;
+// True when seeded from the REAL operator build-agents output (a fleet node); false on
+// the bare-CI fallback stub. The stub carries no standards body (so no safe-restart
+// rule), so the positive presence assertion below is guarded by this flag.
+let neutralIsRealGovernance: boolean;
 try {
   neutralContent = fs.readFileSync(
     path.join(String(ORIGINAL_HOME), '.claude', 'AGENTS.md'),
     'utf8',
   );
+  neutralIsRealGovernance = true;
 } catch {
   neutralContent =
     '<!-- GENERATED — DO NOT EDIT -->\n# AGENTS.md — دليل وكلاء نسّاج (تعليمات مشتركة)\n' +
     'ملف تعليمات محايد المنصّة.\n';
+  neutralIsRealGovernance = false;
 }
 
 process.env.HOME = sandboxHome;
@@ -132,11 +138,29 @@ describe('provisionUserDirs — Codex neutral governance materialization (ADR-05
   it('serves the exact neutral content, with NO Claude-only mechanics', () => {
     const served = fs.readFileSync(codexAgents(OWNER_ID), 'utf8');
     assert.equal(served, neutralContent, 'copy content must equal the neutral source byte-for-byte');
-    for (const token of ['/compact', 'ultracode', 'CLAUDE_CONFIG_DIR', 'safe-restart']) {
+    // "safe-restart" was REMOVED from this forbidden list on 2026-07-16 (OC-09 / T-858):
+    // the neutral standards now carry a platform-AGNOSTIC operational-safety rule — route
+    // sensitive production ops through the project's approved safe path (e.g.
+    // scripts/safe-restart.sh) instead of raw restart commands that could lock the port /
+    // drop the service. That rule is shared by EVERY engine's governance (even the
+    // opencode governance plugin exempts safe-restart.sh); it is not a Claude-only
+    // mechanic. The tokens below remain genuinely Claude-only.
+    for (const token of ['/compact', 'ultracode', 'CLAUDE_CONFIG_DIR']) {
       assert.equal(
         served.includes(token),
         false,
         `neutral governance served to Codex must not contain the Claude-only token "${token}"`,
+      );
+    }
+    // Positive counterpart (OC-09 / T-858, 2026-07-16): the neutral safe-restart rule is
+    // legitimate shared governance, so on a real-governance node it MUST reach Codex —
+    // proving it is genuinely served, not stripped as if it were still forbidden. (The
+    // bare-CI fallback stub has no standards body, so this presence check is guarded.)
+    if (neutralIsRealGovernance) {
+      assert.equal(
+        served.includes('safe-restart'),
+        true,
+        'neutral governance served to Codex must carry the shared safe-restart operational-safety rule',
       );
     }
   });
