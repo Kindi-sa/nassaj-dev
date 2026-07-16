@@ -6,8 +6,6 @@ import { RtlProvider } from './contexts/RtlContext';
 import { ParticipantsBarProvider } from './contexts/ParticipantsBarContext';
 import { AuthProvider, ProtectedRoute } from './components/auth';
 import JoinPage from './components/auth/view/JoinPage';
-import { TaskMasterProvider } from './contexts/TaskMasterContext';
-import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { PluginsProvider } from './contexts/PluginsContext';
 import { BrandingProvider } from './contexts/BrandingContext';
@@ -21,17 +19,13 @@ function AuthenticatedApp() {
   return (
     <WebSocketProvider>
       <PluginsProvider>
-        <TasksSettingsProvider>
-          <TaskMasterProvider>
-            <ProtectedRoute>
-              <Routes>
-                <Route path="/" element={<AppContent />} />
-                <Route path="/session/:sessionId" element={<AppContent />} />
-                <Route path="/wiki" element={<WikiPanel />} />
-              </Routes>
-            </ProtectedRoute>
-          </TaskMasterProvider>
-        </TasksSettingsProvider>
+        <ProtectedRoute>
+          <Routes>
+            <Route path="/" element={<AppContent />} />
+            <Route path="/session/:sessionId" element={<AppContent />} />
+            <Route path="/wiki" element={<WikiPanel />} />
+          </Routes>
+        </ProtectedRoute>
       </PluginsProvider>
     </WebSocketProvider>
   );

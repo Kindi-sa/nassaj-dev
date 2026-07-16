@@ -48,7 +48,7 @@ const BROADCAST_DEBOUNCE_MS = 250;
  */
 const boards = new Map();
 
-/** Mirrors taskmaster-websocket.js: fan a JSON message out to every client. */
+/** Fan a JSON message out to every connected board client. */
 function broadcastBoardUpdate(wss, projectId) {
     if (!wss || !projectId) {
         return;

@@ -21,7 +21,6 @@ import type {
 import { PLACEHOLDER_FALLBACK_MODELS } from "../../../../constants/providerModelFallbacks";
 import type { ProviderAuthStatusMap } from "../../../provider-auth/types";
 import { isProviderVisible, isProviderDisabled } from "../../../provider-auth/providerAuthFilter";
-import { NextTaskBanner } from "../../../task-master";
 import {
   Dialog,
   DialogTrigger,
@@ -104,9 +103,6 @@ type ProviderSelectionEmptyStateProps = {
   onHardRefreshProviderModels: () => void;
   /** @param force When true, bypasses the 30-second TTL on the caller side. */
   onRefreshAuthStatus: (force?: boolean) => Promise<void>;
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  onShowAllTasks?: (() => void) | null;
   setInput: React.Dispatch<React.SetStateAction<string>>;
   /** Opens settings so the operator can add a vendor API key (ADR-030 CTA). */
   onShowSettings?: () => void;
@@ -221,9 +217,6 @@ export default function ProviderSelectionEmptyState({
   providerAuthStatus,
   onHardRefreshProviderModels,
   onRefreshAuthStatus,
-  tasksEnabled,
-  isTaskMasterInstalled,
-  onShowAllTasks,
   setInput,
   onShowSettings,
 }: ProviderSelectionEmptyStateProps) {
@@ -359,9 +352,6 @@ export default function ProviderSelectionEmptyState({
     return antigravityActiveLabel;
   }, [antigravityActiveLoading, antigravityActiveError, antigravityActiveLabel, t]);
 
-  const nextTaskPrompt = t("tasks.nextTaskPrompt", {
-    defaultValue: "Start the next task",
-  });
 
   const modelByProvider = useMemo<Record<LLMProvider, string>>(
     () => ({
@@ -899,15 +889,6 @@ export default function ProviderSelectionEmptyState({
               }}
             />
           </p>
-
-          {provider && tasksEnabled && isTaskMasterInstalled && (
-            <div className="mt-5">
-              <NextTaskBanner
-                onStartTask={() => setInput(nextTaskPrompt)}
-                onShowAllTasks={onShowAllTasks}
-              />
-            </div>
-          )}
         </div>
       </div>
     );
@@ -923,15 +904,6 @@ export default function ProviderSelectionEmptyState({
           <p className="text-sm leading-relaxed text-muted-foreground">
             {t("session.continue.description")}
           </p>
-
-          {tasksEnabled && isTaskMasterInstalled && (
-            <div className="mt-5">
-              <NextTaskBanner
-                onStartTask={() => setInput(nextTaskPrompt)}
-                onShowAllTasks={onShowAllTasks}
-              />
-            </div>
-          )}
         </div>
       </div>
     );

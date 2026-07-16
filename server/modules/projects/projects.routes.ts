@@ -3,7 +3,6 @@ import express from 'express';
 import { projectsDb } from '@/modules/database/index.js';
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
-import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
@@ -282,16 +281,6 @@ router.get(
     assertProjectVisible(projectId, readAuthenticatedUserId(req));
     const result = await participantsService.getProjectParticipants(projectId);
     res.json(createApiSuccessResponse(result));
-  }),
-);
-
-router.get(
-  '/:projectId/taskmaster',
-  asyncHandler(async (req, res) => {
-    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    assertProjectVisible(projectId, readAuthenticatedUserId(req));
-    const taskMasterDetails = await getProjectTaskMaster(projectId);
-    res.json(taskMasterDetails);
   }),
 );
 

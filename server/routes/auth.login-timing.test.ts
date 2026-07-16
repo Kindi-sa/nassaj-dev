@@ -10,7 +10,7 @@
  * (against the user's own hash), and both return the identical generic 401.
  *
  * Framework: node:test module mocking (--experimental-test-module-mocks),
- * mirroring taskmaster.traversal.test.ts. The real auth router is mounted on a
+ * as used elsewhere in the server suite. The real auth router is mounted on a
  * throwaway express app; every side-effecting dependency (DB, auth middleware,
  * rate limiter, password service, invite service, sub-routers) is mocked so
  * importing the router never opens the real SQLite store.

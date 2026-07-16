@@ -78,9 +78,6 @@ interface ChatMessagesPaneProps {
   providerAuthStatus: ProviderAuthStatusMap;
   onHardRefreshProviderModels: () => void;
   onRefreshAuthStatus: (force?: boolean) => Promise<void>;
-  tasksEnabled: boolean;
-  isTaskMasterInstalled: boolean | null;
-  onShowAllTasks?: (() => void) | null;
   setInput: Dispatch<SetStateAction<string>>;
   isLoadingMoreMessages: boolean;
   hasMoreMessages: boolean;
@@ -148,9 +145,6 @@ export default function ChatMessagesPane({
   providerAuthStatus,
   onHardRefreshProviderModels,
   onRefreshAuthStatus,
-  tasksEnabled,
-  isTaskMasterInstalled,
-  onShowAllTasks,
   setInput,
   isLoadingMoreMessages,
   hasMoreMessages,
@@ -278,9 +272,6 @@ export default function ChatMessagesPane({
           providerAuthStatus={providerAuthStatus}
           onHardRefreshProviderModels={onHardRefreshProviderModels}
           onRefreshAuthStatus={onRefreshAuthStatus}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
           setInput={setInput}
           onShowSettings={onShowSettings}
         />

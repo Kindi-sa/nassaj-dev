@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, RefreshCw } from 'lucide-react';
 
-import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useParticipantsBar } from '../../../contexts/ParticipantsBarContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
@@ -98,9 +97,7 @@ function ChatInterface({
   sendByCtrlEnter,
   externalMessageUpdate,
   newSessionTrigger,
-  onShowAllTasks,
 }: ChatInterfaceProps) {
-  const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { t } = useTranslation('chat');
   const { showParticipantsBar, setShowParticipantsBar } = useParticipantsBar();
   const participantsBar = useCollapsibleMount(showParticipantsBar);
@@ -638,9 +635,6 @@ function ChatInterface({
           providerAuthStatus={providerAuthStatus}
           onHardRefreshProviderModels={hardRefreshProviderModels}
           onRefreshAuthStatus={refreshAuthStatus}
-          tasksEnabled={tasksEnabled}
-          isTaskMasterInstalled={isTaskMasterInstalled}
-          onShowAllTasks={onShowAllTasks}
           setInput={setInput}
           isLoadingMoreMessages={isLoadingMoreMessages}
           hasMoreMessages={hasMoreMessages}

@@ -114,7 +114,6 @@
     "appearance": "المظهر",
     "git": "Git",
     "apiTokens": "API والرموز",
-    "tasks": "المهام",
     "notifications": "الإشعارات",
     "plugins": "الإضافات",
     "users": "المستخدمون",
@@ -594,25 +593,6 @@
     "loading": "جارٍ التحميل...",
     "version": {
       "updateAvailable": "تحديث متاح: v{{version}}"
-    }
-  },
-  "tasks": {
-    "checking": "جارٍ التحقق من تثبيت TaskMaster...",
-    "notInstalled": {
-      "title": "TaskMaster AI CLI غير مثبّت",
-      "description": "TaskMaster CLI مطلوب لاستخدام ميزات إدارة المهام. ثبّته للبدء:",
-      "installCommand": "npm install -g task-master-ai",
-      "viewOnGitHub": "عرض على GitHub",
-      "afterInstallation": "بعد التثبيت:",
-      "steps": {
-        "restart": "أعد تشغيل هذا التطبيق",
-        "autoAvailable": "ستتوفّر ميزات TaskMaster تلقائياً",
-        "initCommand": "استخدم task-master init في مجلد مشروعك"
-      }
-    },
-    "settings": {
-      "enableLabel": "تفعيل تكامل TaskMaster",
-      "enableDescription": "إظهار مهام TaskMaster والشعارات ومؤشّرات الشريط الجانبي عبر الواجهة"
     }
   },
   "agents": {

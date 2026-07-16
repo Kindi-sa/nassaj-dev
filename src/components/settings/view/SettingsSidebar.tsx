@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Info, Key, ListChecks, Palette, Puzzle, User, Users } from 'lucide-react';
+import { Bell, Bot, GitBranch, Info, Key, Palette, Puzzle, User, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
@@ -25,7 +25,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },
-  { id: 'tasks', labelKey: 'mainTabs.tasks', icon: ListChecks },
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
   { id: 'users', labelKey: 'mainTabs.users', icon: Users, roles: ['owner', 'admin'] },

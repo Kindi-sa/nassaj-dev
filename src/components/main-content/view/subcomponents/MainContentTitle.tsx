@@ -14,10 +14,9 @@ type MainContentTitleProps = {
   activeTab: AppTab;
   selectedProject: Project;
   selectedSession: ProjectSession | null;
-  shouldShowTasksTab: boolean;
 };
 
-function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: string) => string, pluginDisplayName?: string) {
+function getTabTitle(activeTab: AppTab, t: (key: string) => string, pluginDisplayName?: string) {
   if (activeTab.startsWith('plugin:') && pluginDisplayName) {
     return pluginDisplayName;
   }
@@ -28,10 +27,6 @@ function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: st
 
   if (activeTab === 'git') {
     return t('tabs.git');
-  }
-
-  if (activeTab === 'tasks' && shouldShowTasksTab) {
-    return 'TaskMaster';
   }
 
   if (activeTab === 'board') {
@@ -103,7 +98,6 @@ export default function MainContentTitle({
   activeTab,
   selectedProject,
   selectedSession,
-  shouldShowTasksTab,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -161,7 +155,7 @@ export default function MainContentTitle({
         ) : (
           <div className="min-w-0">
             <h2 className="text-sm font-semibold leading-tight text-foreground">
-              {getTabTitle(activeTab, shouldShowTasksTab, t, pluginDisplayName)}
+              {getTabTitle(activeTab, t, pluginDisplayName)}
             </h2>
             <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
           </div>

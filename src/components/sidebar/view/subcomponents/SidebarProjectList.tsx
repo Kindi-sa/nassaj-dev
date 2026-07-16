@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { TFunction } from 'i18next';
 
 import type { LoadingProgress, Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
+import type { SessionWithProvider } from '../../types/types';
 
 import SidebarProjectItem from './SidebarProjectItem';
 import SidebarProjectsState from './SidebarProjectsState';
@@ -22,8 +22,6 @@ export type SidebarProjectListProps = {
   editingSession: string | null;
   editingSessionName: string;
   deletingProjects: Set<string>;
-  tasksEnabled: boolean;
-  mcpServerStatus: MCPServerStatus;
   getProjectSessions: (project: Project) => SessionWithProvider[];
   onLoadMoreSessions: (projectId: string) => void;
   loadingMoreProjects: Set<string>;
@@ -69,8 +67,6 @@ export default function SidebarProjectList({
   editingSession,
   editingSessionName,
   deletingProjects,
-  tasksEnabled,
-  mcpServerStatus,
   getProjectSessions,
   onLoadMoreSessions,
   loadingMoreProjects,
@@ -141,8 +137,6 @@ export default function SidebarProjectList({
               currentTime={currentTime}
               editingSession={editingSession}
               editingSessionName={editingSessionName}
-              tasksEnabled={tasksEnabled}
-              mcpServerStatus={mcpServerStatus}
               onEditingNameChange={onEditingNameChange}
               onToggleProject={onToggleProject}
               onProjectSelect={onProjectSelect}

@@ -20,7 +20,6 @@ import enAuth from './locales/en/auth.json';
 import enSidebar from './locales/en/sidebar.json';
 import enChat from './locales/en/chat.json';
 import enCodeEditor from './locales/en/codeEditor.json';
-import enTasks from './locales/en/tasks.json';
 import enPresence from './locales/en/presence.json';
 // eslint-disable-next-line import-x/order
 import enProjectBoard from './locales/en/projectBoard.json';
@@ -31,7 +30,6 @@ import arAuth from './locales/ar/auth.json';
 import arSidebar from './locales/ar/sidebar.json';
 import arChat from './locales/ar/chat.json';
 import arCodeEditor from './locales/ar/codeEditor.json';
-import arTasks from './locales/ar/tasks.json';
 import arPresence from './locales/ar/presence.json';
 // eslint-disable-next-line import-x/order
 import arProjectBoard from './locales/ar/projectBoard.json';
@@ -60,7 +58,6 @@ import jaAuth from './locales/ja/auth.json';
 import jaSidebar from './locales/ja/sidebar.json';
 import jaChat from './locales/ja/chat.json';
 import jaCodeEditor from './locales/ja/codeEditor.json';
-import jaTasks from './locales/ja/tasks.json';
 // eslint-disable-next-line import-x/order
 import jaProjectBoard from './locales/ja/projectBoard.json';
 
@@ -70,7 +67,6 @@ import ruAuth from './locales/ru/auth.json';
 import ruSidebar from './locales/ru/sidebar.json';
 import ruChat from './locales/ru/chat.json';
 import ruCodeEditor from './locales/ru/codeEditor.json';
-import ruTasks from './locales/ru/tasks.json';
 // eslint-disable-next-line import-x/order
 import ruProjectBoard from './locales/ru/projectBoard.json';
 
@@ -80,7 +76,6 @@ import deAuth from './locales/de/auth.json';
 import deSidebar from './locales/de/sidebar.json';
 import deChat from './locales/de/chat.json';
 import deCodeEditor from './locales/de/codeEditor.json';
-import deTasks from './locales/de/tasks.json';
 // eslint-disable-next-line import-x/order
 import deProjectBoard from './locales/de/projectBoard.json';
 
@@ -90,7 +85,6 @@ import trAuth from './locales/tr/auth.json';
 import trSidebar from './locales/tr/sidebar.json';
 import trChat from './locales/tr/chat.json';
 import trCodeEditor from './locales/tr/codeEditor.json';
-import trTasks from './locales/tr/tasks.json';
 import trProjectBoard from './locales/tr/projectBoard.json';
 import itCommon from './locales/it/common.json';
 import itSettings from './locales/it/settings.json';
@@ -98,7 +92,6 @@ import itAuth from './locales/it/auth.json';
 import itSidebar from './locales/it/sidebar.json';
 import itChat from './locales/it/chat.json';
 import itCodeEditor from './locales/it/codeEditor.json';
-import itTasks from './locales/it/tasks.json';
 // eslint-disable-next-line import-x/order
 import itProjectBoard from './locales/it/projectBoard.json';
 
@@ -143,7 +136,6 @@ i18n
         sidebar: enSidebar,
         chat: enChat,
         codeEditor: enCodeEditor,
-        tasks: enTasks,
         presence: enPresence,
         projectBoard: enProjectBoard,
       },
@@ -154,7 +146,6 @@ i18n
         sidebar: arSidebar,
         chat: arChat,
         codeEditor: arCodeEditor,
-        tasks: arTasks,
         presence: arPresence,
         projectBoard: arProjectBoard,
       },
@@ -183,7 +174,6 @@ i18n
         sidebar: jaSidebar,
         chat: jaChat,
         codeEditor: jaCodeEditor,
-        tasks: jaTasks,
         projectBoard: jaProjectBoard,
       },
       ru: {
@@ -193,7 +183,6 @@ i18n
         sidebar: ruSidebar,
         chat: ruChat,
         codeEditor: ruCodeEditor,
-        tasks: ruTasks,
         projectBoard: ruProjectBoard,
       },
       de: {
@@ -203,7 +192,6 @@ i18n
         sidebar: deSidebar,
         chat: deChat,
         codeEditor: deCodeEditor,
-        tasks: deTasks,
         projectBoard: deProjectBoard,
       },
       tr: {
@@ -213,7 +201,6 @@ i18n
         sidebar: trSidebar,
         chat: trChat,
         codeEditor: trCodeEditor,
-        tasks: trTasks,
         projectBoard: trProjectBoard,
       },
       it: {
@@ -223,7 +210,6 @@ i18n
         sidebar: itSidebar,
         chat: itChat,
         codeEditor: itCodeEditor,
-        tasks: itTasks,
         projectBoard: itProjectBoard,
       },
     },
@@ -238,7 +224,7 @@ i18n
     debug: false,
 
     // Namespaces - load only what's needed
-    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'presence', 'projectBoard'],
+    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'presence', 'projectBoard'],
     defaultNS: 'common',
 
     // Key separator for nested keys (default: '.')

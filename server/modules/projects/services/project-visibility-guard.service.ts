@@ -3,7 +3,7 @@
  *
  * Single chokepoint every route that accepts a projectId / project_path must
  * call before resolving a project's content (files, sessions, participants,
- * token usage, taskmaster, etc.). When the project is not visible to the caller
+ * token usage, etc.). When the project is not visible to the caller
  * it throws a 404 AppError — NOT 403 — so the server never discloses that a
  * private project the user cannot see even exists.
  *

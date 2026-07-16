@@ -31,7 +31,7 @@ export type ProviderModelsCacheInfo = {
   source: 'memory' | 'disk' | 'fresh';
 };
 
-export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'board' | 'preview' | 'wiki' | `plugin:${string}`;
+export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'board' | 'preview' | 'wiki' | `plugin:${string}`;
 
 // Owner attribution for a session (B-MU-UX-API). Resolved server-side from the
 // session_participants row flagged 'owner'. `null` for legacy / pre-multi-user
@@ -72,13 +72,6 @@ export interface ProjectSessionMeta {
   [key: string]: unknown;
 }
 
-export interface ProjectTaskmasterInfo {
-  hasTaskmaster?: boolean;
-  status?: string;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
-
 // After the projectName → projectId migration the backend no longer returns a
 // folder-derived `name` string. Projects are now addressed everywhere by the
 // DB-assigned `projectId` (primary key in the `projects` table), and the UI
@@ -112,7 +105,6 @@ export interface Project {
   antigravitySessions?: ProjectSession[];
   opencodeSessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
-  taskmaster?: ProjectTaskmasterInfo;
   [key: string]: unknown;
 }
 

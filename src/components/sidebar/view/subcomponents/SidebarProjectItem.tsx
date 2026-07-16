@@ -7,11 +7,9 @@ import { Button } from '../../../../shared/view/ui';
 import ProjectBusyDot from '../../../../shared/view/ProjectBusyDot';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
-import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
-import { getTaskIndicatorStatus } from '../../utils/utils';
+import type { SessionWithProvider } from '../../types/types';
 import { ProjectParticipantsSummary } from '../../../participants';
 
-import TaskIndicator from './TaskIndicator';
 import SidebarProjectSessions from './SidebarProjectSessions';
 
 type SidebarProjectItemProps = {
@@ -31,8 +29,6 @@ type SidebarProjectItemProps = {
   currentTime: Date;
   editingSession: string | null;
   editingSessionName: string;
-  tasksEnabled: boolean;
-  mcpServerStatus: MCPServerStatus;
   onEditingNameChange: (name: string) => void;
   onToggleProject: (projectName: string) => void;
   onProjectSelect: (project: Project) => void;
@@ -80,8 +76,6 @@ export default function SidebarProjectItem({
   currentTime,
   editingSession,
   editingSessionName,
-  tasksEnabled,
-  mcpServerStatus,
   onEditingNameChange,
   onToggleProject,
   onProjectSelect,
@@ -118,7 +112,6 @@ export default function SidebarProjectItem({
   const totalSessionCount = Number(project.sessionMeta?.total ?? sessions.length);
   const sessionCountDisplay = getSessionCountDisplay(project, sessions);
   const sessionCountLabel = `${sessionCountDisplay} session${totalSessionCount === 1 ? '' : 's'}`;
-  const taskStatus = getTaskIndicatorStatus(project, mcpServerStatus);
 
   const toggleProject = () => onToggleProject(project.projectId);
   const toggleStarProject = () => onToggleStarProject(project.projectId);
@@ -217,13 +210,6 @@ export default function SidebarProjectItem({
                           <h3 className="min-w-0 truncate whitespace-nowrap text-sm font-medium text-foreground">{project.displayName}</h3>
                           <ProjectBusyDot sessionIds={sessionIds} className="flex-shrink-0" />
                         </div>
-                        {tasksEnabled && (
-                          <TaskIndicator
-                            status={taskStatus}
-                            size="xs"
-                            className="ml-2 hidden flex-shrink-0 md:inline-flex"
-                          />
-                        )}
                       </div>
                       <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
                       <ProjectParticipantsSummary

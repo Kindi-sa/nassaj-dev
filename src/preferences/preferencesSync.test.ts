@@ -110,7 +110,6 @@ describe('synced key registry', () => {
       'userLanguage',
       'uiPreferences',
       'notificationSoundEnabled',
-      'tasks-enabled',
       'codeEditorTheme',
       'codeEditorFontSize',
       'claude-settings',

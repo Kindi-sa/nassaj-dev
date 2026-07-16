@@ -1,4 +1,4 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, KanbanSquare, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, KanbanSquare, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -11,7 +11,6 @@ import { useUiPreferences } from '../../../../hooks/useUiPreferences';
 type MainContentTabSwitcherProps = {
   activeTab: AppTab;
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
-  shouldShowTasksTab: boolean;
 };
 
 type BuiltInTab = {
@@ -39,23 +38,15 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'board', labelKey: 'tabs.board', icon: KanbanSquare },
 ];
 
-const TASKS_TAB: BuiltInTab = {
-  kind: 'builtin',
-  id: 'tasks',
-  labelKey: 'tabs.tasks',
-  icon: ClipboardCheck,
-};
-
 export default function MainContentTabSwitcher({
   activeTab,
   setActiveTab,
-  shouldShowTasksTab,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
   const { preferences } = useUiPreferences();
 
-  const builtInTabs: BuiltInTab[] = shouldShowTasksTab ? [...BASE_TABS, TASKS_TAB] : BASE_TABS;
+  const builtInTabs: BuiltInTab[] = BASE_TABS;
 
   const pluginTabs: PluginTab[] = plugins
     .filter((p) => p.enabled)
