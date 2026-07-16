@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-07-15",
+  "updated": "2026-07-16",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -3117,9 +3117,10 @@
       "phase": "P4",
       "kind": "feature",
       "title": "مقاربة «مكوّنات واجهة مزوّد-واعية» (Provider UI Capability Descriptor، ADR-047): م0 الواصِف + تحويل المكوّنات (محايد لـClaude) → م1 إصلاح هرمز السلبي (إخفاء عدّاد توكنز Claude B-92 + تصحيح أوضاع الأذونات) → م2 مكوّنات هرمز المكافئة (مُنتقي reasoning_effort + مؤشّر حصة) → م3 اختياري (عدّاد توكنز هرمزي من state.db + بثّ قدرات خادمي).",
-      "status": "todo",
+      "status": "done",
       "owner": "coordinator",
-      "note": "دراسة researcher+architect 2026-06-27 (هذه الجلسة). ينتظر اعتماد المالك + ADR موثَّق (scribe) قبل تفويض frontend-dev. م0/م1 الأكثر أماناً وقيمة فورية. مرجع البيئة: reference_hermes_environment (memory)."
+      "note": "أُغلق 2026-07-16 بعد تحقق ميداني (Explore): م0 أُنجز بـT-904/905 (الواصف providerCapabilities.ts + تحويل مكوّنات المؤلّف، claude محايد 1:1)، وم1 اكتمل اليوم: أذونات هرمز ['default'] فقط + توحيد getProviderDisplayName فوق الواصف فزال وسم هرمز/kimi/deepseek الخاطئ «Claude» (commits 11ac072f+8a10aff7، 16 اختبار واصف). B-92 كان مغلقاً بنيوياً. extractCodexTokenBudget عولج سلفاً بـT-911. م2 رُحِّل إلى T-918 وم3 إلى T-919. ADR-047 مجسَّد كوداً.",
+      "closed": "2026-07-16"
     },
     {
       "id": "T-225",
@@ -3797,12 +3798,13 @@
       "id": "T-849",
       "kind": "feature",
       "phase": "P7",
-      "status": "todo",
+      "status": "done",
       "owner": "frontend-dev",
       "found": "2026-07-10",
       "source": "تصحيح T-842 — اعتراض المالك الميداني على /btw",
       "title": "تفعيل /btw فعلياً: السماح بإرسال أوامر side-channel أثناء البث (استثناء isLoading في ChatComposer:496) + عرض إجابة /btw",
-      "note": "اعتمده المالك 2026-07-11 («لا تنسى أمر btw»). محاولة تنفيذ 2026-07-11 (frontend-dev مُصعَّد opus) أثبتت أن فكّ قفل العميل وحده غير كافٍ: الخادم بلا مسار حقن لرسالة وسط بث جارٍ أصلاً — chat-websocket.service.ts:475-477 كل claude-command ينشئ queryClaudeSDK جديداً one-shot ويكتب فوق activeSessions. المواصفة المسلَّمة: نوع رسالة WS جديد btw-inject + معالج يتحقق من activeSession/queryInstance حيّ + حقن على العملية الجارية (streaming-input/stdin في claude-sdk.js) + احترام chatTurnLock ‏(seam T-822) + العميل يرسل btw-inject عند ^/btw أثناء isLoading لمزوّد claude ‏(ChatComposer.tsx:496). ⚠️ بوابة تصميم إلزامية قبل التنفيذ (architect+qa-critic): الحقن يفتح مسار streaming-input الذي رُفض في مراجعات B-103 كمسّ خطر بالمسار الحرج (B-130/B-95/فيتو no-swap) في سياق آخر — يلزم حسم أن حقن /btw لا يستورد تلك المخاطر. توجيه المالك 2026-07-11 (بعد المواصفة): الحل المفضّل نافذة محادثة فرعية/منبثقة على نمط Claude Code — يفتح بديلاً أسلم بنيوياً: جلسة جانبية خفيفة (fork/قراءة على سياق الجلسة) تجيب في نافذة منبثقة بلا أي حقن في البث الجاري = قد يُلغي الحاجة لمسار streaming-input الخطر أصلاً. تُعرض البدائل (حقن btw-inject / جلسة جانبية منبثقة / هجين) على بوابة التصميم architect+qa-critic. مقصور على مزوّد Claude. غير حاجز. **بوابة التصميم اكتملت 2026-07-11 (architect+qa-critic، رأيان مستقلان مُتحقَّقان كودياً، بإجماع):** البديل 1 (btw-inject) **مرفوض فيتو حرج** — لا سطح حقن (المسار الحيّ query({prompt: نص}) one-shot في claude-sdk.js:1646؛ streamInput مدعوم فقط في streaming-input mode الذي يلزمه تحويل كل دور = إعادة كتابة المسار الحرج B-103؛ وquery ثانٍ على نفس sid يُفسد <sid>.jsonl متزامناً ويكتب فوق activeSessions فيُفقد interrupt/tempDir). المعتمد = **البديل 2 (منبثق عبر query({resume,forkSession:true}) — UUID/jsonl مستقل، صفر مسٍّ بالحيّ)** بخمسة شروط ملزمة: C1 forkSession لا resume عارٍ (بوابة صلبة غير قابلة للتنازل)، C2 خارج activeSessions المعدودة للدرين، C3 عزل per-user + بوابتا isSessionVisibleToUser/resolveProviderEnv على الفرك، C4 كشف كلفة الحصّة المضاعفة (fork=دور كامل السعر؛ فضّل upToMessageId)، C5 توثيق حدّ الفرك من آخر رسالة على القرص + overlay فقط بلا دمج transcript. التنفيذ فُصل إلى T-881 (بانتظار ضوء المالك — يستورد كلفة حصّة وسطح UX جديد). ADR-058 يوثّق فيتو streaming-input."
+      "note": "أُنجز 2026-07-16 ضمن ميزة /btw (commit 11ac072f) وفق البديل 2: زر الإرسال يستثني /btw أثناء البث (مقصور على مزوّد claude ببوابة sideChannel في الواصف)، والإجابة في BtwOverlay منبثق لا في سجل المحادثة. اختبارات عميل 102/102. التحقق الميداني الحي بعد safe-restart (T-916).",
+      "closed": "2026-07-16"
     },
     {
       "id": "T-850",
@@ -3901,12 +3903,13 @@
       "id": "T-858",
       "kind": "chore",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "backend-dev+scribe",
       "found": "2026-07-10",
       "source": "خطة توافق OpenCode — M2",
       "title": "M2 توحيد التعليمات (مصدر واحد → مخرجان): توسيع build-agents لتوليد AGENTS.md كامل محدَّث (negotiator ساقط حالياً) + توليد وكلاء opencode الـ23 بصيغة agent/*.md + أوامر command/*.md + مسحها وعرضها في الواجهة (OC-19) — بنود OC-09..OC-11/19",
-      "note": "OC-19 يشمل أيضاً فلترة/تحييد built-ins كلود المضلِّلة لجلسات opencode (commands.js:487)."
+      "note": "أُنجز 2026-07-16: nassaj-core commit 2a1204e — build-agents يولّد AGENTS.md كاملاً (سقوط negotiator كان انجراف مخرجات بائتة؛ العلاج البنيوي pre-commit يشغّل build-agents --check) + طاقم opencode كاملاً 23 وكيلاً agent/*.md و23 أمراً command/*.md من مصدر البطاقات + طبقة agents/_opencode.yaml (نماذج -free وفق D1 وأذونات build/verify/advise) + 4 أقسام محايدة في neutral-standards (OC-09). الخادمي هنا commit 3ec7b046: فلترة built-ins كلود لجلسات opencode + /help واعٍ بالمزوّد + مسح ~/.config/opencode/command (OC-19 خادمياً؛ متحقق opencode agent list). متبقيان مرحّلان: T-917 (passthrough عميلي) ونشر symlinks الطاقم بيد المالك (ln -s nassaj-core/opencode/{agent,command} → ~/.config/opencode/).",
+      "closed": "2026-07-16"
     },
     {
       "id": "T-859",
@@ -4246,12 +4249,13 @@
       "id": "T-881",
       "kind": "feature",
       "phase": "P7",
-      "status": "todo",
+      "status": "done",
       "owner": "backend-dev+frontend-dev",
       "found": "2026-07-11",
       "source": "بوابة تصميم T-849 (architect+qa-critic) — البديل المعتمد",
       "title": "تنفيذ /btw كجلسة فرعية منبثقة (البديل 2 المعتمد من بوابة T-849): نوع WS جديد btw-query يُشغّل query({resume: liveSid, forkSession:true}) بُثّاً للـsocket الطالب فقط + مؤلِّف /btw دائم التمكين + مكوّن overlay موسوم بـbtwId — مقصور على مزوّد claude",
-      "note": "**وافق المالك على البدء 2026-07-12** — لكن الإطلاق أُجِّل فوراً لبلوغ الحصة الأسبوعية 90% (سقف توقف إلزامي، لا تفويضات جديدة)؛ يُلتقَط في أول استئناف بعد التجدد (07-16) بجلسة نظيفة. المعايير الملزمة جاهزة أدناه. معايير القبول الملزمة من qa-critic (C1-C5): C1 forkSession:true حصراً لا resume عارٍ (بوابة صلبة — العاري يُعيد إفساد jsonl والكتابة فوق activeSessions)؛ C2 لا يُسجَّل في activeSessions المعدودة للدرين (query عابر خاص، خارج ghost-detach/fan-out)؛ C3 يمرّ بـisSessionVisibleToUser (chat-websocket.service.ts:265) وresolveProviderEnv per-user (لا حصّة المالك، لا تسريب جلسة خاصة)؛ C4 إبلاغ المستخدم بكلفة الحصّة + تفضيل upToMessageId على النسخ الكامل؛ C5 توثيق أن الفرك من آخر رسالة على القرص (نصف الدور الحيّ لا يظهر) + overlay فقط. لا اعتماد كود بلا: (أ) وحدة تُثبت عدم دخول activeSessions[liveSid] وعدم مسّ <liveSid>.jsonl؛ (ب) اختبار رؤية يمنع /btw على مشروع خاص لغير عضو؛ (ج) اختبار end-user للعرض في overlay. نقاط الربط: chat-websocket.service.ts (فرع بجوار abort-session ~480)، spawnClaudeSideQuery جديد في claude-sdk.js (resolveProviderEnv + assertAnthropicBaseUrlAllowed + disallowedTools للكتابة/التنفيذ)، مؤثِّر /btw منفصل في العميل بلا لمس ChatComposer.tsx:505. مرجع: ADR-058."
+      "note": "نُفِّذ 2026-07-16 (commit 11ac072f) بالبديل 2 المعتمد وبكل شروط qa-critic: C1 forkSession:true+persistSession:false، C2 خارج activeSessions/fan-out (بث خام للسوكت الطالب)، C3 isSessionVisibleToUser+resolveProviderEnv(الطالب)+قفص+disallowedTools، C4 upToMessageId→resumeSessionAt (SDK 0.3.152)، C5 موثَّق. مراجعة qa-critic أوجبت A-1..A-4 ونُفِّذت كلها: مقاطعة الفورك عند إغلاق السوكت، allowlist قراءة (Read/Grep/Glob) محصورة بمسار المشروع مع رفض projectPath=null وإسقاط WebFetch/WebSearch، إطار btw-accepted يبطل مهلة العميل، سقف إغراق 2 لكل userId فوق قيد السوكت. اختبارات خادم 55/55 (منها أ/ب الملزمان). الخادمي مبنيّ (build:server) وينتظر safe-restart بيد المالك؛ التحقق الحي T-916. حدّية موثقة: B-171 (allow-rules عريضة قد تتخطى القفص عبر settingSources).",
+      "closed": "2026-07-16"
     },
     {
       "id": "T-886",
@@ -4364,6 +4368,60 @@
       "source": "شرط qa-critic في قرار3 (لجنة 2026-07-14)",
       "title": "إظهار posture سياسة Codex النشطة (workspace-write مقابل full-access) للمستخدم لا صامتاً، وعدم عرض bypassPermissions كخيار نِدّ افتراضي في وضع متعدد المستخدمين (PermissionsContent.tsx:563)",
       "note": "متابعة لقرار1: العلم يفرض السقف خادمياً، لكن الواجهة يجب ألا تقدّم bypass كخيار عادي ولا تُخفي الوضع الفعّال. مرتبط بواصف القدرات ADR-047/T-224. **✅ منجَز ضمن T-905 (commit 5a429cd7):** صُحِّحت نصوص posture المضلِّلة في ar/en chat.json + settings.json (كانت تزعم danger-full-access/وصول شبكة كامل بينما السقف الحيّ workspace-write/شبكة OFF)، وأُظهر السقف الفعّال في المحادثة عبر مكوّن CodexPostureInfo (tooltip بجوار زرّ الوضع). مُتحقَّق: qa-critic أكّد تطابق النصوص مع mapPermissionModeToCodexOptions بلا ادعاء جديد خاطئ."
+    },
+    {
+      "id": "T-916",
+      "kind": "chore",
+      "phase": "P7",
+      "status": "todo",
+      "owner": "end-user-tester",
+      "found": "2026-07-16",
+      "source": "T-881/T-849 — ميزة /btw منفَّذة ومبنيّة",
+      "title": "تحقق حي من /btw بعد safe-restart: سؤال جانبي أثناء بث جارٍ على جلسة claude (overlay يبث ويكتمل، btw-accepted يصل فوراً، لا أثر في سجل المحادثة ولا في <sid>.jsonl، الرفض السليم لغير claude ولغير المرئي)",
+      "note": "يشمل التحقق من خرج fallback على خادم قديم (قبل restart): خطأ «تتطلب تحديث الخادم» خلال 20ث بلا كسر."
+    },
+    {
+      "id": "T-917",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "todo",
+      "owner": "frontend-dev",
+      "found": "2026-07-16",
+      "source": "T-858/OC-19 — تقرير backend-dev 2026-07-16",
+      "title": "OC-19ب passthrough عميلي لأوامر opencode: معاملة namespace:\"opencode\" كإرسال خام \"/name args\" للمحرك (لا /api/commands/execute الذي يرفض 403 مسارات ~/.config/opencode) + تمييز بصري اختياري",
+      "note": "المواضع: useSlashCommands.ts:203 و:76 (isPassthroughBuiltInCommand) وuseChatComposerState.ts:1006-1010. مشروط عملياً بنشر symlinks الطاقم (بيد المالك) وإلا القائمة فارغة ENOENT-آمنة."
+    },
+    {
+      "id": "T-918",
+      "kind": "feature",
+      "phase": "P4",
+      "status": "todo",
+      "owner": "frontend-dev+backend-dev",
+      "found": "2026-07-16",
+      "source": "ترحيل م2 من T-224 عند إغلاقه",
+      "title": "م2 هرمز: منتقي reasoning_effort + مؤشّر حصة موجب (auth.json last_status/429) — تسبقه بوابة ربط خادمي: تشغيل hermes -z --reasoning-effort فعلياً ورصد الأثر (PLAN-v1.md:402)",
+      "note": "القيمة مشروطة بالطلب الفعلي على هرمز؛ راجع reference_hermes_environment."
+    },
+    {
+      "id": "T-919",
+      "kind": "feature",
+      "phase": "P4",
+      "status": "todo",
+      "owner": "coordinator",
+      "found": "2026-07-16",
+      "source": "ترحيل م3 من T-224 عند إغلاقه",
+      "title": "م3 هرمز (اختياري): عدّاد توكنز من state.db + بثّ قدرات خادمي — لا يُبدأ قبل بوابة G-DATA∧G-DEMAND∧G-COST (PLAN-v1.md:405)"
+    },
+    {
+      "id": "T-920",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "todo",
+      "owner": "backend-dev",
+      "priority": "low",
+      "found": "2026-07-16",
+      "source": "B-171 — ملاحظة حدّية من مراجعة btw (المنسّق+qa-critic)",
+      "title": "تقييم سدّ حدّية B-171: تقليص settingSources لفورك btw أو hook حاجب كي لا تتخطى allow-rules العريضة (مثل Read(/etc/**)) قفصَ مسار المشروع في canUseTool"
     }
   ],
   "issues": [
@@ -6172,6 +6230,16 @@
       "title": "uid الخدمة nassaj عضو مجموعة docker (وsudo): أي Codex turn بذات uid يشغّل docker run -v /:/host = جذر المضيف الكامل، يتجاوز أي sandbox قراءة/كتابة (Landlock/bwrap) — تصعيد امتياز أشدّ من قراءة الاعتمادات",
       "source": "اكتشاف architect (لجنة T-893 2026-07-14)، مؤكَّد بالمنسّق: id nassaj → 989(docker),27(sudo)؛ docker ps بلا sudo تُظهر حاويات حيّة. devops: sudo -n يفشل (لا NOPASSWD) لكن docker rootful+العضوية = مكافئ root بلا كلمة سر.",
       "triage": "critical → T-896 (degroup docker/sudo من هوية Codex، fail-safe، شرط لازم مُقدَّم قبل T-893). قرار المالك: هل تحتاج العقدة عضوية nassaj في docker لأحمال أخرى (حاويات wafeq-* حيّة)؟ إن لا فإزالة العضوية أبسط تخفيف. **التخفيف مُنجَز جزئياً على nassaj-dev لا الإغلاق (2026-07-14): سُحبت عضوية docker من حساب nassaj + عفريت pm2 والعملية الحاليّة (1014328) نظيفان بلا 989 + حارس إقلاع fail-closed مُلتزَم (nassaj-dev 744b88b8، فحص gid رقمي يمنع عودة الثغرة على أي restart) + تقنين degroup أسطولي مُلتزَم (nassaj-core 34a0dd3). الثغرة غير مُغلقة: فحص المنسّق الحيّ 2026-07-14 18:16 أثبت 13 عملية سابقة للـdegroup ما زالت تحمل 989 — أخطرها workflow-supervisor الخاص بنسّاج (pid 900510، أُعيدت أبوّته لـsystemd --user فيبقى بعد كل safe-restart بحكم treekill:false + kill_timeout=24h؛ أي وكيل يولّده يرث 989 → هروب docker حيّ داخل مسار التنسيق) + 3 عمليات codex مستقلة عمرها 3 أيام + جلسات SSH وcloudflared. الإغلاق الفعلي على nassaj-dev = قتل شجرة العمليات الحاملة لـ989 أو reboot بيد المالك في نافذة هادئة (T-899؛ safe-restart وحده لا يكفي بحكم treekill:false). rukhaimi/traventure مكشوفتان كلياً حتى نشر الأسطول (T-896). فيتو qa-critic 2026-07-14 على تبليغ B-170 كـ«مُغلق»؛ **مُنفَّذ ومتحقَّق حيّاً 2026-07-15: المالك نفّذ reboot فصُفِّيت الـ13 عملية (0 تحمل 989 الآن)، والسيرفر رجع http 200 عبر الحارس الحيّ (إثبات ميداني أن الحارس لا يعطّل عقدة نظيفة) = هروب docker مُغلق ومتحقَّق على nassaj-dev، T-899 done. push تمّ فالرخيمي/ترافنشر جاهزتان للسحب. يبقى status=open حتى إغلاق الأسطول بالمجموعة ج (T-896).**"
+    },
+    {
+      "id": "B-171",
+      "kind": "bug",
+      "phase": "P7",
+      "status": "open",
+      "severity": "low",
+      "found": "2026-07-16",
+      "title": "فورك /btw: allow-rules عريضة في settings المستخدم/المشروع (مثل Read(/etc/**)، Read(~/.pm2/logs/**)) تُقيَّم قبل canUseTool فتتخطى قفص مسار المشروع — قراءة صامتة خارج الجذر ضمن هوية الطالب نفسه",
+      "source": "فحص المنسّق 2026-07-16 لملاحظة حدّية من backend-dev بعد تنفيذ A-2؛ الخطر هامشي (نفس القدرة متاحة بالجلسات العادية بموافقة، والفورك بهوية وحصة الطالب) — الإصلاح المجدول T-920 (backlog)."
     }
   ],
   "decisions": [
