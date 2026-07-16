@@ -27,10 +27,10 @@ export interface ProviderUiCapabilities {
   /** مطابق للقيمة الممرَّرة — يبقى كما هي حتى لمزوّد غير معروف. */
   id: string;
   /**
-   * اسم عرض إنجليزي مختصر (تسمية تقنية، ليس نصاً مترجَماً) لأشرطة الحصة
-   * (T-5) حين تُوسَم بأنها بيانات حساب Claude لا مزوّد الجلسة الحالية. لا
-   * يُقصد به استبدال getProviderDisplayName في ProviderSelectionEmptyState.tsx
-   * (يبقى مصدرها كما هو — دمجهما مؤجَّل لما بعد T-904).
+   * اسم عرض إنجليزي مختصر (تسمية تقنية، ليس نصاً مترجَماً). يُستهلك عبر
+   * getProviderDisplayName المصدَّرة أدناه في أربعة مواضع (T-224 م0):
+   * ProviderSelectionEmptyState، وChatInterface×2، وMessageComponent.
+   * المزوّدات غير المُدرَجة تعرض اسمها الخام (لا «Claude») عبر safeFallbackCapabilities.
    */
   displayName: string;
   /**
@@ -49,6 +49,13 @@ export interface ProviderUiCapabilities {
   quota: { isClaudeAccount: boolean };
   /** زرّ معلومات سقف الـsandbox/الشبكة الفعلي بجانب زرّ وضع الأذونات (T-894/T-905). */
   posture: { supported: boolean };
+  /**
+   * قناة «/btw» الجانبية (T-849): سؤال جانبي على سياق الجلسة يُنفَّذ خادمياً
+   * كجلسة SDK مفروكة (fork) وتُعرض إجابته في overlay — بلا مساس بالبث الجاري ولا
+   * بسجل المحادثة. claude وحده true اليوم (المزوّد الوحيد ذو آلية الفرك)؛ غيره
+   * false فلا يتفعّل استثناء الإرسال أثناء البث ولا اعتراض التوجيه.
+   */
+  sideChannel: { supported: boolean };
 }
 
 // المجموعة الافتراضية لأي مزوّد لم يُخصَّص له سلوك أذونات خاص — مطابقة
@@ -76,6 +83,7 @@ function safeFallbackCapabilities(id: string): ProviderUiCapabilities {
     permissions: { modes: ['default'] },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   };
 }
 
@@ -93,6 +101,8 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     },
     quota: { isClaudeAccount: true },
     posture: { supported: false },
+    // T-849: القناة الجانبية «/btw» — claude وحده يملك آلية الفرك (fork) اليوم.
+    sideChannel: { supported: true },
   },
   codex: {
     id: 'codex',
@@ -108,6 +118,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     // T-894/T-905: زرّ معلومات السقف الفعلي (sandbox/شبكة) بجانب زرّ وضع
     // الأذونات — codex وحده اليوم لأن نصوصه القديمة كانت تُضلِّل (ADR-058/T-884).
     posture: { supported: true },
+    sideChannel: { supported: false },
   },
   opencode: {
     id: 'opencode',
@@ -118,6 +129,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: ['default'] },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   gemini: {
     id: 'gemini',
@@ -128,6 +140,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   antigravity: {
     id: 'antigravity',
@@ -138,6 +151,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   cursor: {
     id: 'cursor',
@@ -148,6 +162,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   hermes: {
     id: 'hermes',
@@ -155,9 +170,12 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     effort: { supported: false },
     tokenCounter: { supported: false },
     command: { supportsImages: false },
-    permissions: { modes: DEFAULT_PERMISSION_MODES },
+    // T-224 (م1): hermes -z يتجاوز الأذونات خادمياً (server/hermes-cli.js:179-181)
+    // فالدوّار يبقى أحادياً — المستخدم يرى زرّ أذونات واحداً ثابتاً لا يدور.
+    permissions: { modes: ['default'] },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   kimi: {
     id: 'kimi',
@@ -168,6 +186,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   deepseek: {
     id: 'deepseek',
@@ -178,6 +197,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   glm: {
     id: 'glm',
@@ -188,6 +208,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
   sakana: {
     id: 'sakana',
@@ -198,6 +219,7 @@ export const PROVIDER_UI_CAPABILITIES: Record<LLMProvider, ProviderUiCapabilitie
     permissions: { modes: DEFAULT_PERMISSION_MODES },
     quota: { isClaudeAccount: false },
     posture: { supported: false },
+    sideChannel: { supported: false },
   },
 };
 
@@ -212,4 +234,17 @@ export function getProviderCapabilities(
 ): ProviderUiCapabilities {
   const key = provider || 'claude';
   return PROVIDER_UI_CAPABILITIES[key as LLMProvider] ?? safeFallbackCapabilities(key);
+}
+
+/**
+ * T-224 (م0) — اسم العرض الكانوني للمزوّد. مصدر الحقيقة الوحيد بديلاً عن:
+ *   - getProviderDisplayName المحلية في ProviderSelectionEmptyState.tsx
+ *   - الترناريات المكرّرة في ChatInterface.tsx وMessageComponent.tsx
+ *
+ * مزوّد معروف → displayName من الواصف.
+ * مزوّد غير معروف → اسمه الخام (الحرف الأول كبير) لا «Claude».
+ * لا يُترجَم: هذه أسماء تقنية ثابتة (Claude API، Hermes، Kimi…).
+ */
+export function getProviderDisplayName(provider: string | null | undefined): string {
+  return getProviderCapabilities(provider).displayName;
 }

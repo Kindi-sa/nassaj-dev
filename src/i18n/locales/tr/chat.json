@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "Yan soru",
+    "close": "Kapat",
+    "questionLabel": "Soru",
+    "answerLabel": "Yanıt",
+    "status": {
+      "pending": "Hazırlanıyor…",
+      "streaming": "Yazıyor…",
+      "complete": "Tamamlandı",
+      "thinking": "Düşünüyor…"
+    },
+    "errors": {
+      "unsupported_provider": "“/btw” yan kanalı yalnızca Claude oturumlarında kullanılabilir.",
+      "session_not_found": "Oturum bulunamadı — önce bir oturum açın, ardından yan sorunuzu sorun.",
+      "not_visible": "Bu oturumun bağlamını görüntüleme izniniz yok.",
+      "busy": "Oturum meşgul — birazdan tekrar deneyin.",
+      "sdk_error": "Yan soru tamamlanamadı — beklenmeyen bir hata oluştu.",
+      "timeout": "Bu özellik bir sunucu güncellemesi gerektiriyor.",
+      "disconnected": "Gönderilemiyor — bağlantı koptu."
+    },
+    "hints": {
+      "quota": "Claude kotanızdan harcar.",
+      "context": "Son kaydedilen mesaja kadar olan oturum bağlamına göre yanıtlar."
+    }
+  },
   "contextRot": {
     "label": "Bağlam",
     "barAria": "Bağlam kullanımı",

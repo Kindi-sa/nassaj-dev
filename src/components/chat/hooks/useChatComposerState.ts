@@ -26,6 +26,8 @@ import type {
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
 import { resolveSendProvider } from '../utils/resolveSendProvider';
+import { getProviderCapabilities } from '../constants/providerCapabilities';
+import { isBtwCommand, parseBtwQuestion } from '../utils/btwCommand';
 
 import { readSessionEngineProvider, writePendingEngineStamp } from './useChatProviderState';
 import { useFileMentions } from './useFileMentions';
@@ -92,6 +94,12 @@ interface UseChatComposerStateArgs {
   canAbortSession: boolean;
   tokenBudget: Record<string, unknown> | null;
   sendMessage: (message: unknown) => { ok: boolean; reason?: string } | void;
+  /**
+   * T-849: مُطلِق استعلام «/btw» الجانبي. حين يبدأ الإدخال بـ«/btw » ومزوّد
+   * الجلسة claude، يُعترَض في handleSubmit ويُمرَّر السؤال هنا بدل مسار الرسائل
+   * العادي (لا سجلّ محادثة ولا دور). منطق القناة نفسه في useBtwSideChannel.
+   */
+  onBtwQuery?: (question: string) => void;
   sendByCtrlEnter?: boolean;
   onSessionActive?: (sessionId?: string | null) => void;
   onSessionProcessing?: (sessionId?: string | null) => void;
@@ -229,6 +237,7 @@ export function useChatComposerState({
   canAbortSession,
   tokenBudget,
   sendMessage,
+  onBtwQuery,
   sendByCtrlEnter,
   onSessionActive,
   onSessionProcessing,
@@ -946,6 +955,31 @@ export function useChatComposerState({
     ) => {
       event.preventDefault();
       const currentInput = inputValueRef.current;
+
+      // T-849: اعتراض «/btw <سؤال>» — قناة جانبية على سياق الجلسة تُجاب في overlay
+      // ولا تدخل مسار الرسائل العادي إطلاقاً (لا سجلّ محادثة ولا دور). يسبق بوابة
+      // isLoading كي يعمل حتى أثناء البث. claude فقط (المزوّد الوحيد ذو الفرك)؛
+      // لغيره يسقط للسلوك القائم بلا تغيير. مزوّد الجلسة = __provider ثم العام.
+      const sideChannelProvider = selectedSession?.__provider ?? provider;
+      if (
+        onBtwQuery
+        && getProviderCapabilities(sideChannelProvider).sideChannel.supported
+        && isBtwCommand(currentInput)
+      ) {
+        onBtwQuery(parseBtwQuestion(currentInput));
+        setInput('');
+        inputValueRef.current = '';
+        resetCommandMenuState();
+        setIsTextareaExpanded(false);
+        if (textareaRef.current) {
+          textareaRef.current.style.height = 'auto';
+        }
+        if (selectedProject) {
+          safeLocalStorage.removeItem(`draft_input_${selectedProject.projectId}`);
+        }
+        return;
+      }
+
       if (!currentInput.trim() || isLoading || !selectedProject) {
         return;
       }
@@ -1131,6 +1165,8 @@ export function useChatComposerState({
       dispatchProviderCommand,
       executeCommand,
       isLoading,
+      onBtwQuery,
+      provider,
       onSessionActive,
       onSessionProcessing,
       pendingViewSessionRef,

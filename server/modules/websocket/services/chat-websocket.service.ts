@@ -11,7 +11,7 @@ import {
   presenceConnect,
   presenceDisconnect,
 } from '@/modules/websocket/services/presence.service.js';
-import { connectedClients } from '@/modules/websocket/services/websocket-state.service.js';
+import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { addSessionMirror, WebSocketWriter } from '@/modules/websocket/services/websocket-writer.service.js';
 import type {
   AnyRecord,
@@ -42,6 +42,44 @@ type ChatIncomingMessage = AnyRecord & {
 
 const DEFAULT_PROVIDER: LLMProvider = 'claude';
 
+// T-881 (A-4): a per-USER concurrent /btw cap, shared across ALL of a user's
+// sockets/tabs and layered ABOVE the per-socket single-flight guard. It stops one
+// user from opening many tabs to spawn many simultaneous read-only forks (each a
+// real Claude child process). The counter is incremented only once all gates pass
+// and the fork is about to spawn, and released in every terminal path (success,
+// error, timeout, interrupt, socket close) — see releaseBtw below.
+const BTW_MAX_INFLIGHT_PER_USER = 2;
+const btwInFlightByUser = new Map<string, number>();
+
+function btwUserKey(userId: string | number | null): string {
+  return userId === null || userId === undefined ? '__anon__' : String(userId);
+}
+function btwUserInFlight(userId: string | number | null): number {
+  return btwInFlightByUser.get(btwUserKey(userId)) ?? 0;
+}
+function acquireBtwUserSlot(userId: string | number | null): void {
+  const key = btwUserKey(userId);
+  btwInFlightByUser.set(key, (btwInFlightByUser.get(key) ?? 0) + 1);
+}
+function releaseBtwUserSlot(userId: string | number | null): void {
+  const key = btwUserKey(userId);
+  const next = (btwInFlightByUser.get(key) ?? 0) - 1;
+  if (next <= 0) {
+    btwInFlightByUser.delete(key);
+  } else {
+    btwInFlightByUser.set(key, next);
+  }
+}
+
+/**
+ * Test-only: clears the module-level per-user /btw in-flight counters between
+ * unit tests. A unit test that leaves a fork "in flight" (a never-resolving spy)
+ * would otherwise leak a per-user slot into the next test. Never used in prod.
+ */
+export function __resetBtwFloodStateForTests(): void {
+  btwInFlightByUser.clear();
+}
+
 type ChatWebSocketDependencies = {
   queryClaudeSDK: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
   spawnCursor: (command: string, options: unknown, writer: WebSocketWriter) => Promise<unknown>;
@@ -59,6 +97,30 @@ type ChatWebSocketDependencies = {
    * conversation that has not been persisted yet).
    */
   getSessionProvider: (sessionId: string) => LLMProvider | null;
+  /**
+   * T-881: runs a read-only /btw side query by FORKING the resumed live session
+   * (resume + forkSession) — never registered in activeSessions, never fanned out
+   * to mirrors. Streams the answer through the callbacks; the WS layer forwards
+   * them to the requesting socket ALONE. Never rejects; invokes exactly one of
+   * onError | onComplete.
+   */
+  spawnClaudeSideQuery: (
+    params: {
+      sessionId: string;
+      question: string;
+      upToMessageId: string | null;
+      userId: string | number | null;
+      cwd: string | null;
+    },
+    callbacks: {
+      // A-1: fired once with an interrupt handle when the fork is constructed, so
+      // the socket-close handler can tear the fork down mid-flight.
+      onStarted?: (handle: { interrupt: () => void }) => void;
+      onChunk: (text: string) => void;
+      onError: (code: string, message: string) => void;
+      onComplete: () => void;
+    }
+  ) => Promise<void>;
   abortClaudeSDKSession: (
     sessionId: string,
     rawWs?: unknown,
@@ -468,6 +530,25 @@ export function handleChatConnection(
 
   const writer = new WebSocketWriter(ws, presenceUserId);
 
+  // T-881 flood guard: at most ONE in-flight /btw side query per socket. The
+  // second is refused with `busy` until the first reaches a terminal state.
+  let btwInFlight = false;
+  // A-1 teardown state for the socket's current in-flight /btw fork. `interrupt`
+  // tears the fork down; `release` frees both flood slots (per-socket + per-user).
+  // Both are null between queries. `btwSocketClosed` guards the race where the
+  // socket closes before the fork's onStarted handle has arrived.
+  let btwSocketClosed = false;
+  let btwActiveInterrupt: (() => void) | null = null;
+  let btwActiveRelease: (() => void) | null = null;
+  // /btw replies go to THIS requesting socket ALONE (contract C2): a raw send
+  // that bypasses WebSocketWriter entirely, so there is no sessionId-keyed
+  // fan-out to mirrors. btw payloads carry `btwId`, never `sessionId`.
+  const sendBtwRaw = (payload: Record<string, unknown>): void => {
+    if ((ws as { readyState?: number }).readyState === WS_OPEN_STATE) {
+      ws.send(JSON.stringify(payload));
+    }
+  };
+
   ws.on('message', async (rawMessage) => {
     try {
       const parsed = parseIncomingJsonObject(rawMessage);
@@ -587,6 +668,140 @@ export function handleChatConnection(
             ...(success ? {} : { abortFailed: true, error: abortReason ?? 'abort failed' }),
           })
         );
+        return;
+      }
+
+      // T-881: /btw side query — a read-only "by the way" question answered
+      // against a LIVE session by forking it, WITHOUT touching the live stream.
+      // The design gate approved "البديل 2" (SDK fork); every gate is enforced
+      // here (visibility, provider, flood) and in spawnClaudeSideQuery (fork
+      // isolation, read-only tools, per-user env). Replies go to THIS socket ONLY.
+      if (messageType === 'btw-query') {
+        const btwId = typeof data.btwId === 'string' ? data.btwId : '';
+        // Without a correlation id the client cannot match the reply — drop it.
+        if (!btwId) {
+          return;
+        }
+        const btwSessionId = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
+        const question = typeof data.question === 'string' ? data.question : '';
+        const upToMessageId =
+          typeof data.upToMessageId === 'string' && data.upToMessageId.trim() !== ''
+            ? data.upToMessageId.trim()
+            : null;
+
+        const emitBtwError = (code: string, message: string): void =>
+          sendBtwRaw({ type: 'btw-error', btwId, code, message });
+
+        // Flood guard (C: busy): one in-flight /btw per socket.
+        if (btwInFlight) {
+          emitBtwError('busy', 'Another /btw query is already running on this connection.');
+          return;
+        }
+        if (!btwSessionId) {
+          emitBtwError('session_not_found', 'No session was specified for the /btw query.');
+          return;
+        }
+        // C3 content-visibility gate: a non-member never forks a private-project
+        // session (same 404-equivalent the mirror/attach path returns). Checked
+        // BEFORE any fork is spawned.
+        if (!isSessionVisibleToUser(btwSessionId, presenceUserId)) {
+          emitBtwError('not_visible', 'Session not found.');
+          return;
+        }
+        // Restricted to the claude provider (engineProvider sealed with the
+        // session). An unknown session (no persisted row) is session_not_found;
+        // a non-claude session is unsupported_provider. Neither spawns a fork.
+        const sessionProvider = dependencies.getSessionProvider(btwSessionId);
+        if (sessionProvider === null) {
+          emitBtwError('session_not_found', 'Session not found.');
+          return;
+        }
+        if (sessionProvider !== 'claude') {
+          emitBtwError(
+            'unsupported_provider',
+            `/btw supports Claude sessions only (this session runs on "${sessionProvider}").`
+          );
+          return;
+        }
+        // Fork cwd = the session's project path so CLAUDE.md / project settings
+        // load in the session's own context. Best-effort lookup (null on any miss).
+        let btwProjectPath: string | null = null;
+        try {
+          btwProjectPath = databaseModule.sessionsDb.getSessionById(btwSessionId)?.project_path ?? null;
+        } catch {
+          btwProjectPath = null;
+        }
+        // A-2.3 / A-3 gate: a /btw fork MUST run inside the session's project. If
+        // the path is unknown we refuse (sdk_error) rather than let the fork
+        // inherit the server cwd — the fork layer enforces the same, this is the
+        // gate that must pass BEFORE the accept frame below.
+        if (!btwProjectPath || btwProjectPath.trim() === '') {
+          emitBtwError('sdk_error', 'The project path for this session could not be determined.');
+          return;
+        }
+        // A-4 per-user flood cap (busy): across ALL of this user's sockets.
+        if (btwUserInFlight(presenceUserId) >= BTW_MAX_INFLIGHT_PER_USER) {
+          emitBtwError('busy', 'You have too many /btw queries running. Try again shortly.');
+          return;
+        }
+
+        // A-3: every gate has passed — ACK acceptance to the requester BEFORE the
+        // fork spawns, so the client can cancel its fallback timeout. Then reserve
+        // both flood slots (per-socket + per-user).
+        sendBtwRaw({ type: 'btw-accepted', btwId });
+        btwInFlight = true;
+        acquireBtwUserSlot(presenceUserId);
+        let btwReleased = false;
+        const releaseBtw = (): void => {
+          if (btwReleased) {
+            return;
+          }
+          btwReleased = true;
+          btwInFlight = false;
+          releaseBtwUserSlot(presenceUserId);
+          btwActiveInterrupt = null;
+          btwActiveRelease = null;
+        };
+        btwActiveRelease = releaseBtw;
+
+        void dependencies
+          .spawnClaudeSideQuery(
+            {
+              sessionId: btwSessionId,
+              question,
+              upToMessageId,
+              userId: presenceUserId, // C3: the REQUESTER's creds, not the owner's
+              cwd: btwProjectPath,
+            },
+            {
+              // A-1: remember the fork's interrupt handle so the close handler can
+              // tear it down. If the socket already closed in the (tiny) window
+              // before the fork materialised, interrupt it at once.
+              onStarted: (handle: { interrupt: () => void }) => {
+                if (btwSocketClosed) {
+                  try {
+                    handle.interrupt();
+                  } catch {
+                    /* best-effort teardown */
+                  }
+                  return;
+                }
+                btwActiveInterrupt = handle.interrupt;
+              },
+              onChunk: (text: string) => sendBtwRaw({ type: 'btw-chunk', btwId, text }),
+              onError: (code: string, message: string) => {
+                releaseBtw();
+                emitBtwError(code, message);
+              },
+              onComplete: () => {
+                releaseBtw();
+                sendBtwRaw({ type: 'btw-complete', btwId });
+              },
+            }
+          )
+          // spawnClaudeSideQuery is contracted never to reject; this is a pure
+          // safety net that only frees the slots (no double error emission).
+          .catch(() => releaseBtw());
         return;
       }
 
@@ -799,6 +1014,25 @@ export function handleChatConnection(
       + `activeClaudeSessions=${JSON.stringify(wsDiagActiveClaude)} `
       + `hadActiveStreamAtClose=${Array.isArray(wsDiagActiveClaude) && wsDiagActiveClaude.length > 0}`
     );
+    // T-881 (A-1): the requester is gone, so any in-flight /btw fork bound to this
+    // socket is moot — interrupt it and free its flood slots (per-socket +
+    // per-user). `btwSocketClosed` also covers the race where onStarted arrives
+    // after close (it interrupts immediately then). Capture the handles before
+    // calling: releaseBtw() nulls them, and the fork's own terminal callback will
+    // call releaseBtw() again — the idempotency guard makes that a no-op.
+    btwSocketClosed = true;
+    const btwInterruptOnClose = btwActiveInterrupt;
+    const btwReleaseOnClose = btwActiveRelease;
+    if (btwInterruptOnClose) {
+      try {
+        btwInterruptOnClose();
+      } catch {
+        /* best-effort teardown */
+      }
+    }
+    if (btwReleaseOnClose) {
+      btwReleaseOnClose();
+    }
     connectedClients.delete(ws);
     // Drop this socket from presence; the user stays "connected" while any of
     // their other tabs/devices keep a socket open (multi-tab dedupe).

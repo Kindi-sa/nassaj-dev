@@ -823,6 +823,323 @@ async function getClaudeBuiltInCommands(context = {}) {
   }
 }
 
+// ── /btw side query (T-881, ADR "البديل 2") ─────────────────────────────────
+// A TRANSIENT, read-only "by the way" question answered against a LIVE session's
+// conversation WITHOUT touching the live stream. It FORKS the resumed session via
+// the SDK (`resume` + `forkSession:true`) so neither the original `<liveSid>.jsonl`
+// nor the live run is ever disturbed, streams the answer straight back to the
+// requesting socket, and is NEVER registered in `activeSessions` — so the drain
+// count, the ghost-detach sweep and the WebSocketWriter fan-out mirrors never see
+// it. This is deliberately a sibling of getClaudeBuiltInCommands (an ephemeral,
+// non-registered query), NOT of runClaudeSDKQuery (the live, registered stream).
+//
+// qa-critic gate mapping (C1–C5):
+//   C1 — HARD gate: `resume` + `forkSession:true` ONLY. A bare `resume` would
+//        append this turn to `<liveSid>.jsonl` AND overwrite the live
+//        `activeSessions[liveSid]` writer. `persistSession:false` is layered on
+//        top so the FORK writes nothing to disk at all (belt-and-suspenders; even
+//        without it, forkSession routes writes to a NEW id, so the original is
+//        never appended to).
+//   C2 — no addSession(): the fork is a private query for THIS requester; it is
+//        invisible to the drain-blocking set, ghost-detach and the mirror fan-out.
+//        Output goes ONLY to the caller-supplied callbacks (the WS layer forwards
+//        them to the requesting socket alone — no NormalizedMessage, no sessionId
+//        key, so WebSocketWriter fan-out is structurally impossible).
+//   C3 — env is rebuilt via resolveProviderEnv for the REQUESTING user (their own
+//        Claude config dir / credentials, never the session owner's quota); the
+//        Anthropic base-URL iron guard + engine-provider guard + settings-env
+//        guard all run fail-closed before spawn; and a canUseTool ALLOWLIST wall
+//        (A-2) admits only Read/Grep/Glob, each confined to the project root, and
+//        denies every other tool — a read-only, project-scoped query.
+//   C4 — resumeSessionAt := upToMessageId when the client pins one (SDK 0.3.152
+//        exposes Options.resumeSessionAt — verified in sdk.d.ts:1706).
+//   C5 — the fork materialises from the LAST MESSAGE PERSISTED ON DISK in
+//        `<liveSid>.jsonl`. A live turn still mid-flight (its half not yet flushed)
+//        is NOT visible to the fork — the side answer reflects the conversation as
+//        of the last saved message, not the in-progress one.
+//
+// A-2.1: a read-only side query may run ONLY these three inspection tools. The
+// answer can read files, grep and glob WITHIN the session's project, but nothing
+// may write, execute, browse the web, or prompt interactively. This allowlist is
+// the authoritative gate inside canUseTool below.
+const BTW_ALLOWED_TOOLS = ['Read', 'Grep', 'Glob'];
+const BTW_ALLOWED_TOOL_SET = new Set(BTW_ALLOWED_TOOLS);
+
+// Mutating/execution/web tools refused outright at the config layer (read-only
+// posture, C3 + A-2.1). WebFetch/WebSearch are denied here too so a /btw fork can
+// never reach the network. Belt-and-suspenders: even without this list the
+// canUseTool allowlist would deny anything outside BTW_ALLOWED_TOOLS.
+const BTW_DISALLOWED_TOOLS = [
+  'Write', 'Edit', 'MultiEdit', 'NotebookEdit',
+  'Bash', 'BashOutput', 'KillShell',
+  'WebFetch', 'WebSearch',
+];
+const BTW_MAX_TURNS = 2;
+const BTW_DEFAULT_TIMEOUT_MS = 60000;
+
+/**
+ * A-2.2 path confinement for the /btw read-only tools. The fork may only inspect
+ * paths INSIDE the session's project root:
+ *   - Read      → input.file_path (required — a Read with no/blank path is denied)
+ *   - Grep/Glob → input.path (optional; omitted/blank ⇒ resolved on the project
+ *     cwd, so it is allowed)
+ * A relative or omitted path resolves against the project root (allowed); an
+ * ABSOLUTE path outside the root — or a relative path that climbs out with ".."
+ * — is refused. Comparison is against path.resolve()'d paths so ".." cannot be
+ * used to escape the root lexically.
+ *
+ * @param {string} toolName
+ * @param {any} input
+ * @param {string} projectRoot  Absolute project root (the fork's cwd).
+ * @returns {{ ok: true } | { ok: false, message: string }}
+ */
+function confineBtwToolPathToProject(toolName, input, projectRoot) {
+  const rootAbs = path.resolve(projectRoot);
+  let candidate;
+  if (toolName === 'Read') {
+    candidate = input?.file_path;
+    if (typeof candidate !== 'string' || candidate.trim() === '') {
+      return { ok: false, message: 'The /btw side query needs a file_path inside the project.' };
+    }
+  } else {
+    // Grep / Glob: `path` is optional. Omitted/blank ⇒ search the project cwd.
+    candidate = input?.path;
+    if (
+      candidate === undefined ||
+      candidate === null ||
+      (typeof candidate === 'string' && candidate.trim() === '')
+    ) {
+      return { ok: true };
+    }
+    if (typeof candidate !== 'string') {
+      return { ok: false, message: 'The /btw side query received an invalid path.' };
+    }
+  }
+  const resolved = path.isAbsolute(candidate)
+    ? path.resolve(candidate)
+    : path.resolve(rootAbs, candidate);
+  if (resolved !== rootAbs && !resolved.startsWith(rootAbs + path.sep)) {
+    return { ok: false, message: 'The /btw side query cannot access paths outside its project.' };
+  }
+  return { ok: true };
+}
+
+/**
+ * Runs a one-shot, read-only /btw side query against a live session's transcript.
+ *
+ * @param {Object} params
+ * @param {string} params.sessionId   - The LIVE session id to fork from (liveSid).
+ * @param {string} params.question    - The user's /btw question.
+ * @param {string|null} [params.upToMessageId] - Optional SDKAssistantMessage.uuid
+ *   to branch from (→ SDK resumeSessionAt). Null/omitted ⇒ fork from the tail.
+ * @param {string|number|null} [params.userId] - The REQUESTING user (env isolation).
+ * @param {string|null} [params.cwd]  - Project path so CLAUDE.md / settingSources
+ *   load in the session's own context. REQUIRED (A-2.3): a null/blank path is
+ *   refused with sdk_error rather than inheriting the server cwd.
+ * @param {string} [params.engineProvider] - Optional per-session sealed engine
+ *   provider (ADR-037). Undefined in normal operation ⇒ default Anthropic engine.
+ * @param {number} [params.timeoutMs] - Hard cap on the fork's lifetime.
+ * @param {{onStarted?:(handle:{interrupt:()=>void})=>void,onChunk?:(text:string)=>void,onError?:(code:string,message:string)=>void,onComplete?:()=>void}} callbacks
+ *   onStarted fires once with an interrupt handle when the fork is constructed
+ *   (A-1). Exactly ONE terminal callback (onError | onComplete) is invoked; onChunk
+ *   may fire zero+ times before it. This function never rejects.
+ * @returns {Promise<void>}
+ */
+async function spawnClaudeSideQuery(params = {}, callbacks = {}) {
+  const {
+    sessionId = null,
+    question = '',
+    upToMessageId = null,
+    userId = null,
+    cwd = null,
+    engineProvider = undefined,
+    timeoutMs = BTW_DEFAULT_TIMEOUT_MS,
+  } = params;
+  const onChunk = typeof callbacks.onChunk === 'function' ? callbacks.onChunk : () => {};
+  const onError = typeof callbacks.onError === 'function' ? callbacks.onError : () => {};
+  const onComplete = typeof callbacks.onComplete === 'function' ? callbacks.onComplete : () => {};
+  // A-1: invoked once with an { interrupt } handle as soon as the fork is
+  // constructed, so the caller (the WS layer) can tear the fork down if the
+  // requesting socket closes before the one-shot answer arrives.
+  const onStarted = typeof callbacks.onStarted === 'function' ? callbacks.onStarted : () => {};
+
+  const liveSid = typeof sessionId === 'string' ? sessionId.trim() : '';
+  const prompt = typeof question === 'string' ? question.trim() : '';
+  // Exactly-one-terminal guard: onError/onComplete fire at most once total.
+  let settled = false;
+  const finish = (fn, ...args) => {
+    if (settled) return;
+    settled = true;
+    fn(...args);
+  };
+
+  if (!liveSid) {
+    finish(onError, 'session_not_found', 'No session to query.');
+    return;
+  }
+  if (!prompt) {
+    finish(onError, 'sdk_error', 'Empty question.');
+    return;
+  }
+  // A-2.3: a /btw fork MUST run inside the session's project. When the project
+  // path is unknown we REFUSE rather than inherit the server's cwd — inheriting
+  // it would let the fork's Read/Grep/Glob roam the whole server filesystem, and
+  // the A-2.2 confinement below has no root to anchor against.
+  const projectRoot = typeof cwd === 'string' ? cwd.trim() : '';
+  if (!projectRoot) {
+    finish(onError, 'sdk_error', 'The project path for this session could not be determined.');
+    return;
+  }
+
+  // Per-user credential isolation (C3): the fork runs under the REQUESTER's Claude
+  // config dir, never the session owner's. Falls back to base env on any failure.
+  let env = { ...process.env };
+  try {
+    env = resolveProviderEnv(userId, 'claude', env);
+  } catch {
+    env = { ...process.env };
+  }
+
+  let queryInstance = null;
+  let timeoutHandle = null;
+
+  try {
+    const sdkOptions = {
+      resume: liveSid,        // C1
+      forkSession: true,      // C1 — HARD: never a bare resume
+      persistSession: false,  // C1/C2 — ephemeral: the fork writes nothing to disk
+      maxTurns: BTW_MAX_TURNS,
+      env,
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+      systemPrompt: { type: 'preset', preset: 'claude_code' },
+      settingSources: ['project', 'user', 'local'],
+      cwd: projectRoot,
+      disallowedTools: [...BTW_DISALLOWED_TOOLS], // C3 + A-2.1 config belt
+      // Read-only wall (C3 + A-2): an ALLOWLIST — only Read/Grep/Glob may run,
+      // each confined to the session's project root (A-2.2). Every other tool
+      // (mutating, executing, web, or interactive — a side query has NO approval
+      // channel, so an interactive tool would otherwise hang the fork) is denied.
+      // Runs in default permission mode — bypassPermissions is NEVER used here (it
+      // would auto-ALLOW the very tools we must deny).
+      canUseTool: async (toolName, input) => {
+        if (!BTW_ALLOWED_TOOL_SET.has(toolName)) {
+          return { behavior: 'deny', message: 'The /btw side query is read-only (Read/Grep/Glob only).' };
+        }
+        const confined = confineBtwToolPathToProject(toolName, input, projectRoot);
+        if (!confined.ok) {
+          return { behavior: 'deny', message: confined.message };
+        }
+        return { behavior: 'allow', updatedInput: input };
+      },
+    };
+    // C4: branch from a specific message when the client pins one.
+    if (upToMessageId && typeof upToMessageId === 'string') {
+      sdkOptions.resumeSessionAt = upToMessageId;
+    }
+
+    // C3 fail-closed guards on the FINAL env handed to query() — mirror the live
+    // path exactly so a /btw fork can never reach a non-approved Anthropic host.
+    assertAnthropicBaseUrlAllowed(sdkOptions.env);
+    assertSettingsEnvAllowed(sdkOptions.env.CLAUDE_CONFIG_DIR, sdkOptions.env);
+    const injectedHosts = applyClaudeEngineProviderEnv(sdkOptions.env, userId, engineProvider) ?? null;
+    const settingsBaseUrls = await collectSettingsBaseUrls(sdkOptions.env);
+    assertAnthropicBaseUrlAllowed(sdkOptions.env, {
+      engineProviderHosts: injectedHosts ?? undefined,
+      extraValues: settingsBaseUrls,
+    });
+
+    // T-897 provider cage: flag OFF ⇒ undefined ⇒ option unset ⇒ stock local spawn.
+    const cagedSpawn = buildCagedSdkSpawn({ userId: userId ?? null, cwd: sdkOptions.cwd ?? null });
+    if (cagedSpawn) {
+      sdkOptions.spawnClaudeCodeProcess = cagedSpawn;
+    }
+
+    queryInstance = query({ prompt, options: sdkOptions });
+
+    // A-1: hand the caller an interrupt handle now that the fork exists, so a
+    // socket close can tear it down mid-flight. Best-effort — interrupt failures
+    // are swallowed (the generator + GC still reap the child).
+    onStarted({
+      interrupt: () => {
+        if (queryInstance && typeof queryInstance.interrupt === 'function') {
+          queryInstance.interrupt().catch(() => {});
+        }
+      },
+    });
+
+    // Hard lifetime cap: on overrun, mark failed and interrupt the fork.
+    if (timeoutMs > 0) {
+      timeoutHandle = setTimeout(() => {
+        finish(onError, 'sdk_error', 'Side query timed out.');
+        if (queryInstance && typeof queryInstance.interrupt === 'function') {
+          queryInstance.interrupt().catch(() => {});
+        }
+      }, timeoutMs);
+      timeoutHandle.unref?.();
+    }
+
+    let emittedText = false;
+    // NOTE (C2): intentionally NO addSession() here. The fork is never tracked as
+    // an active session — the drain/ghost/mirror machinery must never see it.
+    for await (const message of queryInstance) {
+      if (settled) break;
+
+      // Stream assistant text as cumulative deltas (one chunk per text block).
+      if (message.type === 'assistant' && Array.isArray(message.message?.content)) {
+        for (const block of message.message.content) {
+          if (block && block.type === 'text' && typeof block.text === 'string' && block.text.length > 0) {
+            emittedText = true;
+            onChunk(block.text);
+          }
+        }
+      }
+
+      if (message.type === 'result') {
+        const resultText = typeof message.result === 'string' ? message.result : '';
+        if (message.is_error || message.subtype === 'error_during_execution' || message.subtype === 'error') {
+          if (isResumeSessionMissingError(resultText)) {
+            finish(onError, 'session_not_found', 'The session could not be resumed.');
+          } else {
+            finish(onError, 'sdk_error', resultText || 'Side query failed.');
+          }
+          break;
+        }
+        // Success terminal. Some SDK result shapes carry the full text only on the
+        // result (no incremental assistant blocks); emit it once as a fallback.
+        if (!emittedText && resultText.length > 0) {
+          onChunk(resultText);
+        }
+        finish(onComplete);
+        break;
+      }
+    }
+
+    // Stream ended without an explicit result (e.g. maxTurns cutoff) → complete.
+    finish(onComplete);
+  } catch (error) {
+    const msg = error?.message || String(error);
+    if (isResumeSessionMissingError(msg)) {
+      finish(onError, 'session_not_found', 'The session could not be resumed.');
+    } else {
+      finish(onError, 'sdk_error', msg);
+    }
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+      timeoutHandle = null;
+    }
+    // Always tear the fork's child process down — even on the happy path (the
+    // one-shot answer is complete, nothing more to consume).
+    if (queryInstance && typeof queryInstance.interrupt === 'function') {
+      try {
+        await queryInstance.interrupt();
+      } catch {
+        // Interrupt failures are non-fatal — the generator + GC still tear down.
+      }
+    }
+  }
+}
+
 /**
  * Adds a session to the active sessions map
  * @param {string} sessionId - Session identifier
@@ -2287,6 +2604,8 @@ export {
   claudeSessionRegistry,
   resolveContextWindow,
   getClaudeBuiltInCommands,
+  // T-881: read-only /btw side query (resume + forkSession, never registered).
+  spawnClaudeSideQuery,
   mapCliOptionsToSDK,
   buildValidClaudeModelValues,
   // Lazy model-discovery (B-MODEL-DISCOVERY): pure detector for the

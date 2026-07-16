@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "Domanda a margine",
+    "close": "Chiudi",
+    "questionLabel": "Domanda",
+    "answerLabel": "Risposta",
+    "status": {
+      "pending": "Preparazione…",
+      "streaming": "Sta scrivendo…",
+      "complete": "Completato",
+      "thinking": "Sta pensando…"
+    },
+    "errors": {
+      "unsupported_provider": "Il canale laterale «/btw» è disponibile solo per le sessioni Claude.",
+      "session_not_found": "Sessione non trovata — apri prima una sessione, poi poni la tua domanda a margine.",
+      "not_visible": "Non hai i permessi per vedere il contesto di questa sessione.",
+      "busy": "La sessione è occupata — riprova tra poco.",
+      "sdk_error": "Impossibile completare la domanda a margine — si è verificato un errore imprevisto.",
+      "timeout": "Questa funzione richiede un aggiornamento del server.",
+      "disconnected": "Impossibile inviare — connessione persa."
+    },
+    "hints": {
+      "quota": "Consuma la tua quota Claude.",
+      "context": "Risponde in base al contesto della sessione fino all'ultimo messaggio salvato."
+    }
+  },
   "contextRot": {
     "label": "Contesto",
     "barAria": "Utilizzo del contesto",

@@ -13,6 +13,8 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useBtwSideChannel } from '../hooks/useBtwSideChannel';
+import { getProviderDisplayName } from '../constants/providerCapabilities';
 import { useRunProgress } from '../hooks/useRunProgress';
 import { useSessionStore } from '../../../stores/useSessionStore';
 import { useSessionProcessState } from '../../../stores/sessionProcessStateStore';
@@ -24,6 +26,7 @@ import ChatComposer from './subcomponents/ChatComposer';
 import WsConnectionBadge from './subcomponents/WsConnectionBadge';
 import { SessionParticipantsBar } from '../../participants';
 import CommandResultModal from './subcomponents/CommandResultModal';
+import BtwOverlay from './subcomponents/BtwOverlay';
 
 
 type PendingViewSession = {
@@ -290,6 +293,20 @@ function ChatInterface({
   const sessionProcessState = useSessionProcessState(currentSessionId ?? selectedSession?.id ?? null);
   const isSessionFrozen = sessionProcessState === 'frozen';
 
+  // T-849 (+ الجزء العميلي من T-881): قناة «/btw» الجانبية. تستقبل إطارات btw-*
+  // من نفس فتحة latestMessage وتعرضها في overlay مستقل — بلا مساس بسجلّ المحادثة
+  // (useChatRealtimeHandlers يتجاهل إطارات btw-* لأنها بلا حقل kind). تُستدعى قبل
+  // useChatComposerState كي يُمرَّر startBtwQuery إليه كمُعترِض التوجيه.
+  const {
+    activeBtw,
+    startBtwQuery,
+    closeBtw,
+  } = useBtwSideChannel({
+    sessionId: currentSessionId ?? selectedSession?.id ?? null,
+    latestMessage,
+    sendMessage,
+  });
+
   const {
     input,
     setInput,
@@ -362,6 +379,7 @@ function ChatInterface({
     canAbortSession,
     tokenBudget,
     sendMessage,
+    onBtwQuery: startBtwQuery,
     sendByCtrlEnter,
     onSessionActive,
     onSessionProcessing,
@@ -496,18 +514,9 @@ function ChatInterface({
   }, [chatMessages]);
 
   if (!selectedProject) {
-    const selectedProviderLabel =
-      provider === 'cursor'
-        ? t('messageTypes.cursor')
-        : provider === 'codex'
-          ? t('messageTypes.codex')
-          : provider === 'gemini'
-            ? t('messageTypes.gemini')
-            : provider === 'antigravity'
-              ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
-            : provider === 'opencode'
-              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-            : t('messageTypes.claude');
+    // T-224 (م0): getProviderDisplayName من الواصف — hermes/kimi/deepseek/glm تظهر
+    // بأسمائها الصحيحة بدل «Claude» (المزوّدات المعروفة غير متأثرة بصرياً).
+    const selectedProviderLabel = getProviderDisplayName(provider);
 
     return (
       <div className="flex h-full items-center justify-center">
@@ -724,18 +733,8 @@ function ChatInterface({
           onTextareaInput={handleTextareaInput}
           onInputFocusChange={handleInputFocusChange}
           placeholder={t('input.placeholder', {
-            provider:
-              provider === 'cursor'
-                ? t('messageTypes.cursor')
-                : provider === 'codex'
-                  ? t('messageTypes.codex')
-                  : provider === 'gemini'
-                    ? t('messageTypes.gemini')
-                    : provider === 'antigravity'
-                      ? t('messageTypes.antigravity', { defaultValue: 'Antigravity' })
-                    : provider === 'opencode'
-                      ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                    : t('messageTypes.claude'),
+            // T-224 (م0): اسم العرض من الواصف — لا ترناريات مكرّرة.
+            provider: getProviderDisplayName(provider),
           })}
           isTextareaExpanded={isTextareaExpanded}
           sendByCtrlEnter={sendByCtrlEnter}
@@ -757,6 +756,8 @@ function ChatInterface({
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
       />
+
+      <BtwOverlay state={activeBtw} onClose={closeBtw} />
     </PermissionContext.Provider>
   );
 }

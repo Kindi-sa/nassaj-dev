@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "顺带一问",
+    "close": "关闭",
+    "questionLabel": "问题",
+    "answerLabel": "回答",
+    "status": {
+      "pending": "准备中…",
+      "streaming": "输入中…",
+      "complete": "已完成",
+      "thinking": "思考中…"
+    },
+    "errors": {
+      "unsupported_provider": "“/btw”旁路仅适用于 Claude 会话。",
+      "session_not_found": "找不到会话 — 请先打开一个会话，再提出你的旁问。",
+      "not_visible": "你没有权限查看此会话的上下文。",
+      "busy": "会话正忙 — 请稍后重试。",
+      "sdk_error": "无法完成旁问 — 发生意外错误。",
+      "timeout": "此功能需要更新服务器。",
+      "disconnected": "无法发送 — 连接已断开。"
+    },
+    "hints": {
+      "quota": "会消耗你的 Claude 配额。",
+      "context": "基于截至最后一条已保存消息的会话上下文作答。"
+    }
+  },
   "contextRot": {
     "label": "上下文",
     "barAria": "上下文用量",

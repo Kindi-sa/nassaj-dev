@@ -27,6 +27,7 @@ import { resolveReadPathInProject, isResolvedPathInsideRootReal } from './utils/
 import { sanitizeSvg } from './services/svg-sanitizer.js';
 import {
     queryClaudeSDK,
+    spawnClaudeSideQuery,
     abortClaudeSDKSession,
     isClaudeSDKSessionActive,
     getActiveClaudeSDKSessions,
@@ -207,6 +208,8 @@ const wss = createWebSocketServer(server, {
                 return null;
             }
         },
+        // T-881: read-only /btw side query (SDK fork of the live session).
+        spawnClaudeSideQuery,
         abortClaudeSDKSession,
         abortCursorSession,
         abortCodexSession,

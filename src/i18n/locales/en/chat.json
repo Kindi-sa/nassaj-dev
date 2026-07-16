@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "Side question",
+    "close": "Close",
+    "questionLabel": "Question",
+    "answerLabel": "Answer",
+    "status": {
+      "pending": "Preparing…",
+      "streaming": "Typing…",
+      "complete": "Done",
+      "thinking": "Thinking…"
+    },
+    "errors": {
+      "unsupported_provider": "The /btw side channel is available for Claude sessions only.",
+      "session_not_found": "Session not found — open a session first, then ask your side question.",
+      "not_visible": "You don't have permission to view this session's context.",
+      "busy": "The session is busy — try again shortly.",
+      "sdk_error": "Couldn't complete the side question — an unexpected error occurred.",
+      "timeout": "This feature requires a server update.",
+      "disconnected": "Can't send — connection lost."
+    },
+    "hints": {
+      "quota": "Uses your Claude quota.",
+      "context": "Answered on the session context up to the last saved message."
+    }
+  },
   "contextRot": {
     "label": "Context",
     "barAria": "Context usage",

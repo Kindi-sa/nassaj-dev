@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "Nebenfrage",
+    "close": "Schließen",
+    "questionLabel": "Frage",
+    "answerLabel": "Antwort",
+    "status": {
+      "pending": "Wird vorbereitet…",
+      "streaming": "Schreibt…",
+      "complete": "Fertig",
+      "thinking": "Denkt nach…"
+    },
+    "errors": {
+      "unsupported_provider": "Der „/btw“-Seitenkanal ist nur für Claude-Sitzungen verfügbar.",
+      "session_not_found": "Sitzung nicht gefunden — öffne zuerst eine Sitzung und stelle dann deine Nebenfrage.",
+      "not_visible": "Du hast keine Berechtigung, den Kontext dieser Sitzung zu sehen.",
+      "busy": "Die Sitzung ist beschäftigt — versuche es gleich noch einmal.",
+      "sdk_error": "Nebenfrage konnte nicht abgeschlossen werden — ein unerwarteter Fehler ist aufgetreten.",
+      "timeout": "Diese Funktion erfordert ein Server-Update.",
+      "disconnected": "Senden nicht möglich — Verbindung unterbrochen."
+    },
+    "hints": {
+      "quota": "Verbraucht dein Claude-Kontingent.",
+      "context": "Antwort basierend auf dem Sitzungskontext bis zur zuletzt gespeicherten Nachricht."
+    }
+  },
   "contextRot": {
     "label": "Kontext",
     "barAria": "Kontextauslastung",

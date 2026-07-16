@@ -16,6 +16,7 @@ import { ImageIcon, MessageSquareIcon, XIcon, ArrowDownIcon } from 'lucide-react
 
 import type { PendingPermissionRequest, PermissionMode, Provider } from '../../types/types';
 import { getProviderCapabilities } from '../../constants/providerCapabilities';
+import { isBtwCommand } from '../../utils/btwCommand';
 import { effortModes } from '../../constants/thinkingModes';
 import FileAttachment from './FileAttachment';
 import type { RunProgress } from '../../hooks/useRunProgress';
@@ -210,6 +211,11 @@ export default function ChatComposer({
     const allowedIds = new Set(capabilities.effort.modes);
     return effortModes.filter((mode) => allowedIds.has(mode.id));
   }, [capabilities.effort.modes]);
+  // T-849: «/btw <سؤال>» قناة جانبية «دائمة التمكين» يُسمح بإرسالها حتى أثناء
+  // البث (isLoading) — لكن لجلسة claude فقط (المزوّد الوحيد ذو آلية الفرك). هنا
+  // نُرخي بوابة تعطيل الإرسال فقط؛ الاعتراض والـWS/overlay في وحدات منفصلة
+  // (useChatComposerState/useBtwSideChannel/BtwOverlay) — قيد بوابة التصميم.
+  const isBtwReady = capabilities.sideChannel.supported && isBtwCommand(input);
   const textareaRect = textareaRef.current?.getBoundingClientRect();
   // bottom-anchored position: distance from bottom of viewport to top of textarea + gap.
   // left = textarea left edge (for LTR anchoring in getMenuPosition).
@@ -561,7 +567,7 @@ export default function ChatComposer({
               {sendByCtrlEnter ? t('input.hintText.ctrlEnter') : t('input.hintText.enter')}
             </div>
             <PromptInputSubmit
-              disabled={!input.trim() || isLoading || !isWsConnected}
+              disabled={!input.trim() || (isLoading && !isBtwReady) || !isWsConnected}
               title={!isWsConnected ? t('ws.sendDisabledTitle', { defaultValue: 'Cannot send — connection lost' }) : undefined}
               className="h-10 w-10 shrink-0 sm:h-10 sm:w-10"
             />

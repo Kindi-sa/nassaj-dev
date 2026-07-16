@@ -1,4 +1,29 @@
 {
+  "btw": {
+    "title": "余談の質問",
+    "close": "閉じる",
+    "questionLabel": "質問",
+    "answerLabel": "回答",
+    "status": {
+      "pending": "準備中…",
+      "streaming": "入力中…",
+      "complete": "完了",
+      "thinking": "思考中…"
+    },
+    "errors": {
+      "unsupported_provider": "「/btw」サイドチャネルは Claude セッションでのみ利用できます。",
+      "session_not_found": "セッションが見つかりません — 先にセッションを開いてから余談の質問をしてください。",
+      "not_visible": "このセッションのコンテキストを表示する権限がありません。",
+      "busy": "セッションがビジー状態です — しばらくしてから再試行してください。",
+      "sdk_error": "余談の質問を完了できませんでした — 予期しないエラーが発生しました。",
+      "timeout": "この機能にはサーバーの更新が必要です。",
+      "disconnected": "送信できません — 接続が切断されました。"
+    },
+    "hints": {
+      "quota": "Claude の利用量を消費します。",
+      "context": "最後に保存されたメッセージまでのセッションコンテキストに基づいて回答します。"
+    }
+  },
   "contextRot": {
     "label": "コンテキスト",
     "barAria": "コンテキスト使用量",
