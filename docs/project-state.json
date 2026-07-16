@@ -2597,9 +2597,10 @@
       "phase": "P3",
       "kind": "maintenance",
       "title": "إزالة تكامل TaskMaster كاملاً (~30 ملفاً: server/routes/taskmaster.js + taskmaster-websocket + mcp-detector + projects-has-taskmaster + src/components/task-master/ + i18n tasks + علم TASKMASTER_ENABLED) — قرار ADR-036: غير ضروري (مكرّر مع لوحتنا). مؤجَّل لما بعد إغلاق دمج upstream v1.33 (P2/T-5) تجنّباً لتعارض الدمج؛ يبقى معطَّلاً بالعلم الآن. قائمة الإزالة الدقيقة في تقرير researcher 2026-06-16",
-      "status": "open",
+      "status": "done",
       "owner": "frontend-dev",
-      "closed": null
+      "closed": "2026-07-16",
+      "note": "أُنجز 2026-07-16 (commit d4062cc3): إزالة نظيفة 101 ملف (57 حذف + 44 تعديل، -8831 سطر). بوابة التحقق اجتيزت: TASKMASTER_ENABLED مطفأ ولا استعمال حي (TaskMasterContext مرآة مشتقة لا مصدر حقيقة). mcp-detector كان taskmaster-صرفاً فحُذف؛ MCP العام (Unified provider MCP) لم يُمَسّ. شمل النطاق prd-editor كاملاً (مستهلَك حصراً من TaskMasterPanel) وnamespace i18n tasks وتبويب AppTab. تحقق مستقل بالمنسّق: grep taskmaster=0، tsc عميل+خادم نظيف، عميل 289/289، خادم 1305/1305، البناءان ينجحان. الخادمي مبنيّ ينتظر safe-restart."
     },
     {
       "id": "T-158",
@@ -3915,12 +3916,13 @@
       "id": "T-859",
       "kind": "chore",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "devops+qa-critic",
       "found": "2026-07-10",
       "source": "خطة توافق OpenCode — M3 (بوابة إلزامية قبل فتح opencode للفريق)",
       "title": "M3 حاكمية OpenCode: plugin حارس سياسات (tool.execute.before + permission.ask) مكافئ zero-rule/deny-floor + طبقة permission تصريحية تصمد مع تعطيل الإضافات + فحص سياسة OAuth موثَّق (OC-12..OC-14)",
-      "note": "لا يُفتح opencode لأعضاء الفريق قبل إقفال هذه البوابة (قرار D2). حدّ معروف: plugins تُعطَّل بـ OPENCODE_PURE=1 — يوثَّق كقيد مقبول."
+      "note": "أُنجز 2026-07-16 (nassaj-core commit d3bb108): طبقتان — plugin nassaj-governance.js (tool.execute.before + permission.ask، fail-closed) + opencode.json تصريحي يصمد مع OPENCODE_PURE=1 + GOVERNANCE.md (مصفوفة تغطية، OAuth سياسةً، خطوات نشر). مراجعة qa-critic (فيتو) أوجبت 5 بنود حاجبة سُدّت كلها: أسرار الجذر بالصيغة المجردة، كتل grep/glob/list المستقلة، pm2 update، apply_patch، host-power بموضع-الأمر (تفادي إيجابيات كاذبة). التحسينات 6-9 عولجت. harness 124/124 + تحقق حيّ معزول + opencode debug config يقبل الإعداد. **قيدان معلنان بصدق:** OAuth بلا حاجب كودي (تدقيق دوري)، وتهرّب base64 حدّ بنيوي لـopencode (يحكم نص الأمر لا syscall) ضمن نموذج التهديد «أرضية سياسة لا سجن». يبقى للمالك: نشر symlinks + قرار فتح opencode للفريق (D2) بعد تحقق حي على الإعداد المنشور. متابعة غير حاجبة: T-921.",
+      "closed": "2026-07-16"
     },
     {
       "id": "T-860",
@@ -4422,6 +4424,18 @@
       "found": "2026-07-16",
       "source": "B-171 — ملاحظة حدّية من مراجعة btw (المنسّق+qa-critic)",
       "title": "تقييم سدّ حدّية B-171: تقليص settingSources لفورك btw أو hook حاجب كي لا تتخطى allow-rules العريضة (مثل Read(/etc/**)) قفصَ مسار المشروع في canUseTool"
+    },
+    {
+      "id": "T-921",
+      "kind": "chore",
+      "phase": "P0",
+      "status": "todo",
+      "owner": "devops",
+      "priority": "low",
+      "found": "2026-07-16",
+      "source": "متابعات غير حاجبة من مراجعة qa-critic لـT-859",
+      "title": "تصليب حاكمية opencode (غير حاجب): توحيد قوائم الأسرار المشتركة بين الطبقات نهائياً، تقييم إنفاذ أقوى ضد تهرّب base64 (يلزم تغييراً في opencode نفسه — رفعٌ لـarchitect إن أُريد)، وإدراج النشر في bootstrap-node.sh أسطولياً",
+      "note": "الأساس مقبول ومُختبَر؛ هذه تحسينات تصليب. تهرّب base64 موثّق كحدّ بنيوي مقبول في GOVERNANCE §4.2."
     }
   ],
   "issues": [
