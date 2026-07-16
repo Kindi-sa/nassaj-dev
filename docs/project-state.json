@@ -4441,13 +4441,14 @@
       "id": "T-922",
       "kind": "chore",
       "phase": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "backend-dev",
       "priority": "high",
       "found": "2026-07-16",
       "source": "مراجعة qa-critic لـB-172 — بند [مهم] #1 (نافذة ما قبل النشر)",
       "title": "بعد safe-restart لإصلاح B-172: إعادة تمريرة أرشفة خيوط subagent المتكررة (أي تفويض Codex جرى بين 2026-07-16 والنشر يجعل المزامِن القديم + backfill الإقلاع يُنشئ صفوفاً جديدة ظاهرة؛ الـ26 القديمة تبقى مخفية لأن createSession يحفظ isArchived عند التعارض — B-161)",
-      "note": "تحقّق أولاً إن جرت تفويضات codex في النافذة؛ إن لا فلا حاجة. الاستعلام: sessions حيث provider=codex وisArchived=0 والملف thread_source=subagent. بعد النشر لا تتكرر المشكلة أصلاً."
+      "note": "أُنجز 2026-07-16 بعد safe-restart (الخادم online HTTP 200، لا انقطاع). الفحص كشف تلوّثاً **أوسع من Diwan**: 8 خيوط subagent ظاهرة إضافية على nassaj-dev وAlNuman-Booking-Engine (تواريخ 07-12..07-15، سابقة لتنظيف Diwan المحصور). تُحقّق أن جذر كلٍّ مسجّل وظاهر (6 آباء)، ثم أُرشفت الثمانية عكوسياً (نسخة db.sqlite.bak-t922-postrestart-20260716، UPDATE isArchived=1 داخل transaction، بلا DELETE). النتيجة: **0 خيط subagent ظاهر** على كل المشاريع، integrity=ok. الإصلاح الخادمي (B-172) حيّ الآن فلا تتكرر مستقبلاً.",
+      "closed": "2026-07-16"
     }
   ],
   "issues": [
@@ -6277,7 +6278,7 @@
       "closed": "2026-07-16",
       "title": "تكرار جلسة Codex بالقائمة الجانبية: خيوط subagent لطبقة حوكمة المنسّق (T-886، thread_source=subagent، fork من الجذر) سجّلها codex-session-synchronizer صفَّ جلسة مستقلاً لكلٍّ — محادثة Diwan واحدة ظهرت 27 صفاً بعنوان متطابق",
       "source": "لقطة المالك 2026-07-16 «ليش المحادثة مكررة؟» + تشخيص المنسّق (session_meta: forked_from_id/parent_thread_id=الجذر) ثم backend-dev (السبب الفعلي طبقة التسجيل لا الاستئناف) + مراجعة qa-critic (اعتماد بشرط).",
-      "note": "الإصلاح commit 528750de: classifyCodexThread يطوي subagent فقط (thread_source≠user)، سقوط احتياطي على back-refs حين يغيب الحقل، الفرع اليدوي user يبقى جذراً؛ bumpSessionUpdatedAt بلا upsert؛ بوابة type=session_meta. codex+sessions.db 87/87، tsc نظيف. **تنظيف التلوث القائم نُفِّذ حيّاً:** نسخة احتياطية ثلاثية (db.sqlite+wal+shm .bak-codexdedup-20260716)، UPDATE isArchived=1 للـ26 خيط subagent تحت Diwan (عكوس، بلا DELETE، ملفات ~/.codex سليمة)، الجذر user ظاهر، Diwan codex 27→1، integrity=ok. الخادمي مبنيّ ينتظر safe-restart لمنع التكرار المستقبلي. مرجع qa-critic: منطق sensitive/backfill في migrations.ts:552-586 وrecordSpawn openai-codex.js:514-625."
+      "note": "الإصلاح commit 528750de: classifyCodexThread يطوي subagent فقط (thread_source≠user)، سقوط احتياطي على back-refs حين يغيب الحقل، الفرع اليدوي user يبقى جذراً؛ bumpSessionUpdatedAt بلا upsert؛ بوابة type=session_meta. codex+sessions.db 87/87، tsc نظيف. **تنظيف التلوث القائم نُفِّذ حيّاً:** نسخة احتياطية ثلاثية (db.sqlite+wal+shm .bak-codexdedup-20260716)، UPDATE isArchived=1 للـ26 خيط subagent تحت Diwan (عكوس، بلا DELETE، ملفات ~/.codex سليمة)، الجذر user ظاهر، Diwan codex 27→1، integrity=ok. الخادمي مبنيّ ينتظر safe-restart لمنع التكرار المستقبلي. مرجع qa-critic: منطق sensitive/backfill في migrations.ts:552-586 وrecordSpawn openai-codex.js:514-625. [تحديث 2026-07-16 بعد النشر: التلوّث كان أوسع — 8 خيوط إضافية على nassaj-dev/AlNuman أُرشفت ضمن T-922؛ 0 متبقٍّ ظاهر أسطولياً.]"
     }
   ],
   "decisions": [
