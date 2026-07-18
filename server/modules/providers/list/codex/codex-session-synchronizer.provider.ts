@@ -35,12 +35,16 @@ type ParsedSession = {
  *   - id               → THIS thread's own id (unique per rollout file)
  *   - session_id       → the ROOT conversation id (== id for a real root)
  *   - thread_source    → 'user' for a root, 'subagent' for a delegate spawn
+ *   - source           → a string ("exec"/"cli") for a root, but an OBJECT keyed
+ *                        by "subagent" for a collaboration spawn thread
  *   - forked_from_id / parent_thread_id → set (== root) only on a child thread
  */
 type CodexSessionMeta = {
   sessionId: string;
   projectPath: string;
   threadSource?: string;
+  /** True when payload.source is an object keyed by "subagent" (definitive subagent marker). */
+  sourceIsSubagent?: boolean;
   forkedFromId?: string;
   parentThreadId?: string;
   rootSessionId?: string;
@@ -51,14 +55,18 @@ type CodexSessionMeta = {
  * its session_meta.
  *
  * NARROW-BY-DESIGN (qa-critic 2026-07-16): the ONLY thing we fold is a Codex
- * SUBAGENT thread — `thread_source` present and !== 'user'. A back-reference
- * (forked_from_id / parent_thread_id / a root session_id that differs from the
- * thread's own id) is a child marker, but `thread_source === 'user'` is
- * authoritative: a MANUAL user fork is a real, resumable conversation the user
- * chose to branch, so it MUST surface as its own root row — swallowing it would
- * silently hide a conversation. The back-ref signals are therefore consulted
- * ONLY as a FALLBACK when `thread_source` is entirely absent (an older/unknown
- * rollout format that predates the field); once present, it decides alone.
+ * SUBAGENT thread. The AUTHORITATIVE signal is the reliable session_meta
+ * metadata Codex stamps on the thread itself — `thread_source` (present and
+ * !== 'user') and/or a `source` object keyed by "subagent" (upstream 283b5586).
+ * Either metadata field, once present, DECIDES alone.
+ *
+ * A back-reference (forked_from_id / parent_thread_id / a root session_id that
+ * differs from the thread's own id) is a weaker child marker: it cannot tell a
+ * silent subagent apart from a MANUAL user fork — a real, resumable conversation
+ * the user chose to branch, which MUST surface as its own root row (swallowing
+ * it would silently hide a conversation). The back-ref signals are therefore a
+ * FALLBACK consulted ONLY when NO metadata signal is present at all (an older
+ * rollout format that predates the fields).
  *
  * The parent id a folded child bumps prefers the explicit parent/fork pointer,
  * then the root session_id.
@@ -66,11 +74,15 @@ type CodexSessionMeta = {
 function classifyCodexThread(meta: CodexSessionMeta): { isDerivative: boolean; parentThreadId: string | null } {
   const rootDiffers = Boolean(meta.rootSessionId && meta.rootSessionId !== meta.sessionId);
   const hasThreadSource = typeof meta.threadSource === 'string' && meta.threadSource !== '';
+  const sourceIsSubagent = meta.sourceIsSubagent === true;
+  const hasMetaSignal = hasThreadSource || sourceIsSubagent;
 
-  const isDerivative = hasThreadSource
-    // thread_source is authoritative: fold ONLY explicit subagent (non-user) threads.
-    ? meta.threadSource !== 'user'
-    // Legacy fallback (no thread_source at all): infer a child from back-references.
+  const isDerivative = hasMetaSignal
+    // Metadata is authoritative: fold explicit subagent threads — thread_source
+    // present and !== 'user', OR a source object keyed by "subagent". A user fork
+    // (thread_source 'user', no subagent source) is NOT folded.
+    ? (hasThreadSource && meta.threadSource !== 'user') || sourceIsSubagent
+    // Legacy fallback (no metadata signal at all): infer a child from back-references.
     : Boolean(meta.forkedFromId) || Boolean(meta.parentThreadId) || rootDiffers;
 
   const parentThreadId =
@@ -220,10 +232,17 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         return null;
       }
 
+      // Top-level sessions carry a string source ("exec"/"cli"); a subagent
+      // collaboration spawn carries an OBJECT keyed by "subagent" (283b5586).
+      const source = payload?.source;
+      const sourceIsSubagent =
+        typeof source === 'object' && source !== null && 'subagent' in source;
+
       return {
         sessionId,
         projectPath,
         threadSource: typeof payload?.thread_source === 'string' ? payload.thread_source : undefined,
+        sourceIsSubagent,
         forkedFromId: typeof payload?.forked_from_id === 'string' ? payload.forked_from_id : undefined,
         parentThreadId: typeof payload?.parent_thread_id === 'string' ? payload.parent_thread_id : undefined,
         rootSessionId: typeof payload?.session_id === 'string' ? payload.session_id : undefined,

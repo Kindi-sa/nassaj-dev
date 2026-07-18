@@ -73,6 +73,8 @@ const DAY_DIR = ['sessions', '2026', '07', '16'];
 
 type MetaOverrides = {
   threadSource?: string;
+  /** When true, writes payload.source as an object keyed by "subagent" (283b5586 marker). */
+  sourceSubagent?: boolean;
   forkedFromId?: string;
   parentThreadId?: string;
   rootSessionId?: string;
@@ -98,6 +100,9 @@ function writeRollout(
     session_id: overrides.rootSessionId ?? sessionId,
   };
   if (overrides.threadSource !== undefined) payload.thread_source = overrides.threadSource;
+  if (overrides.sourceSubagent) {
+    payload.source = { subagent: { thread_spawn: { parent_thread_id: overrides.parentThreadId ?? overrides.rootSessionId, depth: 1 } } };
+  }
   if (overrides.forkedFromId !== undefined) payload.forked_from_id = overrides.forkedFromId;
   if (overrides.parentThreadId !== undefined) payload.parent_thread_id = overrides.parentThreadId;
   fs.writeFileSync(filePath, `${JSON.stringify({ type: 'session_meta', payload })}\n`, 'utf8');
@@ -201,6 +206,50 @@ describe('Codex session synchronizer — fold subagent/fork threads (B-CODEX-DED
       null,
       'no standalone row for a legacy child inferred purely from back-references',
     );
+  });
+
+  it('METADATA signal: a source-object subagent (no thread_source) is folded (283b5586)', async () => {
+    const PROJECT = '/tmp/dedup-proj-src';
+    writeRollout('root-S', PROJECT, { threadSource: 'user' });
+    await new CodexSessionSynchronizer().synchronize();
+    assert.ok(sessionsDb.getSessionById('root-S'), 'parent root must exist');
+
+    // A collaboration spawn that carries the object `source: { subagent: {...} }`
+    // marker but NO thread_source field: the metadata signal alone must fold it —
+    // it must NOT fall through to (or depend on) the legacy back-reference path.
+    const childPath = writeRollout(
+      'child-S',
+      PROJECT,
+      { sourceSubagent: true, parentThreadId: 'root-S', rootSessionId: 'root-S' },
+    );
+    const indexed = await new CodexSessionSynchronizer().synchronizeFile(childPath);
+
+    assert.equal(indexed, null, 'a source-object subagent must be folded via metadata alone');
+    assert.equal(
+      sessionsDb.getSessionById('child-S'),
+      null,
+      'no standalone row for a source-object subagent thread',
+    );
+  });
+
+  it('METADATA over back-ref: thread_source user WITH source subagent is still folded', async () => {
+    const PROJECT = '/tmp/dedup-proj-srcuser';
+    writeRollout('root-SU', PROJECT, { threadSource: 'user' });
+    await new CodexSessionSynchronizer().synchronize();
+    assert.ok(sessionsDb.getSessionById('root-SU'), 'parent root must exist');
+
+    // Defensive: a source-object subagent marker is a definitive subagent signal
+    // and folds even if thread_source happened to read 'user' — the two metadata
+    // fields are OR-ed, matching upstream 283b5586.
+    const childPath = writeRollout(
+      'child-SU',
+      PROJECT,
+      { threadSource: 'user', sourceSubagent: true, parentThreadId: 'root-SU', rootSessionId: 'root-SU' },
+    );
+    const indexed = await new CodexSessionSynchronizer().synchronizeFile(childPath);
+
+    assert.equal(indexed, null, 'source-object subagent folds regardless of thread_source string');
+    assert.equal(sessionsDb.getSessionById('child-SU'), null, 'no row for the source-object subagent');
   });
 
   it('single-file sync (watcher path) folds a subagent thread and returns null', async () => {
