@@ -2,7 +2,7 @@
   "$version": 1,
   "$spec": "~/.claude/wiki/project-board.md",
   "project": "nassaj-dev",
-  "updated": "2026-07-16",
+  "updated": "2026-07-18",
   "_note_B_MU_UX": "شريحة العزو/الحضور (B-MU-UX) مكتملة التنفيذ تحت P4: عزو/رؤية لا عزل؛ B-MU-UX-API هبط أولاً ثم بنود الواجهة. 7 commits ميزات (a54dd04→b24c7b1). الواجهة حيّة بعد build:client؛ تغييرات الخادم تحتاج إعادة تشغيل nassaj-dev. تفاصيل: docs/workitems/PHASE-MU.md.",
   "_note_UI_BATCH_0610": "دفعة UI/إصلاحات 2026-06-10 (T-22..T-28) + ميزة Passkey/WebAuthn ‏P5 (T-29/T-30، ADR-026، docs/workitems/PHASE-PK.md). تغييرات الخادم (437a8f3، d4501b2، passkey) تتطلب pm2 restart nassaj-dev --update-env ينفّذه المستخدم بطرفيته (حارس العميل)؛ env ‏WEBAUTHN_* مضبوطة في ecosystem.config.cjs. قيد معروف بعد T-24: لا مدخل واجهة للبحث النصي العابر للمشاريع (endpoint الخادم باقٍ؛ لوحة الأوامر تبحث في المشروع الحالي فقط) — مرشّح لإعادة الإتاحة. تفاصيل: docs/workitems/PHASE-MU.md (قسم دفعة 2026-06-10).",
   "phases": [
@@ -4449,6 +4449,44 @@
       "title": "بعد safe-restart لإصلاح B-172: إعادة تمريرة أرشفة خيوط subagent المتكررة (أي تفويض Codex جرى بين 2026-07-16 والنشر يجعل المزامِن القديم + backfill الإقلاع يُنشئ صفوفاً جديدة ظاهرة؛ الـ26 القديمة تبقى مخفية لأن createSession يحفظ isArchived عند التعارض — B-161)",
       "note": "أُنجز 2026-07-16 بعد safe-restart (الخادم online HTTP 200، لا انقطاع). الفحص كشف تلوّثاً **أوسع من Diwan**: 8 خيوط subagent ظاهرة إضافية على nassaj-dev وAlNuman-Booking-Engine (تواريخ 07-12..07-15، سابقة لتنظيف Diwan المحصور). تُحقّق أن جذر كلٍّ مسجّل وظاهر (6 آباء)، ثم أُرشفت الثمانية عكوسياً (نسخة db.sqlite.bak-t922-postrestart-20260716، UPDATE isArchived=1 داخل transaction، بلا DELETE). النتيجة: **0 خيط subagent ظاهر** على كل المشاريع، integrity=ok. الإصلاح الخادمي (B-172) حيّ الآن فلا تتكرر مستقبلاً.",
       "closed": "2026-07-16"
+    },
+    {
+      "id": "T-923",
+      "kind": "chore",
+      "phase": "P0",
+      "status": "done",
+      "owner": "architect",
+      "priority": "high",
+      "found": "2026-07-18",
+      "source": "طلب المالك: مقارنة نسّاج بآخر upstream ونقل ما يلزم فقط",
+      "title": "تحليل فجوة upstream ‏siteboon/claudecodeui من merge-base v1.32.0 ‏(10f721cf) إلى v1.36.3 ‏(27eaf014) — 119 commit غير دمجي",
+      "note": "النتيجة: ~48 بنداً مغطى محلياً (كل الأمنيات: #964 عبر path-guard ‏T-844/T-845، #971 عبر B-163، #854، #827، #817)، ~50 غير منطبق (Electron/computer-use/docker/README)، عنقود بوابة الجلسات f5eac2ec ‏(~18 commit) متعارض بنيوياً مع طبقة المرايا/العزل — ADR-061. للنقل: أ-1 (T-924) + قراران للمالك (T-925)",
+      "closed": "2026-07-18"
+    },
+    {
+      "id": "T-924",
+      "kind": "feature",
+      "phase": "P0",
+      "status": "done",
+      "owner": "backend-dev",
+      "priority": "medium",
+      "found": "2026-07-18",
+      "source": "T-923 بند أ-1 — upstream ‏283b5586",
+      "title": "تقسية كشف خيوط Codex subagent بإشارة thread_source/source.subagent الوصفية كمحدِّد أولي (heuristic العنوان يبقى fallback) مع الإبقاء على سلوك الطيّ تحت الأم — تحسين على B-172",
+      "closed": "2026-07-18",
+      "note": "نُفّذ 676b56bb: الإشارة الوصفية thread_source و/أو source ككائن بمفتاح subagent تحسم وحدها؛ back-references صارت fallback للـrollouts القديمة فقط (يمنع مصادرة fork يدوي حديث). الطيّ تحت الأم باقٍ. تحقّق المنسّق بنفسه: dedup 9/9 + isolation 4/4 + tsc نظيف. يلزم build:server + safe-restart للتفعيل."
+    },
+    {
+      "id": "T-925",
+      "kind": "decision",
+      "phase": "P0",
+      "status": "open",
+      "owner": "owner",
+      "priority": "medium",
+      "found": "2026-07-18",
+      "due": "2026-07-25",
+      "source": "T-923 بنود أ-2/أ-3/د",
+      "title": "حزمة قرارات مالك لفجوة upstream: (1) ميزة إدارة مهارات المزوّد في الإعدادات #909/#942 — إعادة تنفيذ يدوية بشرط مواءمة عزل الاشتراك لكل مستخدم، خطر متوسط-عالٍ؛ (2) تحذير «حُدِّث ولم يُعَد تشغيله» #898 — منخفض القيمة مع safe-restart، مؤجَّل افتراضياً؛ (3) تصديق ADR-061 (التباعد المقصود عن بوابة جلسات upstream)"
     }
   ],
   "issues": [
@@ -6505,6 +6543,13 @@
       "date": "2026-07-02",
       "title": "ترحيل اتجاهية مكوّنات التطبيق إلى خصائص منطقية (RTL logical properties) — تصحيح: آلية الجذر سليمة، العطل ترقيع LTR فيزيائي",
       "rationale": "تصحيح فرضية B-123 بعد تدقيق architect المؤسَّس على الكود + تحقّق المنسّق: يوجد كاتب للجذر (RtlContext.jsx:58، منذ 281c4aee) مربوط بـlanguageChanged، والاتجاه دالة اللغة (المبدّل اليدوي أُزيل 2026-06-16؛ تعليق languages.js:10-11 متقادم ويُصحَّح). الجذر ظهر ltr لأن الإنجليزية هي النشطة الافتراضية — لا عطل. العطل الحقيقي: ~85 موضعاً في مكوّنات التطبيق ترقّع فيزيائياً بافتراض LTR (ml/mr, left/right, text-left, أدراج translate-x، مفاتيح toggle) فتنكسر في الوضع العربي. القرار (اعتمده المالك 2026-07-03، خيار 1): ترحيل كامل إلى خصائص منطقية عبر tailwindcss-rtl المركَّب أصلاً، على 3 طبقات قابلة للنشر مستقلة: (1) T4/T5/T6 استبدال منطقي آمن، (2) T2/T3 تموضع absolute وشارات، (3) T1/T7 أدراج ومفاتيح يدوياً بمتغيّر rtl:. لا تُلمس: RtlContext/i18n/index.css/الويكي/المصادقة/الفئة ج (عزل LTR التقني). أثر صفري على الإنجليزية. التراجع: git revert لكل طبقة."
+    },
+    {
+      "id": "ADR-061",
+      "status": "proposed",
+      "date": "2026-07-18",
+      "title": "تباعُد مقصود عن عنقود «بوابة الجلسات الموحّدة» upstream ‏(f5eac2ec وتوابعه، v1.35–v1.36)",
+      "rationale": "العنقود (~18 commit) يعيد كتابة chat-websocket.service وuseSessionStore/useProjectsState/useChatRealtimeHandlers — المنطقة الأعمق تشعّباً في نسّاج (28 commit محلياً على الخدمة + طبقة websocket-writer للمرايا + presence + عزل PTY لكل مستخدم + رؤية الجلسات ADR-052 + drain/safe-restart) ولا وجود لهذه الطبقة upstream. النقل = حل تعارضات ~40 ملفاً بخطر عالٍ على استقرار مثبَّت حيّاً (حوادث B-95/B-103/reconcile)، وما يعالجه العنقود عالجه نسّاج بمنطقه. القرار الموصى به: لا نقل ككتلة؛ علة محددة يصلحها تابع صغير (مثل 3bbb42c2 توحيد الطوابع أو 56b2e140 استرجاع الأذونات المعلّقة) تُعالَج إصلاحاً نسّاجياً مستقلاً عند ظهورها. التصديق ضمن T-925."
     }
   ],
   "_note_session_51db2a0a": "ملخص جلسة 51db2a0a (2026-06-25): ثلاث مخرجات. (1) مؤشّر «Workflow شغّال» بالواجهة — أُصلح df79c723 (claude-sdk يبثّ pendingWorkflows + useChatRealtimeHandlers يُبقي isLoading)، حيّ. (2) إدارة المستخدمين/مفتاح الوصول «المعطّلة» — لا خلل كودي (الـAPIs الثلاثة تعمل)؛ السبب توكن بائت→401 صامت؛ موثّق T-216. أُصلح في نفس الجلسة معترض 401 (6fa3f66c) وpwd_iat WS (8c3c0c88). (3) الدخول الموحّد — قرار الوكلاء النهائي Zitadel (تغيّر عن Pocket-ID→Authentik→Zitadel، ADR-045/046)؛ خطة P-IDP-0..5 = T-206..T-212؛ كود نسّاج RP منجَز 96c4af44 (T-210)؛ متبقٍّ للمالك: VM Zitadel على ibrahim-proxmox (T-207/P-IDP-1) + TLS Tailscale (T-208). كل إصلاحات الجلسة في integration/publish ومرفوعة."
